@@ -1,0 +1,2 @@
+# game-dialogue
+Symmetric dialogues.
