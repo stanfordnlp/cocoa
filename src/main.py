@@ -11,7 +11,7 @@ from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
-from model.nn_models import add_model_arguments, RNNLM
+from model.encdec import add_model_arguments, EncoderDecoder
 from model.learner import add_learner_arguments, Learner
 
 if __name__ == '__main__':
@@ -33,8 +33,8 @@ if __name__ == '__main__':
     data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon)
     vocab = data_generator.vocab
 
-    if args.model == 'rnnlm':
-        model = RNNLM(vocab.size, args.vocab_embed_size, args.rnn_hidden_size, args.rnn_type)
+    if args.model == 'encdec':
+        model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
     else:
         raise ValueError('Unknown model')
 

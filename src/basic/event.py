@@ -7,6 +7,8 @@ class Event(object):
         self.time = time
         self.action = action
         self.data = data
+        # tokenize, entity linking
+        self.processed_data = None
 
     @staticmethod
     def from_dict(raw):

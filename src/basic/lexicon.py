@@ -103,16 +103,16 @@ class Lexicon(object):
         self.load_entities()
         self.compute_synonyms()
         self.add_numbers()
-        print 'Ambiguous entities:'
-        for phrase, entities in self.lexicon.items():
-            if len(entities) > 1:
-                print phrase, entities
+        #print 'Ambiguous entities:'
+        #for phrase, entities in self.lexicon.items():
+        #    if len(entities) > 1:
+        #        print phrase, entities
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
 
     def load_entities(self):
-        for type_, values in self.schema['values'].iteritems():
+        for type_, values in self.schema.values.iteritems():
             for value in values:
-                self._add_entity(type_, values)
+                self._add_entity(type_, value.lower())
 
     def _add_entity(self, type, entity):
         # Keep track of number of times words in this entity shows up
@@ -171,7 +171,7 @@ class Lexicon(object):
             for phrase in [str(i), n]:
                 self.lexicon[phrase].append((str(i), 'number'))
 
-    def entitylink(self, raw_tokens, lexicon):
+    def entitylink(self, raw_tokens):
         '''
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]

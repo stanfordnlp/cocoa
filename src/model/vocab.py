@@ -1,8 +1,11 @@
 class Vocabulary(object):
 
+    UNK = 'UNK'
+
     def __init__(self):
         self.word_to_ind = {}
         self.size = 0
+        self._add_word(self.UNK)
 
     def add_words(self, words):
         '''
@@ -27,7 +30,7 @@ class Vocabulary(object):
         if word in self.word_to_ind:
             return self.word_to_ind[word]
         else:
-            return self.word_to_ind[Vocabulary.UNK]
+            return self.word_to_ind[self.UNK]
 
     def to_word(self, ind):
         return self.ind_to_word[ind]

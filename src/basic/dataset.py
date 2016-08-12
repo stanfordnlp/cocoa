@@ -2,6 +2,9 @@
 Data structures for events, examples, and datasets.
 '''
 
+from util import read_json
+from event import Event
+
 class Example(object):
     '''
     An example is a dialogue grounded in a scenario, has a set of events, and has some reward at the end.
@@ -19,11 +22,11 @@ class Example(object):
     @staticmethod
     def from_dict(scenario_db, raw):
         scenario = scenario_db.get(raw['scenario_uuid'])
-        uuid = raw['uuid']
+        uuid = raw['scenario_uuid']
         events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
-        return Dialogue(scenario, uuid, events, outcome)
-         
+        return Example(scenario, uuid, events, outcome)
+
     def to_dict(self):
         return {
             'scenario_uuid': self.scenario.uuid,
