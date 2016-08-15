@@ -7,7 +7,7 @@ class SimpleSystem(System):
     The simple system implements a bot that
     - greets
     - generates attributes in decreasing order
-    - generates 
+    - generates
     - replies 'no' or 'yes' to partner's repsonse
     - selects the friend
     TODO
@@ -25,10 +25,17 @@ class SimpleSystem(System):
 
         # Set when partner mentions the name of a friend (note: assume name only shows up once)
         self.matched_item = None
+        self.selected = False
 
     def send(self):
         if random.random() < 0.5:  # Wait randomly
             return None
+
+        # We found a match (note that this doesn't always work)
+        if self.matched_item and not self.selected:
+            self.selected = True
+            return self.select(self.matched_item)
+
         if sum(self.weights) == 0:
             return None
 
@@ -37,10 +44,6 @@ class SimpleSystem(System):
             self.said_hi = True
             text = random.choice(['hi', 'hello'])
             return self.message(text)
-
-        # We found a match (note that this doesn't always work)
-        if self.matched_item:
-            return self.select(self.matched_item)
 
         # Ask the highest weight name
         index = sorted(range(len(self.weights)), key=lambda i : -self.weights[i])[0]
@@ -51,6 +54,7 @@ class SimpleSystem(System):
     def receive(self, event):
         if event.action == 'message':
             for item in self.kb.items:
+                # NOTE: this assumes that names are unique and consistent in the KB!
                 if item[self.name_attr] in event.data:
                     self.matched_item = item
         elif event.action == 'select':

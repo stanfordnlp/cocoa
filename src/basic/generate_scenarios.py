@@ -40,7 +40,7 @@ def generate_scenario(schema):
     match = None
     for i in range(100000):
         if match and len(agent_items[0]) >= num_items:
-            break 
+            break
 
         for agent in agents:
             # Create the item (and its hash)
@@ -76,9 +76,28 @@ def generate_scenario(schema):
     for agent in agents:
         swap(agent_items[agent], 0, match[agent])
 
-    # Truncate to num_items
+    # Truncate to num_items and enforce uniqueness
+    new_agent_items = ([], [])
     for agent in agents:
-        del agent_items[agent][num_items:]
+        unique_attrs = {attr.name: set() for attr in schema.attributes if attr.unique}
+        for item in agent_items[agent]:
+            unique = True
+            for attr, values in unique_attrs.iteritems():
+                if item[attr] in values:
+                    unique = False
+                    break
+            if not unique:
+                continue
+            else:
+                for attr, values in unique_attrs.iteritems():
+                    values.add(item[attr])
+                new_agent_items[agent].append(item)
+                if len(new_agent_items[agent]) == num_items:
+                    break
+    agent_items = new_agent_items
+    for agent in agents:
+        if len(agent_items[agent]) != num_items:
+            raise Exception('Failed to generate enough items')
 
     # Shuffle items
     for agent in agents:
@@ -92,7 +111,7 @@ def generate_scenario(schema):
                 matches.append((i, j))
     if len(matches) == 0:
         raise Exception('Internal error: expected at least one match, but got: %s' % matches)
-    
+
     # Create the scenario
     kbs = [KB(schema, items) for items in agent_items]
     scenario = Scenario(generate_uuid('S'), kbs)

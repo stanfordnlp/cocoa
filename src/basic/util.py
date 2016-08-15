@@ -1,6 +1,7 @@
 import random
 import json
 import string
+import cPickle as pickle
 
 def random_multinomial(probs):
     target = random.random()
@@ -24,3 +25,11 @@ def read_json(path):
 def write_json(raw, path):
     with open(path, 'w') as out:
         print >>out, json.dumps(raw)
+
+def read_pickle(path):
+    with open(path, 'rb') as fin:
+        return pickle.load(fin)
+
+def write_pickle(obj, path):
+    with open(path, 'wb') as fout:
+        pickle.dump(obj, fout)

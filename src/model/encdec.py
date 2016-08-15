@@ -8,7 +8,7 @@ import numpy as np
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
-    parser.add_argument('--rnn-size', type=int, default=50, help='Dimension of hidden units of RNN')
+    parser.add_argument('--rnn-size', type=int, default=128, help='Dimension of hidden units of RNN')
     parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
     parser.add_argument('--num-layers', default=1, help='Number of RNN layers')
 
@@ -22,6 +22,7 @@ class EncoderDecoder(object):
         # NOTE: only support single-instance training now
         # due to tf.cond(scalar,..)
         self.batch_size = 1
+        self.rnn_type = rnn_type
 
         with tf.variable_scope('encdec'):
             # Create the internal multi-layer recurrent cell
@@ -29,7 +30,7 @@ class EncoderDecoder(object):
                 else recurrent_cell[rnn_type](rnn_size)
             self.cell = single_cell if num_layers == 1 \
                 else tf.nn.rnn_cell.MultiRNNCell([single_cell] * num_layers)
-            self.initial_state = self.cell.zero_state(self.batch_size, tf.float32)
+            self.init_state = self.cell.zero_state(self.batch_size, tf.float32)
 
             # Create input variables
             self.input_data = tf.placeholder(tf.int32, shape=[self.batch_size, None])
@@ -43,7 +44,7 @@ class EncoderDecoder(object):
 
             # Encode with embedding
             inputs = tf.nn.embedding_lookup(embedding, self.input_data)
-            rnn_outputs, final_state = tf.nn.dynamic_rnn(self.cell, inputs, initial_state=self.initial_state)
+            rnn_outputs, self.final_state = tf.nn.dynamic_rnn(self.cell, inputs, initial_state=self.init_state)
 
             # Conditional decoding (only when write is true)
             def cond_output((h, write)):
@@ -89,7 +90,43 @@ class EncoderDecoder(object):
             self.seq_loss = tf.map_fn(cond_loss,
                     (self.outputs, time_major(self.targets, 2), iswrite),
                     dtype=tf.float32)
-            self.loss = tf.reduce_sum(self.seq_loss) / self.batch_size / tf.to_float(tf.shape(self.outputs)[0])
+            self.loss = tf.reduce_sum(self.seq_loss) / self.batch_size / tf.to_float(tf.shape(self.seq_loss)[0])
+
+    def generate(self, sess, inputs, stop_symbols, max_len=None, init_state=None):
+        # Encode inputs
+        feed_dict = {}
+        if init_state:
+            feed_dict[self.init_state] = init_state
+        if inputs.shape[1] > 1:
+            # Read until the second last token, the last one will
+            # be used as the first input during decoding
+            feed_dict[self.input_data] = inputs[:, :-1].reshape(1, -1)
+            [state] = sess.run([self.final_state], feed_dict=feed_dict)
+        else:
+            state = init_state
+
+        # Decode outputs
+        iswrite = np.ones([1, 1]).astype(np.bool_)  # True
+        preds = []
+        # Last token in the inputs
+        input_ = inputs[:, -1].reshape(-1, 1)
+        while True:
+            feed_dict = {self.input_data: input_,
+                    self.input_iswrite: iswrite}
+            if state is not None:
+                feed_dict[self.init_state] = state
+            # output is logits of shape seq_len x batch_size x vocab_size
+            # Here both seq_len and batch_size is 1
+            state, output = sess.run([self.final_state, self.outputs], feed_dict=feed_dict)
+            # pred is of shape (1, 1)
+            pred = np.argmax(output, axis=2)
+            input_ = pred
+            pred = int(pred)
+            preds.append(pred)
+            if pred in stop_symbols or len(preds) == max_len:
+                break
+        return preds, state
+
 
 # test
 if __name__ == '__main__':
@@ -97,7 +134,7 @@ if __name__ == '__main__':
     rnn_size = 10
     batch_size = 1
     seq_len = 4
-    model = EncoderDecoder(vocab_size, rnn_size)
+    model = EncoderDecoder(vocab_size, rnn_size, 'rnn')
     data = np.random.randint(vocab_size, size=(batch_size, seq_len+1))
     x = data[:,:-1]
     y = data[:,1:]
@@ -113,5 +150,6 @@ if __name__ == '__main__':
         print 'output:\n', outputs.shape, outputs
         print 'seq_loss:\n', seq_loss
         print 'loss:\n', loss
-
+        preds, state = model.generate(sess, x, (5,), 10)
+        print 'preds:\n', preds
 

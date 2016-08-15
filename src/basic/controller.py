@@ -18,6 +18,7 @@ class Controller(object):
         time = 0
         selections = [None, None]
         reward = 0
+        game_over = False
         for it in range(100):
             for agent, system in enumerate(self.systems):
                 event = system.send()
@@ -35,9 +36,12 @@ class Controller(object):
                     if agent != partner:
                         other_system.receive(event)
 
-            # Game is over when the two selections are the same
-            if selections[0] is not None and selections[0] == selections[1]:
-                reward = 1
+                # Game is over when the two selections are the same
+                if selections[0] is not None and selections[0] == selections[1]:
+                    reward = 1
+                    game_over = True
+                    break
+            if game_over:
                 break
 
         uuid = generate_uuid('E')
