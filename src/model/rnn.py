@@ -13,12 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""RNN helpers for TensorFlow models."""
-
-'''
-NOTE: modified to facilitate dynamic input size.
-- Removed requirement on fully-defined shape (Ln 905)
-'''
+"""RNN helpers for TensorFlow models. NOTE: modified to facilitate dynamic input size. Removed requirement on fully-defined shape (Ln 907)"""
 
 #from __future__ import absolute_import
 #from __future__ import division
@@ -527,17 +522,18 @@ def bidirectional_rnn(cell_fw, cell_bw, inputs,
   if not inputs:
     raise ValueError("inputs must not be empty")
 
-  name = scope or "BiRNN"
-  # Forward direction
-  with vs.variable_scope(name + "_FW") as fw_scope:
-    output_fw, output_state_fw = rnn(cell_fw, inputs, initial_state_fw, dtype,
-                                     sequence_length, scope=fw_scope)
+  with vs.variable_scope(scope or "BiRNN"):
+    # Forward direction
+    with vs.variable_scope("FW") as fw_scope:
+      output_fw, output_state_fw = rnn(cell_fw, inputs, initial_state_fw, dtype,
+                                       sequence_length, scope=fw_scope)
 
-  # Backward direction
-  with vs.variable_scope(name + "_BW") as bw_scope:
-    reversed_inputs = _reverse_seq(inputs, sequence_length)
-    tmp, output_state_bw = rnn(cell_bw, reversed_inputs, initial_state_bw,
-                               dtype, sequence_length, scope=bw_scope)
+    # Backward direction
+    with vs.variable_scope("BW") as bw_scope:
+      reversed_inputs = _reverse_seq(inputs, sequence_length)
+      tmp, output_state_bw = rnn(cell_bw, reversed_inputs, initial_state_bw,
+                                 dtype, sequence_length, scope=bw_scope)
+
   output_bw = _reverse_seq(tmp, sequence_length)
   # Concat each of the forward/backward outputs
   flat_output_fw = nest.flatten(output_fw)
@@ -640,30 +636,33 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
   if not isinstance(cell_bw, rnn_cell.RNNCell):
     raise TypeError("cell_bw must be an instance of RNNCell")
 
-  name = scope or "BiRNN"
-  # Forward direction
-  with vs.variable_scope(name + "_FW") as fw_scope:
-    output_fw, output_state_fw = dynamic_rnn(
-        cell=cell_fw, inputs=inputs, sequence_length=sequence_length,
-        initial_state=initial_state_fw, dtype=dtype,
-        parallel_iterations=parallel_iterations, swap_memory=swap_memory,
-        time_major=time_major, scope=fw_scope)
-  # Backward direction
-  if not time_major:
-    time_dim = 1
-    batch_dim = 0
-  else:
-    time_dim = 0
-    batch_dim = 1
-  with vs.variable_scope(name + "_BW") as bw_scope:
-    inputs_reverse = array_ops.reverse_sequence(
-        input=inputs, seq_lengths=sequence_length,
-        seq_dim=time_dim, batch_dim=batch_dim)
-    tmp, output_state_bw = dynamic_rnn(
-        cell=cell_bw, inputs=inputs_reverse, sequence_length=sequence_length,
-        initial_state=initial_state_bw, dtype=dtype,
-        parallel_iterations=parallel_iterations, swap_memory=swap_memory,
-        time_major=time_major, scope=bw_scope)
+  with vs.variable_scope(scope or "BiRNN"):
+    # Forward direction
+    with vs.variable_scope("FW") as fw_scope:
+      output_fw, output_state_fw = dynamic_rnn(
+          cell=cell_fw, inputs=inputs, sequence_length=sequence_length,
+          initial_state=initial_state_fw, dtype=dtype,
+          parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+          time_major=time_major, scope=fw_scope)
+
+    # Backward direction
+    if not time_major:
+      time_dim = 1
+      batch_dim = 0
+    else:
+      time_dim = 0
+      batch_dim = 1
+
+    with vs.variable_scope("BW") as bw_scope:
+      inputs_reverse = array_ops.reverse_sequence(
+          input=inputs, seq_lengths=sequence_length,
+          seq_dim=time_dim, batch_dim=batch_dim)
+      tmp, output_state_bw = dynamic_rnn(
+          cell=cell_bw, inputs=inputs_reverse, sequence_length=sequence_length,
+          initial_state=initial_state_bw, dtype=dtype,
+          parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+          time_major=time_major, scope=bw_scope)
+
   output_bw = array_ops.reverse_sequence(
       input=tmp, seq_lengths=sequence_length,
       seq_dim=time_dim, batch_dim=batch_dim)
@@ -691,8 +690,9 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
   of time steps and batch size, or a (possibly nested) tuple of such tensors,
   matching the nested structure of `cell.output_size`.
 
-  The parameter `sequence_length` is required and dynamic calculation is
-  automatically performed.
+  The parameter `sequence_length` is optional and is used to copy-through state
+  and zero-out outputs when past a batch element's sequence length. So it's more
+  for correctness than performance, unlike in rnn().
 
   Args:
     cell: An instance of RNNCell.
@@ -935,7 +935,7 @@ def _dynamic_rnn_loop(cell,
 
   time = array_ops.constant(0, dtype=dtypes.int32, name="time")
 
-  with ops.op_scope([], "dynamic_rnn") as scope:
+  with ops.name_scope("dynamic_rnn") as scope:
     base_name = scope
 
   def _create_ta(name, dtype):

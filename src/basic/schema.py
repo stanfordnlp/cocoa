@@ -25,3 +25,15 @@ class Schema(object):
         self.values = raw['values']
         # List of attributes (e.g., place_of_birth)
         self.attributes = [Attribute.from_json(a) for a in raw['attributes']]
+
+    def get_entities(self):
+        '''
+        Return a dict {value: type} of all entities.
+        '''
+        return {value: type_ for type_, values in self.values.iteritems() for value in values}
+
+    def get_attributes(self):
+        '''
+        Return a dict {name: value_type} of all attributes.
+        '''
+        return {attr.name: attr.value_type for attr in self.attributes}

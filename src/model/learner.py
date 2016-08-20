@@ -62,20 +62,45 @@ class Learner(object):
         test_data = self.data.generator_train(split)
         summary_map = {}
         for i in xrange(2*self.data.num_examples[split]):
-            inputs, targets, iswrite = test_data.next()
-            feed_dict = {self.model.input_data: inputs,
-                    self.model.input_iswrite: iswrite,
-                    self.model.targets: targets}
+            feed_dict = self._get_feed_dict(test_data)
             output, loss = sess.run([self.model.outputs, self.model.loss], feed_dict=feed_dict)
             if self.verbose:
-                print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
-                print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
                 pred = np.argmax(output, axis=2).reshape(1, -1)
                 print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
-                print 'WRITE:', iswrite
                 print 'LOSS:', loss
             logstats.update_summary_map(summary_map, {'loss': loss})
         return summary_map['loss']['mean']
+
+    def _get_feed_dict(self, data):
+        '''
+        Take a data generator, return a feed_dict as input to the model.
+        '''
+        agent, kb, inputs, targets, iswrite = data.next()
+        feed_dict = {self.model.input_data: inputs,
+                self.model.input_iswrite: iswrite,
+                self.model.targets: targets}
+        if hasattr(self.model, 'kg'):
+            self.model.kg.load(kb)
+            feed_dict[self.model.kg.input_data] = self.model.kg.paths
+        if self.verbose:
+            print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
+            print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
+            print 'WRITE:', iswrite
+        return feed_dict
+
+    def _learn_step(self, data, sess, summary_map):
+        feed_dict = self._get_feed_dict(data)
+        _, output, loss, gn, cgn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm, self.clipped_grad_norm], feed_dict=feed_dict)
+        if self.verbose:
+            pred = np.argmax(output, axis=2).reshape(1, -1)
+            print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
+            print 'LOSS:', loss
+
+        logstats.update_summary_map(summary_map, \
+                {'loss': loss, \
+                'grad_norm': gn, \
+                'clipped_grad_norm': cgn, \
+                })
 
     def learn(self, args, ckpt=None, split='train'):
         tvars = tf.trainable_variables()
@@ -90,11 +115,11 @@ class Learner(object):
             clipped_grads_and_vars = [(tf.clip_by_value(grad, min_grad, max_grad), var) for grad, var in grads_and_vars]
         else:
             clipped_grads_and_vars = grads_and_vars
-        grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
-        clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
+        self.grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
+        self.clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
 
         # Optimize
-        train_op = optimizer.apply_gradients(clipped_grads_and_vars)
+        self.train_op = optimizer.apply_gradients(clipped_grads_and_vars)
 
         # Training loop
         train_data = self.data.generator_train(split)
@@ -115,25 +140,7 @@ class Learner(object):
             for epoch in xrange(args.max_epochs):
                 print '================== Epoch %d ==================' % (epoch+1)
                 for i in xrange(num_per_epoch):
-                    inputs, targets, iswrite = train_data.next()
-                    feed_dict = {self.model.input_data: inputs,
-                            self.model.input_iswrite: iswrite,
-                            self.model.targets: targets}
-                    _, output, loss, gn, cgn = sess.run([train_op, self.model.outputs, self.model.loss, grad_norm, clipped_grad_norm], feed_dict=feed_dict)
-                    if self.verbose:
-                        print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
-                        print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
-                        pred = np.argmax(output, axis=2).reshape(1, -1)
-                        print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
-                        print 'WRITE:', iswrite
-                        print 'LOSS:', loss
-
-                    logstats.update_summary_map(summary_map, \
-                            {'loss': loss, \
-                            'grad_norm': gn, \
-                            'clipped_grad_norm': cgn, \
-                            })
-
+                    self._learn_step(train_data, sess, summary_map)
                     step += 1
                     if step % args.print_every == 0:
                         print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))

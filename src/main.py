@@ -12,8 +12,9 @@ from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
-from model.encdec import add_model_arguments, EncoderDecoder
+from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder
 from model.learner import add_learner_arguments, Learner
+from model.kg_embed import add_kg_arguments, CBOWGraph
 from lib import logstats
 
 if __name__ == '__main__':
@@ -25,6 +26,7 @@ if __name__ == '__main__':
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
     add_model_arguments(parser)
+    add_kg_arguments(parser)
     add_learner_arguments(parser)
     args = parser.parse_args()
 
@@ -79,6 +81,12 @@ if __name__ == '__main__':
 
     if args.model == 'encdec':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
+    elif args.model == 'attn-encdec':
+        if args.kg_model == 'cbow':
+            kg = CBOWGraph(schema, args.kg_embed_size)
+        else:
+            raise ValueError('Unknown KG model')
+        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers)
     else:
         raise ValueError('Unknown model')
 

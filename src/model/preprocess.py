@@ -117,6 +117,7 @@ class DataGenerator(object):
                 random.shuffle(inds)
             for ind in inds:
                 ex = examples[ind]
+                kbs = ex.scenario.kbs
                 # tokens: END_TURN u1 END_UTTERANCE u2 ... END_TURN ...
                 tokens = []
                 curr_message = [START]  # tokens in one turn
@@ -134,9 +135,9 @@ class DataGenerator(object):
                 inputs = np.asarray(tokens[:-1], dtype=dtype).reshape(1, n)
                 targets = np.asarray(tokens[1:], dtype=dtype).reshape(1, n)
                 # write when agent == 0
-                yield inputs, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)
+                yield 0, kbs[0], inputs, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)
                 # write when agent == 1
-                yield inputs, targets, np.asarray([False if w else True for w in write[1:]], dtype=np.bool_).reshape(1, n)
+                yield 1, kbs[1], inputs, targets, np.asarray([False if w else True for w in write[1:]], dtype=np.bool_).reshape(1, n)
 
 # test
 if __name__ == '__main__':
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     gen = data_generator.generator_train('train')
     print '=========== train data ============='
     for i in range(1):
-        inputs, targets, iswrite = gen.next()
+        agent, kb, inputs, targets, iswrite = gen.next()
         print 'INPUTS:\n', inputs, '\n', map(data_generator.vocab.to_word, list(inputs[0]))
         print 'TARGETS:\n', targets, '\n', map(data_generator.vocab.to_word, list(targets[0]))
         print 'WRITE:', iswrite

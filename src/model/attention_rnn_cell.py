@@ -16,6 +16,10 @@ from tensorflow.python.ops.rnn_cell import _linear as linear
 from tensorflow.python.ops import variable_scope as vs
 
 class AttnRNNCell(tf.nn.rnn_cell.RNNCell):
+    '''
+    Abstract class for a rnn cell with attention mechanism.
+    Derived class should follow signatures in RNNCell.
+    '''
     def __init__(self, num_units, context_size, input_size=None, output_size=None, num_layers=1, activation=tanh):
         '''
         input_size: projected size of input + attention, feed to rnn
