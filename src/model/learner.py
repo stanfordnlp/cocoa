@@ -21,6 +21,7 @@ def add_learner_arguments(parser):
 
 optim = {'adagrad': tf.train.AdagradOptimizer,
          'sgd': tf.train.GradientDescentOptimizer,
+         'adam': tf.train.AdamOptimizer,
         }
 
 class Learner(object):

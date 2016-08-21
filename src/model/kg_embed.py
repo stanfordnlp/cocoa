@@ -4,7 +4,6 @@ Knowledge graph embedding models that provide context during generation.
 
 from itertools import chain
 import tensorflow as tf
-import sys
 
 def add_kg_arguments(parser):
     parser.add_argument('--kg-model', default='cbow', help='Model name {cbow}')
@@ -31,8 +30,6 @@ class Graph(object):
 
         self.embed_size = embed_size
         self.build_model(scope)
-
-        self.create = False
 
     def load(self, kb):
         '''
@@ -66,28 +63,15 @@ class CBOWGraph(Graph):
         CBOW embedding model.
         '''
         with tf.variable_scope(scope or type(self).__name__):
-            self.embedding  = tf.get_variable('embedding', [self.label_size, self.embed_size])
+            #self.embedding  = tf.get_variable('embedding', [self.label_size, self.embed_size])
             # Input is a list of paths: n x path_len
             self.input_data = tf.placeholder(tf.int32, shape=[None, self.path_len])
-            # CBOW
-            inputs = tf.nn.embedding_lookup(self.embedding, self.input_data)  # n x path_len x embed_size
-            self.context = tf.reduce_sum(inputs, 1)  # n x embed_size
-            # NOTE: batch_size = 1!
-            # context: batch_size x context_len x embed_size
-            self.context = tf.expand_dims(self.context, 0)
-
-    def get_context(self, scope=None):
-        embedding  = tf.Variable(tf.random_uniform([self.label_size, self.embed_size]), dtype=tf.float32)
-        # CBOW
-        inputs = tf.nn.embedding_lookup(embedding, self.input_data)  # n x path_len x embed_size
-        context = tf.reduce_sum(inputs, 1)  # n x embed_size
-        # NOTE: batch_size = 1!
-        # context: batch_size x context_len x embed_size
-        context = tf.expand_dims(context, 0)
-        print 'embed shape:', embedding.get_shape()
-        print 'input shape:', inputs.get_shape()
-        print 'context shape:', context.get_shape()
-        return context
+            ## CBOW
+            #inputs = tf.nn.embedding_lookup(self.embedding, self.input_data)  # n x path_len x embed_size
+            #self.context = tf.reduce_sum(inputs, 1)  # n x embed_size
+            ## NOTE: batch_size = 1!
+            ## context: batch_size x context_len x embed_size
+            #self.context = tf.expand_dims(self.context, 0)
 
 # test
 if __name__ == '__main__':

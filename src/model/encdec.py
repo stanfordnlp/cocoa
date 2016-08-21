@@ -8,8 +8,8 @@ from __future__ import division
 
 import tensorflow as tf
 import numpy as np
-from model.attention_rnn_cell import AttnBasicRNNCell
-from model.rnn import dynamic_rnn
+from model.attention_rnn_cell import AttnRNNCell
+from tensorflow.python.util import nest
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -34,7 +34,7 @@ class EncoderDecoder(object):
                       'lstm': tf.nn.rnn_cell.LSTMCell,
                      }
 
-    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, scope=None):
+    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, scope=None, para_iter=10):
         # NOTE: only support single-instance training now
         # due to tf.cond(scalar,..)
         self.batch_size = 1
@@ -43,9 +43,12 @@ class EncoderDecoder(object):
         self.rnn_size = rnn_size
         self.num_layers = num_layers
 
+        # for scan
+        self.parallel_iteration = para_iter
+
         self.build_model(scope)
 
-    def build_rnn_cell(self):
+    def _build_rnn_cell(self):
         '''
         Create the internal multi-layer recurrent cell and specify the initial state.
         '''
@@ -62,7 +65,7 @@ class EncoderDecoder(object):
 
         return cell
 
-    def build_rnn_inputs(self):
+    def _build_rnn_inputs(self):
         '''
         Create input data placeholder(s), inputs to rnn and
         needed variables (e.g., for embedding).
@@ -72,22 +75,33 @@ class EncoderDecoder(object):
         rnn_inputs = tf.nn.embedding_lookup(embedding, self.input_data)
         return time_major(rnn_inputs, 3)
 
+    def _get_final_state(self, states):
+        '''
+        Return the final state from tf.scan outputs.
+        '''
+        flat_states = nest.flatten(states)
+        last_ind = tf.shape(flat_states[0])[0] - 1
+        flat_last_states = [tf.nn.embedding_lookup(state, last_ind) for state in flat_states]
+        last_states = nest.pack_sequence_as(states, flat_last_states)
+        return last_states
+
     def build_model(self, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
-            cell = self.build_rnn_cell()
+            cell = self._build_rnn_cell()
 
             # Create input variables
-            inputs = self.build_rnn_inputs()
-            rnn_outputs, self.final_state = dynamic_rnn(cell, inputs, initial_state=self.init_state, time_major=True)
-            #rnn_outputs, self.final_state = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(tf.zeros([self.batch_size, cell.output_size]), self.init_state))
+            inputs = self._build_rnn_inputs()
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(tf.zeros([self.batch_size, cell.output_size]), self.init_state), parallel_iterations=self.parallel_iteration)
+            # Get last state
+            self.final_state = self._get_final_state(states)
 
             # Other variables
             self.input_iswrite = tf.placeholder(tf.bool, shape=[self.batch_size, None])
             self.targets = tf.placeholder(tf.int32, shape=[self.batch_size, None])
 
             # Create output parameters
-            self.w = tf.get_variable('output_w', [cell.output_size, self.vocab_size])
-            self.b = tf.get_variable('output_b', [self.vocab_size])
+            w = tf.get_variable('output_w', [cell.output_size, self.vocab_size])
+            b = tf.get_variable('output_b', [self.vocab_size])
 
             # Conditional decoding (only when write is true)
             def cond_output((h, write)):
@@ -97,7 +111,7 @@ class EncoderDecoder(object):
                 def enc():
                     return tf.constant(0, dtype=tf.float32, shape=[self.batch_size, self.vocab_size])
                 def dec():
-                    return tf.matmul(h, self.w) + self.b
+                    return tf.matmul(h, w) + b
                 return tf.cond(tf.identity(tf.reshape(write, [])), dec, enc)
 
             # Used as condition in tf.cond
@@ -176,6 +190,8 @@ class EncoderDecoder(object):
             if hasattr(self, 'kg'):
                 feed_dict[self.kg.input_data] = self.kg.paths
             outputs, seq_loss, loss = sess.run([self.outputs, self.seq_loss, model.loss], feed_dict=feed_dict)
+            #print 'last_ind:', last_ind
+            #print 'states:', states[0].shape, states[1].shape
             print 'is_write:\n', iswrite
             print 'output:\n', outputs.shape, outputs
             print 'seq_loss:\n', seq_loss
@@ -188,46 +204,36 @@ class AttnEncoderDecoder(EncoderDecoder):
     Encoder-decoder RNN with attention mechanism over a sequence with conditional write.
     Attention context is built from knowledge graph (Graph object).
     '''
-    # TODO: add gru and lstm
-    recurrent_cell = {'rnn': AttnBasicRNNCell,
-                     }
 
     def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1):
         '''
         kg is a Graph object used to compute knowledge graph embeddings.
         '''
-        # TODO: add input_size and output_size option
         self.context_size = kg.embed_size
         self.kg = kg
-        super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers)
+        # NOTE: parallel_iteration must be one due to TF issue
+        super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers, para_iter=1)
 
-    def build_rnn_cell(self):
-        cell = AttnEncoderDecoder.recurrent_cell[self.rnn_type](self.rnn_size, self.context_size, num_layers=self.num_layers)
+    def _build_rnn_cell(self):
+        cell = AttnRNNCell(self.rnn_size, self.rnn_type, num_layers=self.num_layers)
 
         # Initial state
-        # NOTE: kg.context use batch_size=1
-        self.init_context = self.kg.context  # 1 x context_len x context_size
-        self.init_state = cell.zero_state(self.init_context, self.batch_size, tf.float32)
+        # NOTE: kg.context assumes batch_size=1
+        #init_context = self.kg.context  # 1 x context_len x context_size
+        init_context = tf.ones([1, 70, 1])
+        self.init_state = cell.zero_state(init_context, self.batch_size, tf.float32)
 
         return cell
 
-    def build_rnn_inputs(self):
-        self.input_data = tf.placeholder(tf.int32, shape=[self.batch_size, None])
-        # Repeat context for input at each time step
-        context = tf.map_fn(lambda x: self.kg.get_context(), time_major(self.input_data, 2), dtype=tf.float32)  # seq_len x batch_size x context_len x context_size
-        embedding = tf.get_variable('embedding', [self.vocab_size, self.rnn_size])
-        inputs = tf.nn.embedding_lookup(embedding, self.input_data)
-        return (time_major(inputs, 3), context)
-
 # test
 if __name__ == '__main__':
-    #import sys
+    import sys
     # Simple encoder-decoder
     vocab_size = 5
     rnn_size = 10
     model = EncoderDecoder(vocab_size, rnn_size, 'rnn')
     model.test()
-    #sys.exit()
+    sys.exit()
 
     # KG + encoder-decoder
     import argparse
@@ -260,5 +266,5 @@ if __name__ == '__main__':
     context_size = 6
     kg = CBOWGraph(schema, context_size)
     kg.load(kb)
-    model = AttnEncoderDecoder(vocab_size, rnn_size, kg, 'rnn')
+    model = AttnEncoderDecoder(vocab_size, rnn_size, kg, 'lstm')
     model.test()
