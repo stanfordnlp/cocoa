@@ -3,6 +3,7 @@
 import argparse
 import random
 import numpy
+import os
 from util import random_multinomial, generate_uuid, write_json
 from schema import Schema
 from scenario_db import Scenario, ScenarioDB, add_scenario_arguments
@@ -73,6 +74,9 @@ for name in schema.values['person']:
     people.append(item)
 
 scenario_db = ScenarioDB([generate_scenario(schema) for i in range(args.num_scenarios)])
+output_dir = os.path.dirname(args.scenarios_path)
+if not os.path.isdir(output_dir):
+    os.mkdir(output_dir)
 write_json(scenario_db.to_dict(), args.scenarios_path)
 
 # Output a sample of what we've generated

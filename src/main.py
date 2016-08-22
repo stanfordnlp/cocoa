@@ -61,6 +61,8 @@ if __name__ == '__main__':
         vocab = read_pickle(vocab_path)
     else:
         # Save config
+        if not os.path.isdir(args.checkpoint):
+            os.mkdir(args.checkpoint)
         config_path = os.path.join(args.checkpoint, 'config.json')
         write_json(vars(args), config_path)
         vocab = None

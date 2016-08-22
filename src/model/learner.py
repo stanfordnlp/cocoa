@@ -130,7 +130,10 @@ class Learner(object):
         saver = tf.train.Saver()
         save_path = os.path.join(args.checkpoint, 'tf_model.ckpt')
         best_saver = tf.train.Saver(max_to_keep=1)
-        best_save_path = os.path.join(args.checkpoint+'-best', 'tf_model.ckpt')
+        best_checkpoint = args.checkpoint+'-best'
+        if not os.path.isdir(best_checkpoint):
+            os.mkdir(best_checkpoint)
+        best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
         best_bleu = -1
 
         with tf.Session() as sess:
