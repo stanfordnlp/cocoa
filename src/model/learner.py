@@ -3,6 +3,7 @@ Main learning loop.
 '''
 
 import os
+import time
 import tensorflow as tf
 from preprocess import END_TURN, END_UTTERANCE
 from lib.bleu import compute_bleu
@@ -18,6 +19,7 @@ def add_learner_arguments(parser):
     parser.add_argument('--print-every', type=int, default=1, help='Number of examples between printing training loss')
     parser.add_argument('--init-from', help='Initial parameters')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
+    parser.add_argument('--gpu', type=int, default=0, help='Use GPU or not')
 
 optim = {'adagrad': tf.train.AdagradOptimizer,
          'sgd': tf.train.GradientDescentOptimizer,
@@ -103,7 +105,7 @@ class Learner(object):
                 'clipped_grad_norm': cgn, \
                 })
 
-    def learn(self, args, ckpt=None, split='train'):
+    def learn(self, args, config, ckpt=None, split='train'):
         tvars = tf.trainable_variables()
 
         assert args.optimizer in optim.keys()
@@ -136,7 +138,7 @@ class Learner(object):
         best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
         best_bleu = -1
 
-        with tf.Session() as sess:
+        with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
             if args.init_from:
                 saver.restore(sess, ckpt.model_checkpoint_path)
@@ -144,7 +146,11 @@ class Learner(object):
             for epoch in xrange(args.max_epochs):
                 print '================== Epoch %d ==================' % (epoch+1)
                 for i in xrange(num_per_epoch):
+                    start_time = time.time()
                     self._learn_step(train_data, sess, summary_map)
+                    end_time = time.time()
+                    logstats.update_summary_map(summary_map, \
+                            {'time/batch': end_time - start_time})
                     step += 1
                     if step % args.print_every == 0:
                         print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))

@@ -92,14 +92,22 @@ if __name__ == '__main__':
     else:
         raise ValueError('Unknown model')
 
+    # Tensorflow config
+    if args.gpu == 0:
+        print 'GPU is disabled'
+        config = tf.ConfigProto(device_count = {'GPU': 0})
+    else:
+        config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+
     learner = Learner(data_generator, model, args.verbose)
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
-        with tf.Session() as sess:
+        with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
             saver = tf.train.Saver()
             saver.restore(sess, ckpt.model_checkpoint_path)
             bleu = learner.test_bleu(sess, 'test')
             print 'bleu=%.4f' % bleu
     else:
-        learner.learn(args, ckpt)
+        learner.learn(args, config, ckpt)
