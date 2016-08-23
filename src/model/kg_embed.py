@@ -38,6 +38,7 @@ class Graph(object):
         def path_to_ind(path):
             return tuple(map(lambda x: self.label_to_ind[x.lower()], path))
 
+        self.paths = []
         for item in kb.items:
             person = None
             person_attr_values = []
@@ -63,15 +64,15 @@ class CBOWGraph(Graph):
         CBOW embedding model.
         '''
         with tf.variable_scope(scope or type(self).__name__):
-            #self.embedding  = tf.get_variable('embedding', [self.label_size, self.embed_size])
+            embedding  = tf.get_variable('embedding', [self.label_size, self.embed_size])
             # Input is a list of paths: n x path_len
             self.input_data = tf.placeholder(tf.int32, shape=[None, self.path_len])
-            ## CBOW
-            #inputs = tf.nn.embedding_lookup(self.embedding, self.input_data)  # n x path_len x embed_size
-            #self.context = tf.reduce_sum(inputs, 1)  # n x embed_size
-            ## NOTE: batch_size = 1!
-            ## context: batch_size x context_len x embed_size
-            #self.context = tf.expand_dims(self.context, 0)
+            # CBOW
+            inputs = tf.nn.embedding_lookup(embedding, self.input_data)  # n x path_len x embed_size
+            self.context = tf.reduce_sum(inputs, 1)  # n x embed_size
+            # NOTE: batch_size = 1!
+            # context: batch_size x context_len x embed_size
+            self.context = tf.expand_dims(self.context, 0)
 
 # test
 if __name__ == '__main__':
