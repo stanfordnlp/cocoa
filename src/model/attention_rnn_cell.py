@@ -61,7 +61,7 @@ class AttnRNNCell(object):
         context: batch_size x context_len x context_size
         attn_size: vector size used for scoring each context
         '''
-        return tf.reduce_mean(context, 1)
+        #return tf.reduce_mean(context, 1)
         with tf.variable_scope('Attention'):
             # Projection vector
             v = tf.get_variable('AttnProject', [attn_size, 1])
@@ -88,10 +88,10 @@ class AttnRNNCell(object):
             # Compute attention
             attn = self.compute_attention(output, context, self._num_units)
             # Output
+            #return output, (rnn_state, attn, context)
             with tf.variable_scope("AttnOutputProjection"):
                 new_output = tanh(linear([output, attn], self._output_size, True))
             return new_output, (rnn_state, attn, context)
-            #return output, (rnn_state, attn, context)
 
 # test
 if __name__ == '__main__':

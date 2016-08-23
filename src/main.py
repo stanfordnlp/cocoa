@@ -81,6 +81,7 @@ if __name__ == '__main__':
         vocab_path = os.path.join(args.checkpoint, 'vocab.pkl')
         write_pickle(data_generator.vocab, vocab_path)
 
+    # Build the graph
     if args.model == 'encdec':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
     elif args.model == 'attn-encdec':

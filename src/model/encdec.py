@@ -219,8 +219,7 @@ class AttnEncoderDecoder(EncoderDecoder):
 
         # Initial state
         # NOTE: kg.context assumes batch_size=1
-        #init_context = self.kg.context  # 1 x context_len x context_size
-        init_context = tf.ones([1, 70, 1])
+        init_context = self.kg.context  # 1 x context_len x context_size
         self.init_state = cell.zero_state(init_context, self.batch_size, tf.float32)
 
         return cell
