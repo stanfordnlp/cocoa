@@ -76,7 +76,7 @@ for name in schema.values['person']:
 scenario_db = ScenarioDB([generate_scenario(schema) for i in range(args.num_scenarios)])
 output_dir = os.path.dirname(args.scenarios_path)
 if not os.path.isdir(output_dir):
-    os.mkdir(output_dir)
+    os.makedirs(output_dir)
 write_json(scenario_db.to_dict(), args.scenarios_path)
 
 # Output a sample of what we've generated

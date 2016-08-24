@@ -53,7 +53,10 @@ if __name__ == '__main__':
             assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
 
         # Checkpoint
-        ckpt = tf.train.get_checkpoint_state(args.init_from)
+        if args.test:
+            ckpt = tf.train.get_checkpoint_state(args.init_from+'-best')
+        else:
+            ckpt = tf.train.get_checkpoint_state(args.init_from)
         assert ckpt, 'No checkpoint found'
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
 
@@ -62,7 +65,7 @@ if __name__ == '__main__':
     else:
         # Save config
         if not os.path.isdir(args.checkpoint):
-            os.mkdir(args.checkpoint)
+            os.makedirs(args.checkpoint)
         config_path = os.path.join(args.checkpoint, 'config.json')
         write_json(vars(args), config_path)
         vocab = None
