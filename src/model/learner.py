@@ -41,10 +41,12 @@ class Learner(object):
         test_data = self.data.generator_eval(split)
         stop_symbols = map(self.data.vocab.to_ind, (END_TURN, END_UTTERANCE))
         #stop_symbols = []
-        max_len = 10
+        max_len = 20
         summary_map = {}
         for i in xrange(self.data.num_examples[split]):
             agent, kb, inputs, targets = test_data.next()
+            if hasattr(self.model, 'kg'):
+                self.model.kg.load(kb)
             preds, _ = self.model.generate(sess, inputs, stop_symbols, max_len)
             bleu = compute_bleu(preds, targets)
             logstats.update_summary_map(summary_map, {'bleu': bleu})
