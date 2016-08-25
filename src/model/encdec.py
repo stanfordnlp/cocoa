@@ -3,12 +3,9 @@ NN models that take a sequence of words and actions.
 Encode when action is read and decode when action is write.
 '''
 
-from __future__ import absolute_import
-from __future__ import division
-
 import tensorflow as tf
 import numpy as np
-from model.attention_rnn_cell import AttnRNNCell
+from model.attention_rnn_cell import AttnRNNCell, add_attention_arguments
 from tensorflow.python.util import nest
 
 def add_model_arguments(parser):
@@ -16,6 +13,7 @@ def add_model_arguments(parser):
     parser.add_argument('--rnn-size', type=int, default=128, help='Dimension of hidden units of RNN')
     parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
     parser.add_argument('--num-layers', default=1, help='Number of RNN layers')
+    add_attention_arguments(parser)
 
 def time_major(batch_input, rank):
     '''
@@ -130,7 +128,7 @@ class EncoderDecoder(object):
                 return tf.cond(tf.identity(tf.reshape(write, [])), loss, skip)
 
             # Average loss (per symbol) over the sequence
-            # NOTE: compute average over sequences when batch_size > 1
+            # NOTE: should compute average over sequences when batch_size > 1
             self.seq_loss = tf.map_fn(cond_loss,
                     (self.outputs, time_major(self.targets, 2), iswrite),
                     dtype=tf.float32)
@@ -215,7 +213,7 @@ class AttnEncoderDecoder(EncoderDecoder):
         super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers, para_iter=1)
 
     def _build_rnn_cell(self):
-        cell = AttnRNNCell(self.rnn_size, self.rnn_type, num_layers=self.num_layers)
+        cell = AttnRNNCell(self.rnn_size, self.kg.embed_size, self.rnn_type, num_layers=self.num_layers)
 
         # Initial state
         # NOTE: kg.context assumes batch_size=1

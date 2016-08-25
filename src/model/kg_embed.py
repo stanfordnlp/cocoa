@@ -9,6 +9,9 @@ def add_kg_arguments(parser):
     parser.add_argument('--kg-model', default='cbow', help='Model name {cbow}')
     parser.add_argument('--kg-embed-size', default=128, help='Knowledge graph embedding size')
 
+# TODO: node embedding = sum(edge embedding)
+# len_path = 4 (2-hop)
+
 class Graph(object):
     '''
     An abstract class of graph embedding that takes a KB and returns vectorized context.

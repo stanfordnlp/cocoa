@@ -1,18 +1,14 @@
 '''
-Reference: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/ops/seq2seq.py
-
-First, we run the cell on a combination of the input and previous
-attention masks:
-    cell_output, new_state = cell(linear(input, prev_attn), prev_state).
-Then, we calculate new attention masks:
-    new_attn = softmax(V^T * tanh(W * attention_states + U * new_state))
-and then we calculate the output:
-    output = linear(cell_output, new_attn).
+RNN cell with attention over an input context.
 '''
 
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
+
+def add_attention_arguments(parser):
+    parser.add_argument('--attn-scoring', default='bilinear', help='How to compute scores between hidden state and context {bilinear, linear}')
+    parser.add_argument('--attn-output', default='concat', help='How to combine rnn output and attention {concat, project}')
 
 class AttnRNNCell(object):
     '''
@@ -20,16 +16,31 @@ class AttnRNNCell(object):
     Derived class should follow signatures in RNNCell.
     '''
 
-    def __init__(self, num_units, rnn_type='lstm', input_size=None, output_size=None, num_layers=1, activation=tanh):
+    def __init__(self, num_units, context_size, rnn_type='lstm', scoring='bilinear', output='concat', output_size=None, num_layers=1, activation=tanh):
         '''
-        input_size: projected size of input + attention, feed to rnn
         output_size: projected size of output + attention, used for prediction
         context_size: size of the context/attention vector
         '''
         self.rnn_cell = self._build_rnn_cell(rnn_type, num_units, num_layers)
         self._num_units = num_units
-        self._input_size = input_size or num_units
-        self._output_size = output_size or num_units
+        self._context_size = context_size
+
+        output_size = output_size or num_units
+        if output == 'project':
+            self._output_size = output_size
+            self.output = self._output_project
+        elif output == 'concat':
+            self._output_size = self._num_units + self._context_size
+            self.output = self._output_concat
+        else:
+            raise ValueError('Unknown output model')
+
+        if scoring == 'linear':
+            self.score_context = self._score_context_linear
+        elif scoring == 'bilinear':
+            self.score_context = self._score_context_bilinear
+        else:
+            raise ValueError('Unknown scoring model')
 
     def _build_rnn_cell(self, rnn_type, rnn_size, num_layers):
         recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
@@ -56,6 +67,31 @@ class AttnRNNCell(object):
     def output_size(self):
         return self._output_size
 
+    def _score_context_linear(self, h, context):
+        attn_size = self._num_units
+        # Projection vector
+        v = tf.get_variable('AttnProject', [attn_size, 1])
+        def project_context(ctxt):
+            a = tanh(linear([h, ctxt], attn_size, True))  # batch_size x attn_size
+            return tf.squeeze(tf.matmul(a, v), [1])
+        attns = tf.map_fn(project_context, tf.transpose(context, [1, 0, 2]))
+        return attns
+
+    def _score_context_bilinear(self, h, context):
+        W = tf.get_variable('BilinearW', [self._num_units, self._context_size])
+        def project_context(ctxt):
+            return tf.reduce_sum(tf.mul(tf.matmul(h, W), ctxt), 1)
+        attns = tf.map_fn(project_context, tf.transpose(context, [1, 0, 2]))
+        return attns
+
+    def _output_concat(self, output, attn):
+        return tf.concat(1, [output, attn])
+
+    def _output_project(self, output, attn):
+        with tf.variable_scope("AttnOutputProjection"):
+            new_output = tanh(linear([output, attn], self._output_size, True))
+        return new_output
+
     def compute_attention(self, h, context, attn_size):
         '''
         context: batch_size x context_len x context_size
@@ -63,13 +99,8 @@ class AttnRNNCell(object):
         '''
         #return tf.reduce_mean(context, 1)
         with tf.variable_scope('Attention'):
-            # Projection vector
-            v = tf.get_variable('AttnProject', [attn_size, 1])
-            def project_context(ctxt):
-                a = tanh(linear([h, ctxt], attn_size, True))  # batch_size x attn_size
-                return tf.matmul(a, v)
-            attns = tf.map_fn(project_context, tf.transpose(context, [1, 0, 2]))
-            attns = tf.transpose(tf.squeeze(attns, [2])) # batch_size x context_len
+            attns = self.score_context(h, context)
+            attns = tf.transpose(attns) # batch_size x context_len
             attns = tf.nn.softmax(attns)
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
@@ -81,16 +112,12 @@ class AttnRNNCell(object):
             # context: batch_size x context_len x context_size
             prev_rnn_state, prev_attn, context = state
             # RNN step
-            #with tf.variable_scope("AttnInputProjection"):
-            #    new_inputs = linear([inputs, prev_attn], self._input_size, True)
             new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # Compute attention
             attn = self.compute_attention(output, context, self._num_units)
             # Output
-            #return output, (rnn_state, attn, context)
-            with tf.variable_scope("AttnOutputProjection"):
-                new_output = tanh(linear([output, attn], self._output_size, True))
+            new_output = self.output(output, attn)
             return new_output, (rnn_state, attn, context)
 
 # test
@@ -111,7 +138,7 @@ if __name__ == '__main__':
     T = 10
     # NOTE: current TF does not support rand>3 matrix with time_major=False!
     with tf.variable_scope('test2'):
-        cell = AttnRNNCell(5, 'lstm') # num_units=5, context_size=5
+        cell = AttnRNNCell(5, 5, 'lstm') # num_units=5, context_size=5
         context = tf.random_uniform([1,4,5])
         init_state = cell.zero_state(context, 1, tf.float32)
         inputs = tf.ones([T,1,5], dtype=tf.float32)

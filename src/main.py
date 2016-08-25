@@ -31,6 +31,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     random.seed(args.random_seed)
+    tf.set_random_seed(args.random_seed)
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
 
@@ -102,7 +103,7 @@ if __name__ == '__main__':
         config = tf.ConfigProto(device_count = {'GPU': 0})
     else:
         config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        config.gpu_options.per_process_gpu_memory_fraction = 0.5
 
     learner = Learner(data_generator, model, args.verbose)
     if args.test:
