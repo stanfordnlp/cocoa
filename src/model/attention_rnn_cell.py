@@ -7,8 +7,8 @@ from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
 
 def add_attention_arguments(parser):
-    parser.add_argument('--attn-scoring', default='bilinear', help='How to compute scores between hidden state and context {bilinear, linear}')
-    parser.add_argument('--attn-output', default='concat', help='How to combine rnn output and attention {concat, project}')
+    parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
+    parser.add_argument('--attn-output', default='project', help='How to combine rnn output and attention {concat, project}')
 
 class AttnRNNCell(object):
     '''
@@ -16,7 +16,7 @@ class AttnRNNCell(object):
     Derived class should follow signatures in RNNCell.
     '''
 
-    def __init__(self, num_units, kg, rnn_type='lstm', scoring='bilinear', output='concat', output_size=None, num_layers=1, activation=tanh):
+    def __init__(self, num_units, kg, rnn_type='lstm', scoring='linear', output='project', output_size=None, num_layers=1, activation=tanh):
         '''
         output_size: projected size of output + attention, used for prediction
         context_size: size of the context/attention vector

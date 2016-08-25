@@ -93,7 +93,7 @@ if __name__ == '__main__':
             kg = CBOWGraph(schema, args.kg_embed_size)
         else:
             raise ValueError('Unknown KG model')
-        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers)
+        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
     else:
         raise ValueError('Unknown model')
 

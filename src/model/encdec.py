@@ -203,17 +203,19 @@ class AttnEncoderDecoder(EncoderDecoder):
     Attention context is built from knowledge graph (Graph object).
     '''
 
-    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1):
+    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
         '''
         kg is a Graph object used to compute knowledge graph embeddings.
         '''
         self.context_size = kg.embed_size
         self.kg = kg
+        self.scoring_method = scoring
+        self.output_method = output
         # NOTE: parallel_iteration must be one due to TF issue
         super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers, para_iter=1)
 
     def _build_rnn_cell(self):
-        cell = AttnRNNCell(self.rnn_size, self.kg, self.rnn_type, num_layers=self.num_layers)
+        cell = AttnRNNCell(self.rnn_size, self.kg, self.rnn_type, num_layers=self.num_layers, scoring=self.scoring_method, output=self.output_method)
 
         # Initial state
         self.init_state = cell.zero_state(self.batch_size, tf.float32)
