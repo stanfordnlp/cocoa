@@ -213,12 +213,10 @@ class AttnEncoderDecoder(EncoderDecoder):
         super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers, para_iter=1)
 
     def _build_rnn_cell(self):
-        cell = AttnRNNCell(self.rnn_size, self.kg.embed_size, self.rnn_type, num_layers=self.num_layers)
+        cell = AttnRNNCell(self.rnn_size, self.kg, self.rnn_type, num_layers=self.num_layers)
 
         # Initial state
-        # NOTE: kg.context assumes batch_size=1
-        init_context = self.kg.context  # 1 x context_len x context_size
-        self.init_state = cell.zero_state(init_context, self.batch_size, tf.float32)
+        self.init_state = cell.zero_state(self.batch_size, tf.float32)
 
         return cell
 

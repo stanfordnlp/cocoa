@@ -16,14 +16,15 @@ class AttnRNNCell(object):
     Derived class should follow signatures in RNNCell.
     '''
 
-    def __init__(self, num_units, context_size, rnn_type='lstm', scoring='bilinear', output='concat', output_size=None, num_layers=1, activation=tanh):
+    def __init__(self, num_units, kg, rnn_type='lstm', scoring='bilinear', output='concat', output_size=None, num_layers=1, activation=tanh):
         '''
         output_size: projected size of output + attention, used for prediction
         context_size: size of the context/attention vector
         '''
         self.rnn_cell = self._build_rnn_cell(rnn_type, num_units, num_layers)
         self._num_units = num_units
-        self._context_size = context_size
+        self.kg = kg
+        self._context_size = kg.embed_size
 
         output_size = output_size or num_units
         if output == 'project':
@@ -57,11 +58,11 @@ class AttnRNNCell(object):
             cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
         return cell
 
-    def zero_state(self, init_context, batch_size, dtype):
+    def zero_state(self, batch_size, dtype):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size])
-        zero_attn = self.compute_attention(zero_h, init_context, self._num_units)
-        return (zero_rnn_state, zero_attn, init_context)
+        zero_attn = self.compute_attention(zero_h, self.kg.context, self._num_units)
+        return (zero_rnn_state, zero_attn)
 
     @property
     def output_size(self):
@@ -109,16 +110,17 @@ class AttnRNNCell(object):
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
-            # context: batch_size x context_len x context_size
-            prev_rnn_state, prev_attn, context = state
+            prev_rnn_state, prev_attn = state
             # RNN step
             new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # Compute attention
-            attn = self.compute_attention(output, context, self._num_units)
+            # context: batch_size x context_len x context_size
+            # NOTE: kg.context assumes batch_size=1
+            attn = self.compute_attention(output, self.kg.context, self._num_units)
             # Output
             new_output = self.output(output, attn)
-            return new_output, (rnn_state, attn, context)
+            return new_output, (rnn_state, attn)
 
 # test
 if __name__ == '__main__':
