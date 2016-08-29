@@ -134,13 +134,14 @@ class EncoderDecoder(object):
                     dtype=tf.float32)
             self.loss = tf.reduce_sum(self.seq_loss) / self.batch_size / tf.to_float(tf.shape(self.seq_loss)[0])
 
-    def generate(self, sess, inputs, stop_symbols, max_len=None, init_state=None):
+    def generate(self, sess, kb, inputs, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
         if init_state:
             feed_dict[self.init_state] = init_state
         if hasattr(self, 'kg'):
-            feed_dict[self.kg.input_data] = self.kg.paths
+            kg_input = self.kg.load(kb)
+            feed_dict[self.kg.input_data] = kg_input
         if inputs.shape[1] > 1:
             # Read until the second last token, the last one will
             # be used as the first input during decoding
@@ -160,7 +161,7 @@ class EncoderDecoder(object):
             if state is not None:
                 feed_dict[self.init_state] = state
             if hasattr(self, 'kg'):
-                feed_dict[self.kg.input_data] = self.kg.paths
+                feed_dict[self.kg.input_data] = kg_input
             # output is logits of shape seq_len x batch_size x vocab_size
             # Here both seq_len and batch_size is 1
             state, output = sess.run([self.final_state, self.outputs], feed_dict=feed_dict)
@@ -173,7 +174,7 @@ class EncoderDecoder(object):
                 break
         return preds, state
 
-    def test(self):
+    def test(self, kb=None):
         seq_len = 4
         data = np.random.randint(self.vocab_size, size=(self.batch_size, seq_len+1))
         x = data[:,:-1]
@@ -186,7 +187,8 @@ class EncoderDecoder(object):
                     self.input_iswrite: iswrite,
                     self.targets: y}
             if hasattr(self, 'kg'):
-                feed_dict[self.kg.input_data] = self.kg.paths
+                assert kb
+                feed_dict[self.kg.input_data] = self.kg.load(kb)
             outputs, seq_loss, loss = sess.run([self.outputs, self.seq_loss, model.loss], feed_dict=feed_dict)
             #print 'last_ind:', last_ind
             #print 'states:', states[0].shape, states[1].shape
@@ -194,7 +196,7 @@ class EncoderDecoder(object):
             print 'output:\n', outputs.shape, outputs
             print 'seq_loss:\n', seq_loss
             print 'loss:\n', loss
-            preds, state = self.generate(sess, x, (5,), 10)
+            preds, state = self.generate(sess, kb, x, (5,), 10)
             print 'preds:\n', preds
 
 class AttnEncoderDecoder(EncoderDecoder):
@@ -262,6 +264,5 @@ if __name__ == '__main__':
 
     context_size = 6
     kg = CBOWGraph(schema, context_size)
-    kg.load(kb)
     model = AttnEncoderDecoder(vocab_size, rnn_size, kg, 'lstm')
-    model.test()
+    model.test(kb)

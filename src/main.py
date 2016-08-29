@@ -103,7 +103,7 @@ if __name__ == '__main__':
         config = tf.ConfigProto(device_count = {'GPU': 0})
     else:
         config = tf.ConfigProto()
-        config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        #config.gpu_options.per_process_gpu_memory_fraction = 0.5
 
     learner = Learner(data_generator, model, args.verbose)
     if args.test:

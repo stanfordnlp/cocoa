@@ -45,9 +45,7 @@ class Learner(object):
         summary_map = {}
         for i in xrange(self.data.num_examples[split]):
             agent, kb, inputs, targets = test_data.next()
-            if hasattr(self.model, 'kg'):
-                self.model.kg.load(kb)
-            preds, _ = self.model.generate(sess, inputs, stop_symbols, max_len)
+            preds, _ = self.model.generate(sess, kb, inputs, stop_symbols, max_len)
             bleu = compute_bleu(preds, targets)
             logstats.update_summary_map(summary_map, {'bleu': bleu})
 
@@ -85,8 +83,7 @@ class Learner(object):
                 self.model.input_iswrite: iswrite,
                 self.model.targets: targets}
         if hasattr(self.model, 'kg'):
-            self.model.kg.load(kb)
-            feed_dict[self.model.kg.input_data] = self.model.kg.paths
+            feed_dict[self.model.kg.input_data] = self.model.kg.load(kb)
         if self.verbose:
             print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
             print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
