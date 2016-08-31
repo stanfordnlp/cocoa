@@ -55,8 +55,8 @@ class Learner(object):
         #stop_symbols = []
         max_len = 20
         summary_map = {}
-        for i in xrange(self.data.num_examples[split]):
-            agent, kb, inputs, entities, targets = test_data.next()
+        for ex in test_data:
+            agent, kb, inputs, entities, targets = ex
             preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, self.data.lexicon, self.data.vocab, max_len)
             bleu = compute_bleu(preds, targets)
             ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
@@ -128,10 +128,11 @@ class Learner(object):
         # Gradient
         grads_and_vars = optimizer.compute_gradients(self.model.loss, tvars)
         if args.grad_clip > 0:
-            min_grad, max_grad = -1*args.grad_clip, args.grad_clip
+            min_grad, max_grad = -1.*args.grad_clip, args.grad_clip
             clipped_grads_and_vars = [(tf.clip_by_value(grad, min_grad, max_grad), var) for grad, var in grads_and_vars]
         else:
             clipped_grads_and_vars = grads_and_vars
+        # TODO: why is clipped norm larger than non-clipped norm??
         self.grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
         self.clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
 
@@ -175,7 +176,7 @@ class Learner(object):
                 saver.save(sess, save_path, global_step=epoch)
 
                 # Evaluate on dev
-                for eval_data in ('test'):
+                for eval_data in ('test',):
                     print '================== Eval %s ==================' % eval_data
                     bleu, ent_recall = self.test_bleu(sess, eval_data)
                     loss = self.test_loss(sess, eval_data)
