@@ -95,7 +95,8 @@ class Graph(object):
         '''
         paths = np.array(self.get_paths(kb))
         node_paths = np.array(self.get_node_paths(paths))
-        return (paths, node_paths)
+        features = self.get_features(kb)
+        return (paths, node_paths, features)
 
     def path_embedding(self, inputs):
         '''
@@ -108,8 +109,8 @@ class Graph(object):
         with tf.variable_scope(scope or type(self).__name__):
             # Input is a list of paths: n x path_len
             # and a list of node paths: num_entities x path_len
-            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]))
-            paths, node_paths = self.input_data
+            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 2]))
+            paths, node_paths, self.features = self.input_data
             paths = self.path_embedding(paths)  # n x embed_size
             # Node embedding is average of path embedding
             def average_paths(path_ind):
@@ -119,6 +120,19 @@ class Graph(object):
             # context: batch_size x context_len x embed_size
             self.context = tf.expand_dims(nodes, 0)
 
+    # TODO: add feature size as an argument, check why feature_size=1 gets shape error
+    def get_features(self, kb):
+        features = np.zeros([self.label_size, 2], dtype=np.float32)
+        sorted_attr = kb.sorted_attr()
+        N = len(sorted_attr)
+        # TODO: what if same attr_value appear >1, e.g., mit has rankings corresponding to both undergrad and master schools
+        for i, attr in enumerate(sorted_attr):
+            attr_name, attr_value = attr[0]
+            ind = self.label_to_ind[attr_value.lower()]
+            # TODO: normalization seems important here, check tf batch normalization options
+            features[ind][0] = (i + 1) / float(N)
+        return features
+
     def entity_embedding(self):
         with tf.variable_scope('EntityEmbedding'):
             # Static embedding for each entity
@@ -126,9 +140,13 @@ class Graph(object):
             entity = tf.get_variable('static', [self.label_size, self.embed_size])
             # Dynamic embedding for utterance related to each entity
             self.utterances = tf.get_variable('utterance', [self.label_size, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
+            # Other features
+
             # Concatenate entity and utterance embedding
             # TODO: other options, e.g., sum, project
-            entity_embedding = tf.concat(1, [entity, self.utterances])
+            entity_embedding = tf.concat(1, [entity, self.utterances, self.features])
+            #entity_embedding = tf.concat(1, [entity, self.features])
+            #entity_embedding = self.features
             return entity_embedding
 
     def update_utterance(self, indices, utterance):
