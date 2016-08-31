@@ -34,9 +34,18 @@ def generate_scenario(schema):
     N = len(people)
     mutual_person_index = numpy.random.randint(N)
     inds = range(mutual_person_index+1) + range(mutual_person_index+1, N)
-    for agent in agents:
-        random.shuffle(inds)
-        agent_item = [people[mutual_person_index]] + [people[ind] for ind in inds[:num_items-1]]
+    agent_inds = None
+    for i in xrange(10000):
+        agent_inds = []
+        for agent in agents:
+            random.shuffle(inds)
+            agent_inds.append([mutual_person_index] + inds[:num_items-1])
+        # NOTE: assuem there are two agents
+        intersect = [x for x in agent_inds[0] if x in agent_inds[1]]
+        if len(intersect) == 1:
+            break
+    for agent_ind in agent_inds:
+        agent_item = [people[ind] for ind in agent_ind]
         agent_items.append(agent_item)
 
     # Shuffle items
