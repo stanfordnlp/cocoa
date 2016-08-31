@@ -12,27 +12,30 @@ def add_kg_arguments(parser):
     parser.add_argument('--kg-model', default='cbow', help='Model name {cbow}')
     parser.add_argument('--kg-embed-size', default=128, help='Knowledge graph embedding size')
 
-# TODO: node embedding = sum(edge embedding)
-# len_path = 4 (2-hop)
+# TODO: len_path = 4 (2-hop)
 
 class Graph(object):
     '''
     An abstract class of graph embedding that takes a KB and returns vectorized context.
     '''
-    def __init__(self, schema, embed_size, path_len=3, scope=None):
+    def __init__(self, schema, lexicon, embed_size, utterance_size, path_len=3, scope=None):
+        '''
+        embed_size: embedding size for entities
+        '''
         # Entities and relations
-        self.entity_types = schema.get_entities()
-        self.total_num_entities = len(self.entity_types)
-        print 'Total number of entities:', self.total_num_entities
+        print 'Total number of entities:', len(lexicon.entity_to_id)
         self.attribute_types = schema.get_attributes()
-        self.relations = self.attribute_types.keys()
+        relations = self.attribute_types.keys()
         # Inverse relations
-        self.relations.extend((self.inv_rel(r) for r in self.attribute_types))
-        print 'Number of relations:', len(self.relations)
+        relations.extend((self.inv_rel(r) for r in self.attribute_types))
+        print 'Number of relations:', len(relations)
 
         # Vocabulary
-        # NOTE: entities are all lowercased
-        self.label_to_ind = {v.lower(): i for i, v in enumerate(chain(self.entity_types.keys(), self.relations))}
+        # Share entity mapping with lexicon
+        self.label_to_ind = lexicon.entity_to_id
+        N = len(self.label_to_ind)
+        for i, v in enumerate(relations):
+            self.label_to_ind[v.lower()] = N + i
         self.ind_to_label = {v: k for k, v in self.label_to_ind.iteritems()}
         self.label_size = len(self.label_to_ind)
 
@@ -40,6 +43,8 @@ class Graph(object):
         self.path_len = path_len
 
         self.embed_size = embed_size
+        # size of input utterances (RNN output size)
+        self.utterance_size = utterance_size
         self.build_model(scope)
 
     def inv_rel(self, relation):
@@ -114,14 +119,44 @@ class Graph(object):
             # context: batch_size x context_len x embed_size
             self.context = tf.expand_dims(nodes, 0)
 
+    def entity_embedding(self):
+        with tf.variable_scope('EntityEmbedding'):
+            # Static embedding for each entity
+            # TODO: should we share this with the input embedding?
+            entity = tf.get_variable('static', [self.label_size, self.embed_size])
+            # Dynamic embedding for utterance related to each entity
+            self.utterances = tf.get_variable('utterance', [self.label_size, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
+            # Concatenate entity and utterance embedding
+            # TODO: other options, e.g., sum, project
+            entity_embedding = tf.concat(1, [entity, self.utterances])
+            return entity_embedding
+
+    def update_utterance(self, indices, utterance):
+        '''
+        Update entries in matrix self.utterances.
+        indices corresponds to first dimensions in self.utterances.
+        '''
+        def cond_update(ind):
+            def no_op():
+                return self.utterances
+            def update():
+                return tf.scatter_update(self.utterances, ind, utterance)
+            return tf.cond(tf.less(ind, tf.constant(0)), no_op, update)
+        # NOTE: assumes batch_size = 1
+        indices = tf.reshape(indices, [-1])
+        utterance = tf.reshape(utterance, [-1])
+        return tf.map_fn(cond_update, indices, dtype=tf.float32)
+
 class CBOWGraph(Graph):
     '''
     CBOW embedding model.
     '''
     def path_embedding(self, inputs):
         with tf.variable_scope('PathEmbedding'):
-            embedding  = tf.get_variable('embedding', [self.label_size, self.embed_size])
+            embedding = self.entity_embedding()
             embed_input = tf.nn.embedding_lookup(embedding, inputs)  # n x path_len x embed_size
+            # context_size: the context matrix sent to RNN
+            self.context_size = embedding.get_shape()[1]
             return tf.reduce_sum(embed_input, 1)  # n x embed_size
 
 # test
@@ -153,7 +188,7 @@ if __name__ == '__main__':
     agent, kb, inputs, targets, iswrite = gen.next()
 
     embed_size = 10
-    kg = CBOWGraph(schema, embed_size)
+    kg = CBOWGraph(schema, lexicon, embed_size)
     input_data = kg.load(kb)
     paths, node_paths = input_data
     print kb.dump()

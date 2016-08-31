@@ -32,6 +32,18 @@ class Learner(object):
         self.model = model
         self.verbose = verbose
 
+    def entity_acc(self, preds, targets, lexicon, vocab):
+        def get_entity(x):
+            x = map(vocab.to_word, x)
+            return [e[0] for e in x if not isinstance(e, basestring)]
+        preds = set(get_entity(preds))
+        targets = set(get_entity(targets))
+        recall = 0
+        for e in targets:
+            if e in preds:
+                recall += 1
+        return recall
+
     def test_bleu(self, sess, split='dev'):
         '''
         Go through each message of the agent and try to predict it
@@ -44,10 +56,12 @@ class Learner(object):
         max_len = 20
         summary_map = {}
         for i in xrange(self.data.num_examples[split]):
-            agent, kb, inputs, targets = test_data.next()
-            preds, _ = self.model.generate(sess, kb, inputs, stop_symbols, max_len)
+            agent, kb, inputs, entities, targets = test_data.next()
+            preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, self.data.lexicon, self.data.vocab, max_len)
             bleu = compute_bleu(preds, targets)
+            ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
             logstats.update_summary_map(summary_map, {'bleu': bleu})
+            logstats.update_summary_map(summary_map, {'acc': ent_acc})
 
             if self.verbose:
                 #kb.dump()
@@ -56,7 +70,7 @@ class Learner(object):
                 print 'TARGET:', map(self.data.vocab.to_word, targets)
                 print 'PRED:', map(self.data.vocab.to_word, preds)
                 print 'BLEU=%.2f' % bleu
-        return summary_map['bleu']['mean']
+        return summary_map['bleu']['mean'], summary_map['acc']['mean']
 
     def test_loss(self, sess, split='dev'):
         '''
@@ -78,11 +92,12 @@ class Learner(object):
         '''
         Take a data generator, return a feed_dict as input to the model.
         '''
-        agent, kb, inputs, targets, iswrite = data.next()
+        agent, kb, inputs, entities, targets, iswrite = data.next()
         feed_dict = {self.model.input_data: inputs,
                 self.model.input_iswrite: iswrite,
                 self.model.targets: targets}
         if hasattr(self.model, 'kg'):
+            feed_dict[self.model.input_entities] = entities
             feed_dict[self.model.kg.input_data] = self.model.kg.load(kb)
         if self.verbose:
             print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
@@ -160,12 +175,13 @@ class Learner(object):
                 saver.save(sess, save_path, global_step=epoch)
 
                 # Evaluate on dev
-                print '================== Test =================='
-                bleu = self.test_bleu(sess, 'test')
-                loss = self.test_loss(sess, 'test')
-                if bleu > best_bleu:
-                    print 'New best model'
-                    best_bleu = bleu
-                    best_saver.save(sess, best_save_path)
-                print 'bleu=%.4f loss=%.4f' % (bleu, loss)
+                for eval_data in ('test'):
+                    print '================== Eval %s ==================' % eval_data
+                    bleu, ent_recall = self.test_bleu(sess, eval_data)
+                    loss = self.test_loss(sess, eval_data)
+                    if eval_data == 'test' and bleu > best_bleu:
+                        print 'New best model'
+                        best_bleu = bleu
+                        best_saver.save(sess, best_save_path)
+                    print 'bleu=%.4f entity_recall=%.4f loss=%.4f' % (bleu, ent_recall, loss)
 

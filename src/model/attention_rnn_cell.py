@@ -24,7 +24,7 @@ class AttnRNNCell(object):
         self.rnn_cell = self._build_rnn_cell(rnn_type, num_units, num_layers)
         self._num_units = num_units
         self.kg = kg
-        self._context_size = kg.embed_size
+        self._context_size = kg.context_size
 
         output_size = output_size or num_units
         if output == 'project':
@@ -98,7 +98,6 @@ class AttnRNNCell(object):
         context: batch_size x context_len x context_size
         attn_size: vector size used for scoring each context
         '''
-        #return tf.reduce_mean(context, 1)
         with tf.variable_scope('Attention'):
             attns = self.score_context(h, context)
             attns = tf.transpose(attns) # batch_size x context_len
@@ -110,16 +109,21 @@ class AttnRNNCell(object):
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
+            inputs, entities = inputs
             prev_rnn_state, prev_attn = state
             # RNN step
             new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
+            # Update graph
+            update_op = self.kg.update_utterance(entities, output)
             # Compute attention
             # context: batch_size x context_len x context_size
             # NOTE: kg.context assumes batch_size=1
-            attn = self.compute_attention(output, self.kg.context, self._num_units)
-            # Output
-            new_output = self.output(output, attn)
+            # TODO: in tensorflow self.kg.context is computed in every RNN step. Need to use partial_run to manually cache the intermediate result.
+            with tf.control_dependencies([update_op]):
+                attn = self.compute_attention(output, self.kg.context, self._num_units)
+                # Output
+                new_output = self.output(output, attn)
             return new_output, (rnn_state, attn)
 
 # test
