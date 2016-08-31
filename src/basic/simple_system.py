@@ -18,6 +18,8 @@ class SimpleSystem(System):
         super(SimpleSystem, self).__init__(agent)
         self.agent = agent
         self.kb = kb
+        self.sorted_attr = kb.sorted_attr()
+        self.curr_attr = 0
         # Dict of attribute value and type (e.g., Google: company)
         self.entities = self.kb.schema.get_entities()
 
@@ -46,7 +48,18 @@ class SimpleSystem(System):
 
     def choose_attr(self):
         '''
-        Ask about an attribute.
+        Ask about an attribute in the order of sorted_attr.
+        '''
+        while True:
+            attr_name, attr_value = self.sorted_attr[self.curr_attr][0]
+            if self.values[attr_name][attr_value] > 0:
+                break
+            self.curr_attr += 1
+        return (attr_name, attr_value)
+
+    def choose_attr_item_order(self):
+        '''
+        Ask about an attribute from the top ranked item.
         '''
         # Choose the highest weight item
         index = sorted(range(len(self.weights)), key=lambda i : -self.weights[i])[0]
@@ -59,8 +72,10 @@ class SimpleSystem(System):
                 return (attr_name, value)
         raise Exception('No available attribute.')
 
+    # TODO: simplify
     def ask(self, attr):
         name, value = attr
+        return 'Do you know %s %s?' % (name, value)
         if name == 'Bachelors institution':
             return 'Do you know anyone who went to %s for undergrad?' % value
         elif name == 'Bachelors major':
@@ -85,7 +100,7 @@ class SimpleSystem(System):
         '''
         Return the (single) entity in tokens.
         '''
-        i = 5  # Skip "Do you know anyone who/whose"
+        i = 3  # Skip "Do you know"
         attr_value = None
         attr_type = None
         while i < len(tokens):
@@ -102,31 +117,14 @@ class SimpleSystem(System):
             i += 1
         return attr_value, attr_type
 
-    def get_attr_name(self, tokens, attr_value, attr_type):
+    def get_attr_name(self, s):
         '''
         Figure out which attributes this entity belongs to.
         '''
-        attr_name = None
-        if attr_type == 'school':
-            if tokens[-2] == 'undergrad':
-                attr_name = 'Bachelors institution'
-            else:
-                attr_name = 'Masters education'
-        elif attr_type == 'major':
-            if tokens[-2] == 'undergrad':
-                attr_name = 'Bachelors major'
-            else:
-                attr_name = 'Masters major'
-        elif attr_type == 'person':
-            attr_name = 'Name'
-        elif attr_type == 'hobby':
-            attr_name = 'Hobby'
-        elif attr_type == 'time_pref':
-            attr_name = 'Time preference'
-        elif attr_type == 'loc_pref':
-            attr_name = 'Location preference'
-        assert attr_name
-        return attr_name
+        for name in self.attributes:
+            if name in s:
+                return name
+        return None
 
     def parse(self, utterance):
         '''
@@ -138,7 +136,7 @@ class SimpleSystem(System):
         if not attr_value:
             return None
         else:
-            attr_name = self.get_attr_name(tokens, attr_value, attr_type)
+            attr_name = self.get_attr_name(utterance)
             return (attr_name, attr_value)
 
     def sample(self, items):
