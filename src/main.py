@@ -11,7 +11,7 @@ from basic.dataset import add_dataset_arguments, read_dataset
 from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
-from model.preprocess import DataGenerator, add_generator_arguments
+from model.preprocess import DataGenerator
 from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder
 from model.learner import add_learner_arguments, Learner
 from model.kg_embed import add_kg_arguments, CBOWGraph
@@ -25,7 +25,6 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
-    add_generator_arguments(parser)
     add_model_arguments(parser)
     add_kg_arguments(parser)
     add_learner_arguments(parser)
@@ -72,8 +71,8 @@ if __name__ == '__main__':
         vocab = None
         ckpt = None
 
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, lexicon, args.entity_cache_size, args.entity_hist_len, vocab)
-    # Dataset stats
+    # Dataset
+    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, lexicon, vocab)
     for d in data_generator.examples:
         logstats.add('data', d, 'num_examples', data_generator.num_examples
 [d])
@@ -88,14 +87,16 @@ if __name__ == '__main__':
     # Build the graph
     tf.reset_default_graph()
     tf.set_random_seed(args.random_seed)
+    kg = None
     if args.model == 'encdec':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
     elif args.model == 'attn-encdec':
         if args.kg_model == 'cbow':
-            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size)
+            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len)
         else:
             raise ValueError('Unknown KG model')
-        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, data_generator.entity_cache_size, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+        data_generator.set_kg(kg)
+        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
     else:
         raise ValueError('Unknown model')
 

@@ -6,7 +6,6 @@ Encode when action is read and decode when action is write.
 import tensorflow as tf
 import numpy as np
 from model.attention_rnn_cell import AttnRNNCell, add_attention_arguments
-from model.preprocess import get_entities
 from tensorflow.python.util import nest
 
 def add_model_arguments(parser):
@@ -159,7 +158,8 @@ class EncoderDecoder(object):
         preds = []
         # Last token in the inputs; keep dimension the same
         input_ = np.expand_dims(inputs[:, -1], 1)
-        entity = np.expand_dims(entities[:, -1, :], 1)
+        if entities is not None:
+            entity = np.expand_dims(entities[:, -1, :], 1)
 
         while True:
             feed_dict = {self.input_data: input_,
@@ -181,9 +181,7 @@ class EncoderDecoder(object):
                 break
             # Update entity
             if hasattr(self, 'kg'):
-                entity = get_entities(map(vocab.to_word, preds), \
-                        lexicon.entity_to_id, \
-                        self.entity_cache_size)
+                entity = self.kg.get_entities(map(vocab.to_word, preds))
                 entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
         return preds, state
 
@@ -224,14 +222,14 @@ class AttnEncoderDecoder(EncoderDecoder):
     Attention context is built from knowledge graph (Graph object).
     '''
 
-    def __init__(self, vocab_size, rnn_size, kg, entity_cache_size=2, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
+    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
         '''
         kg is a Graph object used to compute knowledge graph embeddings.
         entity_cache_size: number of entities to keep in the update buffer
         '''
         self.kg = kg
         self.context_size = self.kg.context_size
-        self.entity_cache_size = entity_cache_size
+        self.entity_cache_size = kg.entity_cache_size
         self.scoring_method = scoring
         self.output_method = output
         # NOTE: parallel_iteration must be one due to TF issue
@@ -297,5 +295,6 @@ if __name__ == '__main__':
     with tf.Graph().as_default():
         tf.set_random_seed(args.random_seed)
         kg = CBOWGraph(schema, lexicon, context_size, rnn_size)
+        data_generator.set_kg(kg)
         model = AttnEncoderDecoder(vocab_size, rnn_size, kg)
         model.test(kb, data_generator.lexicon, data_generator.vocab)

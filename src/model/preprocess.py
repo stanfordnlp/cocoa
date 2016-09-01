@@ -23,28 +23,13 @@ def tokenize(utterance):
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     return tokens
 
-def get_entities(tokens, entity_map, size):
-    entities = [entity_map[x[0]] for x in tokens if not isinstance(x, basestring)]
-    # Remove duplicated entities
-    entities = list(set(entities))
-    if len(entities) < size:
-        for i in xrange(size - len(entities)):
-            entities.insert(0, -1)
-        return entities
-    else:
-        return entities[-1*size:]
-
-def add_generator_arguments(parser):
-    parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
-    parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
-
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, lexicon, entity_cache_size=2, entity_hist_len=10, vocab=None):
+    def __init__(self, train_examples, dev_examples, test_examples, lexicon, vocab=None):
         self.examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in self.examples.iteritems()}
         self.lexicon = lexicon
-        self.entity_cache_size = entity_cache_size
-        self.entity_hist_len = entity_hist_len
+        # If the generator does not interact with a KB, we don't need to get entities
+        self.get_entity_list = lambda *args: None
         self.preprocess()
         if not vocab:
             self.vocab = Vocabulary()
@@ -52,6 +37,10 @@ class DataGenerator(object):
         else:
             print 'Loaded vocabulary size:', vocab.size
             self.vocab = vocab
+
+    def set_kg(self, kg):
+        self.kg = kg
+        self.get_entity_list = self.kg.get_entity_list
 
     def preprocess(self):
         for _, examples in self.examples.iteritems():
@@ -117,27 +106,11 @@ class DataGenerator(object):
                 curr_message = map(self.vocab.to_ind, curr_message)
                 yield e.agent, kbs[e.agent], \
                     np.array(prefix, dtype=np.int32).reshape(1, -1), \
-                    np.array(entities, dtype=np.int32).reshape(1, -1, self.entity_cache_size), \
+                    np.array(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size) if entities else None, \
                     curr_message  # NOTE: target is a list not numpy array
                 prefix.extend(curr_message)
-                entities.extend(curr_entities)
-
-    def get_entity_list(self, tokens):
-        '''
-        Input tokens is a list of words/tuples where tuples represent entities.
-        Output is a list of entity list at each position.
-        The entity list contains self.entity_cache_size number of mentioned entities counting from the current position backwards.
-        -1 means no entity.
-        E.g. with cache_size = 2, I went to Stanford and MIT . =>
-        [(-1, -1), (-1, -1), (-1, -1), (-1, Stanford), (Stanford, -1), (Stanford, MIT)]
-        '''
-        N = len(tokens)
-        tokens = [''] * (self.entity_hist_len - 1) + tokens
-        entity_list = []
-
-        for i in xrange(N):
-            entity_list.append(get_entities(tokens[i:i+self.entity_hist_len], self.lexicon.entity_to_id, self.entity_cache_size))
-        return entity_list
+                if entities is not None:
+                    entities.extend(curr_entities)
 
     def generator_train(self, name, shuffle=True):
         '''
@@ -171,7 +144,8 @@ class DataGenerator(object):
                 tokens = map(self.vocab.to_ind, tokens)
                 n = len(tokens) - 1
                 inputs = np.asarray(tokens[:-1], dtype=dtype).reshape(1, n)
-                entities = np.asarray(entities[:-1], dtype=dtype).reshape(1, n, self.entity_cache_size)
+                if entities:
+                    entities = np.asarray(entities[:-1], dtype=dtype).reshape(1, n, self.kg.entity_cache_size)
                 targets = np.asarray(tokens[1:], dtype=dtype).reshape(1, n)
                 # write when agent == 0
                 yield 0, kbs[0], inputs, entities, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)
@@ -186,11 +160,13 @@ if __name__ == '__main__':
     from basic.scenario_db import ScenarioDB, add_scenario_arguments
     from basic.lexicon import Lexicon
     from basic.util import read_json
+    from model.kg_embed import add_kg_arguments, CBOWGraph
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
+    add_kg_arguments(parser)
     args = parser.parse_args()
     random.seed(args.random_seed)
 
@@ -198,8 +174,10 @@ if __name__ == '__main__':
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
     lexicon = Lexicon(schema)
+    kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size)
 
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon, entity_hist_len=10, entity_cache_size=2)
+    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon)
+    data_generator.set_kg(kg)
 
     gen = data_generator.generator_train('train')
     print '=========== train data ============='

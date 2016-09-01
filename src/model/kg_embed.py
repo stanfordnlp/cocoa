@@ -11,6 +11,8 @@ import tensorflow as tf
 def add_kg_arguments(parser):
     parser.add_argument('--kg-model', default='cbow', help='Model name {cbow}')
     parser.add_argument('--kg-embed-size', default=128, help='Knowledge graph embedding size')
+    parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
+    parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
 
 # TODO: len_path = 4 (2-hop)
 
@@ -18,7 +20,7 @@ class Graph(object):
     '''
     An abstract class of graph embedding that takes a KB and returns vectorized context.
     '''
-    def __init__(self, schema, lexicon, embed_size, utterance_size, path_len=3, scope=None):
+    def __init__(self, schema, lexicon, embed_size, utterance_size, entity_cache_size=2, entity_hist_len=10, path_len=3, scope=None):
         '''
         embed_size: embedding size for entities
         '''
@@ -41,6 +43,8 @@ class Graph(object):
 
         # An path is a tuple (e_1, r_1, e_2, r_2, ...)
         self.path_len = path_len
+        self.entity_cache_size = entity_cache_size
+        self.entity_hist_len = entity_hist_len
 
         self.embed_size = embed_size
         # size of input utterances (RNN output size)
@@ -52,6 +56,37 @@ class Graph(object):
         Inverse relation
         '''
         return '*' + relation
+
+    def get_entity_list(self, tokens):
+        '''
+        Input tokens is a list of words/tuples where tuples represent entities.
+        Output is a list of entity list at each position.
+        The entity list contains self.entity_cache_size number of mentioned entities counting from the current position backwards.
+        -1 means no entity.
+        E.g. with cache_size = 2, I went to Stanford and MIT . =>
+        [(-1, -1), (-1, -1), (-1, -1), (-1, Stanford), (Stanford, -1), (Stanford, MIT)]
+        '''
+        N = len(tokens)
+        tokens = [''] * (self.entity_hist_len - 1) + tokens
+        entity_list = []
+
+        for i in xrange(N):
+            entity_list.append(self.get_entities(tokens[i:i+self.entity_hist_len]))
+        return entity_list
+
+    def get_entities(self, tokens):
+        '''
+        Return all entities in tokens. Pad -1 to fit in entity_cache_size.
+        '''
+        entities = [self.label_to_ind[x[0]] for x in tokens if not isinstance(x, basestring)]
+        # Remove duplicated entities
+        entities = list(set(entities))
+        if len(entities) < self.entity_cache_size:
+            for i in xrange(self.entity_cache_size - len(entities)):
+                entities.insert(0, -1)
+            return entities
+        else:
+            return entities[-1*self.entity_cache_size:]
 
     def get_paths(self, kb):
         '''
@@ -109,20 +144,21 @@ class Graph(object):
         with tf.variable_scope(scope or type(self).__name__):
             # Input is a list of paths: n x path_len
             # and a list of node paths: num_entities x path_len
-            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 2]))
+            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 1]))
             paths, node_paths, self.features = self.input_data
             paths = self.path_embedding(paths)  # n x embed_size
             # Node embedding is average of path embedding
             def average_paths(path_ind):
-                return tf.squeeze(tf.reduce_mean(tf.gather(paths, tf.where(path_ind)), 0))
+                # squeeze because the output of where is (?, 1)
+                return tf.reduce_mean(tf.gather(paths, tf.squeeze(tf.where(path_ind), [1])), 0)
             nodes = tf.map_fn(average_paths, node_paths, dtype=tf.float32)  # num_entities x embed_size
             # NOTE: batch_size = 1!
             # context: batch_size x context_len x embed_size
             self.context = tf.expand_dims(nodes, 0)
 
-    # TODO: add feature size as an argument, check why feature_size=1 gets shape error
+    # TODO: add feature size as an argument
     def get_features(self, kb):
-        features = np.zeros([self.label_size, 2], dtype=np.float32)
+        features = np.zeros([self.label_size, 1], dtype=np.float32)
         sorted_attr = kb.sorted_attr()
         N = len(sorted_attr)
         # TODO: what if same attr_value appear >1, e.g., mit has rankings corresponding to both undergrad and master schools
