@@ -2,7 +2,7 @@
 Main learning loop.
 '''
 
-import os
+import os, sys
 import time
 import tensorflow as tf
 from preprocess import END_TURN, END_UTTERANCE
@@ -83,6 +83,8 @@ class Learner(object):
             output, loss = sess.run([self.model.outputs, self.model.loss], feed_dict=feed_dict)
             if self.verbose:
                 pred = np.argmax(output, axis=2).reshape(1, -1)
+                if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
+                    pred = self.model.copy_output(pred, self.data.vocab)
                 print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
                 print 'LOSS:', loss
             logstats.update_summary_map(summary_map, {'loss': loss})
@@ -93,16 +95,24 @@ class Learner(object):
         Take a data generator, return a feed_dict as input to the model.
         '''
         agent, kb, inputs, entities, targets, iswrite = data.next()
+        if self.verbose:
+            kb.dump()
+            print kb.sorted_attr()
+            print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
+            target_words = [self.data.vocab.to_word(t) if w else 'null' for t, w in zip(list(targets[0]), list(iswrite[0]))]
+            print 'TARGET:', target_words
+            #print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
+            #print 'WRITE:', iswrite
         feed_dict = {self.model.input_data: inputs,
                 self.model.input_iswrite: iswrite,
                 self.model.targets: targets}
         if hasattr(self.model, 'kg'):
             feed_dict[self.model.input_entities] = entities
             feed_dict[self.model.kg.input_data] = self.model.kg.load(kb)
-        if self.verbose:
-            print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
-            print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
-            print 'WRITE:', iswrite
+        # Use copy targets for training
+        # TODO: don't change targets!!
+        if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
+            feed_dict[self.model.targets] = self.model.copy_target(targets, self.data.vocab, iswrite)
         return feed_dict
 
     def _learn_step(self, data, sess, summary_map):
@@ -111,6 +121,8 @@ class Learner(object):
 
         if self.verbose:
             pred = np.argmax(output, axis=2).reshape(1, -1)
+            if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
+                pred = self.model.copy_output(pred, self.data.vocab)
             print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
             print 'LOSS:', loss
 

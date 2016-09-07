@@ -26,7 +26,8 @@ class Graph(object):
         embed_size: embedding size for entities
         '''
         # Entities and relations
-        print 'Total number of entities:', len(lexicon.entity_to_id)
+        self.total_num_entities = len(lexicon.entity_to_id)
+        print 'Total number of entities:', self.total_num_entities
         self.attribute_types = schema.get_attributes()
         relations = self.attribute_types.keys()
         # Inverse relations
@@ -36,9 +37,9 @@ class Graph(object):
         # Vocabulary
         # Share entity mapping with lexicon
         self.label_to_ind = lexicon.entity_to_id
-        N = len(self.label_to_ind)
+        # Add edge labels (relations)
         for i, v in enumerate(relations):
-            self.label_to_ind[v.lower()] = N + i
+            self.label_to_ind[v.lower()] = self.total_num_entities + i
         self.ind_to_label = {v: k for k, v in self.label_to_ind.iteritems()}
         self.label_size = len(self.label_to_ind)
 
@@ -88,7 +89,7 @@ class Graph(object):
         '''
         Return all entities in tokens. Pad -1 to fit in entity_cache_size.
         '''
-        entities = [self.label_to_ind[x[0]] for x in tokens if not isinstance(x, basestring)]
+        entities = [self.label_to_ind[x] for x in tokens if not isinstance(x, basestring)]
         # Remove duplicated entities
         entities = list(set(entities))
         if len(entities) < self.entity_cache_size:
@@ -106,18 +107,20 @@ class Graph(object):
         e.g., (Alice, Hobby, reading)
         '''
         def path_to_ind(path):
-            return tuple(map(lambda x: self.label_to_ind[x.lower()], path))
+            return tuple(map(lambda x: self.label_to_ind[x], path))
         paths = []
         for item in kb.items:
-            person = item['Name']
+            person = (item['Name'].lower(), 'person')
             for attr_name, value in item.iteritems():
                 # Type node
-                #attr_type = self.attribute_types[attr_name]
+                attr_type = self.attribute_types[attr_name]
                 #self.paths.append(path_to_ind((value, 'has_type', attr_type)))
                 # Entity node
                 if attr_name != 'Name':
-                    paths.append(path_to_ind((person, attr_name, value)))
-                    paths.append(path_to_ind((value, self.inv_rel(attr_name), person)))
+                    attr_name = attr_name.lower()
+                    attr = (value.lower(), attr_type)
+                    paths.append(path_to_ind((person, attr_name, attr)))
+                    paths.append(path_to_ind((attr, self.inv_rel(attr_name), person)))
         return np.array(paths)
 
     def get_node_paths(self, paths):
@@ -143,7 +146,13 @@ class Graph(object):
         paths = np.array(self.get_paths(kb))
         node_paths = np.array(self.get_node_paths(paths))
         features = self.get_features(kb)
-        return (paths, node_paths, features)
+        # Size of the output attention scores (for copy)
+        self.num_entities = len(self.nodes)
+        entity_size = np.array(range(self.num_entities)).reshape(1, -1)
+        # Output copied entities are in [0, num_nodes], need to map to global entity id
+        self.local_to_global_entity = {i: entity_id for i, entity_id in enumerate(self.nodes)}
+        self.global_to_local_entity = {v: k for k, v in self.local_to_global_entity.iteritems()}
+        return (paths, node_paths, features, entity_size)
 
     def path_embedding(self, inputs):
         '''
@@ -155,9 +164,11 @@ class Graph(object):
     def build_model(self, scope):
         with tf.variable_scope(scope or type(self).__name__):
             # Input is a list of paths: n x path_len
-            # and a list of node paths: num_entities x path_len
-            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 1]))
-            paths, node_paths, self.features = self.input_data
+            # a list of node paths: num_entities x path_len
+            # features for each node
+            # entity_size: tell RNN the output size (only useful for copy)
+            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 1]), tf.placeholder(tf.float32, shape=[1, None]))
+            paths, node_paths, self.features, self.entity_size = self.input_data
             paths = self.path_embedding(paths)  # n x embed_size
             # Node embedding is average of path embedding
             def average_paths(path_ind):
@@ -176,7 +187,7 @@ class Graph(object):
         # TODO: what if same attr_value appear >1, e.g., mit has rankings corresponding to both undergrad and master schools
         for i, attr in enumerate(sorted_attr):
             attr_name, attr_value = attr[0]
-            ind = self.label_to_ind[attr_value.lower()]
+            ind = self.label_to_ind[(attr_value.lower(), self.attribute_types[attr_name])]
             # TODO: normalization seems important here, check tf batch normalization options
             features[ind][0] = (i + 1) / float(N)
         return features
@@ -200,6 +211,7 @@ class Graph(object):
             #entity_embedding = self.features
             return entity_embedding
 
+    # TODO: update nodes not in kg?
     def update_utterance_trainable(self, indices, utterance):
         '''
         indices: batch_size x cache_size x utterance_size x 2

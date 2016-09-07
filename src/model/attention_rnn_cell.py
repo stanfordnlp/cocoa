@@ -61,7 +61,7 @@ class AttnRNNCell(object):
     def zero_state(self, batch_size, dtype):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size])
-        zero_attn = self.compute_attention(zero_h, self.kg.context, self._num_units)
+        zero_attn, scores = self.compute_attention(zero_h, self.kg.context, self._num_units)
         return (zero_rnn_state, zero_attn)
 
     @property
@@ -99,13 +99,13 @@ class AttnRNNCell(object):
         attn_size: vector size used for scoring each context
         '''
         with tf.variable_scope('Attention'):
-            attns = self.score_context(h, context)
-            attns = tf.transpose(attns) # batch_size x context_len
-            attns = tf.nn.softmax(attns)
+            attn_scores = self.score_context(h, context)
+            attn_scores = tf.transpose(attn_scores) # batch_size x context_len
+            attns = tf.nn.softmax(attn_scores)
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
             weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # batch_size x context_size
-            return weighted_context
+            return weighted_context, attn_scores
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
@@ -121,10 +121,11 @@ class AttnRNNCell(object):
             # NOTE: kg.context assumes batch_size=1
             # TODO: in tensorflow self.kg.context is computed in every RNN step. Need to use partial_run to manually cache the intermediate result.
             with tf.control_dependencies([update_op]):
-                attn = self.compute_attention(output, self.kg.context, self._num_units)
+                attn, attn_scores = self.compute_attention(output, self.kg.context, self._num_units)
                 # Output
                 new_output = self.output(output, attn)
-            return new_output, (rnn_state, attn)
+                #attn_scores = tf.sparse_to_dense(self.kg.entity_indices, tf.constant([attn_scores.get_shape()[0], self.kg.total_num_entities]), attn_scores)
+            return (new_output, attn_scores), (rnn_state, attn)
 
 # test
 if __name__ == '__main__':

@@ -12,7 +12,7 @@ from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
-from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder
+from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder, AttnCopyEncoderDecoder
 from model.learner import add_learner_arguments, Learner
 from model.kg_embed import add_kg_arguments, CBOWGraph
 from lib import logstats
@@ -90,13 +90,19 @@ if __name__ == '__main__':
     kg = None
     if args.model == 'encdec':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
-    elif args.model == 'attn-encdec':
+    elif args.model.startswith('attn'):
         if args.kg_model == 'cbow':
             kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len, train_utterance=args.train_utterance)
         else:
             raise ValueError('Unknown KG model')
         data_generator.set_kg(kg)
-        model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+
+        if args.model == 'attn-encdec':
+            model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+        elif args.model == 'attn-copy-encdec':
+            model = AttnCopyEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+        else:
+            raise ValueError('Unknown model')
     else:
         raise ValueError('Unknown model')
 

@@ -7,6 +7,8 @@ import tensorflow as tf
 import numpy as np
 from model.attention_rnn_cell import AttnRNNCell, add_attention_arguments
 from tensorflow.python.util import nest
+from itertools import izip
+import sys
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -32,7 +34,7 @@ class EncoderDecoder(object):
                       'lstm': tf.nn.rnn_cell.LSTMCell,
                      }
 
-    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, scope=None, para_iter=10):
+    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, scope=None):
         # NOTE: only support single-instance training now
         # due to tf.cond(scalar,..)
         self.batch_size = 1
@@ -40,9 +42,6 @@ class EncoderDecoder(object):
         self.rnn_type = rnn_type
         self.rnn_size = rnn_size
         self.num_layers = num_layers
-
-        # for scan
-        self.parallel_iteration = para_iter
 
         self.build_model(scope)
 
@@ -90,7 +89,7 @@ class EncoderDecoder(object):
             # Create input variables
             inputs = self._build_rnn_inputs()
             self.inputs = inputs
-            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(tf.zeros([self.batch_size, cell.output_size]), self.init_state))
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=((tf.zeros([self.batch_size, cell.output_size]), tf.zeros_like(self.kg.entity_size)), self.init_state))
             self.states = states
             # Get last state
             self.final_state = self._get_final_state(states)
@@ -99,19 +98,16 @@ class EncoderDecoder(object):
             self.input_iswrite = tf.placeholder(tf.bool, shape=[self.batch_size, None])
             self.targets = tf.placeholder(tf.int32, shape=[self.batch_size, None])
 
-            # Create output parameters
-            w = tf.get_variable('output_w', [cell.output_size, self.vocab_size])
-            b = tf.get_variable('output_b', [self.vocab_size])
-
             # Conditional decoding (only when write is true)
             def cond_output((h, write)):
                 '''
                 Project RNN state to prediction when write is true
                 '''
+                dec_output = self._build_output(h, cell.output_size)
                 def enc():
-                    return tf.constant(0, dtype=tf.float32, shape=[self.batch_size, self.vocab_size])
+                    return tf.zeros_like(dec_output)
                 def dec():
-                    return tf.matmul(h, w) + b
+                    return dec_output
                 return tf.cond(tf.identity(tf.reshape(write, [])), dec, enc)
 
             # Used as condition in tf.cond
@@ -136,7 +132,18 @@ class EncoderDecoder(object):
                     dtype=tf.float32)
             self.loss = tf.reduce_sum(self.seq_loss) / self.batch_size / tf.to_float(tf.shape(self.seq_loss)[0])
 
+    def _build_output(self, h, h_size):
+        '''
+        Take RNN outputs (h) and output logits over the vocab.
+        '''
+        h, attn_scores = h
+        # Create output parameters
+        w = tf.get_variable('output_w', [h_size, self.vocab_size])
+        b = tf.get_variable('output_b', [self.vocab_size])
+        return tf.matmul(h, w) + b
+
     # TODO: put generate in another file.. separate kg and no kg generator
+    # TODO: factor this function!!
     def generate(self, sess, kb, inputs, entities, stop_symbols, lexicon, vocab, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
@@ -182,8 +189,11 @@ class EncoderDecoder(object):
             state, output = sess.run([self.final_state, self.outputs], feed_dict=feed_dict)
             # pred is of shape (1, 1)
             pred = np.argmax(output, axis=2)
+            if type(self).__name__ == 'AttnCopyEncoderDecoder':
+                pred = self.copy_output(pred, vocab)
             input_ = pred
             pred = int(pred)
+            assert pred < vocab.size
             preds.append(pred)
             if pred in stop_symbols or len(preds) == max_len:
                 break
@@ -247,8 +257,7 @@ class AttnEncoderDecoder(EncoderDecoder):
         self.entity_cache_size = kg.entity_cache_size
         self.scoring_method = scoring
         self.output_method = output
-        # NOTE: parallel_iteration must be one due to TF issue
-        super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers, para_iter=1)
+        super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers)
 
     def _build_rnn_inputs(self):
         '''
@@ -272,6 +281,48 @@ class AttnEncoderDecoder(EncoderDecoder):
         self.init_state = cell.zero_state(self.batch_size, tf.float32)
 
         return cell
+
+class AttnCopyEncoderDecoder(AttnEncoderDecoder):
+    '''
+    Encoder-decoder RNN with attention + copy mechanism over a sequence with conditional write.
+    Attention context is built from knowledge graph (Graph object).
+    Optionally copy from an entity in the knowledge graph.
+    '''
+
+    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
+        super(AttnCopyEncoderDecoder, self).__init__(vocab_size, rnn_size, kg, rnn_type, num_layers, scoring, output)
+
+    def _build_output(self, h, h_size):
+        token_scores = super(AttnCopyEncoderDecoder, self)._build_output(h, h_size)
+        h, attn_scores = h
+        return tf.concat(1, [token_scores, attn_scores])
+
+    def copy_output(self, outputs, vocab):
+        for output in outputs:
+            for i, pred in enumerate(output):
+                if pred >= vocab.size:
+                    entity = self.kg.ind_to_label[self.kg.local_to_global_entity[pred - vocab.size]]
+                    output[i] = vocab.to_ind(entity)
+        return outputs
+
+    def copy_target(self, targets, vocab, iswrite):
+        # Don't change the original targets, will be used later
+        new_targets = np.copy(targets)
+        for target, write in izip(new_targets, iswrite):
+            for i, (t, w) in enumerate(izip(target, write)):
+                # NOTE: only replace entities in our kb
+                if w:
+                    token = vocab.to_word(t)
+                    if not isinstance(token, basestring):
+                        try:
+                            target[i] = vocab.size + self.kg.global_to_local_entity[self.kg.label_to_ind[token]]
+                        except KeyError:
+                            print self.kg.label_to_ind
+                            print self.kg.global_to_local_entity
+                            print self.kg.local_to_global_entity
+                            print token
+                            sys.exit()
+        return new_targets
 
 # test
 if __name__ == '__main__':
@@ -305,6 +356,7 @@ if __name__ == '__main__':
     lexicon = Lexicon(schema)
 
     data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon)
+    vocab = data_generator.vocab
 
     gen = data_generator.generator_train('train')
 
@@ -315,5 +367,14 @@ if __name__ == '__main__':
         kg = CBOWGraph(schema, lexicon, context_size, rnn_size, train_utterance=False)
         data_generator.set_kg(kg)
         agent, kb, inputs, entities, targets, iswrite = gen.next()
-        model = AttnEncoderDecoder(vocab_size, rnn_size, kg)
-        model.test(kb, data_generator.lexicon, data_generator.vocab)
+        model = AttnCopyEncoderDecoder(vocab_size, rnn_size, kg)
+        # test copy_output and copy target
+        kg.load(kb)
+        n = 2
+        print 'to be copied:', kg.ind_to_label[kg.nodes[n]], lexicon.id_to_entity[kg.nodes[n]]
+        t = np.array([[vocab.to_ind(kg.ind_to_label[kg.nodes[n]])]])
+        t = model.copy_target(t, vocab, [[True]])
+        print 'new target:', t
+        out = model.copy_output(t, vocab)
+        print 'copy output:', vocab.to_word(int(out))
+        model.test(kb, data_generator.lexicon, vocab)
