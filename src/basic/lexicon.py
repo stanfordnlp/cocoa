@@ -102,7 +102,7 @@ class Lexicon(object):
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         self.load_entities()
         # Mapping from (canonical) entity to an index. NOTE: The map will be shared by the knowledge graph.
-        self.entity_to_id = {e: i for i, e in enumerate(self.entities.keys())}
+        self.entity_to_id = {e: i for i, e in enumerate(self.entities.items())}
         self.id_to_entity = {i: e for e, i in self.entity_to_id.items()}
         self.compute_synonyms()
         self.add_numbers()
@@ -189,7 +189,15 @@ class Lexicon(object):
                 if len(results) > 0:
                     # NOTE: if more than one match, use the first one.
                     # TODO: disambiguate
-                    entities.append((phrase, results[0]))
+                    # prioritize exact match (e.g. hiking, biking)
+                    entity = None
+                    for result in results:
+                        if result[0] == phrase:
+                            entity = result
+                            break
+                    if not entity:
+                        entity = results[0]
+                    entities.append((phrase, entity))
                     i += l
                     break
             if not results:
@@ -202,3 +210,5 @@ class Lexicon(object):
         phrases = ['foodie', 'evening', 'evenings', 'food']
         for x in phrases:
             print x, '=>', self.lookup(x)
+        sentence = ['i', 'like', 'hiking', 'biking']
+        print self.entitylink(sentence)
