@@ -89,7 +89,9 @@ class EncoderDecoder(object):
 
             # Create input variables
             inputs = self._build_rnn_inputs()
-            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(tf.zeros([self.batch_size, cell.output_size]), self.init_state), parallel_iterations=self.parallel_iteration)
+            self.inputs = inputs
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(tf.zeros([self.batch_size, cell.output_size]), self.init_state))
+            self.states = states
             # Get last state
             self.final_state = self._get_final_state(states)
 
@@ -148,7 +150,10 @@ class EncoderDecoder(object):
             # be used as the first input during decoding
             feed_dict[self.input_data] = inputs[:, :-1]
             if hasattr(self, 'kg'):
-                feed_dict[self.input_entities] = entities[:, :-1, :]
+                if not self.kg.train_utterance:
+                    feed_dict[self.input_entities] = entities[:, :-1, :]
+                else:
+                    feed_dict[self.input_entities] = entities[:, :-1, :, :, :]
             [state] = sess.run([self.final_state], feed_dict=feed_dict)
         else:
             state = init_state
@@ -159,7 +164,10 @@ class EncoderDecoder(object):
         # Last token in the inputs; keep dimension the same
         input_ = np.expand_dims(inputs[:, -1], 1)
         if entities is not None:
-            entity = np.expand_dims(entities[:, -1, :], 1)
+            if not self.kg.train_utterance:
+                entity = np.expand_dims(entities[:, -1, :], 1)
+            else:
+                entity = np.expand_dims(entities[:, -1, :, :, :], 1)
 
         while True:
             feed_dict = {self.input_data: input_,
@@ -182,7 +190,10 @@ class EncoderDecoder(object):
             # Update entity
             if hasattr(self, 'kg'):
                 entity = self.kg.get_entities(map(vocab.to_word, preds))
-                entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
+                if not self.kg.train_utterance:
+                    entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
+                else:
+                    entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
         return preds, state
 
     def test(self, kb=None, lexicon=None, vocab=None):
@@ -195,7 +206,11 @@ class EncoderDecoder(object):
         entities = []
         for i in xrange(seq_len):
             entities.append([-1, 1])
-        entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, 2)
+        if not self.kg.train_utterance:
+            entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, 2)
+        else:
+            entities = map(self.kg.convert_entity, entities)
+            entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
 
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
@@ -242,8 +257,12 @@ class AttnEncoderDecoder(EncoderDecoder):
         Each entity is mapped to an interger according to lexicon.entity_to_ind.
         '''
         input_tokens = super(AttnEncoderDecoder, self)._build_rnn_inputs()
-        self.input_entities = tf.placeholder(tf.int32, shape=[self.batch_size, None, self.entity_cache_size])
-        input_entities = time_major(self.input_entities, 3)
+        if self.kg.train_utterance:
+            self.input_entities = tf.placeholder(tf.int32, shape=[self.batch_size, None, self.entity_cache_size, self.kg.utterance_size, 2])
+            input_entities = time_major(self.input_entities, 5)
+        else:
+            self.input_entities = tf.placeholder(tf.int32, shape=[self.batch_size, None, self.entity_cache_size])
+            input_entities = time_major(self.input_entities, 3)
         return (input_tokens, input_entities)
 
     def _build_rnn_cell(self):
@@ -288,13 +307,13 @@ if __name__ == '__main__':
     data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon)
 
     gen = data_generator.generator_train('train')
-    agent, kb, inputs, entities, targets, iswrite = gen.next()
 
     tf.reset_default_graph()
     context_size = 6
     with tf.Graph().as_default():
         tf.set_random_seed(args.random_seed)
-        kg = CBOWGraph(schema, lexicon, context_size, rnn_size)
+        kg = CBOWGraph(schema, lexicon, context_size, rnn_size, train_utterance=False)
         data_generator.set_kg(kg)
+        agent, kb, inputs, entities, targets, iswrite = gen.next()
         model = AttnEncoderDecoder(vocab_size, rnn_size, kg)
         model.test(kb, data_generator.lexicon, data_generator.vocab)

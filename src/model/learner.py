@@ -108,6 +108,7 @@ class Learner(object):
     def _learn_step(self, data, sess, summary_map):
         feed_dict = self._get_feed_dict(data)
         _, output, loss, gn, cgn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm, self.clipped_grad_norm], feed_dict=feed_dict)
+
         if self.verbose:
             pred = np.argmax(output, axis=2).reshape(1, -1)
             print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
@@ -120,19 +121,19 @@ class Learner(object):
                 })
 
     def learn(self, args, config, ckpt=None, split='train'):
-        tvars = tf.trainable_variables()
-
         assert args.optimizer in optim.keys()
         optimizer = optim[args.optimizer](args.learning_rate)
 
         # Gradient
-        grads_and_vars = optimizer.compute_gradients(self.model.loss, tvars)
+        grads_and_vars = optimizer.compute_gradients(self.model.loss)
         if args.grad_clip > 0:
             min_grad, max_grad = -1.*args.grad_clip, args.grad_clip
             clipped_grads_and_vars = [(tf.clip_by_value(grad, min_grad, max_grad), var) for grad, var in grads_and_vars]
         else:
             clipped_grads_and_vars = grads_and_vars
-        # TODO: why is clipped norm larger than non-clipped norm??
+        # TODO: clip has problem with indexedslices, don't use
+        #self.clipped_grads = [grad for grad, var in clipped_grads_and_vars]
+        #self.grads = [grad for grad, var in grads_and_vars]
         self.grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
         self.clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
 

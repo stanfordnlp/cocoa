@@ -88,6 +88,18 @@ class DataGenerator(object):
         tokens.append(END_UTTERANCE)
         return tokens
 
+    def entity_list_to_array(self, entities):
+        '''
+        Transform entity list from kg_embed to numpy array that's fed to tf models.
+        '''
+        if entities is None:
+            return None
+        # Require different shapes because the tf graph will be different
+        if not self.kg.train_utterance:
+            return np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size)
+        else:
+            return np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
+
     def generator_eval(self, name):
         '''
         Generate vectorized data for testing. Each example is
@@ -106,7 +118,7 @@ class DataGenerator(object):
                 curr_message = map(self.vocab.to_ind, curr_message)
                 yield e.agent, kbs[e.agent], \
                     np.array(prefix, dtype=np.int32).reshape(1, -1), \
-                    np.array(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size) if entities else None, \
+                    self.entity_list_to_array(entities), \
                     curr_message  # NOTE: target is a list not numpy array
                 prefix.extend(curr_message)
                 if entities is not None:
@@ -144,8 +156,7 @@ class DataGenerator(object):
                 tokens = map(self.vocab.to_ind, tokens)
                 n = len(tokens) - 1
                 inputs = np.asarray(tokens[:-1], dtype=dtype).reshape(1, n)
-                if entities:
-                    entities = np.asarray(entities[:-1], dtype=dtype).reshape(1, n, self.kg.entity_cache_size)
+                entities = self.entity_list_to_array(entities[:-1])
                 targets = np.asarray(tokens[1:], dtype=dtype).reshape(1, n)
                 # write when agent == 0
                 yield 0, kbs[0], inputs, entities, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)

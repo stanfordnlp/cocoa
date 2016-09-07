@@ -13,6 +13,7 @@ def add_kg_arguments(parser):
     parser.add_argument('--kg-embed-size', default=128, help='Knowledge graph embedding size')
     parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
+    parser.add_argument('--train-utterance', action='store_true', default=False, help='Whether to backpropogate error from utterance node')
 
 # TODO: len_path = 4 (2-hop)
 
@@ -20,7 +21,7 @@ class Graph(object):
     '''
     An abstract class of graph embedding that takes a KB and returns vectorized context.
     '''
-    def __init__(self, schema, lexicon, embed_size, utterance_size, entity_cache_size=2, entity_hist_len=10, path_len=3, scope=None):
+    def __init__(self, schema, lexicon, embed_size, utterance_size, entity_cache_size=2, entity_hist_len=10, path_len=3, train_utterance=False, scope=None):
         '''
         embed_size: embedding size for entities
         '''
@@ -49,6 +50,9 @@ class Graph(object):
         self.embed_size = embed_size
         # size of input utterances (RNN output size)
         self.utterance_size = utterance_size
+        self.train_utterance = train_utterance
+        if train_utterance:
+            self.update_utterance = self.update_utterance_trainable
         self.build_model(scope)
 
     def inv_rel(self, relation):
@@ -74,6 +78,12 @@ class Graph(object):
             entity_list.append(self.get_entities(tokens[i:i+self.entity_hist_len]))
         return entity_list
 
+    def convert_entity(self, entities):
+        '''
+        Convert the entity list to indices to be updated in the utterance matrix.
+        '''
+        return [[[i, j] for j in range(self.utterance_size)] for i in entities]
+
     def get_entities(self, tokens):
         '''
         Return all entities in tokens. Pad -1 to fit in entity_cache_size.
@@ -84,9 +94,11 @@ class Graph(object):
         if len(entities) < self.entity_cache_size:
             for i in xrange(self.entity_cache_size - len(entities)):
                 entities.insert(0, -1)
-            return entities
         else:
-            return entities[-1*self.entity_cache_size:]
+            entities = entities[-1*self.entity_cache_size:]
+        if self.train_utterance:
+            entities = self.convert_entity(entities)
+        return entities
 
     def get_paths(self, kb):
         '''
@@ -175,7 +187,10 @@ class Graph(object):
             # TODO: should we share this with the input embedding?
             entity = tf.get_variable('static', [self.label_size, self.embed_size])
             # Dynamic embedding for utterance related to each entity
-            self.utterances = tf.get_variable('utterance', [self.label_size, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
+            if self.train_utterance:
+                self.utterances = tf.zeros([self.label_size, self.utterance_size])
+            else:
+                self.utterances = tf.get_variable('utterance', [self.label_size, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
             # Other features
 
             # Concatenate entity and utterance embedding
@@ -184,6 +199,23 @@ class Graph(object):
             #entity_embedding = tf.concat(1, [entity, self.features])
             #entity_embedding = self.features
             return entity_embedding
+
+    def update_utterance_trainable(self, indices, utterance):
+        '''
+        indices: batch_size x cache_size x utterance_size x 2
+        '''
+        # NOTE: assume batch_size = 1
+        indices = tf.squeeze(indices, [0])
+        utterance = tf.squeeze(utterance)
+        def cond_to_dense(ind):
+            def to_dense():
+                return tf.sparse_to_dense(ind, self.utterances.get_shape(), utterance)
+            def no_op():
+                return tf.zeros(self.utterances.get_shape())
+            return tf.cond(tf.less(ind[0][0], 0), no_op, to_dense)
+        utterance_list = tf.map_fn(cond_to_dense, indices, dtype=tf.float32)
+        self.utterances = self.utterances + tf.foldl(lambda a, x: a + x, utterance_list)
+        return self.utterances
 
     def update_utterance(self, indices, utterance):
         '''

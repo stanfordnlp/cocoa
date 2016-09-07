@@ -92,7 +92,7 @@ if __name__ == '__main__':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
     elif args.model == 'attn-encdec':
         if args.kg_model == 'cbow':
-            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len)
+            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len, train_utterance=args.train_utterance)
         else:
             raise ValueError('Unknown KG model')
         data_generator.set_kg(kg)
