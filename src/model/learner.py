@@ -38,6 +38,9 @@ class Learner(object):
             return [e[0] for e in x if not isinstance(e, basestring)]
         preds = set(get_entity(preds))
         targets = set(get_entity(targets))
+        # Don't record cases where no entity is presented
+        if len(targets) == 0:
+            return None
         recall = 0
         for e in targets:
             if e in preds:
@@ -60,8 +63,10 @@ class Learner(object):
             preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, self.data.lexicon, self.data.vocab, max_len)
             bleu = compute_bleu(preds, targets)
             ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
+            # ent_acc is None means targets has not entity
+            if ent_acc is not None:
+                logstats.update_summary_map(summary_map, {'acc': ent_acc})
             logstats.update_summary_map(summary_map, {'bleu': bleu})
-            logstats.update_summary_map(summary_map, {'acc': ent_acc})
 
             if self.verbose:
                 #kb.dump()
