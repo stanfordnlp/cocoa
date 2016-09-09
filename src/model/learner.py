@@ -60,7 +60,7 @@ class Learner(object):
         summary_map = {}
         for ex in test_data:
             agent, kb, inputs, entities, targets = ex
-            preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, self.data.lexicon, self.data.vocab, max_len)
+            preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, max_len)
             bleu = compute_bleu(preds, targets)
             ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
             # ent_acc is None means targets has not entity
@@ -87,9 +87,7 @@ class Learner(object):
             feed_dict = self._get_feed_dict(test_data)
             output, loss = sess.run([self.model.outputs, self.model.loss], feed_dict=feed_dict)
             if self.verbose:
-                pred = np.argmax(output, axis=2).reshape(1, -1)
-                if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
-                    pred = self.model.copy_output(pred, self.data.vocab)
+                pred = self.model.get_prediction(output)
                 print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
                 print 'LOSS:', loss
             logstats.update_summary_map(summary_map, {'loss': loss})
@@ -102,22 +100,12 @@ class Learner(object):
         agent, kb, inputs, entities, targets, iswrite = data.next()
         if self.verbose:
             kb.dump()
-            print kb.sorted_attr()
             print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
             target_words = [self.data.vocab.to_word(t) if w else 'null' for t, w in zip(list(targets[0]), list(iswrite[0]))]
             print 'TARGET:', target_words
-            #print 'TARGET:', map(self.data.vocab.to_word, list(targets[0]))
             #print 'WRITE:', iswrite
-        feed_dict = {self.model.input_data: inputs,
-                self.model.input_iswrite: iswrite,
-                self.model.targets: targets}
-        if hasattr(self.model, 'kg'):
-            feed_dict[self.model.input_entities] = entities
-            feed_dict[self.model.kg.input_data] = self.model.kg.load(kb)
-        # Use copy targets for training
-        # TODO: don't change targets!!
-        if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
-            feed_dict[self.model.targets] = self.model.copy_target(targets, self.data.vocab, iswrite)
+        feed_dict = {}
+        self.model.update_feed_dict(feed_dict, inputs, None, targets=targets, kb=kb, entities=entities, iswrite=iswrite)
         return feed_dict
 
     def _learn_step(self, data, sess, summary_map):
@@ -125,9 +113,7 @@ class Learner(object):
         _, output, loss, gn, cgn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm, self.clipped_grad_norm], feed_dict=feed_dict)
 
         if self.verbose:
-            pred = np.argmax(output, axis=2).reshape(1, -1)
-            if type(self.model).__name__ == 'AttnCopyEncoderDecoder':
-                pred = self.model.copy_output(pred, self.data.vocab)
+            pred = self.model.get_prediction(output)
             print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
             print 'LOSS:', loss
 

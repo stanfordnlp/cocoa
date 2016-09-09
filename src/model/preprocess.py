@@ -156,7 +156,8 @@ class DataGenerator(object):
                 tokens = map(self.vocab.to_ind, tokens)
                 n = len(tokens) - 1
                 inputs = np.asarray(tokens[:-1], dtype=dtype).reshape(1, n)
-                entities = self.entity_list_to_array(entities[:-1])
+                if entities:
+                    entities = self.entity_list_to_array(entities[:-1])
                 targets = np.asarray(tokens[1:], dtype=dtype).reshape(1, n)
                 # write when agent == 0
                 yield 0, kbs[0], inputs, entities, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)

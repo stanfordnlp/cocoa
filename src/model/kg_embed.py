@@ -26,6 +26,7 @@ class Graph(object):
         embed_size: embedding size for entities
         '''
         # Entities and relations
+        # TODO: why do we need to share this with lexicon??
         self.total_num_entities = len(lexicon.entity_to_id)
         print 'Total number of entities:', self.total_num_entities
         self.attribute_types = schema.get_attributes()
@@ -62,7 +63,7 @@ class Graph(object):
         '''
         return '*' + relation
 
-    def get_entity_list(self, tokens):
+    def get_entity_list(self, tokens, position=None):
         '''
         Input tokens is a list of words/tuples where tuples represent entities.
         Output is a list of entity list at each position.
@@ -71,12 +72,11 @@ class Graph(object):
         E.g. with cache_size = 2, I went to Stanford and MIT . =>
         [(-1, -1), (-1, -1), (-1, -1), (-1, Stanford), (Stanford, -1), (Stanford, MIT)]
         '''
-        N = len(tokens)
-        tokens = [''] * (self.entity_hist_len - 1) + tokens
-        entity_list = []
-
-        for i in xrange(N):
-            entity_list.append(self.get_entities(tokens[i:i+self.entity_hist_len]))
+        if not position:
+            position = xrange(len(tokens))
+        entity_list = [self.get_entities(\
+                tokens[max(0, i-self.entity_hist_len):i+1]) \
+                for i in position]
         return entity_list
 
     def convert_entity(self, entities):
@@ -163,11 +163,16 @@ class Graph(object):
 
     def build_model(self, scope):
         with tf.variable_scope(scope or type(self).__name__):
-            # Input is a list of paths: n x path_len
+            # Input:
+            # a list of paths: n x path_len
             # a list of node paths: num_entities x path_len
             # features for each node
             # entity_size: tell RNN the output size (only useful for copy)
-            self.input_data = (tf.placeholder(tf.int32, shape=[None, self.path_len]), tf.placeholder(tf.bool, shape=[None, None]), tf.placeholder(tf.float32, shape=[self.label_size, 1]), tf.placeholder(tf.float32, shape=[1, None]))
+            self.input_data = (\
+                    tf.placeholder(tf.int32, shape=[None, self.path_len]), \
+                    tf.placeholder(tf.bool, shape=[None, None]), \
+                    tf.placeholder(tf.float32, shape=[self.label_size, 1]), \
+                    tf.placeholder(tf.float32, shape=[1, None]))
             paths, node_paths, self.features, self.entity_size = self.input_data
             paths = self.path_embedding(paths)  # n x embed_size
             # Node embedding is average of path embedding
@@ -194,7 +199,7 @@ class Graph(object):
 
     def entity_embedding(self):
         with tf.variable_scope('EntityEmbedding'):
-            # Static embedding for each entity
+            # Static embedding for each entity and edge label
             # TODO: should we share this with the input embedding?
             entity = tf.get_variable('static', [self.label_size, self.embed_size])
             # Dynamic embedding for utterance related to each entity

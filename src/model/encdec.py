@@ -82,6 +82,12 @@ class EncoderDecoder(object):
         last_states = nest.pack_sequence_as(states, flat_last_states)
         return last_states
 
+    def _build_init_output(self, cell):
+        '''
+        Initializer for scan. Should have the same shape as the RNN output.
+        '''
+        return tf.zeros([self.batch_size, cell.output_size])
+
     def build_model(self, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             cell = self._build_rnn_cell()
@@ -89,7 +95,7 @@ class EncoderDecoder(object):
             # Create input variables
             inputs = self._build_rnn_inputs()
             self.inputs = inputs
-            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=((tf.zeros([self.batch_size, cell.output_size]), tf.zeros_like(self.kg.entity_size)), self.init_state))
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
             self.states = states
             # Get last state
             self.final_state = self._get_final_state(states)
@@ -113,9 +119,11 @@ class EncoderDecoder(object):
             # Used as condition in tf.cond
             iswrite = time_major(self.input_iswrite, 2)
 
-            self.outputs = tf.map_fn(cond_output,
+            outputs = tf.map_fn(cond_output,
                     (rnn_outputs, iswrite),
                     dtype=tf.float32)
+            # Change output shape to batch_size x time_step
+            self.outputs = tf.transpose(outputs, [1, 0, 2])
 
             # Condition loss (loss is 0 when write is false)
             def cond_loss((output, target, write)):
@@ -128,7 +136,7 @@ class EncoderDecoder(object):
             # Average loss (per symbol) over the sequence
             # NOTE: should compute average over sequences when batch_size > 1
             self.seq_loss = tf.map_fn(cond_loss,
-                    (self.outputs, time_major(self.targets, 2), iswrite),
+                    (outputs, time_major(self.targets, 2), iswrite),
                     dtype=tf.float32)
             self.loss = tf.reduce_sum(self.seq_loss) / self.batch_size / tf.to_float(tf.shape(self.seq_loss)[0])
 
@@ -136,77 +144,64 @@ class EncoderDecoder(object):
         '''
         Take RNN outputs (h) and output logits over the vocab.
         '''
-        h, attn_scores = h
         # Create output parameters
         w = tf.get_variable('output_w', [h_size, self.vocab_size])
         b = tf.get_variable('output_b', [self.vocab_size])
         return tf.matmul(h, w) + b
 
-    # TODO: put generate in another file.. separate kg and no kg generator
-    # TODO: factor this function!!
-    def generate(self, sess, kb, inputs, entities, stop_symbols, lexicon, vocab, max_len=None, init_state=None):
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+        feed_dict[self.input_data] = inputs
+        if init_state is not None:
+            feed_dict[self.init_state] = init_state
+        if iswrite is not None:
+            feed_dict[self.input_iswrite] = iswrite
+        if targets is not None:
+            feed_dict[self.targets] = targets
+
+    def get_prediction(self, outputs):
+        '''
+        Return predicted vocab from output/logits (batch_size x time_step x vocab_size).
+        '''
+        preds = np.argmax(outputs, axis=2)  # batch_size x time_step
+        return preds
+
+    def generate(self, sess, kb, inputs, entities, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
-        if init_state:
-            feed_dict[self.init_state] = init_state
-        if hasattr(self, 'kg'):
-            kg_input = self.kg.load(kb)
-            feed_dict[self.kg.input_data] = kg_input
+        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entities[:, :-1])
         if inputs.shape[1] > 1:
             # Read until the second last token, the last one will
             # be used as the first input during decoding
-            feed_dict[self.input_data] = inputs[:, :-1]
-            if hasattr(self, 'kg'):
-                if not self.kg.train_utterance:
-                    feed_dict[self.input_entities] = entities[:, :-1, :]
-                else:
-                    feed_dict[self.input_entities] = entities[:, :-1, :, :, :]
             [state] = sess.run([self.final_state], feed_dict=feed_dict)
         else:
             state = init_state
 
         # Decode outputs
         iswrite = np.ones([1, 1]).astype(np.bool_)  # True
+        # Last token in the inputs; use -1: to keep dimension the same
+        input_ = inputs[:, -1:]
+        entity = entities[:, -1:] if entities is not None else None
+        # kb has been updatd, no need to update again
+        self.update_feed_dict(feed_dict, input_, state, kb=None, entities=entity, iswrite=iswrite)
         preds = []
-        # Last token in the inputs; keep dimension the same
-        input_ = np.expand_dims(inputs[:, -1], 1)
-        if entities is not None:
-            if not self.kg.train_utterance:
-                entity = np.expand_dims(entities[:, -1, :], 1)
-            else:
-                entity = np.expand_dims(entities[:, -1, :, :, :], 1)
 
         while True:
-            feed_dict = {self.input_data: input_,
-                    self.input_iswrite: iswrite}
-            if state is not None:
-                feed_dict[self.init_state] = state
-            if hasattr(self, 'kg'):
-                feed_dict[self.kg.input_data] = kg_input
-                feed_dict[self.input_entities] = entity
             # output is logits of shape seq_len x batch_size x vocab_size
             # Here both seq_len and batch_size is 1
             state, output = sess.run([self.final_state, self.outputs], feed_dict=feed_dict)
-            # pred is of shape (1, 1)
-            pred = np.argmax(output, axis=2)
-            if type(self).__name__ == 'AttnCopyEncoderDecoder':
-                pred = self.copy_output(pred, vocab)
-            input_ = pred
-            pred = int(pred)
-            assert pred < vocab.size
+            # next input is the prediction: shape (1, 1)
+            input_ = self.get_prediction(output)
+            pred = int(input_)
+            assert pred < self.vocab_size
             preds.append(pred)
             if pred in stop_symbols or len(preds) == max_len:
                 break
-            # Update entity
-            if hasattr(self, 'kg'):
-                entity = self.kg.get_entities(map(vocab.to_word, preds))
-                if not self.kg.train_utterance:
-                    entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
-                else:
-                    entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
+
+            self.update_feed_dict(feed_dict, input_, state, kb=None, entities=None, preds=preds)
+
         return preds, state
 
-    def test(self, kb=None, lexicon=None, vocab=None):
+    def test(self, kb=None, lexicon=None):
         seq_len = 4
         np.random.seed(0)
         data = np.random.randint(self.vocab_size, size=(self.batch_size, seq_len+1))
@@ -238,7 +233,7 @@ class EncoderDecoder(object):
             print 'output:\n', outputs.shape, outputs
             print 'seq_loss:\n', seq_loss
             print 'loss:\n', loss
-            preds, state = self.generate(sess, kb, x, entities, (5,), lexicon, vocab, 10)
+            preds, state = self.generate(sess, kb, x, entities, (5,), lexicon, 10)
             print 'preds:\n', preds
 
 class AttnEncoderDecoder(EncoderDecoder):
@@ -247,7 +242,7 @@ class AttnEncoderDecoder(EncoderDecoder):
     Attention context is built from knowledge graph (Graph object).
     '''
 
-    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
+    def __init__(self, vocab, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
         '''
         kg is a Graph object used to compute knowledge graph embeddings.
         entity_cache_size: number of entities to keep in the update buffer
@@ -257,7 +252,8 @@ class AttnEncoderDecoder(EncoderDecoder):
         self.entity_cache_size = kg.entity_cache_size
         self.scoring_method = scoring
         self.output_method = output
-        super(AttnEncoderDecoder, self).__init__(vocab_size, rnn_size,  rnn_type, num_layers)
+        self.vocab = vocab
+        super(AttnEncoderDecoder, self).__init__(vocab.size, rnn_size,  rnn_type, num_layers)
 
     def _build_rnn_inputs(self):
         '''
@@ -282,6 +278,37 @@ class AttnEncoderDecoder(EncoderDecoder):
 
         return cell
 
+    def _build_output(self, h, h_size):
+        '''
+        Take RNN outputs (h) and output logits over the vocab.
+        '''
+        h, attn_scores = h
+        return super(AttnEncoderDecoder, self)._build_output(h, h_size)
+
+    def _build_init_output(self, cell):
+        '''
+        Output includes both RNN output and attention scores.
+        '''
+        output = super(AttnEncoderDecoder, self)._build_init_output(cell)
+        return (output, tf.zeros_like(self.kg.entity_size))
+
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+        super(AttnEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, targets=targets, iswrite=iswrite)
+        if kb is not None:
+            feed_dict[self.kg.input_data] = self.kg.load(kb)
+        if entities is not None:
+            feed_dict[self.input_entities] = entities
+        else:
+            # Compute entity from preds
+            assert preds
+            tokens = map(self.vocab.to_word, preds)
+            entity = self.kg.get_entity_list(tokens, (len(tokens)-1,))
+            if not self.kg.train_utterance:
+                entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
+            else:
+                entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
+            feed_dict[self.input_entities] = entity
+
 class AttnCopyEncoderDecoder(AttnEncoderDecoder):
     '''
     Encoder-decoder RNN with attention + copy mechanism over a sequence with conditional write.
@@ -289,15 +316,27 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
     Optionally copy from an entity in the knowledge graph.
     '''
 
-    def __init__(self, vocab_size, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
-        super(AttnCopyEncoderDecoder, self).__init__(vocab_size, rnn_size, kg, rnn_type, num_layers, scoring, output)
+    def __init__(self, vocab, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
+        super(AttnCopyEncoderDecoder, self).__init__(vocab, rnn_size, kg, rnn_type, num_layers, scoring, output)
 
     def _build_output(self, h, h_size):
         token_scores = super(AttnCopyEncoderDecoder, self)._build_output(h, h_size)
         h, attn_scores = h
         return tf.concat(1, [token_scores, attn_scores])
 
-    def copy_output(self, outputs, vocab):
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+        # Don't update targets in parent
+        super(AttnCopyEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, kb=kb, entities=entities, iswrite=iswrite, preds=preds)
+        if targets is not None:
+            feed_dict[self.targets] = self.copy_target(targets, iswrite)
+
+    def get_prediction(self, outputs):
+        preds = super(AttnCopyEncoderDecoder, self).get_prediction(outputs)
+        preds = self.copy_output(preds)
+        return preds
+
+    def copy_output(self, outputs):
+        vocab = self.vocab
         for output in outputs:
             for i, pred in enumerate(output):
                 if pred >= vocab.size:
@@ -305,7 +344,8 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
                     output[i] = vocab.to_ind(entity)
         return outputs
 
-    def copy_target(self, targets, vocab, iswrite):
+    def copy_target(self, targets, iswrite):
+        vocab = self.vocab
         # Don't change the original targets, will be used later
         new_targets = np.copy(targets)
         for target, write in izip(new_targets, iswrite):
@@ -313,14 +353,14 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
                 # NOTE: only replace entities in our kb
                 if w:
                     token = vocab.to_word(t)
+                    # TODO: use named tuple to represent entities
                     if not isinstance(token, basestring):
                         try:
                             target[i] = vocab.size + self.kg.global_to_local_entity[self.kg.label_to_ind[token]]
                         except KeyError:
+                            print token
                             print self.kg.label_to_ind
                             print self.kg.global_to_local_entity
-                            print self.kg.local_to_global_entity
-                            print token
                             sys.exit()
         return new_targets
 
@@ -367,14 +407,14 @@ if __name__ == '__main__':
         kg = CBOWGraph(schema, lexicon, context_size, rnn_size, train_utterance=False)
         data_generator.set_kg(kg)
         agent, kb, inputs, entities, targets, iswrite = gen.next()
-        model = AttnCopyEncoderDecoder(vocab_size, rnn_size, kg)
+        model = AttnCopyEncoderDecoder(vocab, rnn_size, kg)
         # test copy_output and copy target
         kg.load(kb)
         n = 2
         print 'to be copied:', kg.ind_to_label[kg.nodes[n]], lexicon.id_to_entity[kg.nodes[n]]
         t = np.array([[vocab.to_ind(kg.ind_to_label[kg.nodes[n]])]])
-        t = model.copy_target(t, vocab, [[True]])
+        t = model.copy_target(t, [[True]])
         print 'new target:', t
-        out = model.copy_output(t, vocab)
+        out = model.copy_output(t)
         print 'copy output:', vocab.to_word(int(out))
-        model.test(kb, data_generator.lexicon, vocab)
+        model.test(kb, data_generator.lexicon)

@@ -98,9 +98,9 @@ if __name__ == '__main__':
         data_generator.set_kg(kg)
 
         if args.model == 'attn-encdec':
-            model = AttnEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+            model = AttnEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
         elif args.model == 'attn-copy-encdec':
-            model = AttnCopyEncoderDecoder(vocab.size, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
+            model = AttnCopyEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
         else:
             raise ValueError('Unknown model')
     else:
