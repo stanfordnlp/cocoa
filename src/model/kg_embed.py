@@ -26,8 +26,7 @@ class Graph(object):
         embed_size: embedding size for entities
         '''
         # Entities and relations
-        # TODO: why do we need to share this with lexicon??
-        self.total_num_entities = len(lexicon.entity_to_id)
+        self.total_num_entities = len(lexicon.entities)
         print 'Total number of entities:', self.total_num_entities
         self.attribute_types = schema.get_attributes()
         relations = self.attribute_types.keys()
@@ -35,12 +34,9 @@ class Graph(object):
         relations.extend((self.inv_rel(r) for r in self.attribute_types))
         print 'Number of relations:', len(relations)
 
-        # Vocabulary
-        # Share entity mapping with lexicon
-        self.label_to_ind = lexicon.entity_to_id
-        # Add edge labels (relations)
-        for i, v in enumerate(relations):
-            self.label_to_ind[v.lower()] = self.total_num_entities + i
+        # entities are represented as tuples in the dict
+        self.label_to_ind = {v: i for i, v in enumerate(chain(lexicon.entities.items(), relations))}
+
         self.ind_to_label = {v: k for k, v in self.label_to_ind.iteritems()}
         self.label_size = len(self.label_to_ind)
 
@@ -117,7 +113,7 @@ class Graph(object):
                 #self.paths.append(path_to_ind((value, 'has_type', attr_type)))
                 # Entity node
                 if attr_name != 'Name':
-                    attr_name = attr_name.lower()
+                    #attr_name = attr_name.lower()
                     attr = (value.lower(), attr_type)
                     paths.append(path_to_ind((person, attr_name, attr)))
                     paths.append(path_to_ind((attr, self.inv_rel(attr_name), person)))

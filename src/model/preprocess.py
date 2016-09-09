@@ -201,7 +201,7 @@ if __name__ == '__main__':
         print 'ENTITIES:'
         for entity in entities[0]:
             print entity
-            print map(lambda x: lexicon.id_to_entity[x] if x != -1 else None, entity)
+            print map(lambda x: kg.ind_to_label[x] if x != -1 else None, entity)
 
     print '=========== eval data ============='
     gen = data_generator.generator_eval('train')
@@ -213,5 +213,5 @@ if __name__ == '__main__':
         print 'ENTITIES:'
         for entity in entities[0]:
             print entity
-            print map(lambda x: lexicon.id_to_entity[x] if x != -1 else None, entity)
+            print map(lambda x: kg.ind_to_label[x] if x != -1 else None, entity)
 

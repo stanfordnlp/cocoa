@@ -101,9 +101,6 @@ class Lexicon(object):
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         self.load_entities()
-        # Mapping from (canonical) entity to an index. NOTE: The map will be shared by the knowledge graph.
-        self.entity_to_id = {e: i for i, e in enumerate(self.entities.items())}
-        self.id_to_entity = {i: e for e, i in self.entity_to_id.items()}
         self.compute_synonyms()
         self.add_numbers()
         #print 'Ambiguous entities:'
