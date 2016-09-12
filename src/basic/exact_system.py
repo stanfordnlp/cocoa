@@ -1,6 +1,5 @@
 from simple_system import SimpleSystem
 from collections import defaultdict
-from copy import deepcopy
 
 class ExactSystem(SimpleSystem):
     def __init__(self, agent, kb):
@@ -11,9 +10,17 @@ class ExactSystem(SimpleSystem):
         self.matched_item = None
         self.selected = False
         # Recursion stack
-        self.item_stack = [self.kb.items]
-        self.attr_stack = []
-        self.attr_stack.append(self.init_attr_state(self.kb.items))
+        self.stack = []
+        init_state = {'items': self.kb.items,\
+                'attrs': self.init_attr_state(self.kb.items),\
+                'fixed_attrs': None,\
+                }
+        self.stack.append(init_state)
+
+    def print_current_items(self):
+        print 'current items:'
+        for item in self.stack[-1]['items']:
+            print item.values()
 
     def receive(self, event):
         print 'RECEIVE'
@@ -23,6 +30,7 @@ class ExactSystem(SimpleSystem):
             for item in self.kb.items:
                 if item == event.data:
                     self.matched_item = item
+        self.print_current_items()
 
     def select_attr(self, attr_state):
         '''
@@ -55,38 +63,31 @@ class ExactSystem(SimpleSystem):
         print 'selected:', attr_name, attr_value
         return attr_name, attr_value
 
-    def init_attr_state(self, items):
+    def init_attr_state(self, items, fixed_attr=None):
         '''
         state[attr_name][attr_value] = (count, checked)
         '''
         state = defaultdict(lambda : defaultdict(lambda : {'count': 0, 'checked': False}))
         for item in items:
             for name, value in item.iteritems():
-                state[name][value]['count'] += 1
-        if len(self.attr_stack) > 0:
-            prev_state = self.attr_stack[-1]
+                if name != fixed_attr:
+                    state[name][value]['count'] += 1
+
+        # Delete attributes checked in parent state
+        if len(self.stack) > 0:
+            prev_state = self.stack[-1]['attrs']
             checked_attrs = []
             for name, values in state.iteritems():
-                # attr checked in parent state
                 if name not in prev_state:
                     checked_attrs.append(name)
-                    continue
-                for value in values:
-                    if prev_state[name][value]['checked'] is True:
-                        state[name][value]['checked'] = True
             for name in checked_attrs:
                 del state[name]
-        #print 'init attr state:'
-        #for name in state:
-        #    print 'attr:', name
-        #    for value in state[name]:
-        #        print 'value:', value, state[name][value]
         return state
 
     def add_constraint(self):
-        curr_items = self.item_stack[-1]
-        curr_attrs = self.attr_stack[-1]
-        name, value = self.select_attr(self.attr_stack[-1])
+        curr_items = self.stack[-1]['items']
+        curr_attrs = self.stack[-1]['attrs']
+        name, value = self.select_attr(curr_attrs)
         print 'add constraint:', name, value
         # TODO: consider currently checking attributes
         if name is None:
@@ -100,8 +101,11 @@ class ExactSystem(SimpleSystem):
             assert len(new_items) > 0
             print 'push to stack %d items' % len(new_items)
             curr_attrs[name][value]['checked'] = True
-            self.item_stack.append(new_items)
-            self.attr_stack.append(self.init_attr_state(new_items))
+            new_state = {'items': new_items,\
+                    'attrs': self.init_attr_state(new_items, name),\
+                    'fixed_attrs': (name, value),\
+                    }
+            self.stack.append(new_state)
             # Whether all of my current items satisfy this constraint
             # This information is useful for early stopping
             all_ = True if len(new_items) == len(curr_items) else False
@@ -110,42 +114,59 @@ class ExactSystem(SimpleSystem):
     def receive_constraint(self, constraint):
         (name, value, exist), num, all_ = constraint
         print 'receive constraint:', constraint
-        curr_items = self.item_stack[-1]
-        curr_attrs = self.attr_stack[-1]
+        curr_items = self.stack[-1]['items']
+        curr_attrs = self.stack[-1]['attrs']
         if exist:
             new_items = [item for item in curr_items if item[name] == value]
             n = len(new_items)
             if n > 0:
                 # All vs One
-                if num == len(self.kb.items) and n == 1:
+                N = len(self.stack[0]['items'])
+                if num == N and n == 1:
                     print 'all vs one. select:', new_items[0]
                     return self.select(new_items[0])
-                elif num == 1 and len(new_items) == len(self.kb.items):
+                elif num == 1 and len(new_items) == N:
                     print 'all vs one. inform.'
                     return self.inform((name, value, exist), len(new_items))
+                # Other values are not possible
+                if all_:
+                    print 'all. remove items %s != %s' % (name, value)
+                    self.stack[-1]['items'] = [item for item in curr_items if item[name] != value]
                 print 'push to stack %d items' % n
                 # Checked by partner
                 curr_attrs[name][value]['checked'] = True
-                self.item_stack.append(new_items)
-                self.attr_stack.append(self.init_attr_state(new_items))
+                new_state = {'items': new_items,\
+                        'attrs': self.init_attr_state(new_items, name),\
+                        'fixed_attrs': (name, value),\
+                        }
+                self.stack.append(new_state)
             elif n == 0:
                 if all_:
-                    print 'invalid constraint. pop.'
-                    self.item_stack.pop()
-                    self.attr_stack.pop()
+                    print 'invalid constraint. received True.'
+                    self.pop_stack()
                 else:
                     print 'invalid constraint. inform.'
                 return self.inform((name, value, False))
         else:
-            print 'invalid constraint.'
-            assert len(self.item_stack) > 0
-            n = len(self.item_stack[-1])
-            while len(self.item_stack) > 0 and \
-                    len(self.item_stack[-1]) == n:
-                print 'pop stack'
-                self.item_stack.pop()
-                self.attr_stack.pop()
+            print 'invalid constraint. received False.'
+            self.pop_stack()
             return None
+
+    def pop_stack(self):
+        while True:
+            print 'pop stack'
+            state = self.stack.pop()
+            fixed_attr = state['fixed_attrs']
+            if fixed_attr is not None:
+                name, value = fixed_attr
+                # Remove unsatisfied item in parent
+                new_items = [item for item in self.stack[-1]['items'] if item[name] != value]
+                self.stack[-1]['items'] = new_items
+                if len(new_items) > 0:
+                    break
+            else:
+                # We are at the root
+                break
 
     def inform(self, cond, n=0, all_=False):
         print 'inform:', cond, n, all_
@@ -166,6 +187,8 @@ class ExactSystem(SimpleSystem):
             self.response = None
         else:
             message = self.add_constraint()
+
+        self.print_current_items()
         return message
 
 

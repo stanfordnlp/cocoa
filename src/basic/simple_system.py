@@ -1,4 +1,4 @@
-import random, sys
+import random
 import re
 from collections import defaultdict
 from sample_utils import sorted_candidates
@@ -11,6 +11,7 @@ class SimpleSystem(System):
     - ask about a single attribute in order of decreasing degree
     - replies 'no' or 'yes' to partner's repsonse
     - selects the friend
+    NOTE: this system assumes that names are unique and consistent.
     '''
     def __init__(self, agent, kb):
         super(SimpleSystem, self).__init__(agent)
