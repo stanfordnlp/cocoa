@@ -8,11 +8,9 @@ class SimpleSystem(System):
     '''
     The simple system implements a bot that
     - greets
-    - generates attributes in decreasing order
-    - generates
+    - ask about a single attribute in order of decreasing degree
     - replies 'no' or 'yes' to partner's repsonse
     - selects the friend
-    TODO
     '''
     def __init__(self, agent, kb):
         super(SimpleSystem, self).__init__(agent)
@@ -72,22 +70,9 @@ class SimpleSystem(System):
                 return (attr_name, value)
         raise Exception('No available attribute.')
 
-    # TODO: simplify
     def ask(self, attr):
         name, value = attr
         return 'Do you know %s %s?' % (name, value)
-        if name == 'Bachelors institution':
-            return 'Do you know anyone who went to %s for undergrad?' % value
-        elif name == 'Bachelors major':
-            return 'Do you know anyone who studied %s for undergrad?' % value
-        elif name == 'Masters education':
-            return 'Do you know anyone who went to %s for master?' % value
-        elif name == 'Masters major':
-            return 'Do you know anyone who studied %s for master?' % value
-        elif name == 'Name':
-            return 'Do you know anyone whose name is %s?' % value
-        else:
-            return 'Do you know anyone who likes %s?' % value
 
     def answer(self, attr):
         attr_name, attr_value = attr
@@ -166,7 +151,8 @@ class SimpleSystem(System):
         # Say hi first
         if not self.said_hi:
             self.said_hi = True
-            text = random.choice(['hi', 'hello'])
+            #text = random.choice(['hi', 'hello'])
+            text = 'hi'
             return self.message(text)
 
         # Reply to questions

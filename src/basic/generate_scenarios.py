@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 import argparse
-import random
-import numpy
+import random, sys
+import numpy as np
+from itertools import izip
 from util import random_multinomial, generate_uuid, write_json
 from schema import Schema
 from scenario_db import Scenario, ScenarioDB, add_scenario_arguments
@@ -17,29 +18,36 @@ add_scenario_arguments(parser)
 args = parser.parse_args()
 if args.random_seed:
     random.seed(args.random_seed)
-    numpy.random.seed(args.random_seed)
+    np.random.seed(args.random_seed)
+
+def get_multinomial(alpha, n):
+    return np.random.dirichlet([alpha] * n)
 
 def generate_scenario(schema):
     '''
     Generates scenarios
     '''
     num_items = args.num_items
-    alpha = args.alpha
+    alphas = list(np.linspace(2, 0.3, len(schema.attributes)-1))
+    np.random.shuffle(alphas)
+    # The first attribute (Name) always have a near-uniform distribution
+    alphas = [3] + list(alphas)
 
     # Generate the profile of the two agents
     agents = (0, 1)
     distribs = ([], [])
     for agent in agents:
-        for attr in schema.attributes:
+        for attr, alpha in izip(schema.attributes, alphas):
             values = schema.values[attr.value_type]
-            distribs[agent].append(numpy.random.dirichlet([alpha] * len(values)))
+            distribs[agent].append(get_multinomial(alpha, len(values)))
 
     # Generate items for each agent until we get a match
     agent_item_hashes = ({}, {})
     agent_items = ([], [])
     match = None
+    # TODO: make sure exactly one match
     for i in range(100000):
-        if match and len(agent_items[0]) >= num_items:
+        if match and len(agent_items[0]) >= num_items and len(agent_items[1]) >= num_items:
             break
 
         for agent in agents:
@@ -49,13 +57,18 @@ def generate_scenario(schema):
             for attr, distrib in zip(schema.attributes, distribs[agent]):
                 index = random_multinomial(distrib)
                 value = schema.values[attr.value_type][index]
-                #if not attr.unique or value not in [item2[attr.name] for item2 in agent_items[agent]]:
-                    #break
                 item[attr.name] = value
                 item_hash.append(index)
             item_hash = ' '.join(map(str, item_hash))
 
+            # Make sure no duplicated entries
+            if item_hash in agent_item_hashes[agent]:
+                continue
+
             if item_hash in agent_item_hashes[1 - agent]:
+                # Make sure the match is unique
+                if match is not None:
+                    continue
                 match = [None, None]
                 match[agent] = len(agent_items[agent])
                 match[1 - agent] = agent_item_hashes[1 - agent][item_hash]
@@ -76,32 +89,36 @@ def generate_scenario(schema):
     for agent in agents:
         swap(agent_items[agent], 0, match[agent])
 
-    # Truncate to num_items and enforce uniqueness
-    new_agent_items = ([], [])
+    # Truncate to num_items
     for agent in agents:
-        unique_attrs = {attr.name: set() for attr in schema.attributes if attr.unique}
-        for item in agent_items[agent]:
-            unique = True
-            for attr, values in unique_attrs.iteritems():
-                if item[attr] in values:
-                    unique = False
-                    break
-            if not unique:
-                continue
-            else:
-                for attr, values in unique_attrs.iteritems():
-                    values.add(item[attr])
-                new_agent_items[agent].append(item)
-                if len(new_agent_items[agent]) == num_items:
-                    break
-    agent_items = new_agent_items
+        del agent_items[agent][num_items:]
+
+    # Truncate to num_items and enforce uniqueness
+    #new_agent_items = ([], [])
+    #for agent in agents:
+    #    unique_attrs = {attr.name: set() for attr in schema.attributes if attr.unique}
+    #    for item in agent_items[agent]:
+    #        unique = True
+    #        for attr, values in unique_attrs.iteritems():
+    #            if item[attr] in values:
+    #                unique = False
+    #                break
+    #        if not unique:
+    #            continue
+    #        else:
+    #            for attr, values in unique_attrs.iteritems():
+    #                values.add(item[attr])
+    #            new_agent_items[agent].append(item)
+    #            if len(new_agent_items[agent]) == num_items:
+    #                break
+    #agent_items = new_agent_items
     for agent in agents:
         if len(agent_items[agent]) != num_items:
             raise Exception('Failed to generate enough items')
 
     # Shuffle items
     for agent in agents:
-        numpy.random.shuffle(agent_items[agent])
+        np.random.shuffle(agent_items[agent])
 
     # Check that there is at least one match
     matches = []
@@ -119,6 +136,12 @@ def generate_scenario(schema):
 
 # Generate scenarios
 schema = Schema(args.schema_path)
+#for i in range(args.num_scenarios):
+#    scenarios = generate_scenario(schema)
+#    scenarios.kbs[0].dump()
+#    scenarios.kbs[1].dump()
+#sys.exit()
+
 scenario_db = ScenarioDB([generate_scenario(schema) for i in range(args.num_scenarios)])
 write_json(scenario_db.to_dict(), args.scenarios_path)
 
