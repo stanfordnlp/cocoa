@@ -120,18 +120,11 @@ class ExactSystem(SimpleSystem):
             new_items = [item for item in curr_items if item[name] == value]
             n = len(new_items)
             if n > 0:
-                # All vs One
-                N = len(self.stack[0]['items'])
-                if num == N and n == 1:
-                    print 'all vs one. select:', new_items[0]
-                    return self.select(new_items[0])
-                elif num == 1 and len(new_items) == N:
-                    print 'all vs one. inform.'
-                    return self.inform((name, value, exist), len(new_items))
-                # Other values are not possible
+                # TODO: partner has one item with attr, all of my items have attr, should inform partner to select that one
                 if all_:
+                    # Other values are not possible
                     print 'all. remove items %s != %s' % (name, value)
-                    self.stack[-1]['items'] = [item for item in curr_items if item[name] != value]
+                    self.stack[-1]['items'] = new_items
                 print 'push to stack %d items' % n
                 # Checked by partner
                 curr_attrs[name][value]['checked'] = True
@@ -174,6 +167,11 @@ class ExactSystem(SimpleSystem):
 
     def send(self):
         print 'SEND'
+
+        # Check global possible items: if the set has been reduced to one item, select that.
+        if len(self.stack[0]['items']) == 1:
+            self.matched_item = self.stack[-1]['items'][0]
+
         # We found a match (note that this doesn't always work)
         if self.matched_item and not self.selected:
             self.selected = True

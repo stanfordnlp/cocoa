@@ -10,6 +10,7 @@ from scenario_db import ScenarioDB, add_scenario_arguments
 from dataset import add_dataset_arguments
 from simple_system import SimpleSystem
 from exact_system import ExactSystem
+from heuristic_system import HeuristicSystem
 from controller import Controller
 
 parser = argparse.ArgumentParser()
@@ -24,7 +25,7 @@ if args.random_seed:
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
 
-agent_systems = {'simple': SimpleSystem, 'exact': ExactSystem}
+agent_systems = {'simple': SimpleSystem, 'exact': ExactSystem, 'heuristic': HeuristicSystem}
 if not args.agents:
     args.agents = ['simple', 'simple']
 agents = [agent_systems[name] for name in args.agents]
@@ -37,6 +38,7 @@ def generate_examples(description, examples_path, max_examples):
         controller = Controller(scenario, systems)
         ex = controller.run()
         examples.append(ex)
+        break
     #with open(examples_path, 'w') as out:
     #    print >>out, json.dumps([e.to_dict() for e in examples])
 

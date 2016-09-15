@@ -32,6 +32,8 @@ class Controller(object):
                     selections[agent] = event.data
 
                 print 'agent=%s: system=%s, event=%s' % (agent, type(system).__name__, event.to_dict())
+                #print 'agent=%s: system=%s' % (agent, type(system).__name__)
+                #print event.data
                 for partner, other_system in enumerate(self.systems):
                     if agent != partner:
                         other_system.receive(event)
@@ -40,7 +42,6 @@ class Controller(object):
                 if selections[0] is not None and selections[0] == selections[1]:
                     reward = 1
                     game_over = True
-                    break
             if game_over:
                 break
 
