@@ -4,6 +4,7 @@ Takes two agent implementations and generates the dialogues.
 
 import argparse
 import random
+import json
 from util import read_json
 from schema import Schema
 from scenario_db import ScenarioDB, add_scenario_arguments
@@ -43,6 +44,6 @@ def generate_examples(description, examples_path, max_examples):
         print >>out, json.dumps([e.to_dict() for e in examples])
 
 if args.train_max_examples:
-    generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.system)
+    generate_examples('train', args.train_examples_paths[0], args.train_max_examples)
 if args.test_max_examples:
-    generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.system)
+    generate_examples('test', args.test_examples_paths[0], args.test_max_examples)
