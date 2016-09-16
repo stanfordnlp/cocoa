@@ -168,7 +168,8 @@ class EncoderDecoder(object):
     def generate(self, sess, kb, inputs, entities, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
-        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entities[:, :-1])
+        entity = entities[:, :-1] if entities is not None else None
+        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entity)
         if inputs.shape[1] > 1:
             # Read until the second last token, the last one will
             # be used as the first input during decoding

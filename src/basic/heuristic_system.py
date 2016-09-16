@@ -71,7 +71,6 @@ class HeuristicSystem(SimpleSystem):
         # Talk about a single attribute
         # Select the attribute with the minimum number of values
         attrs = self.get_majority_attrs(attr_counts, checked_attrs)
-        print 'majority attr:', attrs
         attr_name = random.choice(attrs)
         fact = self.attr_facts(attr_counts, attr_name)
         # Talk about a single value
@@ -90,7 +89,8 @@ class HeuristicSystem(SimpleSystem):
         fact = [(attr_values, count)]
         facts.append(fact)
 
-        while True:
+        i = 0
+        while i < 100:
             fact = random.choice(facts)
             new_fact = []
             for f in fact:
@@ -100,9 +100,12 @@ class HeuristicSystem(SimpleSystem):
                     new_fact.append(f)
             if len(new_fact) > 0:
                 break
+            i += 1
+        if len(new_fact) == 0:
+            return None
         return fact
 
-    def inform(self, subset, conditioned=False):
+    def inform(self, fact):
         '''
         - ((name, value), count), e.g. I have 3 cooking.
         - [((name, value), count)], e.g. I have 3 cooking and 2 hiking.
@@ -110,21 +113,24 @@ class HeuristicSystem(SimpleSystem):
         - optional: replace count, e.g. 4->most, 5->all
         - negation: count == 0
         '''
-        fact = self.choose_fact(subset)
         self.state = ('inform', fact)
         return self.message(self.state)
+
+    def reset_possible_set(self):
+        self.possible_set['items'] = list(self.curr_set['items'])
+        self.possible_set['attrs'] = set(self.curr_set['attrs'])
 
     def answer(self):
         # TODO: partial satisfaction
         if len(self.possible_set['items']) == 0:
             self.state = ('answer', False)
+            self.reset_possible_set()
             return self.message(self.state)
         else:
             self.state = ('answer', True)
             return self.message(self.state)
 
-    def ask(self, subset):
-        fact = self.choose_fact(subset)
+    def ask(self, fact):
         self.state = ('ask', fact)
         return self.message(self.state)
 
@@ -149,8 +155,10 @@ class HeuristicSystem(SimpleSystem):
         items, attrs = item_set['items'], item_set['attrs']
         item_ids = []
         for fact in facts:
-            for name, value in fact[0]:
-                attrs.add(name)
+            # Attributes that don't exist shouldn't be counted as checked
+            if fact[1] > 0:
+                for name, value in fact[0]:
+                    attrs.add(name)
             for i, item in enumerate(items):
                 if self.satisfy(item, fact):
                     item_ids.append(i)
@@ -168,6 +176,7 @@ class HeuristicSystem(SimpleSystem):
                 checked_attrs.add(name)
 
     def update(self, state):
+        print 'agent=%d update state:' % self.agent, state
         # We selected a wrong item
         if self.state and self.state[0] == 'select':
             self.curr_set['items'] = [item for item in self.curr_set['items'] if item != self.state[1]]
@@ -175,26 +184,32 @@ class HeuristicSystem(SimpleSystem):
         self.received_state = state
         intent = state[0]
         facts = None
+        exclude_facts = []
         if intent in ['ask', 'inform']:
             facts = state[1]
-            exclude_facts = [fact for fact in facts if fact[1] == 0 or fact[1] == len(self.kb.items)]
-        elif intent == 'answer' and state[1] is False:
-            # Negate all facts
-            exclude_facts = [(fact[0], 0) for fact in facts]
-        else:
-            exclude_facts = []
-        # TODO: filter when answer=True
+            exclude_facts = [fact for fact in facts if fact[1] == len(self.curr_set['items'])]
+        elif intent == 'answer':
+            assert self.state[0] in ['ask', 'inform']
+            if state[1] is False:
+                # Negate all facts
+                facts = [(fact[0], 0) for fact in self.state[1]]
+                # If this is No to all items, impose the constraint globally
+                if sum([fact[1] for fact in self.state[1]]) == len(self.curr_set['items']):
+                    exclude_facts = facts
+            else:
+                facts = self.state[1]
 
         # Exclude items based on must-have and must-not-have attribute values
         if len(exclude_facts) > 0:
+            print 'exclude facts:', exclude_facts
             self.filter(self.curr_set, exclude_facts)
+            #self.filter(self.possible_set, exclude_facts)
             assert len(self.curr_set['items']) > 0
 
         # Hypothetical items
         if facts:
             if len(self.possible_set['items']) == 0:
-                self.possible_set['items'] = list(self.curr_set['items'])
-                self.possible_set['attrs'] = set(self.curr_set['attrs'])
+                self.reset_possible_set()
             self.filter(self.possible_set, facts)
 
         print 'agent=%d update:' % self.agent
@@ -213,6 +228,7 @@ class HeuristicSystem(SimpleSystem):
                     self.matched_item = item
 
     def send(self):
+        print 'agent=%d SEND' % self.agent
         if random.random() < 0.5:  # Wait randomly
             return None
 
@@ -240,24 +256,31 @@ class HeuristicSystem(SimpleSystem):
             intent = self.received_state[0]
             if intent == 'ask':
                 self.received_state = None
+                print 'answer to ask'
                 return self.answer()
 
         # Wait for an answer
-        if self.state and self.state[0] == 'ask' and not self.received_state:
+        if self.state and self.state[0] == 'ask' and (not self.received_state or self.received_state[0] == 'answer'):
             return None
 
-        if len(self.possible_set['items']) > 0:
-            subset = self.possible_set
-            #print 'check possible set'
+        if len(self.possible_set['items']) == 0:
+            print 'answer to empty item'
+            # Negate received facts
+            print self.received_state
+            fact = [(f[0], 0) for f in self.received_state[1]]
+            return self.inform(fact)
         else:
-            subset = self.curr_set
-            #print 'check curr set'
-            #self.print_items(self.curr_set)
+            subset = self.possible_set
         # Take a guess
         if len(subset['items']) < 3:
             if random.random() < 0.5:
                 return self.select(random.choice(subset['items']))
+        # Select a fact to ask or inform
+        fact = self.choose_fact(subset)
+        # Run out of facts to inform
+        if not fact:
+            return self.select(random.choice(subset['items']))
         if random.random() < 0.5:
-            return self.ask(subset)
+            return self.ask(fact)
         else:
-            return self.inform(subset)
+            return self.inform(fact)

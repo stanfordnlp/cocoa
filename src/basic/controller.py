@@ -31,9 +31,9 @@ class Controller(object):
                 if event.action == 'select':
                     selections[agent] = event.data
 
-                print 'agent=%s: system=%s, event=%s' % (agent, type(system).__name__, event.to_dict())
-                #print 'agent=%s: system=%s' % (agent, type(system).__name__)
-                #print event.data
+                #print 'agent=%s: system=%s, event=%s' % (agent, type(system).__name__, event.to_dict())
+                print 'agent=%s: system=%s' % (agent, type(system).__name__)
+                print event.data
                 for partner, other_system in enumerate(self.systems):
                     if agent != partner:
                         other_system.receive(event)
