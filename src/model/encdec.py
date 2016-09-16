@@ -168,8 +168,8 @@ class EncoderDecoder(object):
     def generate(self, sess, kb, inputs, entities, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
-        entity = entities[:, :-1] if entities is not None else None
-        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entity)
+        entities = entities[:, :-1] if entities is not None else None
+        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entities)
         if inputs.shape[1] > 1:
             # Read until the second last token, the last one will
             # be used as the first input during decoding
@@ -367,7 +367,6 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
 
 # test
 if __name__ == '__main__':
-    import sys
     # Simple encoder-decoder
     vocab_size = 5
     rnn_size = 10
