@@ -9,14 +9,12 @@ from util import read_json
 from schema import Schema
 from scenario_db import ScenarioDB, add_scenario_arguments
 from dataset import add_dataset_arguments
-from simple_system import SimpleSystem
-from exact_system import ExactSystem
 from heuristic_system import HeuristicSystem
 from controller import Controller
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
-parser.add_argument('--agents', help='What kind of agent to use {simple, exact, heuristic}', nargs='*')
+parser.add_argument('--agents', help='What kind of agent to use {heuristic}', nargs='*')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 args = parser.parse_args()
@@ -26,7 +24,7 @@ if args.random_seed:
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
 
-agent_systems = {'simple': SimpleSystem, 'exact': ExactSystem, 'heuristic': HeuristicSystem}
+agent_systems = {'heuristic': HeuristicSystem}
 if not args.agents:
     args.agents = ['simple', 'simple']
 agents = [agent_systems[name] for name in args.agents]
