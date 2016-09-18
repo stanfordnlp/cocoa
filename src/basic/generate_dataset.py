@@ -39,8 +39,8 @@ def generate_examples(description, examples_path, max_examples):
         controller = Controller(scenario, systems)
         ex = controller.run()
         examples.append(ex)
-    #with open(examples_path, 'w') as out:
-    #    print >>out, json.dumps([e.to_dict() for e in examples])
+    with open(examples_path, 'w') as out:
+        print >>out, json.dumps([e.to_dict() for e in examples])
 
 if args.train_max_examples:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples)

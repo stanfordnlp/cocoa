@@ -1,9 +1,10 @@
 from simple_system import SimpleSystem
 from collections import defaultdict
 import random
+from event import Event
+DEBUG = 0
 
 GREETING = ['hi', 'hello', 'hey']
-NONE = ['no match', 'nope', 'none']
 
 class HeuristicSystem(SimpleSystem):
     def __init__(self, agent, kb):
@@ -19,17 +20,11 @@ class HeuristicSystem(SimpleSystem):
         self.received_state = None
         self.state = None
         self.matched_item = None
-        # TODO: put items and attrs into state
-        #self.curr_items = self.kb.items
-        #self.possible_items = self.curr_items
-        # Attributes we've checked for the two sets of items
-        #self.curr_items_attrs = set()
-        #self.possible_items_attrs = set()
-
         self.curr_set = {'items': self.kb.items, 'attrs': set()}
         self.possible_set = {'items': self.kb.items, 'attrs': set()}
 
         self.informed_facts = set()
+        self.last_selected_item = None
 
     def count_attrs(self, items):
         state = defaultdict(lambda : defaultdict(int))
@@ -63,6 +58,22 @@ class HeuristicSystem(SimpleSystem):
             ]
         return fact
 
+    def update_informed_facts(self, fact):
+        '''
+        Record what facts we have communicated so that we don't repeat it.
+        '''
+        for f in fact:
+            self.informed_facts.add(self.fact_hash(f))
+
+    def fact_hash(self, fact):
+        return tuple(fact[0])
+
+    def filter_fact(self, fact):
+        '''
+        Filter repeated facts.
+        '''
+        return [f for f in fact if self.fact_hash(f) not in self.informed_facts]
+
     def choose_fact(self, subset):
         items, checked_attrs = subset['items'], subset['attrs']
         attr_counts = self.count_attrs(items)
@@ -74,10 +85,14 @@ class HeuristicSystem(SimpleSystem):
         attr_name = random.choice(attrs)
         fact = self.attr_facts(attr_counts, attr_name)
         # Talk about a single value
-        facts.append([random.choice(fact)])
+        facts.extend([[f] for f in fact])
+        #facts.append([random.choice(fact)])
         # Talk about all values
         if len(fact) > 1:
             facts.append(fact)
+        # Always talk about one attribute at the beginning
+        if len(self.informed_facts) == 0:
+            return random.choice(facts)
 
         # Talk about joint attributes
         # Randomly select two attributes
@@ -89,15 +104,11 @@ class HeuristicSystem(SimpleSystem):
         fact = [(attr_values, count)]
         facts.append(fact)
 
+        # Don't repeat a fact
         i = 0
         while i < 100:
             fact = random.choice(facts)
-            new_fact = []
-            for f in fact:
-                attr_tuple = tuple(f[0])
-                if attr_tuple not in self.informed_facts:
-                    self.informed_facts.add(attr_tuple)
-                    new_fact.append(f)
+            new_fact = self.filter_fact(fact)
             if len(new_fact) > 0:
                 break
             i += 1
@@ -105,16 +116,54 @@ class HeuristicSystem(SimpleSystem):
             return None
         return fact
 
-    def inform(self, fact):
+    def number_to_str(self, count, total):
+        if count == 0:
+            return 'no'
+        elif count == 1:
+            return random.choice(['one', 'only one'])
+        elif count == total:
+            return 'all'
+        elif count == 2:
+            return 'two'
+        elif count > 3:
+            return 'most'
+        else:
+            return str(count)
+
+    def fact_to_str(self, fact, item_set, include_count=True):
+        fact_str = []
+        total = len(item_set['items'])  # Total number of items in the set being considered
+        for attrs, count in fact:
+            if include_count:
+                s = '%s %s' % (self.number_to_str(count, total), ' and '.join([a[1] for a in attrs]))
+            else:
+                s = ' and '.join([a[1] for a in attrs])
+            fact_str.append(s)
+        fact_str = ', '.join(fact_str)
+        return fact_str
+
+    def inform(self, fact, item_set):
         '''
-        - ((name, value), count), e.g. I have 3 cooking.
-        - [((name, value), count)], e.g. I have 3 cooking and 2 hiking.
-        - ([(name, value)], count), e.g. I have 3 cooking and indoors.
+        - [([(hobby, cooking)], 3)], e.g. I have 3 cooking.
+        - [((hobby, cooking), 3), ((hobby, hiking), 2)], e.g. I have 3 cooking and 2 hiking.
+        - [([(hobby, cooking), (loc_pref, indoors)], 3)], e.g. I have 3 cooking and indoors.
         - optional: replace count, e.g. 4->most, 5->all
         - negation: count == 0
         '''
         self.state = ('inform', fact)
-        return self.message(self.state)
+        self.update_informed_facts(fact)
+        fact_str = self.fact_to_str(fact, item_set)
+        conditioned = True if len(item_set['items']) < len(self.curr_set['items']) else False
+        # Global information
+        if not conditioned:
+            message = 'I have %s.' % fact_str
+        # Local information (conditioned)
+        else:
+            # TODO: mentioned previous attributes, e.g. The cook like outdoors
+            message = 'I have %s in those.' % fact_str
+        if DEBUG:
+            print self.state
+        return self.message(message, self.state)
 
     def reset_possible_set(self):
         self.possible_set['items'] = list(self.curr_set['items'])
@@ -125,17 +174,25 @@ class HeuristicSystem(SimpleSystem):
         if len(self.possible_set['items']) == 0:
             self.state = ('answer', False)
             self.reset_possible_set()
-            return self.message(self.state)
+            return self.message('No.', self.state)
         else:
             self.state = ('answer', True)
-            return self.message(self.state)
+            return self.message('Yes.', self.state)
 
-    def ask(self, fact):
+    def ask(self, fact, item_set):
         self.state = ('ask', fact)
-        return self.message(self.state)
+        self.update_informed_facts(fact)
+        message = 'Do you have %s?' % self.fact_to_str(fact, item_set, False)
+        if DEBUG:
+            print self.state
+        return self.message(message, self.state)
 
     def select(self, item):
         self.state = ('select', item)
+        # Don't repeatedly select one item
+        if item == self.last_selected_item:
+            return None
+        self.last_selected_item = item
         return super(HeuristicSystem, self).select(item)
 
     def satisfy(self, item, fact):
@@ -175,11 +232,20 @@ class HeuristicSystem(SimpleSystem):
             for name, value in fact[0]:
                 checked_attrs.add(name)
 
+    # TODO: attach state in message for now, need to parse state from raw utterance
+    def message(self, text, state=None):
+        event = Event(agent=self.agent, time=None, action='message', data=text)
+        event.state = state
+        return event
+
     def update(self, state):
-        print 'agent=%d update state:' % self.agent, state
+        #print 'update agent=%d' % self.agent, state
+        if state is None:
+            return
         # We selected a wrong item
         if self.state and self.state[0] == 'select':
             self.curr_set['items'] = [item for item in self.curr_set['items'] if item != self.state[1]]
+            self.possible_set['items'] = [item for item in self.possible_set['items'] if item != self.state[1]]
 
         self.received_state = state
         intent = state[0]
@@ -187,13 +253,15 @@ class HeuristicSystem(SimpleSystem):
         exclude_facts = []
         if intent in ['ask', 'inform']:
             facts = state[1]
-            exclude_facts = [fact for fact in facts if fact[1] == len(self.curr_set['items'])]
+            # The partner's constraint is global (NOTE: assumes facts are disjoint)
+            if sum([fact[1] for fact in facts]) == len(self.kb.items):
+                exclude_facts = facts
         elif intent == 'answer':
             assert self.state[0] in ['ask', 'inform']
             if state[1] is False:
                 # Negate all facts
                 facts = [(fact[0], 0) for fact in self.state[1]]
-                # If this is No to all items, impose the constraint globally
+                # If this is No to all items, enforce the constraint globally
                 if sum([fact[1] for fact in self.state[1]]) == len(self.curr_set['items']):
                     exclude_facts = facts
             else:
@@ -203,7 +271,6 @@ class HeuristicSystem(SimpleSystem):
         if len(exclude_facts) > 0:
             print 'exclude facts:', exclude_facts
             self.filter(self.curr_set, exclude_facts)
-            #self.filter(self.possible_set, exclude_facts)
             assert len(self.curr_set['items']) > 0
 
         # Hypothetical items
@@ -212,31 +279,33 @@ class HeuristicSystem(SimpleSystem):
                 self.reset_possible_set()
             self.filter(self.possible_set, facts)
 
-        print 'agent=%d update:' % self.agent
-        print 'possible items:'
-        self.print_items(self.possible_set)
-        print 'curr items:'
-        self.print_items(self.curr_set)
+        if DEBUG:
+            print 'agent=%d update:' % self.agent
+            print 'possible items:'
+            self.print_items(self.possible_set)
+            print 'curr items:'
+            self.print_items(self.curr_set)
+
+    def interesting_fact(self, fact, subset):
+        total = len(subset['items'])
+        for attrs, count in fact:
+            if count == 1 or count == total:
+                return True
+        return False
 
     def receive(self, event):
         if event.action == 'message':
             # NOTE: assume we can see the state. In practice need to parse.
-            self.update(event.data)
+            self.update(event.state)
         elif event.action == 'select':
+            # TODO: update when not matched
             for item in self.kb.items:
                 if item == event.data:
                     self.matched_item = item
 
     def send(self):
-        print 'agent=%d SEND' % self.agent
-        if random.random() < 0.5:  # Wait randomly
-            return None
-
         # We found a match (note that this doesn't always work)
         if self.matched_item:
-            # Don't repeatedly select one item
-            if self.state[0] == 'select' and self.state[1] == self.matched_item:
-                return None
             return self.select(self.matched_item)
 
         # Check if we get a match
@@ -244,6 +313,9 @@ class HeuristicSystem(SimpleSystem):
             return self.select(self.curr_set['items'][0])
         if len(self.possible_set['items']) == 1 and len(self.possible_set['attrs']) == self.total_num_attrs:
             return self.select(self.possible_set['items'][0])
+
+        if random.random() < 0.5:  # Wait randomly
+            return None
 
         # Say hi first
         if not self.said_hi:
@@ -256,21 +328,21 @@ class HeuristicSystem(SimpleSystem):
             intent = self.received_state[0]
             if intent == 'ask':
                 self.received_state = None
-                print 'answer to ask'
                 return self.answer()
 
         # Wait for an answer
         if self.state and self.state[0] == 'ask' and (not self.received_state or self.received_state[0] == 'answer'):
             return None
 
+        # Inform when the partner's constraint results in an empty set
         if len(self.possible_set['items']) == 0:
-            print 'answer to empty item'
-            # Negate received facts
-            print self.received_state
-            fact = [(f[0], 0) for f in self.received_state[1]]
-            return self.inform(fact)
-        else:
-            subset = self.possible_set
+            self.reset_possible_set()
+            # Negate received positive facts
+            fact = [(f[0], 0) for f in self.received_state[1] if f[1] > 0]
+            if len(self.filter_fact(fact)) > 0:
+                return self.inform(fact, self.possible_set)
+
+        subset = self.possible_set
         # Take a guess
         if len(subset['items']) < 3:
             if random.random() < 0.5:
@@ -280,7 +352,10 @@ class HeuristicSystem(SimpleSystem):
         # Run out of facts to inform
         if not fact:
             return self.select(random.choice(subset['items']))
-        if random.random() < 0.5:
-            return self.ask(fact)
+        if self.interesting_fact(fact, subset):
+            return self.inform(fact, subset)
         else:
-            return self.inform(fact)
+            if random.random() < 0.5:
+                return self.ask(fact, subset)
+            else:
+                return self.inform(fact, subset)
