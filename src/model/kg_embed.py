@@ -230,14 +230,20 @@ class Graph(object):
     # TODO: add feature size as an argument
     def get_features(self, kb):
         features = np.zeros([self.label_size, 1], dtype=np.float32)
-        sorted_attr = kb.sorted_attr()
-        N = len(sorted_attr)
-        # TODO: what if same attr_value appear >1, e.g., mit has rankings corresponding to both undergrad and master schools
-        for i, attr in enumerate(sorted_attr):
-            attr_name, attr_value = attr[0]
-            ind = self.label_to_ind[(attr_value.lower(), self.attribute_types[attr_name])]
-            # TODO: normalization seems important here, check tf batch normalization options
-            features[ind][0] = (i + 1) / float(N)
+        # Degree of each node
+        for path in self.paths:
+            e1, r, e2 = path
+            features[e1] += 1
+        features = features / len(self.paths)
+
+        #sorted_attr = kb.sorted_attr()
+        #N = len(sorted_attr)
+        ## TODO: what if same attr_value appear >1, e.g., mit has rankings corresponding to both undergrad and master schools
+        #for i, attr in enumerate(sorted_attr):
+        #    attr_name, attr_value = attr[0]
+        #    ind = self.label_to_ind[(attr_value.lower(), self.attribute_types[attr_name])]
+        #    # TODO: normalization seems important here, check tf batch normalization options
+        #    features[ind][0] = (i + 1) / float(N)
         return features
 
     def entity_embedding(self):
