@@ -102,7 +102,8 @@ class Lexicon(object):
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         self.load_entities()
         self.compute_synonyms()
-        self.add_numbers()
+        # TODO: the model cannot handle number entities now
+        #self.add_numbers()
         #print 'Ambiguous entities:'
         #for phrase, entities in self.lexicon.items():
         #    if len(entities) > 1:
