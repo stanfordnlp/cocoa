@@ -28,15 +28,18 @@ agent_systems = {'heuristic': HeuristicSystem}
 if not args.agents:
     args.agents = ['simple', 'simple']
 agents = [agent_systems[name] for name in args.agents]
+num_examples = 0
 
 def generate_examples(description, examples_path, max_examples):
+    global num_examples
     examples = []
     for i in range(max_examples):
-        scenario = scenario_db.scenarios_list[i % len(scenario_db.scenarios_list)]
+        scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
         systems = [agents[0](0, scenario.kbs[0]), agents[1](1, scenario.kbs[1])]
         controller = Controller(scenario, systems)
         ex = controller.run()
         examples.append(ex)
+        num_examples += 1
     with open(examples_path, 'w') as out:
         print >>out, json.dumps([e.to_dict() for e in examples])
 
