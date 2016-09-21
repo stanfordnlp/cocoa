@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
+    parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
@@ -53,7 +54,7 @@ if __name__ == '__main__':
             assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
 
         # Checkpoint
-        if args.test:
+        if args.test and args.best:
             ckpt = tf.train.get_checkpoint_state(args.init_from+'-best')
         else:
             ckpt = tf.train.get_checkpoint_state(args.init_from)
