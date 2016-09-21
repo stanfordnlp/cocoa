@@ -1,3 +1,9 @@
+# TODO: use named tuple to represent entities
+def is_entity(word):
+    if not isinstance(word, basestring):
+        return True
+    return False
+
 class Vocabulary(object):
 
     UNK = 'UNK'
@@ -6,6 +12,7 @@ class Vocabulary(object):
         self.word_to_ind = {}
         self.size = 0
         self._add_word(self.UNK)
+        self.entities = set()
 
     def add_words(self, words):
         '''
@@ -20,6 +27,8 @@ class Vocabulary(object):
     def _add_word(self, word):
         if word not in self.word_to_ind:
             self.word_to_ind[word] = self.size
+            if is_entity(word):
+                self.entities.add(self.size)
             self.size += 1
 
     def build(self):

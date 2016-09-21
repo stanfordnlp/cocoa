@@ -9,6 +9,7 @@ from preprocess import END_TURN, END_UTTERANCE
 from lib.bleu import compute_bleu
 from lib import logstats
 import numpy as np
+from vocab import is_entity
 
 def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
@@ -35,16 +36,13 @@ class Learner(object):
     def entity_acc(self, preds, targets, lexicon, vocab):
         def get_entity(x):
             x = map(vocab.to_word, x)
-            return [e[0] for e in x if not isinstance(e, basestring)]
+            return [e[0] for e in x if is_entity(e)]
         preds = set(get_entity(preds))
         targets = set(get_entity(targets))
         # Don't record cases where no entity is presented
         if len(targets) == 0:
             return None
-        recall = 0
-        for e in targets:
-            if e in preds:
-                recall += 1
+        recall = sum([1 if e in preds else 0 for e in targets]) / float(len(targets))
         return recall
 
     def test_bleu(self, sess, split='dev'):

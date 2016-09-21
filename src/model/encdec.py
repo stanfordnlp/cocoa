@@ -5,7 +5,8 @@ Encode when action is read and decode when action is write.
 
 import tensorflow as tf
 import numpy as np
-from model.attention_rnn_cell import AttnRNNCell, add_attention_arguments
+from attention_rnn_cell import AttnRNNCell, add_attention_arguments
+from vocab import is_entity
 from tensorflow.python.util import nest
 from itertools import izip
 import sys
@@ -168,11 +169,11 @@ class EncoderDecoder(object):
     def generate(self, sess, kb, inputs, entities, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
-        entities = entities[:, :-1] if entities is not None else None
-        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entities)
+        # Read until the second last token, the last one will be used as the first input during decoding
+        # NOTE: if entities.shape[1] == 1, entity is a bad array where shape[1] == 0
+        entity = entities[:, :-1] if entities is not None else None
+        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entity)
         if inputs.shape[1] > 1:
-            # Read until the second last token, the last one will
-            # be used as the first input during decoding
             [state] = sess.run([self.final_state], feed_dict=feed_dict)
         else:
             state = init_state
@@ -202,39 +203,35 @@ class EncoderDecoder(object):
 
         return preds, state
 
-    def test(self, kb=None, lexicon=None):
+    def test(self, kb=None, lexicon=None, vocab=None):
         seq_len = 4
         np.random.seed(0)
         data = np.random.randint(self.vocab_size, size=(self.batch_size, seq_len+1))
         x = data[:,:-1]
         y = data[:,1:]
         iswrite = np.random.randint(2, size=(self.batch_size, seq_len)).astype(np.bool_)
-        entities = []
-        for i in xrange(seq_len):
-            entities.append([-1, 1])
-        if not self.kg.train_utterance:
-            entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, 2)
+        if kb and vocab:
+            entities = self.kg.get_entity_list([vocab.to_word(i) for i in x.reshape(-1)])
+            if not self.kg.train_utterance:
+                entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, 2)
+            else:
+                entities = map(self.kg.convert_entity, entities)
+                entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
         else:
-            entities = map(self.kg.convert_entity, entities)
-            entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
+            entities = None
 
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
-            feed_dict = {self.input_data: x,
-                    self.input_iswrite: iswrite,
-                    self.targets: y}
-            if hasattr(self, 'kg'):
-                assert kb
-                feed_dict[self.kg.input_data] = self.kg.load(kb)
-                feed_dict[self.input_entities] = entities
+            feed_dict = {}
+            self.update_feed_dict(feed_dict, x, None, kb=kb, entities=entities, targets=y, iswrite=iswrite)
             outputs, seq_loss, loss = sess.run([self.outputs, self.seq_loss, model.loss], feed_dict=feed_dict)
             #print 'last_ind:', last_ind
             #print 'states:', states[0].shape, states[1].shape
             print 'is_write:\n', iswrite
-            print 'output:\n', outputs.shape, outputs
+            print 'output:\n', outputs.shape
             print 'seq_loss:\n', seq_loss
             print 'loss:\n', loss
-            preds, state = self.generate(sess, kb, x, entities, (5,), lexicon, 10)
+            preds, state = self.generate(sess, kb, x, entities, (5,), max_len=10)
             print 'preds:\n', preds
 
 class AttnEncoderDecoder(EncoderDecoder):
@@ -295,20 +292,20 @@ class AttnEncoderDecoder(EncoderDecoder):
 
     def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
         super(AttnEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, targets=targets, iswrite=iswrite)
-        if kb is not None:
-            feed_dict[self.kg.input_data] = self.kg.load(kb)
-        if entities is not None:
-            feed_dict[self.input_entities] = entities
-        else:
+        if entities is None:
             # Compute entity from preds
             assert preds
             tokens = map(self.vocab.to_word, preds)
-            entity = self.kg.get_entity_list(tokens, (len(tokens)-1,))
+            entities = self.kg.get_entity_list(tokens, (len(tokens)-1,))
             if not self.kg.train_utterance:
-                entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
+                entities = np.asarray(entities, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
             else:
-                entity = np.asarray(entity, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
-            feed_dict[self.input_entities] = entity
+                entities = np.asarray(entities, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
+
+        feed_dict[self.input_entities] = entities
+        input_data = self.kg.load(kb, entities)
+        if input_data:  # Check if there's update in the input
+            feed_dict[self.kg.input_data] = input_data
 
 class AttnCopyEncoderDecoder(AttnEncoderDecoder):
     '''
@@ -353,14 +350,15 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
             for i, (t, w) in enumerate(izip(target, write)):
                 # NOTE: only replace entities in our kb
                 if w:
+                    # TODO: use vocab.entities
                     token = vocab.to_word(t)
-                    # TODO: use named tuple to represent entities
-                    if not isinstance(token, basestring):
+                    if is_entity(token):
+                        assert t in vocab.entities
                         try:
                             target[i] = vocab.size + self.kg.global_to_local_entity[self.kg.label_to_ind[token]]
                         except KeyError:
                             print token
-                            print self.kg.label_to_ind
+                            print self.kg.label_to_ind[token]
                             print self.kg.global_to_local_entity
                             sys.exit()
         return new_targets
@@ -407,14 +405,15 @@ if __name__ == '__main__':
         kg = CBOWGraph(schema, lexicon, context_size, rnn_size, train_utterance=False)
         data_generator.set_kg(kg)
         agent, kb, inputs, entities, targets, iswrite = gen.next()
+        kb.dump()
         model = AttnCopyEncoderDecoder(vocab, rnn_size, kg)
         # test copy_output and copy target
-        kg.load(kb)
+        kg.load(kb, entities)
         n = 2
-        print 'to be copied:', kg.ind_to_label[kg.nodes[n]], lexicon.id_to_entity[kg.nodes[n]]
+        print 'to be copied:', kg.ind_to_label[kg.nodes[n]]
         t = np.array([[vocab.to_ind(kg.ind_to_label[kg.nodes[n]])]])
         t = model.copy_target(t, [[True]])
         print 'new target:', t
         out = model.copy_output(t)
         print 'copy output:', vocab.to_word(int(out))
-        model.test(kb, data_generator.lexicon)
+        model.test(kb, data_generator.lexicon, vocab)

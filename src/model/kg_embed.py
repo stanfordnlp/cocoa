@@ -7,6 +7,7 @@ import numpy as np
 from itertools import chain
 from collections import defaultdict
 import tensorflow as tf
+from vocab import is_entity
 
 def add_kg_arguments(parser):
     parser.add_argument('--kg-model', default='cbow', help='Model name {cbow}')
@@ -32,9 +33,12 @@ class Graph(object):
         relations = self.attribute_types.keys()
         # Inverse relations
         relations.extend((self.inv_rel(r) for r in self.attribute_types))
+        # Special relations
+        relations.append('self')  # For dangling nodes
         print 'Number of relations:', len(relations)
 
         # entities are represented as tuples in the dict
+        # This is used to index entities in the entity embedding, utterance matrices
         self.label_to_ind = {v: i for i, v in enumerate(chain(lexicon.entities.items(), relations))}
 
         self.ind_to_label = {v: k for k, v in self.label_to_ind.iteritems()}
@@ -44,6 +48,7 @@ class Graph(object):
         self.path_len = path_len
         self.entity_cache_size = entity_cache_size
         self.entity_hist_len = entity_hist_len
+        self.curr_entities = None  # Track the current entities in the kb and dialogue history
 
         self.embed_size = embed_size
         # size of input utterances (RNN output size)
@@ -85,7 +90,7 @@ class Graph(object):
         '''
         Return all entities in tokens. Pad -1 to fit in entity_cache_size.
         '''
-        entities = [self.label_to_ind[x] for x in tokens if not isinstance(x, basestring)]
+        entities = [self.label_to_ind[x] for x in tokens if is_entity(x)]
         # Remove duplicated entities
         entities = list(set(entities))
         if len(entities) < self.entity_cache_size:
@@ -110,14 +115,14 @@ class Graph(object):
             for attr_name, value in item.iteritems():
                 # Type node
                 attr_type = self.attribute_types[attr_name]
-                #self.paths.append(path_to_ind((value, 'has_type', attr_type)))
+                #paths.append(path_to_ind((value, 'has_type', attr_type)))
                 # Entity node
                 if attr_name != 'Name':
                     #attr_name = attr_name.lower()
                     attr = (value.lower(), attr_type)
                     paths.append(path_to_ind((person, attr_name, attr)))
                     paths.append(path_to_ind((attr, self.inv_rel(attr_name), person)))
-        return np.array(paths)
+        return paths
 
     def get_node_paths(self, paths):
         '''
@@ -135,20 +140,62 @@ class Graph(object):
             paths.append(path)
         return paths
 
-    def load(self, kb):
+    def add_new_entities(self, entities, paths):
+        '''
+        Find entities that are not in the kb and add them as dangling nodes/paths.
+        '''
+        def dangling_node_path(entity_id):
+            return [entity_id, self.label_to_ind['self'], entity_id]
+        for entity in entities:
+            assert entity not in self.curr_entities
+            paths.append(dangling_node_path(entity))
+            self.curr_entities.add(entity)
+        return paths
+
+    def new_entities(self, entities):
+        if self.train_utterance:
+            entities = entities[:, :, :, 0, 0]
+        all_entities = np.unique(entities)
+        all_entities = all_entities[all_entities != -1]
+        new_entities = []
+        for entity in all_entities:
+            if entity not in self.curr_entities:
+                new_entities.append(entity)
+        return new_entities
+
+    def load(self, kb, entities):
         '''
         Populate the graph.
+        entities is given by get_entity_list.
         '''
-        paths = np.array(self.get_paths(kb))
-        node_paths = np.array(self.get_node_paths(paths))
-        features = self.get_features(kb)
+        # Load kb means to reset paths and curr_entities to a new example
+        # Otherwise just add new entities to paths and curr_entities
+        if kb is not None:
+            self.paths = self.get_paths(kb)
+            self.curr_entities = set([p[0] for p in self.paths])
+            self.features = self.get_features(kb)
+
+        new_entities = self.new_entities(entities)
+        # Nothing to load/update
+        if kb is None and len(new_entities) == 0:
+            return False
+        # Add entities from the input (mentioned by the partner) but not in the kb
+        self.paths = self.add_new_entities(new_entities, self.paths)
+
+        node_paths = np.array(self.get_node_paths(self.paths))
+        paths = np.array(self.paths, dtype=np.int32)
+
         # Size of the output attention scores (for copy)
         self.num_entities = len(self.nodes)
         entity_size = np.array(range(self.num_entities)).reshape(1, -1)
-        # Output copied entities are in [0, num_nodes], need to map to global entity id
+
+        # Local entity index is for entities in this example
+        # Global entity index is for all entities in the domain
+        # Used during copy: output entities are in [0, num_nodes], need to map to global entity id
         self.local_to_global_entity = {i: entity_id for i, entity_id in enumerate(self.nodes)}
         self.global_to_local_entity = {v: k for k, v in self.local_to_global_entity.iteritems()}
-        return (paths, node_paths, features, entity_size)
+
+        return (paths, node_paths, self.features, entity_size)
 
     def path_embedding(self, inputs):
         '''
@@ -201,6 +248,7 @@ class Graph(object):
             # Dynamic embedding for utterance related to each entity
             if self.train_utterance:
                 self.utterances = tf.zeros([self.label_size, self.utterance_size])
+            # TODO: use sparse tensor for utterance
             else:
                 self.utterances = tf.get_variable('utterance', [self.label_size, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
             # Other features
@@ -212,7 +260,6 @@ class Graph(object):
             #entity_embedding = self.features
             return entity_embedding
 
-    # TODO: update nodes not in kg?
     def update_utterance_trainable(self, indices, utterance):
         '''
         indices: batch_size x cache_size x utterance_size x 2
@@ -256,6 +303,7 @@ class CBOWGraph(Graph):
             embed_input = tf.nn.embedding_lookup(embedding, inputs)  # n x path_len x embed_size
             # context_size: the context matrix sent to RNN
             self.context_size = embedding.get_shape()[1]
+            # TODO: sum or mean?
             return tf.reduce_sum(embed_input, 1)  # n x embed_size
 
 # test
@@ -283,19 +331,25 @@ if __name__ == '__main__':
 
     data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon, None)
 
-    gen = data_generator.generator_train('train')
-    agent, kb, inputs, targets, iswrite = gen.next()
-
     embed_size = 10
-    kg = CBOWGraph(schema, lexicon, embed_size)
-    input_data = kg.load(kb)
-    paths, node_paths = input_data
+    utterance_size = 10
+    kg = CBOWGraph(schema, lexicon, embed_size, utterance_size)
+    data_generator.set_kg(kg)
+
+    gen = data_generator.generator_train('train')
+    agent, kb, inputs, entities, targets, iswrite = gen.next()
+
+    new_entities = [16]
+    input_data = kg.load(kb, new_entities)
+    paths, node_paths, features, entity_size = input_data
     print kb.dump()
     print kg.label_to_ind
     print 'Example paths:'
     def path_to_str(path):
         return map(lambda x: kg.ind_to_label[x], path)
-    for path in paths[:10]:
+    for path in paths[:5]:
+        print path_to_str(path)
+    for path in paths[-5:]:
         print path_to_str(path)
     with tf.Session() as sess:
         tf.initialize_all_variables().run()

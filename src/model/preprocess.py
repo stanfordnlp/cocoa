@@ -5,7 +5,7 @@ Preprocess examples in a dataset and generate data for models.
 import random
 import re
 import numpy as np
-from vocab import Vocabulary
+from vocab import Vocabulary, is_entity
 
 # Special symbols
 START = '<d>'
@@ -58,7 +58,7 @@ class DataGenerator(object):
             for e in ex.events:
                 if e.action == 'message':
                     for token in e.processed_data:
-                        if isinstance(token, basestring):
+                        if not is_entity(token):
                             self.vocab.add_words(token)
                         else:
                             # Surface form of the entity
@@ -80,7 +80,7 @@ class DataGenerator(object):
         # TODO: targets over surface tokens (x[0])
         tokens = []
         if e.action == 'message':
-            tokens = [x if isinstance(x, basestring) else x[1] for x in e.processed_data]
+            tokens = [x[1] if is_entity(x) else x for x in e.processed_data]
         elif e.action == 'select':
             tokens = [SELECT, (e.data['Name'].lower(), 'person')]
         else:

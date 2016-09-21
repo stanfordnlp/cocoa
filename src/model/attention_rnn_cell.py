@@ -119,7 +119,7 @@ class AttnRNNCell(object):
             # Compute attention
             # context: batch_size x context_len x context_size
             # NOTE: kg.context assumes batch_size=1
-            # TODO: in tensorflow self.kg.context is computed in every RNN step. Need to use partial_run to manually cache the intermediate result.
+            # NOTE: in tensorflow self.kg.context is computed in every RNN step. Need to use partial_run to manually cache the intermediate result. We don't need the cache if we update at every word thought.
             with tf.control_dependencies([update_op]):
                 attn, attn_scores = self.compute_attention(output, self.kg.context, self._num_units)
                 # Output
