@@ -196,7 +196,8 @@ class EncoderDecoder(object):
             pred = int(input_)
             assert pred < self.vocab_size
             preds.append(pred)
-            if pred in stop_symbols or len(preds) == max_len:
+            # NOTE: Check if len(preds) > 1 to avoid generating stop_symbols as the first token
+            if (len(preds) > 1 and pred in stop_symbols) or len(preds) == max_len:
                 break
 
             self.update_feed_dict(feed_dict, input_, state, kb=None, entities=None, preds=preds)
