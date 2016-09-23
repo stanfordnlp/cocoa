@@ -95,10 +95,10 @@ class Lexicon(object):
     A lexicon maps freeform phrases to canonicalized entity.
     The current lexicon just uses several heuristics to do the matching.
     '''
-    def __init__(self, schema, broad_lex):
+    def __init__(self, schema, learned_lex):
         self.schema = schema
-        # if True, lexicon returns full candidate set
-        self.broad = broad_lex
+        # if True, lexicon uses learned system
+        self.learned_lex = learned_lex
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
@@ -188,7 +188,8 @@ class Lexicon(object):
                 results = self.lookup(phrase)
                 if len(results) > 0:
                     entity = None
-                    if self.broad:
+                    if self.learned_lex:
+                        # Will later use learned system -- returns full candidate set for now
                         entity = results
                     else:
                         # NOTE: if more than one match, use the first one.
@@ -222,5 +223,5 @@ if __name__ == "__main__":
     # TODO: Update path to location of desired schema used for basic testing
     path = None
     schema = Schema(path)
-    lex = Lexicon(schema, broad_lex=False)
+    lex = Lexicon(schema, learned_lex=False)
     lex.test()
