@@ -189,12 +189,15 @@ class Lexicon(object):
                     # TODO: disambiguate
                     # prioritize exact match (e.g. hiking, biking)
                     entity = None
-                    for result in results:
-                        if result[0] == phrase:
-                            entity = result
-                            break
-                    if not entity:
-                        entity = results[0]
+                    # for result in results:
+                    #     if result[0] == phrase:
+                    #         entity = result
+                    #         break
+                    # if not entity:
+                    #     entity = results[0]
+                    # For now just see all the matches made by the lexicon
+                    # Will refine later with a  higher recall candidate system and/or learned scoring system
+                    entity = results
                     entities.append((phrase, entity))
                     i += l
                     break
@@ -210,3 +213,12 @@ class Lexicon(object):
             print x, '=>', self.lookup(x)
         sentence = ['i', 'like', 'hiking', 'biking']
         print self.entitylink(sentence)
+
+
+if __name__ == "__main__":
+    from schema import Schema
+    # TODO: Update path to location of desired schema used for basic testing
+    path = None
+    schema = Schema(path)
+    lex = Lexicon(schema)
+    lex.test()
