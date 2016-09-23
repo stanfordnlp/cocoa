@@ -24,6 +24,8 @@ if __name__ == '__main__':
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
+    parser.add_argument('--broad_lex', default=False, action='store_true', help='if true have entity linking in lexicon'
+                                                                                'return full candidate set (high recall)')
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
     add_model_arguments(parser)
@@ -37,7 +39,7 @@ if __name__ == '__main__':
 
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    lexicon = Lexicon(schema)
+    lexicon = Lexicon(schema, args.broad_lex)
 
     dataset = read_dataset(scenario_db, args)
 

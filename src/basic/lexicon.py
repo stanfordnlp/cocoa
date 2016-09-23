@@ -95,8 +95,10 @@ class Lexicon(object):
     A lexicon maps freeform phrases to canonicalized entity.
     The current lexicon just uses several heuristics to do the matching.
     '''
-    def __init__(self, schema):
+    def __init__(self, schema, broad_lex):
         self.schema = schema
+        # if True, lexicon returns full candidate set
+        self.broad = broad_lex
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
@@ -185,19 +187,19 @@ class Lexicon(object):
                 phrase = ' '.join(raw_tokens[i:i+l])
                 results = self.lookup(phrase)
                 if len(results) > 0:
-                    # NOTE: if more than one match, use the first one.
-                    # TODO: disambiguate
-                    # prioritize exact match (e.g. hiking, biking)
                     entity = None
-                    # for result in results:
-                    #     if result[0] == phrase:
-                    #         entity = result
-                    #         break
-                    # if not entity:
-                    #     entity = results[0]
-                    # For now just see all the matches made by the lexicon
-                    # Will refine later with a  higher recall candidate system and/or learned scoring system
-                    entity = results
+                    if self.broad:
+                        entity = results
+                    else:
+                        # NOTE: if more than one match, use the first one.
+                        # TODO: disambiguate
+                        # prioritize exact match (e.g. hiking, biking)
+                        for result in results:
+                            if result[0] == phrase:
+                                entity = result
+                                break
+                        if not entity:
+                            entity = results[0]
                     entities.append((phrase, entity))
                     i += l
                     break
@@ -220,5 +222,5 @@ if __name__ == "__main__":
     # TODO: Update path to location of desired schema used for basic testing
     path = None
     schema = Schema(path)
-    lex = Lexicon(schema)
+    lex = Lexicon(schema, broad_lex=False)
     lex.test()
