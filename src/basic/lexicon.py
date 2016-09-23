@@ -95,8 +95,10 @@ class Lexicon(object):
     A lexicon maps freeform phrases to canonicalized entity.
     The current lexicon just uses several heuristics to do the matching.
     '''
-    def __init__(self, schema):
+    def __init__(self, schema, learned_lex):
         self.schema = schema
+        # if True, lexicon uses learned system
+        self.learned_lex = learned_lex
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
@@ -185,16 +187,20 @@ class Lexicon(object):
                 phrase = ' '.join(raw_tokens[i:i+l])
                 results = self.lookup(phrase)
                 if len(results) > 0:
-                    # NOTE: if more than one match, use the first one.
-                    # TODO: disambiguate
-                    # prioritize exact match (e.g. hiking, biking)
                     entity = None
-                    for result in results:
-                        if result[0] == phrase:
-                            entity = result
-                            break
-                    if not entity:
-                        entity = results[0]
+                    if self.learned_lex:
+                        # Will later use learned system -- returns full candidate set for now
+                        entity = results
+                    else:
+                        # NOTE: if more than one match, use the first one.
+                        # TODO: disambiguate
+                        # prioritize exact match (e.g. hiking, biking)
+                        for result in results:
+                            if result[0] == phrase:
+                                entity = result
+                                break
+                        if not entity:
+                            entity = results[0]
                     entities.append((phrase, entity))
                     i += l
                     break
@@ -210,3 +216,12 @@ class Lexicon(object):
             print x, '=>', self.lookup(x)
         sentence = ['i', 'like', 'hiking', 'biking']
         print self.entitylink(sentence)
+
+
+if __name__ == "__main__":
+    from schema import Schema
+    # TODO: Update path to location of desired schema used for basic testing
+    path = None
+    schema = Schema(path)
+    lex = Lexicon(schema, learned_lex=False)
+    lex.test()
