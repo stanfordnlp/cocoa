@@ -14,7 +14,6 @@ def convert_transcript(path):
     infile = codecs.open(path, 'r', encoding='utf-8')
     events = []
     scenario_id = None
-    user_ids = [0,0]
     for line in infile.readlines():
         line = line.strip().split('\t')
         if len(line) <=2:
@@ -22,12 +21,9 @@ def convert_transcript(path):
             # if length == 2, end of chat, don't add any events
             pass
         elif len(line) == 3:
-            # logs user ID - simply store user ID
+            # Line logs user ID - do nothing
             # Line has format timestamp \t scenario \t User X has user ID user_id_key
-            log = line[-1]
-            id = log.split()[-1]
-            agent = 1 if 'User 1' in log else 0
-            user_ids[agent] = id
+            pass
         else:
             time = line[0]
             scenario_id = line[1]
@@ -52,7 +48,7 @@ def convert_transcript(path):
     # todo this doesn't actually check whether the conversation was successfully completed or not
     outcome = {'reward': 1}
 
-    return Example(scenario, scenario_id, events, outcome, user_ids)
+    return Example(scenario, scenario_id, events, outcome)
 
 
 if __name__ == "__main__":

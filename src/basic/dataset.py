@@ -10,12 +10,11 @@ class Example(object):
     An example is a dialogue grounded in a scenario, has a set of events, and has some reward at the end.
     Created by through live conversation, serialized, and then read for training.
     '''
-    def __init__(self, scenario, uuid, events, outcome, user_ids=[]):
+    def __init__(self, scenario, uuid, events, outcome):
         self.scenario = scenario
         self.uuid = uuid
         self.events = events
         self.outcome = outcome
-        self.user_ids = user_ids
 
     def add_event(self, event):
         self.events.append(event)
@@ -29,14 +28,13 @@ class Example(object):
         user_ids = []
         if 'user_ids' in raw:
             user_ids = raw['user_ids']
-        return Example(scenario, uuid, events, outcome, user_ids)
+        return Example(scenario, uuid, events, outcome)
 
     def to_dict(self):
         return {
             'scenario_uuid': self.scenario.uuid,
             'events': [e.to_dict() for e in self.events],
             'outcome': self.outcome,
-            'user_ids': self.user_ids
         }
 
 class Dataset(object):
