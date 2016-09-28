@@ -1,10 +1,10 @@
 import random
 import re
 from collections import defaultdict
-from sample_utils import sorted_candidates
-from system import System
+from src.basic.sample_utils import sorted_candidates
+from session import Session
 
-class SimpleSystem(System):
+class SimpleSession(Session):
     '''
     The simple system implements a bot that
     - greets
@@ -14,7 +14,7 @@ class SimpleSystem(System):
     NOTE: this system assumes that names are unique and consistent.
     '''
     def __init__(self, agent, kb):
-        super(SimpleSystem, self).__init__(agent)
+        super(SimpleSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
         self.sorted_attr = kb.sorted_attr()

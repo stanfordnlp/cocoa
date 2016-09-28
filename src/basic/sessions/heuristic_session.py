@@ -1,12 +1,12 @@
-from simple_system import SimpleSystem
+from simple_session import SimpleSession
 from collections import defaultdict
 import random
-from event import Event
+from src.basic.event import Event
 DEBUG = 0
 
 GREETING = ['hi', 'hello', 'hey']
 
-class HeuristicSystem(SimpleSystem):
+class HeuristicSession(SimpleSession):
     def __init__(self, agent, kb):
         self.agent = agent
         self.kb = kb
@@ -193,7 +193,7 @@ class HeuristicSystem(SimpleSystem):
         if item == self.last_selected_item:
             return None
         self.last_selected_item = item
-        return super(HeuristicSystem, self).select(item)
+        return super(HeuristicSession, self).select(item)
 
     def satisfy(self, item, fact):
         '''
