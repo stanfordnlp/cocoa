@@ -6,7 +6,7 @@ class NeuralSession(Session):
     def __init__(self, agent, kb, lexicon, vocab, tf_graph, tf_session):
         super(NeuralSession, self).__init__(agent)
         self.kb = kb
-        self.lexicon = lexicion  # For entity linking
+        self.lexicon = lexicon  # For entity linking
         self.vocab = vocab  # For mapping from predictions to tokens
 
         # Generation params
