@@ -1,5 +1,5 @@
 '''
-A system abstract class maintains state and can read an event and write an
+A session abstract class maintains state and can read an event and write an
 event.
 '''
 
