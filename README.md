@@ -4,7 +4,8 @@ Initialize:
 
 Generate schema:
 
-    python scripts/generate_schema.py --schema-path data/friends-schema.json
+    mkdir data/cache
+    python scripts/generate_schema.py --schema-path data/friends-schema.json --cache-path data/cache
 
 Generate scenarios from the schema:
 
