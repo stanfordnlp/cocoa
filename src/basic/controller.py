@@ -5,10 +5,10 @@ class Controller(object):
     '''
     The controller takes two systems and can run them to generate a dialgoue.
     '''
-    def __init__(self, scenario, systems):
+    def __init__(self, scenario, sessions):
         self.scenario = scenario
-        self.systems = systems
-        assert len(self.systems) == 2
+        self.sessions = sessions
+        assert len(self.sessions) == 2
         for agent in (0, 1):
             self.scenario.kbs[agent].dump()
 
@@ -20,8 +20,8 @@ class Controller(object):
         reward = 0
         game_over = False
         for it in range(100):
-            for agent, system in enumerate(self.systems):
-                event = system.send()
+            for agent, session in enumerate(self.sessions):
+                event = session.send()
                 time += 1
                 if not event:
                     continue
@@ -31,10 +31,10 @@ class Controller(object):
                 if event.action == 'select':
                     selections[agent] = event.data
 
-                print 'agent=%s: system=%s, event=%s' % (agent, type(system).__name__, event.to_dict())
-                for partner, other_system in enumerate(self.systems):
+                print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+                for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
-                        other_system.receive(event)
+                        other_session.receive(event)
 
                 # Game is over when the two selections are the same
                 if selections[0] is not None and selections[0] == selections[1]:

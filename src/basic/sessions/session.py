@@ -1,11 +1,11 @@
 '''
-A system abstract class maintains state and can read an event and write an
+A session abstract class maintains state and can read an event and write an
 event.
 '''
 
-from event import Event
+from src.basic.event import Event
 
-class System(object):
+class Session(object):
     def __init__(self, agent):
         self.agent = agent  # 0 or 1 (which player are we?)
 
