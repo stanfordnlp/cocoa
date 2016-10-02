@@ -72,7 +72,7 @@ if __name__ == '__main__':
             },
         'attributes': [
             {"name": "Name", "value_type": "name", "unique": False},
-            {"name": "School", "value_type": "major", "unique": False},
+            {"name": "School", "value_type": "school", "unique": False},
             {"name": "Major", "value_type": "major", "unique": False},
             {"name": "Company", "value_type": "company", "unique": False},
             {"name": "Hobby", "value_type": "hobby", "unique": False},
