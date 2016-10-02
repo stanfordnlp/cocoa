@@ -21,7 +21,8 @@ def scrape(link, xpath, cache):
             fout.write(content)
     tree = html.fromstring(content)
     nodes = tree.xpath(xpath)
-    return [clean(node.text) for node in nodes if node.text]
+    strings = [clean(node.text) for node in nodes if node.text]
+    return [s for s in strings if not isinstance(s, unicode)]
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -19,13 +19,34 @@ class Schema(object):
     '''
     A schema contains information about possible entities and relations.
     '''
-    def __init__(self, path):
+    def __init__(self, path, domain=None):
         raw = json.load(open(path))
         # Mapping from type (e.g., hobby) to list of values (e.g., hiking)
-        self.values = raw['values']
+        values = raw['values']
         # List of attributes (e.g., place_of_birth)
-        self.attributes = [Attribute.from_json(a) for a in raw['attributes']]
+        attributes = [Attribute.from_json(a) for a in raw['attributes']]
 
+        def _get_subset(attr_names):
+            subset_attributes = [attr for attr in attributes if attr.name in attr_names]
+            subset_values = {}
+            for attr in subset_attributes:
+                k = attr.value_type
+                subset_values[k] = values[k]
+            return subset_attributes, subset_values
+
+        if domain == 'matchmaking':
+            attr_names = ['Time Preference', 'Location Preference', 'Hobby']
+            self.attributes, self.values = _get_subset(attr_names)
+        elif domain == 'mutualfriend':
+            attr_names = ['Name', 'School', 'Major', 'Company']
+            self.attributes, self.values = _get_subset(attr_names)
+        else:
+            # Use all attributes in the schema
+            self.values = values
+            self.attributes = attributes
+        self.domain = domain
+
+    # NOTE: this function will be removed in the new model because a) we don't need all entities for embedding and b) all entities in the schema may not be used in some scenarios due to sampling.
     def get_entities(self):
         '''
         Return a dict {value: type} of all entities.
