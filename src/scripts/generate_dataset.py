@@ -5,12 +5,12 @@ Takes two agent implementations and generates the dialogues.
 import argparse
 import random
 import json
-from util import read_json
-from schema import Schema
-from scenario_db import ScenarioDB, add_scenario_arguments
-from dataset import add_dataset_arguments
-from heuristic_system import HeuristicSystem
-from controller import Controller
+from basic.util import read_json
+from basic.schema import Schema
+from basic.scenario_db import ScenarioDB, add_scenario_arguments
+from basic.dataset import add_dataset_arguments
+from basic.heuristic_system import HeuristicSystem
+from basic.controller import Controller
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
