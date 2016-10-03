@@ -4,7 +4,6 @@ import argparse
 import json
 import re
 import os
-import sys
 
 def clean(s):
     s = re.sub(r'\([^)]*\)', '', s)
