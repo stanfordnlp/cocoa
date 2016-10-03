@@ -12,7 +12,7 @@ class NeuralSystem(System):
 
         # Load vocab
         vocab_path = os.path.join(model_path, 'vocab.pkl')
-        vocab = read_pickle(vocab_path)
+        self.vocab = read_pickle(vocab_path)
 
         # Load TF model (graph and parameters)
         ckpt = tf.train.get_checkpoint_state(model_path)
