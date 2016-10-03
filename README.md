@@ -2,6 +2,11 @@ Initialize:
 
     mkdir output
 
+Generate schema:
+
+    mkdir data/cache
+    python scripts/generate_schema.py --schema-path data/friends-schema.json --cache-path data/cache
+
 Generate scenarios from the schema:
 
     python src/basic/generate_scenarios.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --num-items 5 --num-scenarios 10
