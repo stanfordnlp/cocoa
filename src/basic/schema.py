@@ -3,6 +3,7 @@ A schema specifies information about a domain (types, entities, relations).
 '''
 
 import json
+import numpy as np
 
 class Attribute(object):
     def __init__(self, name, value_type, unique):
@@ -34,19 +35,39 @@ class Schema(object):
                 subset_values[k] = values[k]
             return subset_attributes, subset_values
 
-        if domain == 'matchmaking':
+        if domain == 'Matchmaking':
             attr_names = ['Time Preference', 'Location Preference', 'Hobby']
             self.attributes, self.values = _get_subset(attr_names)
-        elif domain == 'mutualfriend':
+        elif domain == 'MutualFriends':
             attr_names = ['Name', 'School', 'Major', 'Company']
             self.attributes, self.values = _get_subset(attr_names)
-        else:
+        elif domain is None:
             # Use all attributes in the schema
             self.values = values
             self.attributes = attributes
+        else:
+            raise ValueError('Unknowd domain.')
         self.domain = domain
 
-    # NOTE: this function will be removed in the new model because a) we don't need all entities for embedding and b) all entities in the schema may not be used in some scenarios due to sampling.
+        # Dirichlet alphas for scenario generation
+        if domain == 'Matchmaking':
+            self.alphas = [1.] * len(self.attributes)
+            for i, attr in enumerate(self.attributes):
+                if attr.name == 'Hobby':
+                    self.alphas[i] = 0.5
+                    break
+        else:
+            self.alphas = list(np.linspace(1, 0.1, len(self.attributes)))
+            np.random.shuffle(self.alphas)
+            # The attribute (Name) always have a dense distribution
+            for i, attr in enumerate(self.attributes):
+                if attr.name == 'Name':
+                    self.alphas[i] = 2
+                    break
+
+    # NOTE: this function will be removed in the new model because a) we don't need all
+    # entities for embedding and b) all entities in the schema may not be used in some
+    # scenarios due to sampling.
     def get_entities(self):
         '''
         Return a dict {value: type} of all entities.

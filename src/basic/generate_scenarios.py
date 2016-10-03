@@ -25,20 +25,7 @@ def get_multinomial(alpha, n):
 
 def generate_scenario(schema):
     num_items = args.num_items
-    if schema.domain == 'matchmaking':
-        alphas = [1] * len(schema.attributes)
-        for i, attr in enumerate(schema.attributes):
-            if attr.name == 'Hobby':
-                alphas[i] = 0.5
-                break
-    else:
-        alphas = list(np.linspace(1, 0.1, len(schema.attributes)))
-        np.random.shuffle(alphas)
-        # The attribute (Name) always have a dense distribution
-        for i, attr in enumerate(schema.attributes):
-            if attr.name == 'Name':
-                alphas[i] = 2
-                break
+    alphas = schema.alphas
 
     # Generate the profile of the two agents
     agents = (0, 1)
