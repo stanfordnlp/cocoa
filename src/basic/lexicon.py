@@ -15,6 +15,7 @@ def get_prefixes(entity, min_length=3, max_length=5):
                 for i in range(min_length, max_length):
                     new_candidates.append(c + ' ' + word[:i])
         candidates = new_candidates
+    # c[1:] is done to remove leading " " character in candidates
     return [c[1:] for c in candidates if c[1:] != entity]
 
 def get_acronyms(entity):
@@ -22,6 +23,9 @@ def get_acronyms(entity):
     if len(words) < 2:
         return []
     acronyms = [''.join([w[0] for w in words])]
+    # In case BU is represented as B U
+    acronyms.extend(' '.join([w[0] for w in words]))
+    # May also want to include B.U. if periods not removed by preprocessing
     if 'of' in words:
         # handle 'u of p'
         acronym = ''
@@ -33,12 +37,23 @@ def get_acronyms(entity):
         for w in words[:-1]:
             acronym += w[0] if w != 'of' else ''
         acronym += words[-1][:4]
-        acronyms.append(acronym)
 
+        # Handle 'U of Pennsylvania'
+        for idx, word in enumerate(words):
+            prefix = ' '.join(words[:idx])
+            suffix = ' '.join(words[(idx+1):])
+            letter = word[0]
+            word = prefix + ' ' + letter + ' ' + suffix
+            acronyms.append(word.strip())
+
+        acronyms.append(acronym)
     return acronyms
+
 
 alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z', ' ']
 def get_edits(entity):
+    # TODO:  Do we want to consider edit distance 2 or greater?
+    # Cross product of edits of tokens for misspellings across multiple tokens?
     if len(entity) < 3:
         return []
     edits = []
@@ -65,7 +80,7 @@ def get_edits(entity):
                 new_word = prefix + c + suffix
                 edits.append(new_word)
 
-        # Transposition
+        # Transposition - swapping two letters
         for j in range(i+1, len(entity)):
             mid = entity[i+1:j]
             suffix = entity[j+1:]
@@ -83,6 +98,9 @@ def get_morphological_variants(entity):
         if entity.endswith(suffix):
             base = entity[:-len(suffix)]
             results.append(base)
+            # Deal with case "hiking" --> "to hike"
+            # Should be ok even though will produce misspellings
+            results.append(base + 'e')
             results.append(base + 's')
             results.append(base + 'er')
             results.append(base + 'ers')
@@ -130,7 +148,6 @@ class Lexicon(object):
     def compute_synonyms(self):
         # Special cases
         for entity, type in self.entities.items():
-            #print entity
             phrases = [entity]  # Representations of the canonical entity
             # Consider any word in the entity that's unique
             # Example: entity = 'university of california', 'university' would not be unique, but 'california' would be
@@ -140,7 +157,7 @@ class Lexicon(object):
                         phrases.append(word)
             # Consider removing stop words
             mod_entity = entity
-            for s in [' of ', ' - ']:
+            for s in [' of ', ' - ', '-']:
                 mod_entity = mod_entity.replace(s, ' ')
             if entity != mod_entity:
                 phrases.append(mod_entity)
@@ -150,8 +167,11 @@ class Lexicon(object):
             # Special case
             if entity == 'facebook':
                 synonyms.append('fb')
+
+            # Handling name entities
             if type == 'person':
                 first_name = entity.split(' ')[0]
+                # Do we want to keep this lower-bound length constraint?
                 if len(first_name) >= 3 and first_name not in synonyms:
                     synonyms.append(first_name)
             # General
@@ -173,6 +193,8 @@ class Lexicon(object):
         for i, n in enumerate(numbers):
             for phrase in [str(i), n]:
                 self.lexicon[phrase].append((str(i), 'number'))
+
+
 
     def entitylink(self, raw_tokens):
         '''
@@ -225,3 +247,5 @@ if __name__ == "__main__":
     schema = Schema(path)
     lex = Lexicon(schema, learned_lex=False)
     lex.test()
+
+
