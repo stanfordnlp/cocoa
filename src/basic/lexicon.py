@@ -98,8 +98,8 @@ def get_morphological_variants(entity):
         if entity.endswith(suffix):
             base = entity[:-len(suffix)]
             results.append(base)
+            # TODO: Change hard-corded variants!
             # Deal with case "hiking" --> "to hike"
-            # Should be ok even though will produce misspellings
             results.append(base + 'e')
             results.append(base + 's')
             results.append(base + 'er')
@@ -108,11 +108,10 @@ def get_morphological_variants(entity):
 
 ############################################################
 
-class Lexicon(object):
-    '''
-    A lexicon maps freeform phrases to canonicalized entity.
-    The current lexicon just uses several heuristics to do the matching.
-    '''
+class BaseLexicon(object):
+    """
+    Base lexicon class defining general purpose functions for any lexicon
+    """
     def __init__(self, schema, learned_lex):
         self.schema = schema
         # if True, lexicon uses learned system
@@ -122,13 +121,13 @@ class Lexicon(object):
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         self.load_entities()
         self.compute_synonyms()
+        print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
         # TODO: the model cannot handle number entities now
-        #self.add_numbers()
         #print 'Ambiguous entities:'
         #for phrase, entities in self.lexicon.items():
         #    if len(entities) > 1:
         #        print phrase, entities
-        print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
+
 
     def load_entities(self):
         for type_, values in self.schema.values.iteritems():
@@ -144,6 +143,16 @@ class Lexicon(object):
 
     def lookup(self, phrase):
         return self.lexicon.get(phrase, [])
+
+
+class Lexicon(BaseLexicon):
+    '''
+    A lexicon maps freeform phrases to canonicalized entity.
+    The current lexicon just uses several heuristics to do the matching.
+    '''
+    def __init__(self, schema, learned_lex):
+        super(Lexicon, self).__init__(schema, learned_lex)
+
 
     def compute_synonyms(self):
         # Special cases
@@ -162,18 +171,11 @@ class Lexicon(object):
             if entity != mod_entity:
                 phrases.append(mod_entity)
 
-            # Expand!
             synonyms = []
-            # Special case
+            # Special case -- is there a way to get other rules to handle this?
             if entity == 'facebook':
                 synonyms.append('fb')
 
-            # Handling name entities
-            if type == 'person':
-                first_name = entity.split(' ')[0]
-                # Do we want to keep this lower-bound length constraint?
-                if len(first_name) >= 3 and first_name not in synonyms:
-                    synonyms.append(first_name)
             # General
             for phrase in phrases:
                 synonyms.append(phrase)
@@ -185,7 +187,6 @@ class Lexicon(object):
 
             # Add to lexicon
             for synonym in set(synonyms):
-                #print synonym, '=>', entity
                 self.lexicon[synonym].append((entity, type))
 
     def add_numbers(self):
@@ -193,7 +194,6 @@ class Lexicon(object):
         for i, n in enumerate(numbers):
             for phrase in [str(i), n]:
                 self.lexicon[phrase].append((str(i), 'number'))
-
 
 
     def entitylink(self, raw_tokens):
@@ -240,12 +240,117 @@ class Lexicon(object):
         print self.entitylink(sentence)
 
 
+class SingleTokenLexicon(BaseLexicon):
+    """
+    Lexicon that computes per token of entity transforms rather than per phrase transforms
+    """
+    def __init__(self, schema, learned_lex):
+        super(SingleTokenLexicon, self).__init__(schema, learned_lex)
+
+
+    def compute_synonyms(self):
+        # TODO: Add entity-level acronyms?
+        # Keep track of tokens we have seen to handle repeats
+        seen_tokens = set()
+        for entity, type in self.entities.items():
+            phrases = []
+            mod_entity = entity
+            # Consider removing stop words
+            for s in [' of ', ' - ', '-']:
+                mod_entity = mod_entity.replace(s, ' ')
+
+            # Add all tokens in entity -- we only compute token-level edits (except for acronyms...)
+            # Can later optimize away and ensure we don't add same token twice
+            entity_tokens = mod_entity.split(' ')
+            phrases.extend([t for t in entity_tokens if t not in seen_tokens])
+            seen_tokens.update(entity_tokens)
+
+            synonyms = []
+            # Special case -- is there a way to get other rules to handle this?
+            if entity == 'facebook':
+                synonyms.append('fb')
+
+            # General
+            for phrase in phrases:
+                synonyms.append(phrase)
+                if type != 'person':
+                    synonyms.extend(get_edits(phrase))
+                    synonyms.extend(get_morphological_variants(phrase))
+                    synonyms.extend(get_prefixes(phrase))
+                    synonyms.extend(get_acronyms(phrase))
+
+            # Add to lexicon
+            for synonym in set(synonyms):
+                self.lexicon[synonym].append((entity, type))
+
+
+    def entitylink(self, raw_tokens):
+        '''
+        Add detected entities to each token
+        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
+        '''
+        i = 0
+        entities = []
+        stop_words = set(['of'])
+        while i < len(raw_tokens):
+            candidate_entities = None
+            # Find longest phrase (if any) that matches an entity
+            for l in range(5, 0, -1):
+                phrase = ' '.join(raw_tokens[i:i+l])
+                raw = raw_tokens[i:i+l]
+                # Will store candidate entities
+
+                for idx, token in enumerate(raw):
+                    results = self.lookup(token)
+                    if idx == 0: candidate_entities = results
+                    if token not in stop_words:
+                        candidate_entities = list(set(candidate_entities).intersection(set(results)))
+
+                # Found some match
+                if len(candidate_entities) > 0:
+                    entity = None
+                    if self.learned_lex:
+                        # Will later use learned system -- returns full candidate set for now
+                        entity = candidate_entities
+                    else:
+                        # NOTE: if more than one match, use the first one.
+                        # TODO: disambiguate
+                        # prioritize exact match (e.g. hiking, biking)
+                        for candidate in candidate_entities:
+                            if candidate == phrase:
+                                entity = candidate
+                                break
+                        if not entity:
+                            entity = candidate_entities
+                    entities.append((phrase, entity))
+                    i += l
+                    break
+            if not candidate_entities:
+                entities.append(raw_tokens[i])
+                i += 1
+        return entities
+
+
+    def test(self):
+        phrases = ['foodie', 'evening', 'evenings', 'food']
+        for x in phrases:
+            print x, '=>', self.lookup(x)
+
+        # NOTE: this is a weird case even though 'biking' is not an entity
+        sentence = ['i', 'like', 'hiking', 'biking']
+        print self.entitylink(sentence)
+
+        sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
+        sentence3 = [t.lower() for t in sentence3]
+        print self.entitylink(sentence3)
+
+
 if __name__ == "__main__":
     from schema import Schema
     # TODO: Update path to location of desired schema used for basic testing
-    path = None
+    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-old.json"
     schema = Schema(path)
-    lex = Lexicon(schema, learned_lex=False)
+    lex = SingleTokenLexicon(schema, learned_lex=True)
     lex.test()
 
 
