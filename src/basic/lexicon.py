@@ -348,7 +348,7 @@ class SingleTokenLexicon(BaseLexicon):
 if __name__ == "__main__":
     from schema import Schema
     # TODO: Update path to location of desired schema used for basic testing
-    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-old.json"
+    path = None
     schema = Schema(path)
     lex = SingleTokenLexicon(schema, learned_lex=True)
     lex.test()
