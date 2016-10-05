@@ -288,6 +288,9 @@ class SingleTokenLexicon(BaseLexicon):
         '''
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
+        Note: Linking works differently here because we are considering intersection of lists across
+        token spans so that "univ of penn" will lookup in our lexicon table for "univ" and "penn"
+        (disregarding stop words and special tokens) and find their intersection
         '''
         i = 0
         entities = []
