@@ -10,6 +10,11 @@ from lib.bleu import compute_bleu
 from lib import logstats
 import numpy as np
 from vocab import is_entity
+import resource
+
+def memory():
+    usage=resource.getrusage(resource.RUSAGE_SELF)
+    return (usage[2]*resource.getpagesize()) / 1000000.0
 
 def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
@@ -57,8 +62,8 @@ class Learner(object):
         max_len = 20
         summary_map = {}
         for ex in test_data:
-            agent, kb, inputs, entities, targets = ex
-            preds, _ = self.model.generate(sess, kb, inputs, entities, stop_symbols, max_len)
+            agent, kb, inputs, graph, targets = ex
+            preds, _ = self.model.generate(sess, inputs, graph, stop_symbols, max_len)
             bleu = compute_bleu(preds, targets)
             ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
             # ent_acc is None means targets has not entity
@@ -73,6 +78,9 @@ class Learner(object):
                 print 'TARGET:', map(self.data.vocab.to_word, targets)
                 print 'PRED:', map(self.data.vocab.to_word, preds)
                 print 'BLEU=%.2f' % bleu
+        # This means no entity is detected in the test data. Probably something wrong.
+        if 'acc' not in summary_map:
+            return summary_map['bleu']['mean'], -1
         return summary_map['bleu']['mean'], summary_map['acc']['mean']
 
     def test_loss(self, sess, split='dev'):
@@ -82,10 +90,10 @@ class Learner(object):
         test_data = self.data.generator_train(split)
         summary_map = {}
         for i in xrange(2*self.data.num_examples[split]):
-            feed_dict = self._get_feed_dict(test_data)
+            feed_dict, graph = self._get_feed_dict(test_data)
             output, loss = sess.run([self.model.outputs, self.model.loss], feed_dict=feed_dict)
             if self.verbose:
-                pred = self.model.get_prediction(output)
+                pred = self.model.get_prediction(output, graph)
                 print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
                 print 'LOSS:', loss
             logstats.update_summary_map(summary_map, {'loss': loss})
@@ -95,30 +103,28 @@ class Learner(object):
         '''
         Take a data generator, return a feed_dict as input to the model.
         '''
-        agent, kb, inputs, entities, targets, iswrite = data.next()
+        agent, kb, inputs, graph, targets, iswrite = data.next()
         if self.verbose:
             kb.dump()
             print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
             target_words = [self.data.vocab.to_word(t) if w else 'null' for t, w in zip(list(targets[0]), list(iswrite[0]))]
             print 'TARGET:', target_words
-            #print 'WRITE:', iswrite
         feed_dict = {}
-        self.model.update_feed_dict(feed_dict, inputs, None, targets=targets, kb=kb, entities=entities, iswrite=iswrite)
-        return feed_dict
+        self.model.update_feed_dict(feed_dict, inputs, None, targets=targets, graph=graph, iswrite=iswrite)
+        return feed_dict, graph
 
     def _learn_step(self, data, sess, summary_map):
-        feed_dict = self._get_feed_dict(data)
-        _, output, loss, gn, cgn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm, self.clipped_grad_norm], feed_dict=feed_dict)
+        feed_dict, graph = self._get_feed_dict(data)
+        _, output, loss, gn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm], feed_dict=feed_dict)
 
         if self.verbose:
-            pred = self.model.get_prediction(output)
+            pred = self.model.get_prediction(output, graph)
             print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
             print 'LOSS:', loss
 
         logstats.update_summary_map(summary_map, \
                 {'loss': loss, \
                 'grad_norm': gn, \
-                'clipped_grad_norm': cgn, \
                 })
 
     def learn(self, args, config, ckpt=None, split='train'):
@@ -167,7 +173,8 @@ class Learner(object):
                     self._learn_step(train_data, sess, summary_map)
                     end_time = time.time()
                     logstats.update_summary_map(summary_map, \
-                            {'time/batch': end_time - start_time})
+                            {'time(s)/batch': end_time - start_time, \
+                             'memory(MB)': memory()})
                     step += 1
                     if step % args.print_every == 0:
                         print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))

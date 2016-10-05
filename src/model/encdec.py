@@ -6,6 +6,8 @@ Encode when action is read and decode when action is write.
 import tensorflow as tf
 import numpy as np
 from attention_rnn_cell import AttnRNNCell, add_attention_arguments
+from graph import Graph
+from graph_embed import GraphEmbed
 from vocab import is_entity
 from tensorflow.python.util import nest
 from itertools import izip
@@ -115,7 +117,7 @@ class EncoderDecoder(object):
                     return tf.zeros_like(dec_output)
                 def dec():
                     return dec_output
-                return tf.cond(tf.identity(tf.reshape(write, [])), dec, enc)
+                return tf.cond(tf.reshape(write, []), dec, enc)
 
             # Used as condition in tf.cond
             iswrite = time_major(self.input_iswrite, 2)
@@ -132,7 +134,7 @@ class EncoderDecoder(object):
                     return tf.nn.sparse_softmax_cross_entropy_with_logits(output, target)
                 def skip():
                     return tf.constant(0, dtype=tf.float32, shape=[self.batch_size])
-                return tf.cond(tf.identity(tf.reshape(write, [])), loss, skip)
+                return tf.cond(tf.reshape(write, []), loss, skip)
 
             # Average loss (per symbol) over the sequence
             # NOTE: should compute average over sequences when batch_size > 1
@@ -150,7 +152,7 @@ class EncoderDecoder(object):
         b = tf.get_variable('output_b', [self.vocab_size])
         return tf.matmul(h, w) + b
 
-    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, graph=None, iswrite=None):
         feed_dict[self.input_data] = inputs
         if init_state is not None:
             feed_dict[self.init_state] = init_state
@@ -159,20 +161,18 @@ class EncoderDecoder(object):
         if targets is not None:
             feed_dict[self.targets] = targets
 
-    def get_prediction(self, outputs):
+    def get_prediction(self, outputs, graph=None):
         '''
         Return predicted vocab from output/logits (batch_size x time_step x vocab_size).
         '''
         preds = np.argmax(outputs, axis=2)  # batch_size x time_step
         return preds
 
-    def generate(self, sess, kb, inputs, entities, stop_symbols, max_len=None, init_state=None):
+    def generate(self, sess, inputs, graph, stop_symbols, max_len=None, init_state=None):
         # Encode inputs
         feed_dict = {}
         # Read until the second last token, the last one will be used as the first input during decoding
-        # NOTE: if entities.shape[1] == 1, entity is a bad array where shape[1] == 0
-        entity = entities[:, :-1] if entities is not None else None
-        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, kb=kb, entities=entity)
+        self.update_feed_dict(feed_dict, inputs[:, :-1], init_state, graph=graph)
         if inputs.shape[1] > 1:
             [state] = sess.run([self.final_state], feed_dict=feed_dict)
         else:
@@ -182,9 +182,8 @@ class EncoderDecoder(object):
         iswrite = np.ones([1, 1]).astype(np.bool_)  # True
         # Last token in the inputs; use -1: to keep dimension the same
         input_ = inputs[:, -1:]
-        entity = entities[:, -1:] if entities is not None else None
         # kb has been updatd, no need to update again
-        self.update_feed_dict(feed_dict, input_, state, kb=None, entities=entity, iswrite=iswrite)
+        self.update_feed_dict(feed_dict, input_, state, graph=graph, iswrite=iswrite)
         preds = []
 
         while True:
@@ -192,7 +191,7 @@ class EncoderDecoder(object):
             # Here both seq_len and batch_size is 1
             state, output = sess.run([self.final_state, self.outputs], feed_dict=feed_dict)
             # next input is the prediction: shape (1, 1)
-            input_ = self.get_prediction(output)
+            input_ = self.get_prediction(output, graph)
             pred = int(input_)
             assert pred < self.vocab_size
             preds.append(pred)
@@ -200,11 +199,11 @@ class EncoderDecoder(object):
             if (len(preds) > 1 and pred in stop_symbols) or len(preds) == max_len:
                 break
 
-            self.update_feed_dict(feed_dict, input_, state, kb=None, entities=None, preds=preds)
+            self.update_feed_dict(feed_dict, input_, state, graph=graph)
 
         return preds, state
 
-    def test(self, kb=None, lexicon=None, vocab=None):
+    def test(self, kb=None, vocab=None):
         seq_len = 4
         np.random.seed(0)
         data = np.random.randint(self.vocab_size, size=(self.batch_size, seq_len+1))
@@ -212,27 +211,25 @@ class EncoderDecoder(object):
         y = data[:,1:]
         iswrite = np.random.randint(2, size=(self.batch_size, seq_len)).astype(np.bool_)
         if kb and vocab:
-            entities = self.kg.get_entity_list([vocab.to_word(i) for i in x.reshape(-1)])
-            if not self.kg.train_utterance:
-                entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, 2)
-            else:
-                entities = map(self.kg.convert_entity, entities)
-                entities = np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
+            graph = Graph(kb)
         else:
-            entities = None
+            graph = None
 
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
             feed_dict = {}
-            self.update_feed_dict(feed_dict, x, None, kb=kb, entities=entities, targets=y, iswrite=iswrite)
+            self.update_feed_dict(feed_dict, x, None, graph=graph, targets=y, iswrite=iswrite)
             outputs, seq_loss, loss = sess.run([self.outputs, self.seq_loss, model.loss], feed_dict=feed_dict)
             #print 'last_ind:', last_ind
             #print 'states:', states[0].shape, states[1].shape
             print 'is_write:\n', iswrite
-            print 'output:\n', outputs.shape
+            print 'output:\n'
+            assert outputs.shape[1] == seq_len
+            if graph:
+                assert outputs.shape[2] == vocab.size + graph.nodes.size
             print 'seq_loss:\n', seq_loss
             print 'loss:\n', loss
-            preds, state = self.generate(sess, kb, x, entities, (5,), max_len=10)
+            preds, state = self.generate(sess, x, graph, (5,), max_len=10)
             print 'preds:\n', preds
 
 class AttnEncoderDecoder(EncoderDecoder):
@@ -243,12 +240,11 @@ class AttnEncoderDecoder(EncoderDecoder):
 
     def __init__(self, vocab, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
         '''
-        kg is a Graph object used to compute knowledge graph embeddings.
-        entity_cache_size: number of entities to keep in the update buffer
+        kg is a GraphEmbed object used to compute knowledge graph embeddings.
         '''
         self.kg = kg
-        self.context_size = self.kg.context_size
-        self.entity_cache_size = kg.entity_cache_size
+        self.context_size = self.kg.node_embed_size
+        assert Graph.setup
         self.scoring_method = scoring
         self.output_method = output
         self.vocab = vocab
@@ -261,13 +257,14 @@ class AttnEncoderDecoder(EncoderDecoder):
         Each entity is mapped to an interger according to lexicon.entity_to_ind.
         '''
         input_tokens = super(AttnEncoderDecoder, self)._build_rnn_inputs()
-        if self.kg.train_utterance:
-            self.input_entities = tf.placeholder(tf.int32, shape=[self.batch_size, None, self.entity_cache_size, self.kg.utterance_size, 2])
-            input_entities = time_major(self.input_entities, 5)
-        else:
-            self.input_entities = tf.placeholder(tf.int32, shape=[self.batch_size, None, self.entity_cache_size])
-            input_entities = time_major(self.input_entities, 3)
-        return (input_tokens, input_entities)
+
+        self.input_entities = tf.placeholder(tf.int32, shape=Graph.input_entity_shape)
+        input_entities = time_major(self.input_entities, len(Graph.input_entity_shape))
+
+        self.input_updates = tf.placeholder(tf.bool, shape=self.input_data.get_shape())
+        input_updates = time_major(self.input_updates, 2)
+
+        return (input_tokens, input_entities, input_updates)
 
     def _build_rnn_cell(self):
         cell = AttnRNNCell(self.rnn_size, self.kg, self.rnn_type, num_layers=self.num_layers, scoring=self.scoring_method, output=self.output_method)
@@ -289,24 +286,17 @@ class AttnEncoderDecoder(EncoderDecoder):
         Output includes both RNN output and attention scores.
         '''
         output = super(AttnEncoderDecoder, self)._build_init_output(cell)
-        return (output, tf.zeros_like(self.kg.entity_size))
+        return (output, tf.zeros_like(tf.reshape(self.kg.node_ids, [1, -1]), dtype=tf.float32))
 
-    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, graph=None, iswrite=None):
         super(AttnEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, targets=targets, iswrite=iswrite)
-        if entities is None:
-            # Compute entity from preds
-            assert preds
-            tokens = map(self.vocab.to_word, preds)
-            entities = self.kg.get_entity_list(tokens, (len(tokens)-1,))
-            if not self.kg.train_utterance:
-                entities = np.asarray(entities, dtype=np.int32).reshape([1, -1, self.entity_cache_size])
-            else:
-                entities = np.asarray(entities, dtype=np.int32).reshape([1, -1, self.entity_cache_size, self.kg.utterance_size, 2])
-
-        feed_dict[self.input_entities] = entities
-        input_data = self.kg.load(kb, entities)
-        if input_data:  # Check if there's update in the input
-            feed_dict[self.kg.input_data] = input_data
+        # TODO: input should be tokens instead of ints
+        tokens = map(self.vocab.to_word, list(inputs[0]))  # NOTE: assumes batch_size=1
+        graph.read_utterance(tokens)
+        feed_dict[self.input_entities] = graph.get_entity_list(len(tokens))
+        feed_dict[self.kg.input_data] = graph.get_input_data()
+        updates = np.zeros(inputs.shape, dtype=np.bool)
+        feed_dict[self.input_updates] = updates
 
 class AttnCopyEncoderDecoder(AttnEncoderDecoder):
     '''
@@ -323,98 +313,50 @@ class AttnCopyEncoderDecoder(AttnEncoderDecoder):
         h, attn_scores = h
         return tf.concat(1, [token_scores, attn_scores])
 
-    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, kb=None, entities=None, iswrite=None, preds=None):
+    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, graph=None, iswrite=None):
         # Don't update targets in parent
-        super(AttnCopyEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, kb=kb, entities=entities, iswrite=iswrite, preds=preds)
+        super(AttnCopyEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, graph=graph, iswrite=iswrite)
         if targets is not None:
-            feed_dict[self.targets] = self.copy_target(targets, iswrite)
+            feed_dict[self.targets] = graph.copy_target(targets, iswrite, self.vocab)
 
-    def get_prediction(self, outputs):
+    def get_prediction(self, outputs, graph):
         preds = super(AttnCopyEncoderDecoder, self).get_prediction(outputs)
-        preds = self.copy_output(preds)
+        preds = graph.copy_output(preds, self.vocab)
         return preds
-
-    def copy_output(self, outputs):
-        vocab = self.vocab
-        for output in outputs:
-            for i, pred in enumerate(output):
-                if pred >= vocab.size:
-                    entity = self.kg.ind_to_label[self.kg.local_to_global_entity[pred - vocab.size]]
-                    output[i] = vocab.to_ind(entity)
-        return outputs
-
-    def copy_target(self, targets, iswrite):
-        vocab = self.vocab
-        # Don't change the original targets, will be used later
-        new_targets = np.copy(targets)
-        for target, write in izip(new_targets, iswrite):
-            for i, (t, w) in enumerate(izip(target, write)):
-                # NOTE: only replace entities in our kb
-                if w:
-                    # TODO: use vocab.entities
-                    token = vocab.to_word(t)
-                    if is_entity(token):
-                        assert t in vocab.entities
-                        try:
-                            target[i] = vocab.size + self.kg.global_to_local_entity[self.kg.label_to_ind[token]]
-                        except KeyError:
-                            print token
-                            print self.kg.label_to_ind[token]
-                            print self.kg.global_to_local_entity
-                            sys.exit()
-        return new_targets
 
 # test
 if __name__ == '__main__':
     # Simple encoder-decoder
     vocab_size = 5
     rnn_size = 10
-    #model = EncoderDecoder(vocab_size, rnn_size, 'rnn')
-    #model.test()
+    model = EncoderDecoder(vocab_size, rnn_size, 'rnn')
+    model.test()
 
-    # KG + encoder-decoder
-    import argparse
-    from basic.dataset import add_dataset_arguments, read_dataset
     from basic.schema import Schema
-    from basic.scenario_db import ScenarioDB, add_scenario_arguments
-    from basic.lexicon import Lexicon
-    from basic.util import read_json
-    from model.preprocess import DataGenerator
-    from model.kg_embed import CBOWGraph
+    from model.preprocess import build_schema_mappings
+    from basic.kb import KB
+    from model.vocab import Vocabulary
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
-    add_scenario_arguments(parser)
-    add_dataset_arguments(parser)
-    args = parser.parse_args()
-    np.random.seed(args.random_seed)
+    schema = Schema('data/friends-schema.json')
+    entity_map, relation_map = build_schema_mappings(schema)
+    utterance_size = 10
+    max_degree = 3
 
-    schema = Schema(args.schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    dataset = read_dataset(scenario_db, args)
-    lexicon = Lexicon(schema)
+    items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
+             {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
+    kb = KB.from_dict(schema, items)
 
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, lexicon)
-    vocab = data_generator.vocab
+    Graph.static_init(schema, entity_map, relation_map, utterance_size, max_degree)
+    graph = Graph(kb)
 
-    gen = data_generator.generator_train('train')
+    vocab = Vocabulary()
+    vocab.add_words([('alice', 'person'), ('bob', 'person'), ('microsoft', 'company'), ('apple', 'company'), ('hiking', 'hobby')])
 
     tf.reset_default_graph()
-    context_size = 6
+    node_embed_size = 10
+    edge_embed_size = 9
     with tf.Graph().as_default():
-        tf.set_random_seed(args.random_seed)
-        kg = CBOWGraph(schema, lexicon, context_size, rnn_size, train_utterance=False)
-        data_generator.set_kg(kg)
-        agent, kb, inputs, entities, targets, iswrite = gen.next()
-        kb.dump()
+        tf.set_random_seed(0)
+        kg = GraphEmbed(100, Graph.relation_map.size, node_embed_size, edge_embed_size, rnn_size, Graph.feat_size)
         model = AttnCopyEncoderDecoder(vocab, rnn_size, kg)
-        # test copy_output and copy target
-        kg.load(kb, entities)
-        n = 2
-        print 'to be copied:', kg.ind_to_label[kg.nodes[n]]
-        t = np.array([[vocab.to_ind(kg.ind_to_label[kg.nodes[n]])]])
-        t = model.copy_target(t, [[True]])
-        print 'new target:', t
-        out = model.copy_output(t)
-        print 'copy output:', vocab.to_word(int(out))
-        model.test(kb, data_generator.lexicon, vocab)
+        model.test(kb, vocab)

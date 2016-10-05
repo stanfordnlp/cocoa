@@ -6,6 +6,7 @@ import random
 import re
 import numpy as np
 from vocab import Vocabulary, is_entity
+from graph import Graph
 
 # Special symbols
 START = '<d>'
@@ -23,24 +24,54 @@ def tokenize(utterance):
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     return tokens
 
+def build_schema_mappings(schema):
+    entity_map = Vocabulary(unk=True)
+    for type_, values in schema.values.iteritems():
+        entity_map.add_words(((value.lower(), type_) for value in values))
+
+    relation_map = Vocabulary(unk=False)
+    attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
+    relation_map.add_words((a.lower() for a in attribute_types.keys()))
+
+    return entity_map, relation_map
+
+def build_vocab(examples, lexicon):
+    vocab = Vocabulary()
+    # Add tokens
+    for ex in examples:
+        for e in ex.events:
+            if e.action == 'message':
+                for token in e.processed_data:
+                    # Surface form of the entity
+                    if is_entity(token):
+                        vocab.add_word(token[0])
+                    else:
+                        vocab.add_word(token)
+    # Add entities
+    vocab.add_words(lexicon.entities.iteritems())
+
+    # Add special symbols
+    vocab.add_words(markers)
+    return vocab
+
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, lexicon, vocab=None):
+    def __init__(self, train_examples, dev_examples, test_examples, schema, lexicon, mappings=None, use_kb=False):
+        # TODO: change basic/dataset so that it uses the dict structure
         self.examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in self.examples.iteritems()}
         self.lexicon = lexicon
-        # If the generator does not interact with a KB, we don't need to get entities
-        self.get_entity_list = lambda *args: None
+        self.use_kb = use_kb
         self.preprocess()
-        if not vocab:
-            self.vocab = Vocabulary()
-            self.build_vocab()
+        if not mappings:
+            self.vocab = build_vocab(self.examples['train'], lexicon)
+            self.entity_map, self.relation_map = build_schema_mappings(schema)
         else:
-            print 'Loaded vocabulary size:', vocab.size
-            self.vocab = vocab
-
-    def set_kg(self, kg):
-        self.kg = kg
-        self.get_entity_list = self.kg.get_entity_list
+            self.vocab = mappings['vocab']
+            self.entity_map = mappings['entity']
+            self.relation_map = mappings['relation']
+        print 'Vocabulary size:', self.vocab.size
+        print 'Entity size:', self.entity_map.size
+        print 'Relation size:', self.relation_map.size
 
     def preprocess(self):
         for _, examples in self.examples.iteritems():
@@ -51,26 +82,6 @@ class DataGenerator(object):
                             # lower, tokenize, link entity
                             entity_tokens = self.lexicon.entitylink(tokenize(e.data))
                             e.processed_data = entity_tokens
-
-    def build_vocab(self):
-        # Add tokens
-        for ex in self.examples['train']:
-            for e in ex.events:
-                if e.action == 'message':
-                    for token in e.processed_data:
-                        if not is_entity(token):
-                            self.vocab.add_words(token)
-                        else:
-                            # Surface form of the entity
-                            self.vocab.add_words(token[0])
-
-        # Add entities
-        self.vocab.add_words(self.lexicon.entities.iteritems())
-
-        # Add special symbols
-        self.vocab.add_words(markers)
-
-        self.vocab.build()
 
     def _get_message_tokens(self, e):
         '''
@@ -88,18 +99,6 @@ class DataGenerator(object):
         tokens.append(END_UTTERANCE)
         return tokens
 
-    def entity_list_to_array(self, entities):
-        '''
-        Transform entity list from kg_embed to numpy array that's fed to tf models.
-        '''
-        if entities is None:
-            return None
-        # Require different shapes because the tf graph will be different
-        if not self.kg.train_utterance:
-            return np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size)
-        else:
-            return np.asarray(entities, dtype=np.int32).reshape(1, -1, self.kg.entity_cache_size, self.kg.utterance_size, 2)
-
     def generator_eval(self, name):
         '''
         Generate vectorized data for testing. Each example is
@@ -109,20 +108,21 @@ class DataGenerator(object):
         for ex in examples:
             kbs = ex.scenario.kbs
             prefix = [self.vocab.to_ind(START)]
-            entities = self.get_entity_list([START])
+
             for i, e in enumerate(ex.events):
                 curr_message = self._get_message_tokens(e)
                 if i+1 == len(ex.events) or e.agent != ex.events[i+1].agent:
                     curr_message.append(END_TURN)
-                curr_entities = self.get_entity_list(curr_message)
-                curr_message = map(self.vocab.to_ind, curr_message)
+                target = map(self.vocab.to_ind, curr_message)
+
+                # This example is considered as a one-turn dialogue during test,
+                # therefore we have a new Graph object for the agent
                 yield e.agent, kbs[e.agent], \
                     np.array(prefix, dtype=np.int32).reshape(1, -1), \
-                    self.entity_list_to_array(entities), \
-                    curr_message  # NOTE: target is a list not numpy array
-                prefix.extend(curr_message)
-                if entities is not None:
-                    entities.extend(curr_entities)
+                    Graph(kbs[e.agent]) if self.use_kb else None, \
+                    target  # NOTE: target is a list not numpy array
+
+                prefix.extend(target)
 
     def generator_train(self, name, shuffle=True):
         '''
@@ -152,17 +152,14 @@ class DataGenerator(object):
                         write.extend([True if e.agent == 0 else False] * len(curr_message))
                         tokens.extend(curr_message)
                         curr_message = []
-                entities = self.get_entity_list(tokens)
-                tokens = map(self.vocab.to_ind, tokens)
-                n = len(tokens) - 1
-                inputs = np.asarray(tokens[:-1], dtype=dtype).reshape(1, n)
-                if entities:
-                    entities = self.entity_list_to_array(entities[:-1])
-                targets = np.asarray(tokens[1:], dtype=dtype).reshape(1, n)
+                token_ids = map(self.vocab.to_ind, tokens)
+                n = len(token_ids) - 1
+                inputs = np.asarray(token_ids[:-1], dtype=dtype).reshape(1, n)
+                targets = np.asarray(token_ids[1:], dtype=dtype).reshape(1, n)
                 # write when agent == 0
-                yield 0, kbs[0], inputs, entities, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)
+                yield 0, kbs[0], inputs, Graph(kbs[0]) if self.use_kb else None, targets, np.asarray(write[1:], dtype=np.bool_).reshape(1, n)
                 # write when agent == 1
-                yield 1, kbs[1], inputs, entities, targets, np.asarray([False if w else True for w in write[1:]], dtype=np.bool_).reshape(1, n)
+                yield 1, kbs[1], inputs, Graph(kbs[1]) if self.use_kb else None, targets, np.asarray([False if w else True for w in write[1:]], dtype=np.bool_).reshape(1, n)
 
 # test
 if __name__ == '__main__':

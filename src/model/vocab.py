@@ -1,4 +1,4 @@
-# TODO: use named tuple to represent entities
+# TODO: use named tuple to represent entities?
 def is_entity(word):
     if not isinstance(word, basestring):
         return True
@@ -8,39 +8,39 @@ class Vocabulary(object):
 
     UNK = 'UNK'
 
-    def __init__(self):
+    def __init__(self, unk=True):
         self.word_to_ind = {}
+        self.ind_to_word = {}
         self.size = 0
-        self._add_word(self.UNK)
-        self.entities = set()
+        if unk:
+            self.add_word(self.UNK)
 
     def add_words(self, words):
-        '''
-        Add a single word or a list of words to the vocab
-        '''
-        if isinstance(words, basestring):
-            self._add_word(words)
-        else:
-            for w in words:
-                self._add_word(w)
+        for w in words:
+            self.add_word(w)
 
-    def _add_word(self, word):
-        if word not in self.word_to_ind:
+    def has(self, word):
+        return word in self.word_to_ind
+
+    def add_word(self, word):
+        if not self.has(word):
             self.word_to_ind[word] = self.size
-            if is_entity(word):
-                self.entities.add(self.size)
+            self.ind_to_word[self.size] = word
             self.size += 1
-
-    def build(self):
-        self.ind_to_word = {i: w for w, i in self.word_to_ind.iteritems()}
-        print 'Vocabulary size: %d' % (self.size)
 
     def to_ind(self, word):
         if word in self.word_to_ind:
             return self.word_to_ind[word]
         else:
-            return self.word_to_ind[self.UNK]
+            # NOTE: if UNK is not enabled, it will throw an exception
+            if self.UNK in self.word_to_ind:
+                return self.word_to_ind[self.UNK]
+            else:
+                raise KeyError(str(word))
 
     def to_word(self, ind):
         return self.ind_to_word[ind]
 
+    def dump(self):
+        for i, w in self.ind_to_word.iteritems():
+            print '{:<8}{:<}'.format(i, w)

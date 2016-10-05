@@ -5,6 +5,7 @@ Load data, learn model and evaluate
 import argparse
 import random
 import os
+import time
 import tensorflow as tf
 from basic.util import read_json, write_json, read_pickle, write_pickle
 from basic.dataset import add_dataset_arguments, read_dataset
@@ -14,6 +15,8 @@ from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
 from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder, AttnCopyEncoderDecoder
 from model.learner import add_learner_arguments, Learner
+from model.graph import Graph, add_graph_arguments
+from model.graph_embed import GraphEmbed, add_graph_embed_arguments
 from model.kg_embed import add_kg_arguments, CBOWGraph
 from lib import logstats
 
@@ -28,7 +31,8 @@ if __name__ == '__main__':
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
     add_model_arguments(parser)
-    add_kg_arguments(parser)
+    add_graph_arguments(parser)
+    add_graph_embed_arguments(parser)
     add_learner_arguments(parser)
     args = parser.parse_args()
 
@@ -44,7 +48,8 @@ if __name__ == '__main__':
 
     # Save or load models
     if args.init_from:
-        print 'Load model (config, vocab, checkpoing) from', args.init_from
+        start = time.time()
+        print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
         vocab_path = os.path.join(args.init_from, 'vocab.pkl')
         # Check config compatibility
@@ -63,41 +68,47 @@ if __name__ == '__main__':
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
 
         # Load vocab
-        vocab = read_pickle(vocab_path)
+        mappings = read_pickle(vocab_path)
+        print 'Done [%fs]' % (time.time() - start)
     else:
         # Save config
         if not os.path.isdir(args.checkpoint):
             os.makedirs(args.checkpoint)
         config_path = os.path.join(args.checkpoint, 'config.json')
         write_json(vars(args), config_path)
-        vocab = None
+        mappings = None
         ckpt = None
 
     # Dataset
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, lexicon, vocab)
+    use_kb = False if args.model == 'encdec' else True
+    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, schema, lexicon, mappings, use_kb)
     for d in data_generator.examples:
         logstats.add('data', d, 'num_examples', data_generator.num_examples
 [d])
     logstats.add('vocab_size', data_generator.vocab.size)
 
     # Save vocab
-    if not vocab:
-        vocab = data_generator.vocab
+    if not mappings:
+        mappings = {'vocab': data_generator.vocab,\
+                    'entity': data_generator.entity_map,\
+                    'relation': data_generator.relation_map}
         vocab_path = os.path.join(args.checkpoint, 'vocab.pkl')
-        write_pickle(data_generator.vocab, vocab_path)
+        write_pickle(mappings, vocab_path)
 
-    # Build the graph
+    # Build the model
+    vocab = mappings['vocab']
     tf.reset_default_graph()
     tf.set_random_seed(args.random_seed)
     kg = None
     if args.model == 'encdec':
         model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
     elif args.model.startswith('attn'):
-        if args.kg_model == 'cbow':
-            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len, train_utterance=args.train_utterance)
-        else:
-            raise ValueError('Unknown KG model')
-        data_generator.set_kg(kg)
+        # Build graph embedding model
+        max_degree = args.num_items + len(schema.attributes)
+        Graph.static_init(schema, mappings['entity'], mappings['relation'], args.rnn_size, max_degree=max_degree, train_utterance=args.train_utterance, entity_cache_size=args.entity_cache_size, entity_hist_len=args.entity_hist_len)
+        max_num_nodes = args.num_items * len(schema.attributes) * 2
+        num_edge_labels = Graph.relation_map.size
+        kg = GraphEmbed(max_num_nodes, num_edge_labels, args.node_embed_size, args.edge_embed_size, args.rnn_size, Graph.feat_size, train_utterance=args.train_utterance, mp_iter=args.mp_iter, message=args.combine_message, num_entities=Graph.entity_map.size, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding)
 
         if args.model == 'attn-encdec':
             model = AttnEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
@@ -121,8 +132,11 @@ if __name__ == '__main__':
         assert args.init_from and ckpt, 'No model to test'
         with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
+            print 'Load TF model'
+            start = time.time()
             saver = tf.train.Saver()
             saver.restore(sess, ckpt.model_checkpoint_path)
+            print 'Done [%fs]' % (time.time() - start)
             bleu, ent_recall = learner.test_bleu(sess, 'test')
             print 'bleu=%.4f ent_recall=%.4f' % (bleu, ent_recall)
     else:

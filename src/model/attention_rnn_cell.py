@@ -24,7 +24,7 @@ class AttnRNNCell(object):
         self.rnn_cell = self._build_rnn_cell(rnn_type, num_units, num_layers)
         self._num_units = num_units
         self.kg = kg
-        self._context_size = kg.context_size
+        self._context_size = kg.node_embed_size
 
         output_size = output_size or num_units
         if output == 'project':
@@ -61,8 +61,9 @@ class AttnRNNCell(object):
     def zero_state(self, batch_size, dtype):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size])
-        zero_attn, scores = self.compute_attention(zero_h, self.kg.context, self._num_units)
-        return (zero_rnn_state, zero_attn)
+        zero_context = self.kg.get_context()
+        zero_attn, scores = self.compute_attention(zero_h, zero_context, self._num_units)
+        return (zero_rnn_state, zero_attn, zero_context)
 
     @property
     def output_size(self):
@@ -109,23 +110,26 @@ class AttnRNNCell(object):
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
-            inputs, entities = inputs
-            prev_rnn_state, prev_attn = state
+            inputs, entities, updates = inputs
+            prev_rnn_state, prev_attn, prev_context = state
             # RNN step
             new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
-            # Update graph
-            update_op = self.kg.update_utterance(entities, output)
-            # Compute attention
-            # context: batch_size x context_len x context_size
-            # NOTE: kg.context assumes batch_size=1
-            # NOTE: in tensorflow self.kg.context is computed in every RNN step. Need to use partial_run to manually cache the intermediate result. We don't need the cache if we update at every word thought.
-            with tf.control_dependencies([update_op]):
-                attn, attn_scores = self.compute_attention(output, self.kg.context, self._num_units)
-                # Output
-                new_output = self.output(output, attn)
-                #attn_scores = tf.sparse_to_dense(self.kg.entity_indices, tf.constant([attn_scores.get_shape()[0], self.kg.total_num_entities]), attn_scores)
-            return (new_output, attn_scores), (rnn_state, attn)
+            def new_context():
+                # Update graph
+                utterances = self.kg.update_utterance(entities, output)
+                # Compute attention
+                # context: batch_size x context_len x context_size
+                new_context = self.kg.get_context(utterances)
+                return new_context
+            #context = tf.cond(tf.reshape(updates, []), \
+            #        lambda : new_context(), \
+            #        lambda : prev_context)
+            context = new_context()
+            attn, attn_scores = self.compute_attention(output, context, self._num_units)
+            # Output
+            new_output = self.output(output, attn)
+            return (new_output, attn_scores), (rnn_state, attn, context)
 
 # test
 if __name__ == '__main__':
@@ -167,7 +171,4 @@ if __name__ == '__main__':
             sess.run(train_op)
             sess.run(train_op)
             print 'run gradient'
-
-
-
 
