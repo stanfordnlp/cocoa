@@ -258,8 +258,9 @@ class AttnEncoderDecoder(EncoderDecoder):
         '''
         input_tokens = super(AttnEncoderDecoder, self)._build_rnn_inputs()
 
-        self.input_entities = tf.placeholder(tf.int32, shape=Graph.input_entity_shape)
-        input_entities = time_major(self.input_entities, len(Graph.input_entity_shape))
+        input_entity_shape = self.kg.input_entity_shape
+        self.input_entities = tf.placeholder(tf.int32, shape=input_entity_shape)
+        input_entities = time_major(self.input_entities, len(input_entity_shape))
 
         self.input_updates = tf.placeholder(tf.bool, shape=self.input_data.get_shape())
         input_updates = time_major(self.input_updates, 2)
@@ -293,7 +294,7 @@ class AttnEncoderDecoder(EncoderDecoder):
         # TODO: input should be tokens instead of ints
         tokens = map(self.vocab.to_word, list(inputs[0]))  # NOTE: assumes batch_size=1
         graph.read_utterance(tokens)
-        feed_dict[self.input_entities] = graph.get_entity_list(len(tokens))
+        feed_dict[self.input_entities] = self.kg.reshape_input_entity(graph.get_entity_list(len(tokens)))
         feed_dict[self.kg.input_data] = graph.get_input_data()
         updates = np.zeros(inputs.shape, dtype=np.bool)
         feed_dict[self.input_updates] = updates
@@ -339,14 +340,13 @@ if __name__ == '__main__':
 
     schema = Schema('data/friends-schema.json')
     entity_map, relation_map = build_schema_mappings(schema)
-    utterance_size = 10
     max_degree = 3
 
     items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
              {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
     kb = KB.from_dict(schema, items)
 
-    Graph.static_init(schema, entity_map, relation_map, utterance_size, max_degree)
+    Graph.static_init(schema, entity_map, relation_map, max_degree)
     graph = Graph(kb)
 
     vocab = Vocabulary()

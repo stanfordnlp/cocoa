@@ -6,6 +6,7 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--node-embed-size', default=50, help='Knowledge graph node/subgraph embedding size')
     parser.add_argument('--edge-embed-size', default=20, help='Knowledge graph edge label embedding size')
     parser.add_argument('--entity-embed-size', default=20, help='Knowledge graph entity embedding size')
+    parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--train-utterance', action='store_true', default=False, help='Whether to backpropogate error from utterance node')
     parser.add_argument('--mp-iter', type=int, default=2, help='Number of iterations of message passing on the graph')
@@ -15,22 +16,19 @@ class GraphEmbed(object):
     '''
     Graph embedding model.
     '''
-    def __init__(self, max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, train_utterance=True, num_entities=None, entity_embed_size=None, use_entity_embedding=False, mp_iter=2, message='concat', scope=None):
+    def __init__(self, max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, entity_cache_size=2, num_entities=None, entity_embed_size=None, use_entity_embedding=False, mp_iter=2, message='concat', scope=None):
         # The maximum number of entities that may appear in a single dialogue. This only
         # affects the size of the utterance matrix (because we cannot change its size dynamically).
-        self.max_num_nodes = max_num_nodes
+        # Adding 1 because we want a dummy utterance node which is updated by default when
+        # no other node needs to be udpated. This is to avoid using tf.cond().
+        self.max_num_nodes = max_num_nodes + 1
         self.num_edge_labels = num_edge_labels
         self.node_embed_size = node_embed_size
         self.edge_embed_size = edge_embed_size
         self.utterance_size = utterance_size  # RNN output size
         self.feat_size = feat_size
-        self.train_utterance = train_utterance
         self.mp_iter = mp_iter  # number of message passing iterations
         self.message = message
-        if train_utterance:
-            self.update_utterance = self.update_utterance_trainable
-        else:
-            self.update_utterance = self.update_utterance_static
         if use_entity_embedding:
             assert num_entities is not None
             self.num_entities = num_entities
@@ -39,24 +37,57 @@ class GraphEmbed(object):
 
         self.scope = scope
         self.build_model(scope)
-        self.context = self.get_context()
+
+        self.input_entity_shape = [1, None, self.entity_cache_size, self.utterance_size, 2]
+
+    def _build_utterance_embedding(self):
+        with tf.variable_scope('UtteranceEmbedding'):
+            utterances = tf.zeros([self.max_num_nodes, self.utterance_size])
+        return utterances
+
+    def _expand_dim_entity(self, entities, dim_size):
+        '''
+        Expand a list of entity ids to indices to be updated in the utterance matrix.
+        TODO: It's cleaner to do this tranformation in TF but I haven't found a good way.
+        '''
+        return [[[i, j] for j in xrange(dim_size)] for i in entities]
+
+    def _normalize_entity(self, entities, max_len, pad):
+        '''
+        Put the entity lists to the same size by padding or truncating.
+        '''
+        if len(entities) < max_len:
+            # Pad dummy entity
+            for i in xrange(max_len - len(entities)):
+                entities.insert(0, pad)
+        else:
+            # Take the most recent ones
+            entities = entities[-1*max_len:]
+        return entities
+
+    def reshape_input_entity(self, entity_list):
+        '''
+        Preprocess so that it's ready to be used by update_utterance.
+        '''
+        pad = self.max_num_nodes
+        max_len = self.entity_cache_size
+        new_dim_size = self.utterance_size
+        entity_list = [self._expand_dim_entity(\
+                self._normalize_entity_list(e, max_len, pad), new_dim_size)\
+                for e in entity_list]
+        entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, max_len, self.utterance_size, 2)
+        return entity_list
 
     def build_model(self, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             with tf.variable_scope('EdgeEmbedding'):
                 self.edges = tf.get_variable('edge', [self.num_edge_labels, self.edge_embed_size])
 
-            # TODO: create a subclass?
             if self.use_entity_embedding:
                 with tf.variable_scope('EntityEmbedding'):
                     self.entities = tf.get_variable('entity', [self.num_entities, self.entity_embed_size])
 
-            with tf.variable_scope('UtteranceEmbedding'):
-                if self.train_utterance:
-                    self.utterances = tf.zeros([self.max_num_nodes, self.utterance_size])
-                else:
-                    # Copy hidden states from the RNN but don't backpropogate to the RNN
-                    self.utterances = tf.get_variable('utterance', [self.max_num_nodes, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
+            self.utterances = self._build_utterance_embedding()
 
             # Inputs that specify the graph structure:
             # node_ids: an array of node_ids that links a node to its utterance embedding in self.utterance
@@ -121,31 +152,18 @@ class GraphEmbed(object):
         new_embeds = tf.map_fn(sum_paths, self.node_ids, dtype=tf.float32)
         return new_embeds
 
-    def update_utterance_static(self, indices, utterance):
-        '''
-        Update entries in matrix self.utterances.
-        indices corresponds to first dimensions in self.utterances.
-        '''
-        def cond_update(ind):
-            def no_op():
-                return self.utterances
-            def update():
-                # in-place update
-                return tf.scatter_update(self.utterances, ind, utterance)
-            return tf.cond(tf.less(ind, tf.constant(0)), no_op, update)
-        # NOTE: assumes batch_size = 1
-        indices = tf.reshape(indices, [-1])
-        utterance = tf.reshape(utterance, [-1])
-        tf.map_fn(cond_update, indices, dtype=tf.float32)
-        return self.utterances
-
-    def update_utterance_trainable(self, indices, utterance):
+    def update_utterance(self, indices, utterance):
         '''
         indices: batch_size x cache_size x utterance_size x 2
         specifies each index to update in tensor self.utterances
         '''
         indices = tf.squeeze(indices, [0])  # NOTE: assume batch_size = 1
         utterance = tf.squeeze(utterance)
+        # Duplicate utterance for each entity
+        num_entities = self.entity_cache_size
+        utterances = tf.reshape(tf.tile(utterance, num_entities), [num_entities, self.utterance_size])
+        # TODO: test vector sparse indices (first dimension of dense)
+        delta = tf.sparse_to_dense(
         def cond_to_dense(ind):
             def to_dense():
                 return tf.sparse_to_dense(ind, self.utterances.get_shape(), utterance)
@@ -188,6 +206,49 @@ class GraphEmbed(object):
             [result] = sess.run([context], feed_dict=feed_dict)
             print 'node embeddings:\n', result
 
+class GraphEmbedStaticUtterance(GraphEmbed):
+    '''
+    Graph embedding model.
+    The utterance is copied from the RNN state but no gradient is backpropogated back to the RNN.
+    '''
+    def __init__(*args, **kwargs):
+        super(GraphEmbedStaticUtterance, self).__init__(*args, **kwargs)
+        self.input_entity_shape = [1, None, self.entity_cache_size]
+
+    def _build_utterance_embedding(self):
+        with tf.variable_scope('UtteranceEmbedding'):
+            utterances = tf.get_variable('utterance', [self.max_num_nodes, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
+        return utterances
+
+    def reshape_input_entity(self, entity_list):
+        '''
+        Preprocess so that it's ready to be used by update_utterance.
+        '''
+        pad = self.max_num_nodes
+        max_len = self.entity_cache_size
+        entity_list = [self._normalize_entity_list(e, max_len, pad) for e in entity_list]
+        entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, 2)
+        return entity_list
+
+    def update_utterance(self, indices, utterance):
+        '''
+        Update entries in matrix self.utterances.
+        indices corresponds to first dimensions in self.utterances.
+        '''
+        def cond_update(ind):
+            def no_op():
+                return self.utterances
+            def update():
+                # in-place update
+                return tf.scatter_update(self.utterances, ind, utterance)
+            return tf.cond(tf.less(ind, tf.constant(0)), no_op, update)
+        # NOTE: assumes batch_size = 1
+        indices = tf.reshape(indices, [-1])
+        utterance = tf.reshape(utterance, [-1])
+        tf.map_fn(cond_update, indices, dtype=tf.float32)
+        return self.utterances
+
+
 if __name__ == '__main__':
     import numpy as np
     max_num_nodes = 10
@@ -199,7 +260,7 @@ if __name__ == '__main__':
 
     tf.reset_default_graph()
     tf.set_random_seed(1)
-    graph_embed = GraphEmbed(max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, train_utterance=True, mp_iter=2, message='concat', scope=None)
+    graph_embed = GraphEmbed(max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, mp_iter=2, message='concat', scope=None)
 
     num_nodes = 3
     node_ids = np.array([0, 1, 2])

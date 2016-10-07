@@ -1,12 +1,11 @@
 from collections import defaultdict
 import numpy as np
-from itertools import izip
+from itertools import izip, islice
 from vocab import is_entity, Vocabulary
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Number of items in each KB')
     parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
-    parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
 
 class Graph(object):
     '''
@@ -14,16 +13,13 @@ class Graph(object):
     '''
     setup = False
     @classmethod
-    def static_init(cls, schema, entity_map, relation_map, utterance_size, max_degree=10, train_utterance=True, entity_cache_size=2, entity_hist_len=10):
+    def static_init(cls, schema, entity_map, relation_map, max_degree=10, entity_hist_len=10):
         cls.attribute_types = schema.get_attributes()
         cls.entity_map = entity_map
         # Add new relations (edge labels)
         relation_map.add_word('has')
         relation_map.add_words([cls.inv_rel(r) for r in relation_map.word_to_ind])
         cls.relation_map = relation_map
-        cls.utterance_size = utterance_size
-        cls.train_utterance = train_utterance
-        cls.entity_cache_size = entity_cache_size
         cls.entity_hist_len = entity_hist_len
 
         # Node features {feat_name: (offset, feat_size)}
@@ -33,24 +29,11 @@ class Graph(object):
         cls.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, 3)}
         cls.feat_size = sum([v[1] for v in cls.feat_inds.values()])
 
-        if train_utterance:
-            cls.input_entity_shape = [1, None, cls.entity_cache_size, cls.utterance_size, 2]
-        else:
-            cls.input_entity_shape = [1, None, cls.entity_cache_size]
-
         cls.setup = True
 
     @classmethod
     def inv_rel(cls, relation):
         return '*' + relation
-
-    @classmethod
-    def convert_entity(cls, entities):
-        '''
-        Convert a list of entities to indices to be updated in the utterance matrix. The indices will be input to the TF model.
-        TODO: It's cleaner to do this tranformation in TF but I haven't found a good way.
-        '''
-        return [[[i, j] for j in xrange(cls.utterance_size)] for i in entities]
 
     @classmethod
     def get_feat_vec(cls, raw_feats):
@@ -160,13 +143,7 @@ class Graph(object):
         '''
         Input: return entity_list for the n most recent tokens received
         Output: a list of entity list at each position of received entities
-        - The entity list contains self.entity_cache_size number of mentioned entities
-        counting from the current position backwards.
-        - Entities are mapped to integers according to self.nodes.
-        - Entities not in self.nodes will be added as a new node.
-        - "-1" means no entity.
-        - E.g. with cache_size = 2, I went to Stanford and MIT . =>
-        [(-1, -1), (-1, -1), (-1, -1), (-1, Stanford), (Stanford, -1), (Stanford, MIT)]
+        - E.g. I went to Stanford and MIT . => [[], [], [], [Stanford], [Stanford], [Stanford, MIT]]
         '''
         N = len(self.entities)
         if not last_n:
@@ -175,27 +152,16 @@ class Graph(object):
             assert last_n <= N
             position = (N - i for i in xrange(last_n, 0, -1))
         entity_list = [self.get_entities(max(0, i-self.entity_hist_len), i+1) for i in position]
-        if not self.train_utterance:
-            entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, 2)
-        else:
-            entity_list = [self.convert_entity(e) for e in entity_list]
-            entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, self.entity_cache_size, self.utterance_size, 2)
         return entity_list
 
     def get_entities(self, start, end):
         '''
-        Return all entity ids (from self.nodes) in [start, end). Pad -1 to fit in entity_cache_size.
+        Return all entity ids (from self.nodes) in [start, end).
         '''
-        entities = [self.entities[i] for i in xrange(start, end) if self.entities[i] != -1]
-        # Remove duplicated entities
-        entities = list(set(entities))
-        if len(entities) < self.entity_cache_size:
-            # Pad -1
-            for i in xrange(self.entity_cache_size - len(entities)):
-                entities.insert(0, -1)
-        else:
-            # Take the most recent ones
-            entities = entities[-1*self.entity_cache_size:]
+        # Filter tokens and remove duplicated entities
+        seen = set()
+        entities = [entity for entity in islice(self.entities, start, end) if \
+                entity != -1 and not (entity in seen or seen.add(entity))]
         return entities
 
     def get_features(self):
@@ -243,14 +209,13 @@ if __name__ == '__main__':
 
     schema = Schema('data/friends-schema.json')
     entity_map, relation_map = build_schema_mappings(schema)
-    utterance_size = 10
     max_degree = 3
 
     items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
              {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
     kb = KB.from_dict(schema, items)
 
-    Graph.static_init(schema, entity_map, relation_map, utterance_size, max_degree)
+    Graph.static_init(schema, entity_map, relation_map, max_degree)
     graph = Graph(kb)
 
     # Basic tests
