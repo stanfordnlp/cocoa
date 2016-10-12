@@ -55,7 +55,6 @@ def index():
     elif 'key' not in session:
         session['key'] = key
 
-    debug = True if request.args.get('debug') is not None and request.args.get('debug') == '1' else False
     status = backend.get_updated_status(userid())
     logger.info("Got updated status %s for user %s" % (Status._names[status], userid()[:6]))
     session["mturk"] = True if request.args.get('mturk') and int(request.args.get('mturk')) == 1 else None

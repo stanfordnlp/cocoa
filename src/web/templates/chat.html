@@ -258,9 +258,9 @@
 				{% set ctr = 1 %}
 				{% for item in kb %}
 				<tr>
-					<td><b>ctr</b></td>
+					<td><b>{{ctr}}</b></td>
 					{% for attr in attributes %}
-					<td>item[attr]</td>
+					<td>{{item[attr]}}</td>
 					{% endfor %}
 				</tr>
 			{% endfor %}

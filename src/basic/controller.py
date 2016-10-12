@@ -1,20 +1,20 @@
 import json
 from util import generate_uuid
 from dataset import Example
-from threading import Lock
 
 
 class Controller(object):
     '''
     The controller takes two systems and can run them to generate a dialgoue.
     '''
-    def __init__(self, scenario, sessions):
-        self.lock = Lock()
+    def __init__(self, scenario, sessions, debug=True):
         self.scenario = scenario
         self.sessions = sessions
+        print self.sessions
         assert len(self.sessions) == 2
-        for agent in (0, 1):
-            self.scenario.kbs[agent].dump()
+        if debug:
+            for agent in (0, 1):
+                self.scenario.kbs[agent].dump()
         self.selections = [None, None]
         self.reward = 0
         self.events = []
@@ -54,26 +54,29 @@ class Controller(object):
         return Example(self.scenario, uuid, self.events, outcome)
 
     def step(self):
+        print "Call to controller.step()"
         # try to send messages from one session to the other(s)
-        with self.lock:
-            for agent, session in enumerate(self.sessions):
-                event = session.send()
-                if event is None:
-                    continue
+        print self.sessions
+        for agent, session in enumerate(self.sessions):
+            event = session.send()
+            print agent, session
+            print session.outbox
+            if event is None:
+                continue
 
-                self.events.append(event)
-
-                if event.action == 'select':
-                    self.selections[agent] = event.data
-                    if self.game_over():
-                        self.reward = 1
-                for partner, other_session in enumerate(self.sessions):
-                    if agent != partner:
-                        other_session.receive(event)
+            self.events.append(event)
+            print "Event from agent {}: {}".format(agent, event.to_dict())
+            if event.action == 'select':
+                self.selections[agent] = event.data
+                if self.game_over():
+                    self.reward = 1
+            for partner, other_session in enumerate(self.sessions):
+                if agent != partner:
+                    other_session.receive(event)
 
     def game_over(self):
-        with self.lock:
-            return self.selections[0] is not None and self.selections[0] == self.selections[1]
+        # print "Call to game_over: result: ", not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
+        return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
     def inactive(self):
         """
@@ -81,11 +84,10 @@ class Controller(object):
         users are still active or not)
         :return: True if the chat is active (if both sessions are not None), False otherwise
         """
-        with self.lock:
-            for s in self.sessions:
-                if s is None:
-                    return True
-            return False
+        for s in self.sessions:
+            if s is None:
+                return True
+        return False
 
     def set_inactive(self, agents=[]):
         """
@@ -94,15 +96,14 @@ class Controller(object):
         passed to set the Session objects at those indices to None.
         :param agents: List of indices of Sessions to mark inactive. If this is None, the function is a no-op. If no
         list is passed, the function sets all Session objects to None.
-        """
-        with self.lock:
-            if agents is None:
-                return
-            elif len(agents) == 0:
-                self.sessions = [None] * len(self.sessions)
-            else:
-                for idx in agents:
-                    self.sessions[idx] = None
+    """
+        if agents is None:
+            return
+        elif len(agents) == 0:
+            self.sessions = [None] * len(self.sessions)
+        else:
+            for idx in agents:
+                self.sessions[idx] = None
 
     def dump(self, path):
         self.events = sorted(self.events, key=lambda x:x.time)

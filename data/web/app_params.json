@@ -5,14 +5,14 @@
 	},
 
 	"chat": {
-	    "num_seconds": 300,
+	    "num_seconds": 300
 	},
 
 	"finished": {
 	    "num_seconds": 15
 	},
 
-	  "survey": {
+    "survey": {
 	    "num_seconds": -1
 	}
     },
@@ -20,6 +20,6 @@
     "scenarios_json_file": "/Users/anushabala/projects/game-dialogue/data/friends-scenarios-large.json",
     "connection_timeout_num_seconds": 3,
     "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates",
-    "end_survey": 1
+    "end_survey": 0
 }
 

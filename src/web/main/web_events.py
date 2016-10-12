@@ -1,7 +1,6 @@
 from flask import session, request
-from flask import current_app as app
 from flask.ext.socketio import emit, join_room, leave_room, send
-from .. import socketio
+from src.web import socketio
 from datetime import datetime
 from web_utils import get_backend
 from backend import Status
@@ -40,7 +39,7 @@ def connect():
 def check_valid_chat(data):
     backend = get_backend()
     uid = userid()
-    if backend.is_chat_valid():
+    if backend.is_chat_valid(uid):
         logger.debug("Chat is still valid for user %s" % userid_prefix())
         return {'valid': True}
     else:
@@ -91,6 +90,7 @@ def check_inbox(data):
     uid = userid()
     event = backend.receive(uid)
     while event is not None:
+        print "Call to check_inbox: received event: {}".format(event)
         if event.action == 'message':
             emit_message_to_self("Friend: {}".format(event.data))
         elif event.action == 'join':

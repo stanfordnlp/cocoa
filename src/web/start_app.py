@@ -39,13 +39,15 @@ def add_website_arguments(parser):
                              'and database). Defaults to a web_output/current_data, with the current date formatted as '
                              '%%Y-%%m-%%d. '
                              'If the provided directory exists, all data in it is overwritten.')
+    parser.add_argument('--domain', type=str,
+                        choices=['MutualFriends', 'Matchmaking'])
 
 
 def init_database(db_file):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     c.execute(
-        '''CREATE TABLE ActiveUsers (name text unique, status integer, status_timestamp integer, connected_status integer, connected_timestamp integer, message text, room_id integer, partner_id text, scenario_id text, agent_index integer, selected_index integer, num_chats_completed integer)''')
+        '''CREATE TABLE ActiveUsers (name text unique, status integer, status_timestamp integer, connected_status integer, connected_timestamp integer, message text, room_id integer, partner_type text, partner_id text, scenario_id text, agent_index integer, selected_index integer, num_chats_completed integer)''')
     c.execute(
         '''CREATE TABLE CompletedTasks (name text, mturk_code text, num_chats_completed integer)''')
     c.execute('''CREATE TABLE Surveys (name text, partner_type text, how_mechanical integer, how_effective integer)''')
@@ -60,7 +62,6 @@ def init_database(db_file):
 
 def add_systems(config_dict, schema, lexicon):
     """
-    Co
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
         dictionary should contain the bot type (key 'type') and. for bots that use an underlying model for generation,
@@ -73,7 +74,7 @@ def add_systems(config_dict, schema, lexicon):
 
     systems = {backend.Partner.Human: HumanSystem()}
 
-    for (bot_name, info) in config_dict.iteritems():
+    for (sys_name, info) in config_dict.iteritems():
         if info["active"]:
             type = info["type"]
             model = None
@@ -85,11 +86,11 @@ def add_systems(config_dict, schema, lexicon):
                 path = info["path"]
                 model = NeuralSystem(schema, lexicon, path)
             else:
-                warnings.warn('Unrecognized model type in {} for bot {}'.format(info, bot_name))
-            systems[bot_name] = model
+                warnings.warn('Unrecognized model type in {} for configuration {}'.format(info, sys_name))
+            systems[sys_name] = model
 
     prob = 1.0/len(systems.keys())
-    pairing_probabilities = {bot_name: prob for bot_name in bots.keys()}
+    pairing_probabilities = {system_name: prob for system_name in systems.keys()}
 
     return systems, pairing_probabilities
 
@@ -123,7 +124,9 @@ if __name__ == "__main__":
         params = json.load(fin)
 
     db_file, log_file, transcripts_dir = init(args.output)
+    params['db'] = {}
     params['db']['location'] = db_file
+    params['logging'] = {}
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
 
@@ -137,16 +140,12 @@ if __name__ == "__main__":
 
     app = create_app(debug=True, templates_dir=templates_dir)
 
-    schema_path = None
-    if 'schema_path' in params.keys():
-        schema_path = params["schema_path"]
-    else:
-        raise ValueError("Location of schema file should be specified in config with the key schema_path")
+    schema_path = args.schema_path
 
     if not os.path.exists(schema_path):
         raise ValueError("No schema file found at %s" % schema_path)
 
-    schema = Schema(schema_path)
+    schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
     lexicon = Lexicon(schema, False)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
@@ -158,10 +157,12 @@ if __name__ == "__main__":
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
 
     app.config['systems'] = systems
+    app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
     app.config['schema'] = schema
+    app.config['lexicon'] = lexicon
     app.config['user_params'] = params
     app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)
 
-    socketio.run(app, host=args.hot, port=args.port)
+    socketio.run(app, host=args.host, port=args.port)

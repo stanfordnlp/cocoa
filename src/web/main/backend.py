@@ -1,9 +1,7 @@
-from collections import defaultdict
-import uuid
-from src.web.main.web_sessions import FinishedSession, UserChatSession
-import hashlib
-
 __author__ = 'anushabala'
+import uuid
+from src.web.main.web_sessions import FinishedSession, UserChatSession, WaitingSession
+import hashlib
 import sqlite3
 import time
 import datetime
@@ -12,6 +10,8 @@ import numpy as np
 from src.basic.controller import Controller
 from src.basic.event import Event
 from flask import Markup
+import os
+
 
 date_fmt = '%m-%d-%Y:%H-%M-%S'
 logger = logging.getLogger(__name__)
@@ -92,15 +92,17 @@ class User(object):
         self.connected_timestamp = row[4]
         self.message = row[5]
         self.room_id = row[6]
-        self.partner_id = row[7]
-        self.scenario_id = row[8]
-        self.agent_index = row[9]
-        self.selected_index = row[10]
-        self.num_chats_completed = row[11]
+        self.partner_type = row[7]
+        self.partner_id = row[8]
+        self.scenario_id = row[9]
+        self.agent_index = row[10]
+        self.selected_index = row[11]
+        self.num_chats_completed = row[12]
 
 
 class BackendConnection(object):
-    def __init__(self, params, schema, scenario_db, systems, controller_map, controller_queue, pairing_probabilities, lexicon):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, controller_queue,
+                 pairing_probabilities, lexicon):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
         self.lexicon = lexicon
@@ -109,10 +111,10 @@ class BackendConnection(object):
         self.scenario_db = scenario_db
         self.schema = schema
         self.systems = systems
+        self.sessions = sessions
         self.controller_map = controller_map
         self.controller_queue = controller_queue
         self.pairing_probabilities = pairing_probabilities
-        self.sessions = defaultdict(None)
 
     def _update_user(self, cursor, userid, **kwargs):
         if "status" in kwargs:
@@ -135,13 +137,14 @@ class BackendConnection(object):
 
         controller = self.controller_map[userid]
         controller.set_inactive()
+        self.dump_transcript(cursor, controller, userid)
         self.controller_map[userid] = None
         self._update_user(cursor, userid,
                           status=Status.Waiting,
                           room_id=-1,
                           connected_status=1,
                           message=message)
-        if partner_id is not None:
+        if partner_id != Partner.Bot:
             self.controller_map[partner_id] = None
             self._update_user(cursor, partner_id,
                               status=Status.Waiting,
@@ -230,9 +233,13 @@ class BackendConnection(object):
         def _init_controller(my_index, partner_type, scenario):
             my_session = self.systems[Partner.Human].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
-            # todo do the sessions need to be ordered here? probably not?
-            controller = Controller(scenario, [my_session, partner_session])
-            self.controller_queue.add(controller)
+
+            print "Sessions added to controller", my_session, partner_session
+            controller = Controller(scenario, [my_session, partner_session], debug=False)
+            # p = Process(target=run_single_controller, args=(controller,))
+            # p.start()
+            print "backend: Added controller to queue"
+            self.controller_queue.put(controller)
 
             return controller, my_session, partner_session
 
@@ -267,7 +274,7 @@ class BackendConnection(object):
 
         def _pair_with_bot(cursor, userid, my_index, bot_type, scenario):
             controller, my_session, bot_session = _init_controller(my_index, bot_type, scenario)
-            self.controller_queue.add(controller)
+            self.controller_queue.put(controller)
             self.controller_map[userid] = controller
 
             self.sessions[userid] = my_session
@@ -313,7 +320,8 @@ class BackendConnection(object):
                         return None
                     partner_id = np.random.choice(others)
                     return _pair_with_human(cursor, userid, my_index, partner_id, scenario)
-                return _pair_with_bot(cursor, userid, my_index, partner_type, scenario)
+                else:
+                    return _pair_with_bot(cursor, userid, my_index, partner_type, scenario)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -330,8 +338,13 @@ class BackendConnection(object):
         if self.is_game_over(userid):
             controller = self.controller_map[userid]
             controller.set_inactive()
+            self.dump_transcript(cursor, controller, userid)
+            self.controller_map[userid] = None
             _user_finished(cursor, userid)
-            _user_finished(cursor, partner_id)
+
+            if not self.is_user_partner_bot(cursor, userid):
+                self.controller_map[partner_id] = None
+                _user_finished(cursor, partner_id)
             return True
 
         return False
@@ -354,8 +367,8 @@ class BackendConnection(object):
             cursor = self.conn.cursor()
             now = current_timestamp_in_seconds()
             logger.debug("Created user %s" % username[:6])
-            cursor.execute('''INSERT OR IGNORE INTO ActiveUsers VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
-                           (username, Status.Waiting, now, 0, now, "", -1, "", "", -1, -1, 0))
+            cursor.execute('''INSERT OR IGNORE INTO ActiveUsers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                           (username, Status.Waiting, now, 0, now, "", -1, "", "", "", -1, -1, 0))
 
     def disconnect(self, userid):
         try:
@@ -366,6 +379,11 @@ class BackendConnection(object):
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
+
+    def dump_transcript(self, cursor, controller, userid):
+        user_info = self._get_user_info_unchecked(cursor, userid)
+        path = os.path.join(self.config["logging"]["chat_dir"], 'Chat_%d' % user_info.room_id)
+        controller.dump(path)
 
     def get_chat_info(self, userid):
         try:
@@ -409,12 +427,23 @@ class BackendConnection(object):
                     message = u.message
 
                     _add_finished_task_row(cursor, userid, mturk_code, u.num_chats_completed)
-                    self._update_user(cursor, userid)
                     return FinishedSession(Markup(message), num_seconds, mturk_code)
 
                 else:
-                    self._update_user(cursor, userid)
                     return FinishedSession(Markup(u.message), num_seconds)
+
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
+    def get_waiting_info(self, userid):
+        try:
+            with self.conn:
+                logger.info("Getting waiting session info for user %s" % userid[:6])
+                cursor = self.conn.cursor()
+                u = self._get_user_info(cursor, userid, assumed_status=Status.Waiting)
+                num_seconds = (self.config["status_params"]["waiting"][
+                                   "num_seconds"] + u.status_timestamp) - current_timestamp_in_seconds()
+                return WaitingSession(u.message, num_seconds)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -542,6 +571,19 @@ class BackendConnection(object):
             print("WARNING: Rolled back transaction")
             return False
 
+    def is_connected(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                try:
+                    u = self._get_user_info(cursor, userid)
+                    return True if u.connected_status == 1 else False
+                except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
+                    return False
+
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
     def is_game_over(self, userid):
         controller = self.controller_map[userid]
         return controller.game_over()
@@ -575,6 +617,10 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
+    def receive(self, userid):
+        session = self._get_session(userid)
+        return session.poll_inbox()
+
     def select(self, userid, idx):
         cursor = self.conn.cursor()
         with cursor:
@@ -588,9 +634,23 @@ class BackendConnection(object):
             return item
 
     def send(self, userid, event):
-        session = self.sessions.get(userid)
+        session = self._get_session(userid)
         session.enqueue(event)
+        print session.outbox
 
-    def receive(self, userid):
-        session = self.sessions.get(userid)
-        return session.poll_inbox()
+    def submit_survey(self, userid, data):
+        def _user_finished(userid):
+            # message = "<h3>Great, you've finished this task!</h3>"
+            logger.info("Updating user %s to status FINISHED from status survey" % userid)
+            self._update_user(cursor, userid, status=Status.Finished)
+
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                user_info = self._get_user_info_unchecked(cursor, userid)
+
+                cursor.execute('INSERT INTO Surveys VALUES (?,?,?,?)',
+                               (userid, user_info.partner_type, data['question1'], data['question2']))
+                _user_finished(userid)
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
