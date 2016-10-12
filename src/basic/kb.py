@@ -32,5 +32,5 @@ class KB(object):
 
     def get_item(self, idx):
         item = self.items[idx]
-        sorted_item = [(attr.name, item[attr.name] for attr in self.schema.attributes)]
+        sorted_item = [(attr.name, item[attr.name]) for attr in self.schema.attributes]
         return sorted_item
