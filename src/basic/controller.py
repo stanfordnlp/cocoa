@@ -1,24 +1,30 @@
+import json
 from util import generate_uuid
 from dataset import Example
+from threading import Lock
+
 
 class Controller(object):
     '''
     The controller takes two systems and can run them to generate a dialgoue.
     '''
     def __init__(self, scenario, sessions):
+        self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
         assert len(self.sessions) == 2
         for agent in (0, 1):
             self.scenario.kbs[agent].dump()
+        self.selections = [None, None]
+        self.reward = 0
+        self.events = []
 
-    def run(self):
+    def simulate(self):
         '''Simulate the dialogue.'''
-        events = []
+        self.events = []
         time = 0
-        selections = [None, None]
-        reward = 0
-        game_over = False
+        self.selections = [None, None]
+        self.reward = 0
         for it in range(100):
             for agent, session in enumerate(self.sessions):
                 event = session.send()
@@ -26,10 +32,10 @@ class Controller(object):
                 if not event:
                     continue
                 event.time = time
-                events.append(event)
+                self.events.append(event)
 
                 if event.action == 'select':
-                    selections[agent] = event.data
+                    self.selections[agent] = event.data
 
                 print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 for partner, other_session in enumerate(self.sessions):
@@ -37,13 +43,70 @@ class Controller(object):
                         other_session.receive(event)
 
                 # Game is over when the two selections are the same
-                if selections[0] is not None and selections[0] == selections[1]:
-                    reward = 1
-                    game_over = True
-            if game_over:
+                if self.game_over():
+                    self.reward = 1
+            if self.game_over():
                 break
 
         uuid = generate_uuid('E')
-        outcome = {'reward': reward}
+        outcome = {'reward': self.reward}
         print 'outcome: %s' % outcome
-        return Example(self.scenario, uuid, events, outcome)
+        return Example(self.scenario, uuid, self.events, outcome)
+
+    def step(self):
+        # try to send messages from one session to the other(s)
+        with self.lock:
+            for agent, session in enumerate(self.sessions):
+                event = session.send()
+                if event is None:
+                    continue
+
+                self.events.append(event)
+
+                if event.action == 'select':
+                    self.selections[agent] = event.data
+                    if self.game_over():
+                        self.reward = 1
+                for partner, other_session in enumerate(self.sessions):
+                    if agent != partner:
+                        other_session.receive(event)
+
+    def game_over(self):
+        with self.lock:
+            return self.selections[0] is not None and self.selections[0] == self.selections[1]
+
+    def inactive(self):
+        """
+        Return whether this controller is currently controlling an active chat session or not (by checking whether both
+        users are still active or not)
+        :return: True if the chat is active (if both sessions are not None), False otherwise
+        """
+        with self.lock:
+            for s in self.sessions:
+                if s is None:
+                    return True
+            return False
+
+    def set_inactive(self, agents=[]):
+        """
+        Set any number of sessions in the Controller to None to mark the Controller as inactive. The default behavior
+        is to set all sessions to None (if no parameters are supplied to the function), but a list of indices can be
+        passed to set the Session objects at those indices to None.
+        :param agents: List of indices of Sessions to mark inactive. If this is None, the function is a no-op. If no
+        list is passed, the function sets all Session objects to None.
+        """
+        with self.lock:
+            if agents is None:
+                return
+            elif len(agents) == 0:
+                self.sessions = [None] * len(self.sessions)
+            else:
+                for idx in agents:
+                    self.sessions[idx] = None
+
+    def dump(self, path):
+        self.events = sorted(self.events, key=lambda x:x.time)
+
+        outcome = {'reward': self.reward}
+        ex = Example(self.scenario, self.scenario.uuid, self.events, outcome)
+        json.dump(ex.to_dict(), open(path, 'w'))

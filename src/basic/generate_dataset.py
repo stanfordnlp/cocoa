@@ -38,7 +38,7 @@ def generate_examples(description, examples_path, max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
         controller = Controller(scenario, sessions)
-        ex = controller.run()
+        ex = controller.simulate()
         examples.append(ex)
         num_examples += 1
     with open(examples_path, 'w') as out:

@@ -5,7 +5,7 @@ class System(object):
     def __init__(self):
         pass
 
-    def new_session(self, **kwargs):
+    def new_session(self, agent, kb):
         raise NotImplementedError
 
 

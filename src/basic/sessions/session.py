@@ -6,7 +6,7 @@ event.
 from src.basic.event import Event
 
 class Session(object):
-    def __init__(self, agent):
+    def __init__(self, agent, **kwargs):
         self.agent = agent  # 0 or 1 (which player are we?)
 
     def receive(self, event):

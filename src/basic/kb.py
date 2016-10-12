@@ -29,3 +29,8 @@ class KB(object):
             for attr_name, attr_value in item.iteritems():
                 counts[(attr_name, attr_value)] += 1
         return sorted_candidates(counts.items())
+
+    def get_item(self, idx):
+        item = self.items[idx]
+        sorted_item = [(attr.name, item[attr.name] for attr in self.schema.attributes)]
+        return sorted_item
