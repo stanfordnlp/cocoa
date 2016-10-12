@@ -67,15 +67,6 @@ def index():
         return render_template('waiting.html',
                                seconds_until_expiration=waiting_info.num_seconds,
                                waiting_message=waiting_info.message)
-    elif status == Status.SingleTask:
-        logger.info("Getting single task information for user %s" % userid()[:6])
-        single_task_info = backend.get_single_task_info(userid())
-        presentation_config = app.config["user_params"]["status_params"]["chat"]["presentation_config"]
-        return render_template('single_task.html',
-                               scenario=single_task_info.scenario,
-                               agent=single_task_info.agent_info,
-                               config=presentation_config,
-                               num_seconds=single_task_info.num_seconds)
     elif status == Status.Finished:
         logger.info("Getting finished information for user %s" % userid()[:6])
         finished_info = backend.get_finished_info(userid(), from_mturk=session["mturk"])
@@ -88,20 +79,13 @@ def index():
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         chat_info = backend.get_chat_info(userid())
-        presentation_config = app.config["user_params"]["status_params"]["chat"]["presentation_config"]
         session["room"] = chat_info.room_id
-        bot = 0
-        if backend.is_user_partner_bot(userid()):
-            bot = 1
+        schema = backend.get_schema()
         return render_template('chat.html',
                                room=chat_info.room_id,
-                               scenario=chat_info.scenario,
-                               agent=chat_info.agent_info,
-                               num_seconds=chat_info.num_seconds,
-                               config=presentation_config,
-                               bot=bot,
-                               debug=debug,
-                               partner=chat_info.partner_info)
+                               kb=chat_info.kb.to_dict(),
+                               attributes=[attr.name for attr in schema.attributes],
+                               num_seconds=chat_info.num_seconds)
     elif status == Status.Survey:
         return render_template('survey.html')
 

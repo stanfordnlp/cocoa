@@ -1,0 +1,101 @@
+<html>
+    <head>
+    <style>
+		#timer{
+		color: #000;
+		display: inline-block;
+		text-align: center;
+		}
+
+		#timer > div{
+			display: inline-block;
+			font-size: 20px;
+		}
+
+		#timer div > span{
+			font-weight: bolder;
+			font-size: 20px;	
+			display: inline-block;
+		}
+		
+		#timer div > .seconds{
+			margin-left:-3px;
+		}
+    </style>
+        <title>Who's Our Mutual Friend?</title>
+        <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var socket, pollInterval;
+            $(document).ready(function(){
+                socket = io.connect('http://' + document.domain + ':' + location.port+'/main');
+                socket.on('connect', pollServer);
+          		pollInterval = setInterval(pollServer, 1000);
+            });
+    
+            function pollServer() {
+                socket.emit('check_status_change', {'current_status':'waiting'}, function(data) {
+                    if (data['status_change']) {
+                        clearInterval(pollInterval);
+                    	setTimeout(function() { window.location.reload(true); }, 1000);
+                    }
+                });
+            }
+        </script>
+        <script type="text/javascript" charset="utf-8">
+			function getTimeRemaining(endtime) {
+			  var t = Date.parse(endtime) - Date.parse(new Date());
+			  var seconds = Math.floor((t / 1000) % 60);
+			  var minutes = Math.floor((t / 1000 / 60));
+			  return {
+				'total': t,
+				'minutes': minutes,
+				'seconds': seconds
+			  };
+			}
+			function init() {
+			  var deadline = new Date(Date.parse(new Date()) + {{ seconds_until_expiration }} * 1000);
+			  initializeClock('timer', deadline);
+			}
+			function initializeClock(id, endtime) {
+			  var clock = document.getElementById(id);
+			  var minutesSpan = clock.querySelector('.minutes');
+			  var secondsSpan = clock.querySelector('.seconds');
+
+			  function updateClock() {
+				var t = getTimeRemaining(endtime);
+				
+				if (t.total <= 0) {
+					clearInterval(timeinterval);
+				}
+				
+				if (t.total >=0) {
+					minutesSpan.innerHTML = t.minutes+':';
+					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+				}
+
+			  }
+
+			  updateClock();
+			  var timeinterval = setInterval(updateClock, 1000);
+			}
+        </script>
+    </head>
+    <body onload="init()">
+    <div id="content">
+        <h2>Who's Our Mutual Friend?</h2>
+        <div id="timer">
+        <div>
+            {{ waiting_message }}
+        </div>
+        <div style="padding: 0 0 0 30px;">
+        <span class="minutes"></span>
+        </div>
+        <div>
+        <span class="seconds"></span>
+        </div>
+        </div>
+    </div>
+
+    </body>
+</html>

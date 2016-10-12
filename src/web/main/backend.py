@@ -374,10 +374,10 @@ class BackendConnection(object):
                 logger.info("Getting chat info for user %s" % userid[:6])
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
-                num_seconds_remaining = (self.config["status_params"]["chat"][
-                                             "num_seconds"] + u.status_timestamp) - current_timestamp_in_seconds()
+                num_seconds_remaining = (self.config["status_params"]["chat"]["num_seconds"] +
+                                         u.status_timestamp) - current_timestamp_in_seconds()
                 scenario = self.scenario_db.get(u.scenario_id)
-                return UserChatSession(u.room_id, u.agent_index, scenario, num_seconds_remaining)
+                return UserChatSession(u.room_id, u.agent_index, scenario.get_kb(u.agent_index), num_seconds_remaining)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -419,6 +419,9 @@ class BackendConnection(object):
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
+
+    def get_schema(self):
+        return self.schema
 
     def get_updated_status(self, userid):
         try:

@@ -1,0 +1,161 @@
+<html>
+    <head>
+        <title>Who's Our Mutual Friend?</title>
+        <style>
+
+	  div#questions {
+	  float:left;
+	  width: 40%;
+	  }
+
+	  div#info_container {
+	  margin-left: 42%;
+	  }
+	  img.heart {
+	  height: 15px;
+	  width: 15px;
+	  }
+
+	  img.dollar {
+	  height: 16px;
+	  width: 9px;
+	  }
+	  .points {
+	  color: #009933;
+	  }
+	  td {
+	  padding: 0 15px 0 15px;
+	  }
+	  
+	  .error {
+	  color: #ff0000;
+	  }
+	  
+	  
+	  table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after { 
+    	content: " \25B4\25BE" 
+		}	
+	  </style>
+	  	<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
+        <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var socket;
+            $(document).ready(function() {
+                socket = io.connect('http://' + document.domain + ':' + location.port+'/main');
+                socket.on('disconnect', function() {
+                	socket.disconnect();
+                });
+            });
+            function validateAndSubmit() {
+	            console.log("validating response");
+            	data = validateResponse();
+            	console.log(data);
+            	if (data['valid']) {
+                    socket.emit('submit_task', data, function() {
+                        window.location.reload(true);
+                    });
+            	}
+            }
+
+            function validateResponse() {
+                ddRestaurants = document.getElementById("restaurantChoices");
+            	textArea = document.getElementById("starterText");
+
+            	starter_text = starterText.value;
+
+            	if (starter_text != "") {
+            		console.log("valid");
+            	    document.getElementById('textError').style.display="none";
+            	    return {'restaurant': "null",
+            	    		'restaurant_index': -1,
+            	            'starter_text': starter_text,
+            	            'valid': true};
+            	}
+            	if (starter_text == "") {
+                    document.getElementById('textError').style.display="block";
+            	}
+				console.log("error");
+            	return {'valid': false};
+            }
+		</script>
+    </head>
+    <body oncopy="return false" oncut="return false" onpaste="return false">
+    <div id="questions">
+        <h2>Negotiation Game: Where Should We Eat?</h2>
+        <h4>
+            There are no other users online at the moment - practice your negotiation skills in the meantime!
+        </h4>
+        <p>
+            Imagine that you've just met someone new online, and you want to find out whether you have any mutual friends. </br>
+            <b>Your information</b> (school, major, company) are on the <b>right</b>, as well as a list of <b>your friends</b>, with their information.
+        </p>
+        <hr>
+        <h4>
+            What is the first thing you would say to find out which friends you have in common with this new user? </br>Please do not enter greetings or other fillers like "hi", "what's your name", etc.
+        </h4>
+
+        <div id="textError" class="error" style="display:none"><h3>Please enter your response in the box.</h3></div>
+        <textarea id="starterText" rows="2" cols="50"></textarea>
+        <button id="submit_task" onclick="validateAndSubmit();">
+            Submit!
+        </button>
+    </div>
+
+	<div id="info_container">
+	<div id="preferences">
+
+            <h3>Your information</h3>
+            <table class="cuisine_preferences_list">
+					<tr>
+						<td>Name</td>
+						<td>
+						{{ agent["info"]["name"] }}
+						</td>
+				  </tr>
+				  <tr>
+						<td>School</td>
+						<td>
+						{{ agent["info"]["school"]["name"] }}
+						</td>
+				  </tr>
+				  <tr>
+						<td>Major</td>
+						<td>
+						{{ agent["info"]["school"]["major"] }}
+						</td>
+				  </tr>
+				  <tr>
+						<td>Company</td>
+						<td>
+						{{ agent["info"]["company"]["name"] }}
+						</td>
+				  </tr>
+			</table>
+
+
+            <h3>Your friends</h3>
+	    <table class="sortable">
+	    <thead>
+	    <tr>
+	    <th>Name</th>
+	    <th>School</th>
+	    <th>Major</th>
+	    <th>Company</th>
+	    </tr>
+	    </thead>
+	    <tbody>
+            {% for friend in agent["friends"] %}
+            <tr>
+				<td><b>{{ friend["name"] }}</b></td>
+				<td>{{ friend["school"]["name"]}}</td> 
+				<td>{{ friend["school"]["major"]}}</td> 
+				<td>{{ friend["company"]["name"]}}</td> 
+	    	</tr>
+	    {% endfor %}
+	    </tbody>
+	    </table>
+        </div>
+        </div>
+    </body>
+</html>
