@@ -21,7 +21,6 @@ from main import backend
 
 __author__ = 'anushabala'
 
-# todo add support for chatting with model at runtime
 DB_FILE_NAME = 'chat_state.db'
 LOG_FILE_NAME = 'log.out'
 TRANSCRIPTS_DIR = 'transcripts'
@@ -35,9 +34,10 @@ def add_website_arguments(parser):
     parser.add_argument('--config', type=str, default='app_params.json',
                         help='Path to JSON file containing configurations for website')
     parser.add_argument('--output', type=str,
-                        default=datetime.now().strftime("%Y-%m-%d"),
+                        default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
-                             'and database). Defaults to a directory with the current date formatted as %%Y-%%m-%%d. '
+                             'and database). Defaults to a web_output/current_data, with the current date formatted as '
+                             '%%Y-%%m-%%d. '
                              'If the provided directory exists, all data in it is overwritten.')
 
 

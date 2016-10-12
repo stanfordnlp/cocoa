@@ -6,10 +6,6 @@
 
 	"chat": {
 	    "num_seconds": 300,
-	    "presentation_config": {
-		"numerical_preferences": false,
-		"numerical_prices": false
-    	    }
 	},
 
 	"finished": {
@@ -21,38 +17,9 @@
 	}
     },
 
-    "scenarios_json_file": "/Users/anushabala/projects/deepdialog/data/friends_scenarios.json",
-    "single_tasks_json_file": "single_tasks.json",
+    "scenarios_json_file": "/Users/anushabala/projects/game-dialogue/data/friends-scenarios-large.json",
     "connection_timeout_num_seconds": 3,
-    "templates_dir": "friend_templates",
-    "end_survey": 1,
-    "db": {
-	"location": "/Users/anushabala/projects/deepdialog/chat/nn_chat_state.db"
-    },
-
-    "logging": {
-	  "app_logs": "/Users/anushabala/projects/deepdialog/chat/chat.log",
-	"chat_dir": "/Users/anushabala/projects/deepdialog/chat/nn_transcripts",
-	"chat_delimiter": "---"
-    },
-  "bots": {
-	"lstm_recurse": {
-	  "type":"lstm",
-	  "use_bot":true,
-	  "formulas_mode":"tight",
-	  "path":"/Users/anushabala/projects/deepdialog/data/friends/v4_full_data_tight/model.out"
-	},
-	"lstm_unfeat": {
-	  "type":"lstm",
-	  "use_bot":false
-	},
-	"ngram11":{
-	  "use_bot":false,
-	  "type":"ngram",
-	  "ngrams":11,
-	  "formulas_mode":"recurse",
-	  "path":"/Users/anushabala/projects/deepdialog/data/friends/friends.recurse/train.json"
-	}
-  }
+    "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates",
+    "end_survey": 1
 }
 

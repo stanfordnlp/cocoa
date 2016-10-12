@@ -12,9 +12,8 @@ import numpy as np
 from src.basic.controller import Controller
 from src.basic.event import Event
 from flask import Markup
-from web_utils import DATE_FMT as date_fmt
 
-
+date_fmt = '%m-%d-%Y:%H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")

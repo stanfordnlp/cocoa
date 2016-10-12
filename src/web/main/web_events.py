@@ -7,9 +7,9 @@ from web_utils import get_backend
 from backend import Status
 from routes import userid
 from src.basic.event import Event
-from web_utils import DATE_FMT as date_fmt
 import logging
 
+date_fmt = '%m-%d-%Y:%H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
