@@ -7,7 +7,7 @@
     },
     {
       "unique":false,
-      "value_type":"major",
+      "value_type":"school",
       "name":"School"
     },
     {
@@ -1380,7 +1380,6 @@
       "Advent International",
       "AECOM",
       "Aerojet Rocketdyne",
-      "A\u00e9ropostale",
       "AES Corporation",
       "Aetna",
       "Affiliated Computer Services",
@@ -1889,7 +1888,6 @@
       "Erickson Air-Crane",
       "Erie Insurance Group",
       "Esselte",
-      "Est\u00e9e Lauder Companies",
       "Esterline",
       "Estes Industries",
       "Estwing Manufacturing Company",
@@ -2068,7 +2066,6 @@
       "Houchens Industries",
       "Houghton Mifflin Harcourt Learning Technology",
       "Houlihan's",
-      "House of Der\u00e9on",
       "HP Inc.",
       "Hughes Communications",
       "Humana",
@@ -2316,7 +2313,6 @@
       "Mohawk Industries",
       "Molex, Inc.",
       "Molycorp",
-      "Mondel\u0113z International",
       "Monotype Imaging Holdings",
       "Monsanto",
       "Monster Beverage Corporation",
@@ -3181,7 +3177,6 @@
       "Mathematics Education",
       "Computer Science Education",
       "Religious Education",
-      "Aerospace Aeronautical",
       "Agricultural Engineering",
       "Architectural Engineering",
       "Bioengineering",

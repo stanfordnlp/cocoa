@@ -3,6 +3,7 @@ A schema specifies information about a domain (types, entities, relations).
 '''
 
 import json
+import numpy as np
 
 class Attribute(object):
     def __init__(self, name, value_type, unique):
@@ -19,13 +20,54 @@ class Schema(object):
     '''
     A schema contains information about possible entities and relations.
     '''
-    def __init__(self, path):
+    def __init__(self, path, domain=None):
         raw = json.load(open(path))
         # Mapping from type (e.g., hobby) to list of values (e.g., hiking)
-        self.values = raw['values']
+        values = raw['values']
         # List of attributes (e.g., place_of_birth)
-        self.attributes = [Attribute.from_json(a) for a in raw['attributes']]
+        attributes = [Attribute.from_json(a) for a in raw['attributes']]
 
+        def _get_subset(attr_names):
+            subset_attributes = [attr for attr in attributes if attr.name in attr_names]
+            subset_values = {}
+            for attr in subset_attributes:
+                k = attr.value_type
+                subset_values[k] = values[k]
+            return subset_attributes, subset_values
+
+        if domain == 'Matchmaking':
+            attr_names = ['Time Preference', 'Location Preference', 'Hobby']
+            self.attributes, self.values = _get_subset(attr_names)
+        elif domain == 'MutualFriends':
+            attr_names = ['Name', 'School', 'Major', 'Company']
+            self.attributes, self.values = _get_subset(attr_names)
+        elif domain is None:
+            # Use all attributes in the schema
+            self.values = values
+            self.attributes = attributes
+        else:
+            raise ValueError('Unknowd domain.')
+        self.domain = domain
+
+        # Dirichlet alphas for scenario generation
+        if domain == 'Matchmaking':
+            self.alphas = [1.] * len(self.attributes)
+            for i, attr in enumerate(self.attributes):
+                if attr.name == 'Hobby':
+                    self.alphas[i] = 0.5
+                    break
+        else:
+            self.alphas = list(np.linspace(1, 0.1, len(self.attributes)))
+            np.random.shuffle(self.alphas)
+            # The attribute (Name) always have a dense distribution
+            for i, attr in enumerate(self.attributes):
+                if attr.name == 'Name':
+                    self.alphas[i] = 2
+                    break
+
+    # NOTE: this function will be removed in the new model because a) we don't need all
+    # entities for embedding and b) all entities in the schema may not be used in some
+    # scenarios due to sampling.
     def get_entities(self):
         '''
         Return a dict {value: type} of all entities.

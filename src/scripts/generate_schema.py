@@ -4,7 +4,6 @@ import argparse
 import json
 import re
 import os
-import sys
 
 def clean(s):
     s = re.sub(r'\([^)]*\)', '', s)
@@ -21,7 +20,8 @@ def scrape(link, xpath, cache):
             fout.write(content)
     tree = html.fromstring(content)
     nodes = tree.xpath(xpath)
-    return [clean(node.text) for node in nodes if node.text]
+    strings = [clean(node.text) for node in nodes if node.text]
+    return [s for s in strings if not isinstance(s, unicode)]
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -72,7 +72,7 @@ if __name__ == '__main__':
             },
         'attributes': [
             {"name": "Name", "value_type": "name", "unique": False},
-            {"name": "School", "value_type": "major", "unique": False},
+            {"name": "School", "value_type": "school", "unique": False},
             {"name": "Major", "value_type": "major", "unique": False},
             {"name": "Company", "value_type": "company", "unique": False},
             {"name": "Hobby", "value_type": "hobby", "unique": False},
