@@ -11,9 +11,8 @@ def get_prefixes(entity, min_length=3, max_length=5):
         for c in candidates:
             if len(word) < max_length:  # Keep word
                 new_candidates.append(c + ' ' + word)
-            else:  # Shorten
+            else:
                 for i in range(min_length, max_length):
-                    new_candidates.append(c + ' ' + word[:i])
                     new_candidates.append(c + '' + word[:i])
         candidates = new_candidates
 
@@ -21,47 +20,25 @@ def get_prefixes(entity, min_length=3, max_length=5):
     return stripped
 
 def get_acronyms(entity):
+    """
+    Computes acronyms of entity, assuming entity has more than one token
+    :param entity:
+    :return:
+    """
     words = entity.split()
-    if len(words) < 2:
-        return []
     first_letters = ''.join([w[0] for w in words])
     acronyms = [first_letters]
+
     # Add acronyms using smaller number of first letters in phrase ('ucb' -> 'uc')
     for split in range(2, len(first_letters)):
         acronyms.append(first_letters[:split])
 
-    # How should we handle single letter words
-    # In case BU is represented as B U
-    acronyms.extend(' '.join([w[0] for w in words]))
-
-    if 'of' in words:
-        # handle 'u of p'
-        acronym = ''
-        for w in words:
-            acronym += w[0] if w != 'of' else ' '+w+' '
-        acronyms.append(acronym)
-        # handle 'upenn'
-        acronym = ''
-        for w in words[:-1]:
-            acronym += w[0] if w != 'of' else ''
-        acronym += words[-1][:4]
-
-        # Handle 'U of Pennsylvania'
-        for idx, word in enumerate(words):
-            prefix = ' '.join(words[:idx])
-            suffix = ' '.join(words[(idx+1):])
-            letter = word[0]
-            word = prefix + ' ' + letter + ' ' + suffix
-            acronyms.append(word.strip())
-
-        acronyms.append(acronym)
     return acronyms
 
 
-alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z', ' ']
+alphabet = "abcdefghijklmnopqrstuvwxyz "
 def get_edits(entity):
     # TODO:  Do we want to consider edit distance 2 or greater?
-    # Cross product of edits of tokens for misspellings across multiple tokens?
     if len(entity) < 3:
         return []
     edits = []
@@ -100,14 +77,17 @@ def get_edits(entity):
 
 
 def get_morphological_variants(entity):
-    # cooking => cook, cooker
+    """
+    Computes stem of entity and creates morphological variants
+    :param entity:
+    :return:
+    """
     results = []
     for suffix in ['ing']:
         if entity.endswith(suffix):
             base = entity[:-len(suffix)]
             results.append(base)
-            # TODO: Change hard-corded variants!
-            # Deal with case "hiking" --> "to hike"
+            # TODO: Can we get away with not hard-coding these variants?
             results.append(base + 'e')
             results.append(base + 's')
             results.append(base + 'er')
@@ -130,8 +110,6 @@ class BaseLexicon(object):
         self.load_entities()
         self.compute_synonyms()
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
-        # TODO: the model cannot handle number entities now
-        #print 'Ambiguous entities:'
 
 
     def load_entities(self):
@@ -244,31 +222,37 @@ class Lexicon(BaseLexicon):
         print self.entitylink(sentence)
 
 
+
 class SingleTokenLexicon(BaseLexicon):
     """
-    Lexicon that computes per token of entity transforms rather than per phrase transforms
+    Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
     def __init__(self, schema, learned_lex):
         super(SingleTokenLexicon, self).__init__(schema, learned_lex)
+        # Maintain mapping from token to its various synonyms to avoid recomputing for multiple entities
+        self.synonyms = defaultdict(list)
+        self.seen_tokens = set()
 
     # TODO: compute dialogue num entity average as metric for system performance
     def compute_synonyms(self):
+        """
+        Computes all variants (synonyms) for each token of every canonical entity
+        :return:
+        """
         # Keep track of tokens we have seen to handle repeats
         all_seen_tokens = set()
         for entity, type in self.entities.items():
             phrases = []
             mod_entity = entity
-            # Consider removing stop words
             for s in [' of ', ' - ', '-']:
                 mod_entity = mod_entity.replace(s, ' ')
 
-            # Add all tokens in entity -- we only compute token-level edits (except for acronyms...)
+            # Add all tokens in entity -- we only compute token-level edits (except for acronyms/prefixes...)
             entity_tokens = mod_entity.split(' ')
             # TODO: Maintain mapping from base token to its variants and use this to then keep from computing edits for same token repeatedly
             phrases.extend([t for t in entity_tokens if t not in all_seen_tokens])
 
             synonyms = []
-            # Special case -- is there a way to get other rules to handle this?
             if entity == 'facebook':
                 synonyms.append('fb')
 
@@ -278,11 +262,9 @@ class SingleTokenLexicon(BaseLexicon):
                 if type != 'person':
                     synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
-                    synonyms.extend(get_prefixes(phrase, min_length=1)) # Change here
-                    synonyms.extend(get_acronyms(phrase))
+                    synonyms.extend(get_prefixes(phrase, min_length=1))
 
-            # U Penn, uc berkeley
-            # TODO: Add phrase level acronyms/prefixes(?) if multi token entity
+            # Multi-token level variants: UPenn, uc berkeley
             if len(mod_entity.split(" ")) > 1:
                 phrase_level_prefixes = get_prefixes(mod_entity, min_length=1, max_length=5)
                 phrase_level_acronyms = get_acronyms(mod_entity)
@@ -295,13 +277,13 @@ class SingleTokenLexicon(BaseLexicon):
 
 
     def entitylink(self, raw_tokens, num_entities=False):
-        '''
+        """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
         Note: Linking works differently here because we are considering intersection of lists across
         token spans so that "univ of penn" will lookup in our lexicon table for "univ" and "penn"
         (disregarding stop words and special tokens) and find their intersection
-        '''
+        """
         i = 0
         num_entities_found = 0
         entities = []
@@ -313,7 +295,6 @@ class SingleTokenLexicon(BaseLexicon):
             for l in range(5, 0, -1):
                 phrase = ' '.join(raw_tokens[i:i+l])
                 raw = raw_tokens[i:i+l]
-                # Will store candidate entities
 
                 for idx, token in enumerate(raw):
                     results = self.lookup(token)
@@ -369,7 +350,7 @@ class SingleTokenLexicon(BaseLexicon):
 if __name__ == "__main__":
     from schema import Schema
     # TODO: Update path to location of desired schema used for basic testing
-    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-old.json"
+    path = None
     schema = Schema(path)
     lex = SingleTokenLexicon(schema, learned_lex=True)
     lex.test()
