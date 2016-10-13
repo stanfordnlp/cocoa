@@ -3,11 +3,9 @@ __author__ = 'anushabala'
 from flask import Flask
 from flask.ext.socketio import SocketIO
 from flask import g
-from multiprocessing import Process, Queue
+# from multiprocessing import Process, Queue
 socketio = SocketIO()
 controller_process = None
-
-from main.run_controllers import run_controllers
 
 
 #@app.teardown_appcontext
@@ -30,10 +28,10 @@ def create_app(debug=False, templates_dir='templates'):
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)
 
-    controller_queue = Queue()
-    app.config['controller_queue'] = controller_queue
-    controller_process = Process(target=run_controllers, args=(controller_queue,))
-    controller_process.start()
+    # controller_queue = Queue()
+    # app.config['controller_queue'] = controller_queue
+    # controller_process = Process(target=run_controllers, args=(controller_queue,))
+    # controller_process.start()
     app.teardown_appcontext_funcs = [close_connection]
 
     socketio.init_app(app)

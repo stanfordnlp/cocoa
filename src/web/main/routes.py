@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 __author__ = 'anushabala'
 
 from flask import session, render_template, request, redirect, url_for
@@ -56,6 +58,13 @@ def index():
         session['key'] = key
 
     status = backend.get_updated_status(userid())
+
+    if not request.args.get('status') or not request.args.get('id'):
+        return redirect(url_for('main.index', status=Status._names[status].lower(), id=userid(), **request.args))
+
+    if not request.args.get('status'):
+        return redirect(url_for('main.index', status=Status._names[status].lower(), **request.args))
+
     logger.info("Got updated status %s for user %s" % (Status._names[status], userid()[:6]))
     session["mturk"] = True if request.args.get('mturk') and int(request.args.get('mturk')) == 1 else None
     if session["mturk"]:
@@ -80,6 +89,8 @@ def index():
         chat_info = backend.get_chat_info(userid())
         session["room"] = chat_info.room_id
         schema = backend.get_schema()
+        if not request.args.get('scenario') or request.args.get('scenario') != chat_info.scenario_id:
+            return redirect(url_for('main.index', scenario=chat_info.scenario_id, **request.args))
         return render_template('chat.html',
                                room=chat_info.room_id,
                                kb=chat_info.kb.to_dict(),

@@ -145,7 +145,6 @@ class BackendConnection(object):
                           connected_status=1,
                           message=message)
         if partner_id != Partner.Bot:
-            self.controller_map[partner_id] = None
             self._update_user(cursor, partner_id,
                               status=Status.Waiting,
                               room_id=-1,
@@ -234,11 +233,7 @@ class BackendConnection(object):
             my_session = self.systems[Partner.Human].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
 
-            print "Sessions added to controller", my_session, partner_session
             controller = Controller(scenario, [my_session, partner_session], debug=False)
-            # p = Process(target=run_single_controller, args=(controller,))
-            # p.start()
-            print "backend: Added controller to queue"
             self.controller_queue.put(controller)
 
             return controller, my_session, partner_session
@@ -343,7 +338,6 @@ class BackendConnection(object):
             _user_finished(cursor, userid)
 
             if not self.is_user_partner_bot(cursor, userid):
-                self.controller_map[partner_id] = None
                 _user_finished(cursor, partner_id)
             return True
 
@@ -394,7 +388,7 @@ class BackendConnection(object):
                 num_seconds_remaining = (self.config["status_params"]["chat"]["num_seconds"] +
                                          u.status_timestamp) - current_timestamp_in_seconds()
                 scenario = self.scenario_db.get(u.scenario_id)
-                return UserChatSession(u.room_id, u.agent_index, scenario.get_kb(u.agent_index), num_seconds_remaining)
+                return UserChatSession(u.room_id, u.agent_index, scenario.uuid, scenario.get_kb(u.agent_index), num_seconds_remaining)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -622,21 +616,26 @@ class BackendConnection(object):
         return session.poll_inbox()
 
     def select(self, userid, idx):
-        cursor = self.conn.cursor()
-        with cursor:
-            u = self._get_user_info_unchecked(cursor, userid)
-            scenario = self.scenario_db.get(u.scenario_id)
-            kb = scenario.get_kb(u.agent_index)
-            item = kb.get_item(idx)
-            self.send(userid, Event.SelectionEvent(u.agent_index,
-                                                   item,
-                                                   datetime.datetime.now().strftime(date_fmt)))
-            return item
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info_unchecked(cursor, userid)
+                scenario = self.scenario_db.get(u.scenario_id)
+                kb = scenario.get_kb(u.agent_index)
+                item = kb.get_item(idx)
+                self.send(userid, Event.SelectionEvent(u.agent_index,
+                                                       item,
+                                                       datetime.datetime.now().strftime(date_fmt)))
+                return item
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
 
     def send(self, userid, event):
         session = self._get_session(userid)
         session.enqueue(event)
-        print session.outbox
+        controller = self.controller_map[userid]
+        controller.step()
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):

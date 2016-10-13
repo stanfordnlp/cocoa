@@ -38,16 +38,6 @@
 	font-size:14px;
 	}
 
-	img.heart {
-	height: 15px;
-	width: 15px;
-	}
-
-	img.dollar {
-	height: 16px;
-	width: 9px;
-	}
-
 	input#text {
 	width: 100%;
 	}
@@ -105,7 +95,7 @@
                     $('#chat').val($('#chat').val() + data.msg + '\n');
                     $('#chat').scrollTop($('#chat')[0].scrollHeight);
                 });
-                 socket.on('disconnect', function() {
+                socket.on('disconnect', function() {
  					socket.disconnect();
  					clearInterval(validCheckInterval);
  				});
@@ -115,6 +105,7 @@
 				});
                	$('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
+                    console.log(code);
                     if (code == 13) {
                         text = $('#text').val();
                         $('#text').val('');
@@ -126,12 +117,12 @@
 	    			selected = $('option:selected').val();
 	    			if(selectTime == null) {
 	    				selectTime = new Date();
-	    				socket.emit('pick', {selection: selected});
+	    				socket.emit('select', {selection: selected});
 					}
 					else {
 						var currentTime = new Date();
 						if ((currentTime - selectTime) > 10000) {
-							socket.emit('pick', {selection: selected});
+							socket.emit('select', {selection: selected});
 							selectTime = currentTime;
 						} //otherwise do nothing
 					}
@@ -142,7 +133,7 @@
             });
             
             function checkInbox() {
-            	socket.emit('check_inbox', {})
+            	socket.emit('check_inbox', {});
             }
             
             function pollServer() {
@@ -151,10 +142,6 @@
                         window.location.reload(true);   
                     }
                 });
-            }
-            
-            function getBotResponse() {
-            	socket.emit('check_bot', {});
             }
 
         </script>
@@ -243,6 +230,7 @@
 			<div id="icon">
 				<img height="120" width="120" src="{{ url_for('static', filename='img/handshake.jpg') }}"/>
 			</div>
+		</div>
 		<div id="friends" style="float:left">
             <h3>Your friends</h3>
 			<table class="sortable">
@@ -262,8 +250,9 @@
 					{% for attr in attributes %}
 					<td>{{item[attr]}}</td>
 					{% endfor %}
+					{% set ctr = ctr + 1 %}
 				</tr>
-			{% endfor %}
+				{% endfor %}
 			</tbody>
 			</table>
 			<h3>Choose a friend below:</h3>
@@ -276,7 +265,7 @@
 					{% endfor %}
 				</select>
         </div>
-        </div>
+<!--         </div> -->
 
     </div>
     </div>

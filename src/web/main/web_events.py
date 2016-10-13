@@ -89,8 +89,7 @@ def check_inbox(data):
     backend = get_backend()
     uid = userid()
     event = backend.receive(uid)
-    while event is not None:
-        print "Call to check_inbox: received event: {}".format(event)
+    if event is not None:
         if event.action == 'message':
             emit_message_to_self("Friend: {}".format(event.data))
         elif event.action == 'join':
@@ -98,13 +97,11 @@ def check_inbox(data):
         elif event.action == 'leave':
             emit_message_to_self("Your friend has left the room.")
         elif event.action == 'select':
-            emit_message_to_self("Your friend selected {}".format(", ".join(event.data.values())))
-            if backend.is_game_over(uid):
-                emit('endchat',
-                {'message': "You've completed this task! Redirecting you..."},
-                room=session["room"])
-
-        event = backend.receive(uid)
+            emit_message_to_self("Your friend selected {}".format(", ".join([v[1] for v in event.data])))
+            # if backend.is_game_over(uid):
+            #     emit('endchat',
+            #     {'message': "You've completed this task! Redirecting you..."},
+            #     room=session["room"])
 
 
 @socketio.on('text', namespace='/chat')
@@ -134,7 +131,7 @@ def select(message):
         return
     selected_item = backend.select(userid(), selection_id)
 
-    emit_message_to_self("You selected: {}".format(", ".join(selected_item.values()), status_message=True))
+    emit_message_to_self("You selected: {}".format(", ".join([v[1] for v in selected_item]), status_message=True))
 
 
 @socketio.on('disconnect', namespace='/chat')

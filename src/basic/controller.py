@@ -1,6 +1,7 @@
 import json
 from util import generate_uuid
 from dataset import Example
+from threading import Lock
 
 
 class Controller(object):
@@ -8,6 +9,7 @@ class Controller(object):
     The controller takes two systems and can run them to generate a dialgoue.
     '''
     def __init__(self, scenario, sessions, debug=True):
+        self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
         print self.sessions
@@ -54,28 +56,28 @@ class Controller(object):
         return Example(self.scenario, uuid, self.events, outcome)
 
     def step(self):
-        print "Call to controller.step()"
-        # try to send messages from one session to the other(s)
-        print self.sessions
-        for agent, session in enumerate(self.sessions):
-            event = session.send()
-            print agent, session
-            print session.outbox
-            if event is None:
-                continue
+        with self.lock:
+            print "Call to controller.step()"
+            # try to send messages from one session to the other(s)
+            print self.sessions
+            for agent, session in enumerate(self.sessions):
+                event = session.send()
+                print agent, session
+                print session.outbox
+                if event is None:
+                    continue
 
-            self.events.append(event)
-            print "Event from agent {}: {}".format(agent, event.to_dict())
-            if event.action == 'select':
-                self.selections[agent] = event.data
-                if self.game_over():
-                    self.reward = 1
-            for partner, other_session in enumerate(self.sessions):
-                if agent != partner:
-                    other_session.receive(event)
+                self.events.append(event)
+                print "Event from agent {}: {}".format(agent, event.to_dict())
+                if event.action == 'select':
+                    self.selections[agent] = event.data
+                    if self.game_over():
+                        self.reward = 1
+                for partner, other_session in enumerate(self.sessions):
+                    if agent != partner:
+                        other_session.receive(event)
 
     def game_over(self):
-        # print "Call to game_over: result: ", not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
         return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
     def inactive(self):
@@ -96,14 +98,15 @@ class Controller(object):
         passed to set the Session objects at those indices to None.
         :param agents: List of indices of Sessions to mark inactive. If this is None, the function is a no-op. If no
         list is passed, the function sets all Session objects to None.
-    """
-        if agents is None:
-            return
-        elif len(agents) == 0:
-            self.sessions = [None] * len(self.sessions)
-        else:
-            for idx in agents:
-                self.sessions[idx] = None
+        """
+        with self.lock:
+            if agents is None:
+                return
+            elif len(agents) == 0:
+                self.sessions = [None] * len(self.sessions)
+            else:
+                for idx in agents:
+                    self.sessions[idx] = None
 
     def dump(self, path):
         self.events = sorted(self.events, key=lambda x:x.time)

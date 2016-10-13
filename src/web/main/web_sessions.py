@@ -18,16 +18,18 @@ class WaitingSession(object):
 
 
 class UserChatSession(object):
-    def __init__(self, room_id, agent_index, kb, num_seconds):
+    def __init__(self, room_id, agent_index, scenario_id, kb, num_seconds):
         self.room_id = room_id
         self.agent_index = agent_index
+        self.scenario_id = scenario_id
         self.kb = kb
         self.num_seconds = num_seconds
 
     def to_dict(self):
         return {"room": self.room_id,
                 "agent_index": self.agent_index,
-                "kb": self.kb,
+                "scenario_id": self.scenario_id,
+                "kb": self.kb.to_dict(),
                 "num_seconds": self.num_seconds}
 
 
