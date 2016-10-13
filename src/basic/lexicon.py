@@ -14,18 +14,26 @@ def get_prefixes(entity, min_length=3, max_length=5):
             else:  # Shorten
                 for i in range(min_length, max_length):
                     new_candidates.append(c + ' ' + word[:i])
+                    new_candidates.append(c + '' + word[:i])
         candidates = new_candidates
-    # c[1:] is done to remove leading " " character in candidates
-    return [c[1:] for c in candidates if c[1:] != entity]
+
+    stripped = [c.strip() for c in candidates if c != entity]
+    return stripped
 
 def get_acronyms(entity):
     words = entity.split()
     if len(words) < 2:
         return []
-    acronyms = [''.join([w[0] for w in words])]
+    first_letters = ''.join([w[0] for w in words])
+    acronyms = [first_letters]
+    # Add acronyms using smaller number of first letters in phrase ('ucb' -> 'uc')
+    for split in range(2, len(first_letters)):
+        acronyms.append(first_letters[:split])
+
+    # How should we handle single letter words
     # In case BU is represented as B U
     acronyms.extend(' '.join([w[0] for w in words]))
-    # May also want to include B.U. if periods not removed by preprocessing
+
     if 'of' in words:
         # handle 'u of p'
         acronym = ''
@@ -124,9 +132,6 @@ class BaseLexicon(object):
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
         # TODO: the model cannot handle number entities now
         #print 'Ambiguous entities:'
-        #for phrase, entities in self.lexicon.items():
-        #    if len(entities) > 1:
-        #        print phrase, entities
 
 
     def load_entities(self):
@@ -232,7 +237,6 @@ class Lexicon(BaseLexicon):
         return entities
 
     def test(self):
-        phrases = ['i', 'physics', 'comp sci', 'econ', 'penn', 'cs', 'upenn', 'u penn', 'u of p', 'ucb', 'berekely', 'jessica']
         phrases = ['foodie', 'evening', 'evenings', 'food']
         for x in phrases:
             print x, '=>', self.lookup(x)
@@ -247,11 +251,10 @@ class SingleTokenLexicon(BaseLexicon):
     def __init__(self, schema, learned_lex):
         super(SingleTokenLexicon, self).__init__(schema, learned_lex)
 
-
+    # TODO: compute dialogue num entity average as metric for system performance
     def compute_synonyms(self):
-        # TODO: Add entity-level acronyms?
         # Keep track of tokens we have seen to handle repeats
-        seen_tokens = set()
+        all_seen_tokens = set()
         for entity, type in self.entities.items():
             phrases = []
             mod_entity = entity
@@ -260,10 +263,9 @@ class SingleTokenLexicon(BaseLexicon):
                 mod_entity = mod_entity.replace(s, ' ')
 
             # Add all tokens in entity -- we only compute token-level edits (except for acronyms...)
-            # Can later optimize away and ensure we don't add same token twice
             entity_tokens = mod_entity.split(' ')
-            phrases.extend([t for t in entity_tokens if t not in seen_tokens])
-            seen_tokens.update(entity_tokens)
+            # TODO: Maintain mapping from base token to its variants and use this to then keep from computing edits for same token repeatedly
+            phrases.extend([t for t in entity_tokens if t not in all_seen_tokens])
 
             synonyms = []
             # Special case -- is there a way to get other rules to handle this?
@@ -276,15 +278,23 @@ class SingleTokenLexicon(BaseLexicon):
                 if type != 'person':
                     synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
-                    synonyms.extend(get_prefixes(phrase))
+                    synonyms.extend(get_prefixes(phrase, min_length=1)) # Change here
                     synonyms.extend(get_acronyms(phrase))
+
+            # U Penn, uc berkeley
+            # TODO: Add phrase level acronyms/prefixes(?) if multi token entity
+            if len(mod_entity.split(" ")) > 1:
+                phrase_level_prefixes = get_prefixes(mod_entity, min_length=1, max_length=5)
+                phrase_level_acronyms = get_acronyms(mod_entity)
+                synonyms.extend(phrase_level_acronyms)
+                synonyms.extend(phrase_level_prefixes)
 
             # Add to lexicon
             for synonym in set(synonyms):
                 self.lexicon[synonym].append((entity, type))
 
 
-    def entitylink(self, raw_tokens):
+    def entitylink(self, raw_tokens, num_entities=False):
         '''
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -293,10 +303,12 @@ class SingleTokenLexicon(BaseLexicon):
         (disregarding stop words and special tokens) and find their intersection
         '''
         i = 0
+        num_entities_found = 0
         entities = []
         stop_words = set(['of'])
         while i < len(raw_tokens):
             candidate_entities = None
+            single_char = False
             # Find longest phrase (if any) that matches an entity
             for l in range(5, 0, -1):
                 phrase = ' '.join(raw_tokens[i:i+l])
@@ -309,15 +321,20 @@ class SingleTokenLexicon(BaseLexicon):
                     if token not in stop_words:
                         candidate_entities = list(set(candidate_entities).intersection(set(results)))
 
+                # Single character token so disregard candidate entities
+                if l == 1 and len(phrase) == 1:
+                    single_char = True
+                    break
+
                 # Found some match
                 if len(candidate_entities) > 0:
                     entity = None
+                    num_entities_found += len(candidate_entities)
                     if self.learned_lex:
                         # Will later use learned system -- returns full candidate set for now
                         entity = candidate_entities
                     else:
                         # NOTE: if more than one match, use the first one.
-                        # TODO: disambiguate
                         # prioritize exact match (e.g. hiking, biking)
                         for candidate in candidate_entities:
                             if candidate == phrase:
@@ -328,9 +345,14 @@ class SingleTokenLexicon(BaseLexicon):
                     entities.append((phrase, entity))
                     i += l
                     break
-            if not candidate_entities:
+            if not candidate_entities or single_char == True:
                 entities.append(raw_tokens[i])
                 i += 1
+
+        # For computing per dialogue entities found
+        if num_entities:
+            return entities, num_entities_found
+
         return entities
 
 
@@ -338,10 +360,6 @@ class SingleTokenLexicon(BaseLexicon):
         phrases = ['foodie', 'evening', 'evenings', 'food']
         for x in phrases:
             print x, '=>', self.lookup(x)
-
-        # NOTE: this is a weird case even though 'biking' is not an entity
-        sentence = ['i', 'like', 'hiking', 'biking']
-        print self.entitylink(sentence)
 
         sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
         sentence3 = [t.lower() for t in sentence3]
@@ -351,7 +369,7 @@ class SingleTokenLexicon(BaseLexicon):
 if __name__ == "__main__":
     from schema import Schema
     # TODO: Update path to location of desired schema used for basic testing
-    path = None
+    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-old.json"
     schema = Schema(path)
     lex = SingleTokenLexicon(schema, learned_lex=True)
     lex.test()
