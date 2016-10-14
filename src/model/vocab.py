@@ -6,12 +6,16 @@ def is_entity(word):
 
 class Vocabulary(object):
 
-    UNK = 'UNK'
+    UNK = '<unk>'
+    PAD = '<pad>'
 
-    def __init__(self, unk=True):
+    def __init__(self, offset=0, unk=True, pad=True):
         self.word_to_ind = {}
         self.ind_to_word = {}
         self.size = 0
+        self.offset = offset
+        if pad:
+            self.add_word(self.PAD)
         if unk:
             self.add_word(self.UNK)
 
@@ -24,8 +28,9 @@ class Vocabulary(object):
 
     def add_word(self, word):
         if not self.has(word):
-            self.word_to_ind[word] = self.size
-            self.ind_to_word[self.size] = word
+            ind = self.size + self.offset
+            self.word_to_ind[word] = ind
+            self.ind_to_word[ind] = word
             self.size += 1
 
     def to_ind(self, word):
