@@ -1,9 +1,12 @@
 __author__ = 'anushabala'
 from session import Session
-import Queue
 
 
 class HumanSession(Session):
+    """
+    HumanSession represents a single human agent in a dialogue. This class can be used to enqueue messages sent by the
+    agent and retrieve messages received from the other agent in the dialogue.
+    """
     def __init__(self, agent):
         super(HumanSession, self).__init__(agent)
         self.outbox = []
@@ -22,15 +25,9 @@ class HumanSession(Session):
         return None
 
     def receive(self, event):
-        print "Receiving event and adding to inbox for agent %d" % self.agent
-        print "Session", self
         self.inbox.append(event)
-        print event.to_dict(), [e.to_dict() for e in self.inbox]
 
     def enqueue(self, event):
-        print "Adding event to session outbox for agent %d" % self.agent
-        print "Session", self
         self.outbox.append(event)
-        print event.to_dict(), [e.to_dict() for e in self.outbox]
 
 

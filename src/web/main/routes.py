@@ -46,7 +46,7 @@ def index():
         return redirect(url_for('main.index', key=generate_unique_key(), **request.args))
 
     backend = get_backend()
-    backend.create_user_if_necessary(userid())
+    backend.create_user_if_not_exists(userid())
 
     key = request.args.get('key')
     if 'key' in session and session['key'] != key:
@@ -60,12 +60,10 @@ def index():
     status = backend.get_updated_status(userid())
 
     if not request.args.get('status') or not request.args.get('id'):
-        return redirect(url_for('main.index', status=Status._names[status].lower(), id=userid(), **request.args))
+        return redirect(url_for('main.index', status=status.lower(), id=userid(), **request.args))
 
-    if not request.args.get('status'):
-        return redirect(url_for('main.index', status=Status._names[status].lower(), **request.args))
+    logger.info("Got updated status %s for user %s" % (status, userid()[:6]))
 
-    logger.info("Got updated status %s for user %s" % (Status._names[status], userid()[:6]))
     session["mturk"] = True if request.args.get('mturk') and int(request.args.get('mturk')) == 1 else None
     if session["mturk"]:
         logger.debug("User %s is from Mechanical Turk" % userid()[:6])

@@ -6,7 +6,12 @@ from system import System
 from src.basic.sessions.neural_session import NeuralSession
 from src.basic.util import read_pickle
 
+
 class NeuralSystem(System):
+    """
+    NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
+    object) that makes use of this underlying model to send and receive messages in a dialogue.
+    """
     def __init__(self, schema, lexicon, model_path):
         super(NeuralSystem, self).__init__()
 
@@ -26,7 +31,7 @@ class NeuralSystem(System):
         # TODO: add these nodes to collection during saving
         self.tf_graph['outputs'] = tf.get_collection('outputs')
         self.tf_graph['init_state'] = tf.get_collection('init_state')
-        self.tf_graph['final_state'] = tf.get_collection('finalt_state')
+        self.tf_graph['final_state'] = tf.get_collection('final_state')
 
         self.schema = schema
         self.lexicon = lexicon

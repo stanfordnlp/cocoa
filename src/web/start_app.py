@@ -47,14 +47,10 @@ def init_database(db_file):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     c.execute(
-        '''CREATE TABLE ActiveUsers (name text unique, status integer, status_timestamp integer, connected_status integer, connected_timestamp integer, message text, room_id integer, partner_type text, partner_id text, scenario_id text, agent_index integer, selected_index integer, num_chats_completed integer)''')
+        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer, connected_status integer, connected_timestamp integer, message text, room_id integer, partner_type text, partner_id text, scenario_id text, agent_index integer, selected_index integer, num_chats_completed integer)''')
     c.execute(
-        '''CREATE TABLE CompletedTasks (name text, mturk_code text, num_chats_completed integer)''')
-    c.execute('''CREATE TABLE Surveys (name text, partner_type text, how_mechanical integer, how_effective integer)''')
-
-    # c.execute('''CREATE TABLE ChatCounts (id text unique, count integer, prob float)''')
-    # for bot_name in bot_probabilities.keys():
-    #     c.execute('''INSERT INTO ChatCounts VALUES (?,1,?)''', (bot_name,bot_probabilities[backend.Partner.Human]))
+        '''CREATE TABLE mturk_task (name text, mturk_code text, num_chats_completed integer)''')
+    c.execute('''CREATE TABLE survey (name text, partner_type text, how_mechanical integer, how_effective integer)''')
 
     conn.commit()
     conn.close()

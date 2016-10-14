@@ -31,8 +31,3 @@ class UserChatSession(object):
                 "scenario_id": self.scenario_id,
                 "kb": self.kb.to_dict(),
                 "num_seconds": self.num_seconds}
-
-
-class SurveySession(object):
-    def __init__(self):
-        pass

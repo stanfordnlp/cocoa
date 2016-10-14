@@ -31,6 +31,9 @@ class KB(object):
         return sorted_candidates(counts.items())
 
     def get_item(self, idx):
+        return self.items[idx]
+
+    def get_ordered_item(self, idx):
         item = self.items[idx]
         ordered_item = [(attr.name, item[attr.name]) for attr in self.schema.attributes]
         return ordered_item

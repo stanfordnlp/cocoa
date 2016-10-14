@@ -25,22 +25,11 @@ m.update("bot")
 
 
 class Status(object):
-    Waiting, Chat, SingleTask, Finished, Survey = range(5)
-    _names = ["waiting", "chat", "single_task", "finished", "survey"]
-
-    @staticmethod
-    def from_str(s):
-        if Status._names.index(s) == 0:
-            return Status.Waiting
-        if Status._names.index(s) == 1:
-            return Status.Chat
-        if Status._names.index(s) == 2:
-            return Status.SingleTask
-        if Status._names.index(s) == 3:
-            return Status.Finished
-        if Status._names.index(s) == 4:
-            return Status.Survey
-
+    Waiting = "waiting"
+    Chat = "chat"
+    Finished = "finished"
+    Survey = "survey"
+    
 
 class UnexpectedStatusException(Exception):
     def __init__(self, found_status, expected_status):
@@ -118,7 +107,7 @@ class BackendConnection(object):
 
     def _update_user(self, cursor, userid, **kwargs):
         if "status" in kwargs:
-            logger.info("Updating status for user %s to %s" % (userid[:6], Status._names[kwargs["status"]]))
+            logger.info("Updating status for user %s to %s" % (userid[:6], kwargs["status"]))
             kwargs["status_timestamp"] = current_timestamp_in_seconds()
         if "connected_status" in kwargs:
             logger.info("Updating connected status for user %s to %d" % (userid[:6], kwargs["connected_status"]))
@@ -127,7 +116,7 @@ class BackendConnection(object):
         values = [kwargs[k] for k in keys]
         set_string = ", ".join(["{}=?".format(k) for k in keys])
 
-        cursor.execute("UPDATE ActiveUsers SET {} WHERE name=?".format(set_string), tuple(values + [userid]))
+        cursor.execute("UPDATE active_user SET {} WHERE name=?".format(set_string), tuple(values + [userid]))
 
     def _get_session(self, userid):
         return self.sessions.get(userid)
@@ -164,44 +153,37 @@ class BackendConnection(object):
         else:
             return v
 
+    @staticmethod
+    def _is_timeout(timeout_limit, timestamp):
+        if timeout_limit < 0:
+            return False
+        num_seconds_remaining = (timeout_limit + timestamp) - current_timestamp_in_seconds()
+        return num_seconds_remaining >= 0
+
     def _assert_no_connection_timeout(self, connection_status, connection_timestamp):
         logger.debug("Checking for connection timeout: Connection status %d" % connection_status)
         if connection_status == 1:
             logger.debug("No connection timeout")
             return
         else:
-            N = self.config["connection_timeout_num_seconds"]
-            num_seconds_remaining = (N + connection_timestamp) - current_timestamp_in_seconds()
-            if num_seconds_remaining >= 0:
-                logger.debug("Timeout limit: %d Status timestamp: %d Seconds remaining: %d" % (
-                    N, connection_timestamp, num_seconds_remaining))
+            if self._is_timeout(self.config["connection_timeout_num_seconds"], connection_timestamp):
+                raise ConnectionTimeoutException()
+            else:
                 logger.debug("No connection timeout")
                 return
-            else:
-                logger.info("Timeout limit: %d Status timestamp: %d Seconds remaining: %d" % (
-                    N, connection_timestamp, num_seconds_remaining))
-                logger.warn("Checking for connection timeout: Raising ConnectionTimeoutException")
-                raise ConnectionTimeoutException()
 
     def _assert_no_status_timeout(self, status, status_timestamp):
-        N = self.config["status_params"][Status._names[status]]["num_seconds"]
+        N = self.config["status_params"][status]["num_seconds"]
         if N < 0:  # don't timeout for some statuses
-            logger.debug("Checking for status timeout: no status timeout for status {}".format(Status._names[status]))
+            logger.debug("Checking for status timeout: no status timeout for status {}".format(status))
             return
-        num_seconds_remaining = (N + status_timestamp) - current_timestamp_in_seconds()
 
-        if num_seconds_remaining >= 0:
-            logger.debug("No status timeout")
-            logger.debug(
-                "Checking for timeout of status '%s': Seconds for status: %d Status timestamp: %d Seconds remaining: %d" % (
-                    Status._names[status], N, status_timestamp, num_seconds_remaining))
-            return
-        else:
-            logger.info(
-                "Checking for timeout of status '%s': Seconds for status: %d Status timestamp: %d Seconds remaining: %d" % (
-                    Status._names[status], N, status_timestamp, num_seconds_remaining))
+        if self._is_timeout(N, status_timestamp):
             logger.warn("Checking for status timeout: Raising StatusTimeoutException")
             raise StatusTimeoutException()
+        else:
+            logger.debug("No status timeout")
+            return
 
     @staticmethod
     def _validate_status_or_throw(assumed_status, status):
@@ -223,7 +205,7 @@ class BackendConnection(object):
         return u
 
     def _get_user_info_unchecked(self, cursor, userid):
-        cursor.execute("SELECT * FROM ActiveUsers WHERE name=?", (userid,))
+        cursor.execute("SELECT * FROM active_user WHERE name=?", (userid,))
         x = cursor.fetchone()
         u = User(self._ensure_not_none(x, NoSuchUserException))
         return u
@@ -287,13 +269,13 @@ class BackendConnection(object):
             return next_room_id
 
         def _get_other_waiting_users(cursor, userid):
-            cursor.execute("SELECT name FROM ActiveUsers WHERE name!=? AND status=? AND connected_status=1",
+            cursor.execute("SELECT name FROM active_user WHERE name!=? AND status=? AND connected_status=1",
                            (userid, Status.Waiting))
             userids = [r[0] for r in cursor.fetchall()]
             return userids
 
         def _get_max_room_id(cursor):
-            cursor.execute("SELECT MAX(room_id) FROM ActiveUsers", ())
+            cursor.execute("SELECT MAX(room_id) FROM active_user", ())
             return cursor.fetchone()[0]
 
         try:
@@ -356,12 +338,12 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
-    def create_user_if_necessary(self, username):
+    def create_user_if_not_exists(self, username):
         with self.conn:
             cursor = self.conn.cursor()
             now = current_timestamp_in_seconds()
             logger.debug("Created user %s" % username[:6])
-            cursor.execute('''INSERT OR IGNORE INTO ActiveUsers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            cursor.execute('''INSERT OR IGNORE INTO ActiveU IGNORE INTO active_user VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                            (username, Status.Waiting, now, 0, now, "", -1, "", "", "", -1, -1, 0))
 
     def disconnect(self, userid):
@@ -401,11 +383,11 @@ class BackendConnection(object):
 
         def _add_finished_task_row(cursor, userid, mturk_code, num_chats_completed):
             logger.info(
-                "Adding row into CompletedTasks: userid={},mturk_code={},numsingle={},numchats={},grant_bonus={}".format(
+                "Adding row into mturk_task: userid={},mturk_code={},numsingle={},numchats={},grant_bonus={}".format(
                     userid[:6],
                     mturk_code,
                     num_chats_completed))
-            cursor.execute('INSERT INTO CompletedTasks VALUES (?,?,?)',
+            cursor.execute('INSERT INTO mturk_task VALUES (?,?,?)',
                            (userid, mturk_code, num_chats_completed))
 
         try:
@@ -453,7 +435,7 @@ class BackendConnection(object):
                 try:
                     u = self._get_user_info(cursor, userid, assumed_status=None)
                     logger.debug("Got user info for user %s without exceptions. Returning status %s" % (
-                        userid[:6], Status._names[u.status]))
+                        userid[:6], u.status))
                     return u.status
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
                     logger.warn("Caught %s while getting status for user %s" % (type(e).__name__, userid[:6]))
@@ -592,7 +574,7 @@ class BackendConnection(object):
                 cursor = self.conn.cursor()
                 try:
                     logger.debug("Checking whether status has changed from %s for user %s" % (
-                        Status._names[assumed_status], userid[:6]))
+                        assumed_status, userid[:6]))
                     u = self._get_user_info(cursor, userid, assumed_status=assumed_status)
                     if u.status == Status.Waiting:
                         logger.debug("User %s is waiting. Checking if other users are available for chat..")
@@ -606,7 +588,7 @@ class BackendConnection(object):
                             type(e).__name__, userid[:6]))
                     if isinstance(e, UnexpectedStatusException):
                         logger.warn("Found status %s, expected (assumed) status %s" % (
-                            Status._names[e.found_status], Status._names[e.expected_status]))
+                            e.found_status, e.expected_status))
                     return False
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -622,7 +604,7 @@ class BackendConnection(object):
                 u = self._get_user_info_unchecked(cursor, userid)
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
-                item = kb.get_item(idx)
+                item = kb.get_ordered_item(idx)
                 self.send(userid, Event.SelectionEvent(u.agent_index,
                                                        item,
                                                        datetime.datetime.now().strftime(date_fmt)))
@@ -648,7 +630,7 @@ class BackendConnection(object):
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
 
-                cursor.execute('INSERT INTO Surveys VALUES (?,?,?,?)',
+                cursor.execute('INSERT INTO survey VALUES (?,?,?,?)',
                                (userid, user_info.partner_type, data['question1'], data['question2']))
                 _user_finished(userid)
         except sqlite3.IntegrityError:

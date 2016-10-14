@@ -5,14 +5,13 @@ from threading import Lock
 
 
 class Controller(object):
-    '''
+    """
     The controller takes two systems and can run them to generate a dialgoue.
-    '''
+    """
     def __init__(self, scenario, sessions, debug=True):
         self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
-        print self.sessions
         assert len(self.sessions) == 2
         if debug:
             for agent in (0, 1):
@@ -57,18 +56,13 @@ class Controller(object):
 
     def step(self):
         with self.lock:
-            print "Call to controller.step()"
             # try to send messages from one session to the other(s)
-            print self.sessions
             for agent, session in enumerate(self.sessions):
                 event = session.send()
-                print agent, session
-                print session.outbox
                 if event is None:
                     continue
 
                 self.events.append(event)
-                print "Event from agent {}: {}".format(agent, event.to_dict())
                 if event.action == 'select':
                     self.selections[agent] = event.data
                     if self.game_over():

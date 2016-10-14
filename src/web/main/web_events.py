@@ -50,13 +50,13 @@ def check_valid_chat(data):
 @socketio.on('check_status_change', namespace='/main')
 def check_status_change(data):
     backend = get_backend()
-    assumed_status = Status.from_str(data['current_status'])
+    assumed_status = data['current_status']
 
     if backend.is_status_unchanged(userid(), assumed_status):
-        logger.debug("User %s status unchanged. Status: %s" % (userid_prefix(), Status._names[assumed_status]))
+        logger.debug("User %s status unchanged. Status: %s" % (userid_prefix(), assumed_status))
         return {'status_change': False}
     else:
-        logger.info("User %s status changed from %s" % (userid_prefix(), Status._names[assumed_status]))
+        logger.info("User %s status changed from %s" % (userid_prefix(), assumed_status))
         return {'status_change': True}
 
 
@@ -157,27 +157,21 @@ def disconnect():
     logger.info("User %s disconnected" % (userid_prefix()))
 
 
-def emit_message_to_self(message, status_message=False):
+def format_message(message, status_message):
     timestamp = datetime.now().strftime('%x %X')
     left_delim = "<" if status_message else ""
     right_delim = ">" if status_message else ""
-    emit('message', {'msg': "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)}, room=request.sid)
+    return "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
+
+
+def emit_message_to_self(message, status_message=False):
+    fmt_message = format_message(message, status_message)
+    emit('message', {'msg': fmt_message}, room=request.sid)
 
 
 def emit_message_to_chat_room(message, status_message=False):
-    timestamp = datetime.now().strftime('%x %X')
-    left_delim = "<" if status_message else ""
-    right_delim = ">" if status_message else ""
-    emit('message', {'msg': "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)}, room=session["room"])
-
-
-# todo we probably don't need this anymore
-def emit_message_to_partner(message, status_message=False):
-    timestamp = datetime.now().strftime('%x %X')
-    left_delim = "<" if status_message else ""
-    right_delim = ">" if status_message else ""
-    emit('message', {'msg': "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)}, room=session["room"],
-         include_self=False)
+    fmt_message = format_message(message, status_message)
+    emit('message', {'msg': fmt_message}, room=session["room"])
 
 
 def start_chat():
