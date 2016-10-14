@@ -8,5 +8,9 @@ class SimpleSystem(System):
         super(SimpleSystem, self).__init__()
         # todo do we need to do anything here?
 
+    @classmethod
+    def name(cls):
+        return 'simple'
+
     def new_session(self, agent, kb):
         return SimpleSession(agent, kb)

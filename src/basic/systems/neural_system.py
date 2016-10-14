@@ -40,5 +40,9 @@ class NeuralSystem(System):
         if self.tf_session:
             self.tf_session.close()
 
+    @classmethod
+    def name(cls):
+        return 'neural'
+
     def new_session(self, agent, kb):
         return NeuralSession(agent, kb, self.lexicon, self.vocab, self.tf_graph, self.tf_session)

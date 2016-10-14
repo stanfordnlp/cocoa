@@ -8,8 +8,6 @@ class System(object):
     def new_session(self, agent, kb):
         raise NotImplementedError
 
-
-class SystemTypes(object):
-    Simple = "simple"
-    Heuristic = "heuristic"
-    Neural = "neural"
+    @classmethod
+    def name(cls):
+        raise NotImplementedError

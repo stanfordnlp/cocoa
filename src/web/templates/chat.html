@@ -1,82 +1,81 @@
 <html>
     <head>
-		<title>Who's Our Mutual Friend?</title>
-
+    	<title>Who's Our Mutual Friend?</title>
 		<style>
-	
-		.clearfix {
-		overflow: auto;
-		}
+			.clearfix {
+				overflow: auto;
+			}
+			.points {
+				color: #009933;
+			}
 
-		.points {
-		color: #009933;
-		}
+			div#chat_container {
+				float:left;
+				width: 40%;
+			}
+			
+			div#info_container {
+				margin-left: 42%;
+				color:#004d00;
+			}
+			
+			div#preferences {
+				float:left;
+			}
 
-		div#chat_container {
-		float:left;
-		width: 40%;
-		}
+			div#icon {
+				float:right;
+			}
 
-		div#info_container {
-		margin-left: 42%;
-		color:#004d00;
-		}
+			textarea#chat {
+				width: 100%;
+				rows: 10;
+				cols: 100;
+				height: 25%;
+				color:#004d00;
+				font-size:14px;
+			}
 
-		div#preferences {
-		float:left;
-		}
-	
-		div#icon {
-		float:right;
-		}
-		textarea#chat {
-		width: 100%;
-		rows: 10;
-		cols: 100;
-		height: 25%;
-		color:#004d00;
-		font-size:14px;
-		}
+			input#text {
+				width: 100%;
+			}
 
-		input#text {
-		width: 100%;
-		}
+			td {
+				padding: 0 15px 0 15px;
+			}
 
-		td {
-		padding: 0 15px 0 15px;
-		}
+			#instructions > p,li {
+				font-size:17px;
+			}
 
-		#instructions > p,li {
-		font-size:17px;
-		}
+			table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+				content: " \25B4\25BE"
+			}
 
-		table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after { 
-		content: " \25B4\25BE" 
-		}
-		
-		table.sortable {
-		color:#004d00;
-		}
-	
-		#clockdiv{
-		display: inline-block;
-		font-weight: bold;
-		text-align: center;
-		font-size: 18px;
-		padding: 15px 0 15px 0;
-		}
-	
-		#clockdiv > div{
-		display: inline-block;
-		}
-	
-		#clockdiv div > span{
-		display: inline-block;
-		}
-	
-		#clockdiv div > .seconds{
-		margin-left:-3px;
-		}
+			table.sortable {
+				color:#004d00;
+			}
+
+			#clockdiv{
+				display: inline-block;
+				font-weight: bold;
+				text-align: center;
+				font-size: 18px;
+				padding: 15px 0 15px 0;
+			}
+
+
+			#clockdiv > div{
+				display: inline-block;
+			}
+
+			#clockdiv div > span{
+				display: inline-block;
+			}
+
+			#clockdiv div > .seconds{
+				margin-left:-3px;
+			}
 
 		</style>
 		<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
@@ -111,7 +110,7 @@
 						socket.emit('text', {msg: text});
 					}
 				});
-				
+		
 				$('#itemSelection').change(function() {
 					selected = $('option:selected').val();
 					if(selectTime == null) {
@@ -129,15 +128,15 @@
 						} // otherwise do nothing
 					}
 				});
-				
+		
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
 			});
-			
+	
 			function checkInbox() {
 				socket.emit('check_inbox', {});
 			}
-		
+
 			function pollServer() {
 				socket.emit('is_chat_valid', {}, function(data) {
 					if (!data['valid']) { 
@@ -147,7 +146,7 @@
 			}
 
 		</script>
-		
+
 		<script type="text/javascript" charset="utf-8">
 			function getTimeRemaining(endtime) {
 				var t = Date.parse(endtime) - Date.parse(new Date());
@@ -164,19 +163,19 @@
 				var clock = document.getElementById(id);
 				var minutesSpan = clock.querySelector('.minutes');
 				var secondsSpan = clock.querySelector('.seconds');
-	
+
 				function updateClock() {
 					var t = getTimeRemaining(endtime);
 					minutesSpan.innerHTML = t.minutes+':';
 					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-		
+
 					if (t.total <= 0) {
 						clearInterval(validCheckInterval);
 						clearInterval(timeinterval);
 						pollServer();
 					}
 				}
-	
+
 				updateClock();
 				var timeinterval = setInterval(updateClock, 1000);
 			}

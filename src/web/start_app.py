@@ -12,7 +12,6 @@ from src.basic.schema import Schema
 from src.basic.lexicon import Lexicon
 from src.basic.util import read_json
 from src.web import create_app, socketio
-from src.basic.systems.system import SystemTypes
 from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
@@ -74,15 +73,16 @@ def add_systems(config_dict, schema, lexicon):
         if info["active"]:
             type = info["type"]
             model = None
-            if type == SystemTypes.Simple:
+            if type == SimpleSystem.name():
                 model = SimpleSystem()
-            elif type == SystemTypes.Heuristic:
+            elif type == HeuristicSystem.name():
                 model = HeuristicSystem()
-            elif type == SystemTypes.Neural:
+            elif type == NeuralSystem.name():
                 path = info["path"]
                 model = NeuralSystem(schema, lexicon, path)
             else:
                 warnings.warn('Unrecognized model type in {} for configuration {}'.format(info, sys_name))
+                continue
             systems[sys_name] = model
 
     prob = 1.0/len(systems.keys())
