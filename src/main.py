@@ -104,11 +104,10 @@ if __name__ == '__main__':
     elif args.model.startswith('attn'):
         # Build graph embedding model
         max_degree = args.num_items + len(schema.attributes)
-        Graph.static_init(schema, mappings['entity'], mappings['relation'], args.rnn_size, max_degree=max_degree, train_utterance=args.train_utterance, entity_cache_size=args.entity_cache_size, entity_hist_len=args.entity_hist_len)
+        Graph.static_init(schema, mappings['entity'], mappings['relation'], args.rnn_size, max_degree=max_degree, entity_hist_len=args.entity_hist_len)
         max_num_nodes = args.num_items * len(schema.attributes) * 2
         num_edge_labels = Graph.relation_map.size
-        GraphModel = GraphEmbed if args.train_utterance else GraphEmbedStaticEmbedding
-        kg = GraphModel(max_num_nodes, num_edge_labels, args.node_embed_size, args.edge_embed_size, args.rnn_size, Graph.feat_size, entity_cache_size=args.entity_cache_size, mp_iter=args.mp_iter, message=args.combine_message, num_entities=Graph.entity_map.size, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding)
+        kg = GraphEmbed(max_num_nodes, num_edge_labels, args.node_embed_size, args.edge_embed_size, args.rnn_size, Graph.feat_size, entity_cache_size=args.entity_cache_size, mp_iter=args.mp_iter, message=args.combine_message, num_entities=Graph.entity_map.size, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding)
 
         if args.model == 'attn-encdec':
             model = AttnEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)

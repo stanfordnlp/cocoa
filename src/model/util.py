@@ -39,3 +39,8 @@ def batch_linear(args, output_size, bias):
     flat_output = linear(flat_args, output_size, bias)
     output = tf.reshape(flat_output, [batch_size, -1, output_size])
     return output
+
+def transpose_first_two_dims(batch_input):
+    rank = len(batch_input.get_shape().as_list())
+    return tf.transpose(batch_input, perm=[1, 0]+range(2, rank))
+

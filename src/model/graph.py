@@ -66,7 +66,6 @@ class Graph(object):
             raise Exception('Error: Instantiating Graph before initializing its static variables.')
         self.nodes = Vocabulary(unk=False)
         self.paths = []
-        self.kb = kb
         self.load_kb(kb)
 
         # Input data to feed_dict

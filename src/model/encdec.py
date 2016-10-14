@@ -9,24 +9,159 @@ from attention_rnn_cell import AttnRNNCell, add_attention_arguments
 from graph import Graph
 from graph_embed import GraphEmbed
 from vocab import is_entity
+from util import transpose_first_two_dims, batch_linear
 from tensorflow.python.util import nest
 from itertools import izip
 import sys
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
-    parser.add_argument('--rnn-size', type=int, default=128, help='Dimension of hidden units of RNN')
+    parser.add_argument('--rnn-size', type=int, default=50, help='Dimension of hidden units of RNN')
     parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
     parser.add_argument('--num-layers', type=int, default=1, help='Number of RNN layers')
+    parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
+    parser.add_argument('--word-embed-size', type=int, default=50, help='Word embedding size')
     add_attention_arguments(parser)
 
-def time_major(batch_input, rank):
+class BasicEncoder(object):
     '''
-    Input: tensor of shape [batch_size, seq_len, ..]
-    Output: tensor of shape [seq_len, batch_size, ..]
-    Time-major shape is used for map_fn and dynamic_rnn.
+    A basic RNN encoder.
     '''
-    return tf.transpose(batch_input, perm=[1, 0]+range(2, rank))
+    recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
+                      'gru': tf.nn.rnn_cell.GRUCell,
+                      'lstm': tf.nn.rnn_cell.LSTMCell,
+                     }
+
+    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1, batch_size=1):
+        self.rnn_size = rnn_size
+        self.rnn_type = rnn_type
+        self.num_layers = num_layers
+        self.batch_size = batch_size
+
+    def _build_rnn_cell(self):
+        '''
+        Create the internal multi-layer recurrent cell.
+        '''
+        if self.rnn_type == 'lstm':
+            cell = self.recurrent_cell[self.rnn_type](self.rnn_size, state_is_tuple=True)
+        else:
+            cell = self.recurrent_cell[self.rnn_type](self.rnn_size)
+        if self.num_layers > 1:
+            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * self.num_layers)
+
+        return cell
+
+    def _build_init_output(self, cell):
+        '''
+        Initializer for scan. Should have the same shape as the RNN output.
+        '''
+        return tf.zeros([self.batch_size, cell.output_size])
+
+    def _get_final_state(self, states):
+        '''
+        Return the final state from tf.scan outputs.
+        '''
+        flat_states = nest.flatten(states)
+        last_ind = tf.shape(flat_states[0])[0] - 1
+        flat_last_states = [tf.nn.embedding_lookup(state, last_ind) for state in flat_states]
+        last_states = nest.pack_sequence_as(states, flat_last_states)
+        return last_states
+
+    def build_model(self, inputs, initial_state=None, time_major=True, scope=None):
+        '''
+        inputs: (batch_size, seq_len, input_size)
+        '''
+        with tf.variable_scope(scope or type(self).__name__):
+            cell = self._build_rnn_cell()
+            self.zero_init_state = cell.zero_state(self.batch_size, tf.float32)
+            self.output_size = cell.output_size
+
+            if initial_state is not None:
+                init_state = initial_state
+            else:
+                init_state = self.zero_init_state
+
+            if not time_major:
+                inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
+
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), init_state))
+            final_state = self._get_final_state(states)
+
+        return rnn_outputs, final_state
+
+class BasicDecoder(BasicEncoder):
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, batch_size=1):
+        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, batch_size)
+        self.num_symbols = num_symbols
+
+    def build_model(self, inputs, initial_state=None, time_major=True, scope=None):
+        outputs, final_state = super(BasicDecoder, self).build_model(inputs, initial_state, time_major, scope)  # outputs: (seq_len, batch_size, output_size)
+        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
+
+        with tf.variable_scope(scope or type(self).__name__):
+            logits = batch_linear(outputs, self.num_symbols, True)
+
+        return logits, final_state
+
+class BasicEncoderDecoder(object):
+    '''
+    Basic seq2seq model.
+    '''
+    def __init__(self, word_embedder, encoder, decoder, pad, scope=None):
+        assert encoder.batch_size == decoder.batch_size
+        self.batch_size = encoder.batch_size
+        self.PAD = pad  # Id of PAD in the vocab
+        self.build_model(word_embedder, encoder, decoder, scope)
+
+    def update_feed_dict(self, **kwargs):
+        feed_dict = kwargs.pop('feed_dict', {})
+        for key, val in kwargs.iteritems():
+            feed_dict[getattr(self, key)] = val
+        #feed_dict[self.encoder_inputs] = kwargs.pop('encoder_inputs', None)
+        #if 'init_state' in kwargs:
+        #    feed_dict[self.init_state] = kwargs['init_state']
+        #if 'targets' in kwargs:
+        #    feed_dict[self.targets] = kwargs['targets']
+        #if 'decoder_inputs' in kwargs:
+        #    feed_dict[self.decoder_inputs] = kwargs['decoder_inputs']
+        return feed_dict
+
+    def compute_loss(self, logits, targets):
+        '''
+        logits: (batch_size, seq_len, vocab_size)
+        targets: (batch_size, seq_len)
+        '''
+        batch_size, _, num_symbols = logits.get_shape().as_list()
+        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
+        logits = tf.reshape(logits, [-1, num_symbols])
+        targets = tf.reshape(targets, [-1])
+        # Mask padded tokens
+        token_weights = tf.cast(tf.not_equal(targets, tf.constant(self.PAD)), tf.float32)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        token_weights = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + 1e-12
+        # Average over words in each sequence
+        loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights
+        # Average over sequences in the batch
+        loss = tf.reduce_sum(loss, 0) / batch_size
+        return loss
+
+    def build_model(self, word_embedder, encoder, decoder, scope=None):
+        with tf.variable_scope(scope or type(self).__name__):
+            # Encoding
+            self.encoder_inputs = tf.placeholder(tf.int32, shape=[self.batch_size, None], name='encoder_inputs')
+            embedded_encoder_inputs = word_embedder.embed(self.encoder_inputs)  # (batch_size, seq_len, embed_size)
+            self.encoder_init_state = encoder.zero_init_state  # We can feed initial state values at run time
+            _, encoder_final_state = encoder.build_model(embedded_encoder_inputs, self.encoder_init_state, time_major=False)
+
+            # Decoding
+            self.decoder_inputs = tf.placeholder(tf.int32, shape=[self.batch_size, None], name='decoder_inputs')
+            embedded_decoder_inputs = word_embedder.embed(self.decoder_inputs)  # (batch_size, seq_len, embed_size)
+            self.decoder_init_state = encoder_final_state
+            self.logits, self.decoder_final_state = decoder.build_model(embedded_decoder_inputs, self.decoder_init_state, time_major=False)
+
+            # Loss
+            self.targets = tf.placeholder(tf.int32, shape=[self.batch_size, None], name='targets')
+            self.loss = self.compute_loss(self.logits, self.targets)
 
 class EncoderDecoder(object):
     '''
@@ -37,10 +172,8 @@ class EncoderDecoder(object):
                       'lstm': tf.nn.rnn_cell.LSTMCell,
                      }
 
-    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, scope=None):
-        # NOTE: only support single-instance training now
-        # due to tf.cond(scalar,..)
-        self.batch_size = 1
+    def __init__(self, vocab_size, rnn_size, rnn_type='lstm', num_layers=1, batch_size=1, scope=None):
+        self.batch_size = batch_size
         self.vocab_size = vocab_size
         self.rnn_type = rnn_type
         self.rnn_size = rnn_size

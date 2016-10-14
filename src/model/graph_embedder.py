@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
+from util import batch_embedding_lookup, batch_linear
 
 def add_graph_embed_arguments(parser):
     parser.add_argument('--node-embed-size', default=50, help='Knowledge graph node/subgraph embedding size')
@@ -8,49 +9,59 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--entity-embed-size', default=20, help='Knowledge graph entity embedding size')
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
-    parser.add_argument('--train-utterance', action='store_true', default=False, help='Whether to backpropogate error from utterance node')
-    parser.add_argument('--mp-iter', type=int, default=2, help='Number of iterations of message passing on the graph')
+    parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
     parser.add_argument('--combine-message', default='concat', help='How to combine propogated message {concat, sum}')
 
-class GraphEmbed(object):
-    '''
-    Graph embedding model.
-    '''
-    def __init__(self, max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, entity_cache_size=2, num_entities=None, entity_embed_size=None, use_entity_embedding=False, mp_iter=2, message='concat', scope=None):
-        # The maximum number of entities that may appear in a single dialogue. This only
-        # affects the size of the utterance matrix (because we cannot change its size dynamically).
-        # Adding 1 because we want a dummy utterance node which is updated by default when
-        # no other node needs to be udpated. This is to avoid using tf.cond().
-        self.max_num_nodes = max_num_nodes + 1
-        self.num_edge_labels = num_edge_labels
+class GraphEmbedderConfig(object):
+    def __init__(self, num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, max_degree=10, entity_cache_size=2, num_entities=None, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, message_combiner='concat', batch_size=1):
+        # The maximum number of entities/nodes that may appear in any dialogue.
+        self.num_nodes = num_nodes
+        self.NODE_PAD = 0
         self.node_embed_size = node_embed_size
+
+        self.num_edge_labels = num_edge_labels
+        self.EDGE_PAD = 0
         self.edge_embed_size = edge_embed_size
-        self.utterance_size = utterance_size  # RNN output size
+
+        # NOTE: NODE_PAD and EDGE_PAD are overlapping with actual nodes and edges.
+        # But this is fine as padded paths will be masked in pass_message thus there's
+        # no gradient propogated back to the actual nodes and edges.
+        self.PATH_PAD = [self.NODE_PAD, self.EDGE_PAD, self.NODE_PAD]
+
+        # RNN output size
+        self.utterance_size = utterance_size
+        # Maximum number of nodes/entities to update embeddings for
+        self.entity_cache_size = entity_cache_size
+
+        # Size of input features from Graph
         self.feat_size = feat_size
-        self.mp_iter = mp_iter  # number of message passing iterations
-        self.message = message
+
+        # Maximum number of neighbors of a node
+        self.max_degree = max_degree
+
+        # Number of message passing iterations
+        self.mp_iters = mp_iters
+        # How to combine messages from each iteration
+        self.message_combiner = message_combiner
+
+        self.use_entity_embedding = use_entity_embedding
         if use_entity_embedding:
             assert num_entities is not None
             self.num_entities = num_entities
             self.entity_embed_size = entity_embed_size
-        self.use_entity_embedding = use_entity_embedding
 
+        self.batch_size = batch_size
+
+class GraphEmbedder(object):
+    '''
+    Graph embedding model.
+    '''
+    def __init__(self, config, scope=None):
+        self.config = config
+        # TODO: edit this
+        self.input_entity_shape = [1, None, self.config.entity_cache_size, self.config.utterance_size, 2]
         self.scope = scope
         self.build_model(scope)
-
-        self.input_entity_shape = [1, None, self.entity_cache_size, self.utterance_size, 2]
-
-    def _build_utterance_embedding(self):
-        with tf.variable_scope('UtteranceEmbedding'):
-            utterances = tf.zeros([self.max_num_nodes, self.utterance_size])
-        return utterances
-
-    def _expand_dim_entity(self, entities, dim_size):
-        '''
-        Expand a list of entity ids to indices to be updated in the utterance matrix.
-        TODO: It's cleaner to do this tranformation in TF but I haven't found a good way.
-        '''
-        return [[[i, j] for j in xrange(dim_size)] for i in entities]
 
     def _normalize_entity(self, entities, max_len, pad):
         '''
@@ -69,206 +80,149 @@ class GraphEmbed(object):
         '''
         Preprocess so that it's ready to be used by update_utterance.
         '''
-        pad = self.max_num_nodes
-        max_len = self.entity_cache_size
-        new_dim_size = self.utterance_size
-        entity_list = [self._expand_dim_entity(\
-                self._normalize_entity_list(e, max_len, pad), new_dim_size)\
-                for e in entity_list]
-        entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, max_len, self.utterance_size, 2)
+        # Map null entity to the dummy node (last one)
+        pad = self.config.NODE_PAD
+        max_len = self.config.entity_cache_size
+        new_dim_size = self.config.utterance_size
+        entity_list = [self._normalize_entity_list(e, max_len, pad) for e in entity_list]
+        entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, max_len, self.config.utterance_size, 2)
         return entity_list
 
     def build_model(self, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             with tf.variable_scope('EdgeEmbedding'):
-                self.edges = tf.get_variable('edge', [self.num_edge_labels, self.edge_embed_size])
+                self.edge_embedding = tf.get_variable('edge', [self.config.num_edge_labels, self.config.edge_embed_size])
 
-            if self.use_entity_embedding:
+            if self.config.use_entity_embedding:
                 with tf.variable_scope('EntityEmbedding'):
-                    self.entities = tf.get_variable('entity', [self.num_entities, self.entity_embed_size])
+                    self.entity_embedding = tf.get_variable('entity', [self.config.num_entities, self.config.entity_embed_size])
 
-            self.utterances = self._build_utterance_embedding()
+            with tf.name_scope('Inputs'):
+                batch_size = self.config.batch_size
+                # Nodes in the Graph, id is row index in utterances.
+                # The number of nodes can vary in each batch.
+                node_ids = tf.placeholder(tf.int32, shape=[batch_size, None], name='node_ids')
 
-            # Inputs that specify the graph structure:
-            # node_ids: an array of node_ids that links a node to its utterance embedding in self.utterance
-            # paths: (node_id, edge_labe, node_id)
-            # feats: node features. NOTE: feats[i] must corresponds to node_ids[i].
-            self.input_data = (tf.placeholder(tf.int32, shape=[None]), \
-                               tf.placeholder(tf.int32, shape=[None]), \
-                               tf.placeholder(tf.int32, shape=[None, 3]), \
-                               tf.placeholder(tf.float32, shape=[None, self.feat_size]))
+                # Entity ids used for look up in entity_embedding when use_entity_embedding.
+                # NOTE: node_ids is local; it's essentially range(number of nodes). entity_ids
+                # use the global entity mapping.
+                entity_ids = tf.placeholder(tf.int32, shape=[batch_size, None], name='entity_ids')
+
+                # A path is a tuple of (node_id, edge_label, node_id)
+                # NOTE: we assume the first path is always a padding path (NODE_PAD, EDGE_PAD,
+                # NODE_PAD) when computing mask in pass_message
+                # The number of paths can vary in each batch.
+                paths = tf.placeholder(tf.int32, shape=[batch_size, None, 3], name='paths')
+
+                # Each node has a list of paths starting from that node. path id is row index
+                # in paths. Paths of padded nodes are PATH_PAD.
+                node_paths = tf.placeholder(tf.int32, shape=[batch_size, None, self.config.max_degree], name='node_paths')
+
+                # Node features. NOTE: feats[i] must corresponds to node_ids[i]
+                node_feats = tf.placeholder(tf.float32, shape=[batch_size, None, self.config.feat_size], name='node_feats')
+
+                utterances = tf.placeholder(tf.float32, shape=[batch_size, self.config.num_nodes, self.config.utterance_size], name='utterances')
+
+                self.input_data = (node_ids, entity_ids, paths, node_paths, node_feats, utterances)
+
             self.node_ids = self.input_data[0]
 
     def get_context(self, utterances=None):
         '''
-        This part is separated from build_model because we will essentially re-build and
-        re-comopute the context node at each time step due to potential change of utterances.
+        Compute embedding of each node as context for the attention model.
+        utterances: current utterance embeddings from the dialogue history
         '''
-        if utterances is None:
-            utterances = self.utterances
-        node_ids, entity_ids, paths, node_feats = self.input_data
+        # If not (updated) utterances is given, use the initial input one
+        if not utterances:
+            utterances = self.input_data[-1]
+        node_ids, entity_ids, paths, node_paths, node_feats, _ = self.input_data
         with tf.variable_scope(self.scope or type(self).__name__):
             with tf.variable_scope('NodeEmbedding'):
                 with tf.variable_scope('InitNodeEmbedding'):
-                    if self.use_entity_embedding:
-                        initial_node_embed = linear([tf.nn.embedding_lookup(self.entities, entity_ids), tf.nn.embedding_lookup(utterances, node_ids), node_feats], self.node_embed_size, True)
+                    # It saves some reshapes to do batch_linear and batch_embedding_lookup
+                    # together, but this way is clearer.
+                    if self.config.use_entity_embedding:
+                        initial_node_embed = batch_linear([tf.nn.embedding_lookup(self.entity_embedding, entity_ids), batch_embedding_lookup(utterances, node_ids), node_feats], self.config.node_embed_size, True)
                     else:
-                        initial_node_embed = linear([tf.nn.embedding_lookup(utterances, node_ids), node_feats], self.node_embed_size, True)
-                # Message passing
-                #node_embeds = tf.scan(lambda curr_embed, _: self.pass_message(curr_embed, paths), \
-                #        tf.range(0, self.mp_iter), \
-                #        initial_node_embed)
-                node_embeds = self.pass_message(initial_node_embed, paths)
+                        initial_node_embed = batch_linear([batch_embedding_lookup(utterances, node_ids), node_feats], self.config.node_embed_size, True)
 
-            if self.message == 'concat':
-                #context = tf.concat(1, [initial_node_embed] + tf.unpack(node_embeds, axis=0))
-                context = tf.concat(1, [initial_node_embed, node_embeds])
-            elif self.message == 'sum':
+                # Message passing
+                def mp(curr_node_embedding):
+                    messages = self.embed_path(curr_node_embedding, self.edge_embedding, paths)
+                    return self.pass_message(messages, node_paths)
+                node_embeds = tf.scan(lambda curr_embed, _: mp(curr_embed), \
+                        tf.range(0, self.config.mp_iters), \
+                        initial_node_embed)  # (mp_iters, batch_size, num_nodes, embed_size)
+
+            if self.config.message_combiner == 'concat':
+                context = tf.concat(2, [initial_node_embed] + tf.unpack(node_embeds, axis=0))
+            elif self.config.message_combiner == 'sum':
                 context = tf.add_n([initial_node_embed] + tf.unpack(node_embeds, axis=0))
             else:
                 raise ValueError('Unknown message combining method')
-        # NOTE: batch_size = 1!
-        # context: batch_size x context_len x embed_size
-        context = tf.expand_dims(context, 0)
         return context
 
-    def pass_message(self, curr_embed, paths):
+    def embed_path(self, node_embedding, edge_embedding, paths):
         '''
-        Compute new node embeddings: sum of neighboring node embeddings.
-        paths: (node_id, edge_label, node_id)  num_paths x 3
+        Compute embedding of a path (edge_label, node_id).
+        node_embedding: (batch_size, num_nodes, node_embed_size)
+        edge_embedding: (num_edge_label, edge_embed_size)
+        paths: each path is a tuple of (node_id, edge_label, node_id).
+        (batch_size, num_paths, 3)
         '''
-        edge_embeds = tf.nn.embedding_lookup(self.edges, paths[:, 1])
-        node_embeds = tf.nn.embedding_lookup(curr_embed, paths[:, 2])
-        path_embeds = tanh(linear([edge_embeds, node_embeds], self.node_embed_size, True))  # num_paths x embed_size
+        edge_embeds = tf.nn.embedding_lookup(edge_embedding, paths[:, :, 1])
+        node_embeds = batch_embedding_lookup(node_embedding, paths[:, :, 2])
+        path_embed_size = self.config.node_embed_size
+        path_embeds = tanh(batch_linear([edge_embeds, node_embeds], path_embed_size, True))
+        return path_embeds
 
-        def sum_paths(node_id):
-            # Neighbroing paths of a node
-            node_path = tf.squeeze(tf.where(tf.equal(paths[:, 0], node_id)), [1])
-            # Whether this is a zero-degree node; if so, return a zero tensor
-            pred = tf.equal(tf.shape(node_path)[0], 0)
-            return tf.cond(pred, \
-                    lambda : tf.zeros([self.node_embed_size]), \
-                    lambda : tf.reduce_sum(tf.gather(path_embeds, node_path), 0))
-        new_embeds = tf.map_fn(sum_paths, self.node_ids, dtype=tf.float32)
-        return new_embeds
-
-    def update_utterance(self, indices, utterance):
+    def pass_message(self, path_embeds, neighbors, padded_path=0):
         '''
-        indices: batch_size x cache_size x utterance_size x 2
-        specifies each index to update in tensor self.utterances
+        Compute new node embeddings by summing path embeddings (message) of neighboring nodes.
+        neighbors: ids of neighboring paths of each node where id is row index in path_embeds
+        (batch_size, num_nodes, num_neighbors)
+        PATH_PAD: if a node is not incident to any edge, its path ids in neighbors are PATH_PAD
         '''
-        indices = tf.squeeze(indices, [0])  # NOTE: assume batch_size = 1
-        utterance = tf.squeeze(utterance)
-        # Duplicate utterance for each entity
-        num_entities = self.entity_cache_size
-        utterances = tf.reshape(tf.tile(utterance, num_entities), [num_entities, self.utterance_size])
-        # TODO: test vector sparse indices (first dimension of dense)
-        delta = tf.sparse_to_dense(
-        def cond_to_dense(ind):
-            def to_dense():
-                return tf.sparse_to_dense(ind, self.utterances.get_shape(), utterance)
-            def no_op():
-                return tf.zeros(self.utterances.get_shape())
-            return tf.cond(tf.less(ind[0][0], 0), no_op, to_dense)
-        utterance_list = tf.map_fn(cond_to_dense, indices, dtype=tf.float32)
-        self.utterances = self.utterances + tf.foldl(lambda a, x: a + x, utterance_list)
-        return self.utterances
+        # Mask padded nodes in neighbors
+        mask = tf.to_float(tf.not_equal(neighbors, tf.constant(padded_path)))
 
-    def test_mp(self, sess, feed_dict):
-        with tf.variable_scope('test_mp'):
-            embed0 = tf.constant(np.ones([3, 4]), dtype=tf.float32)
-            print 'set edge embedding to zero'
-            self.edges = tf.constant(np.zeros([1, 4]), dtype=tf.float32)
-            embed1 = self.pass_message(embed0, self.input_data[2])
-            tf.get_variable_scope().reuse_variables()
-            embed2 = self.pass_message(embed1, self.input_data[2])
+        # TODO: we could also get rid of the for loop and do real batching, but that requires
+        # a fixed num_paths for all batches. In general this part of computation can probably
+        # be simplified once TF has gradient_op for gather_nd.
+        new_node_embeds = []
+        num_neighbors = neighbors.get_shape().as_list()[-1]
+        path_embed_size = path_embeds.get_shape().as_list()[-1]
+        for i in xrange(self.config.batch_size):
+            node_inds = tf.reshape(neighbors[i], [-1])  # (num_nodes x num_neighbors)
+            batch_mask = tf.reshape(mask[i], [-1, 1])  # (num_nodes x num_neighbors, 1)
+            embeds = tf.gather(path_embeds[i], node_inds) * batch_mask  # (num_nodes x num_neighbors, path_embed_size)
+            embeds = tf.reduce_sum(tf.reshape(embeds, [-1, num_neighbors, path_embed_size]), 1)  # (num_nodes, path_embed_size)
+            new_node_embeds.append(embeds)
+        new_node_embeds = tf.pack(new_node_embeds)
 
-        tf.initialize_all_variables().run()
-        [result0, result1, result2] = sess.run([embed0, embed1, embed2], feed_dict=feed_dict)
-        print 'initial embed:\n', result0
-        print 'propogate from node 1 and 2 to node 0'
-        print 'message at t=1:\n', result1
-        print 'message at t=2:\n', result2
+        return new_node_embeds
 
-    def test(self, sess, feed_dict):
-        with tf.variable_scope('test'):
-            context = self.get_context()
-            tf.initialize_all_variables().run()
-            [result] = sess.run([context], feed_dict=feed_dict)
-            print 'node embeddings:\n', result
-
-            print 'update utterances'
-            tf.get_variable_scope().reuse_variables()
-            utterance = tf.constant(np.ones([1, 4]), dtype=tf.float32)
-            indices = tf.constant(np.array([[1, 0], [1, 1], [1, 2], [1, 3]]).reshape([1, 1, 4, 2]), dtype=tf.int32)
-            utterances = self.update_utterance(indices, utterance)
-            context = self.get_context(utterances)
-            [result] = sess.run([context], feed_dict=feed_dict)
-            print 'node embeddings:\n', result
-
-class GraphEmbedStaticUtterance(GraphEmbed):
-    '''
-    Graph embedding model.
-    The utterance is copied from the RNN state but no gradient is backpropogated back to the RNN.
-    '''
-    def __init__(*args, **kwargs):
-        super(GraphEmbedStaticUtterance, self).__init__(*args, **kwargs)
-        self.input_entity_shape = [1, None, self.entity_cache_size]
-
-    def _build_utterance_embedding(self):
-        with tf.variable_scope('UtteranceEmbedding'):
-            utterances = tf.get_variable('utterance', [self.max_num_nodes, self.utterance_size], trainable=False, initializer=tf.zeros_initializer)
-        return utterances
-
-    def reshape_input_entity(self, entity_list):
+    def update_utterance(self, entity_indices, utterance, curr_utterances):
         '''
-        Preprocess so that it's ready to be used by update_utterance.
+        We first transform utterance into a dense matrix of the same size as curr_utterances,
+        then return their sum.
+        entity_indices: entity ids correponding to rows to be updated in the curr_utterances
+        batch_size x entity_cache_size
+        utterance: hidden states from the RNN
+        batch_size x utterance_size
         '''
-        pad = self.max_num_nodes
-        max_len = self.entity_cache_size
-        entity_list = [self._normalize_entity_list(e, max_len, pad) for e in entity_list]
-        entity_list = np.asarray(entity_list, dtype=np.int32).reshape(1, -1, 2)
-        return entity_list
+        # Construct indices corresponding to each entry to be updated in self.utterances
+        # self.utterance has shape batch_size x num_nodes x utterance_size
+        # Therefore each row in the indices matrix specifies (batch_id, node_id, utterance_dim)
+        B = self.config.batch_size
+        E = self.config.entity_cache_size
+        U = self.config.utterance_size
+        batch_inds = tf.reshape(tf.tile(tf.reshape(tf.range(B), [-1, 1]), [1, E*U]), [-1, 1])
+        node_inds = tf.reshape(tf.tile(tf.reshape(entity_indices, [-1, 1]), [1, U]), [-1, 1])
+        utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
+        inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
 
-    def update_utterance(self, indices, utterance):
-        '''
-        Update entries in matrix self.utterances.
-        indices corresponds to first dimensions in self.utterances.
-        '''
-        def cond_update(ind):
-            def no_op():
-                return self.utterances
-            def update():
-                # in-place update
-                return tf.scatter_update(self.utterances, ind, utterance)
-            return tf.cond(tf.less(ind, tf.constant(0)), no_op, update)
-        # NOTE: assumes batch_size = 1
-        indices = tf.reshape(indices, [-1])
-        utterance = tf.reshape(utterance, [-1])
-        tf.map_fn(cond_update, indices, dtype=tf.float32)
-        return self.utterances
-
-
-if __name__ == '__main__':
-    import numpy as np
-    max_num_nodes = 10
-    num_edge_labels = 1
-    node_embed_size = 4
-    edge_embed_size = 4
-    utterance_size = 4
-    feat_size = 1
-
-    tf.reset_default_graph()
-    tf.set_random_seed(1)
-    graph_embed = GraphEmbed(max_num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, mp_iter=2, message='concat', scope=None)
-
-    num_nodes = 3
-    node_ids = np.array([0, 1, 2])
-    paths = np.array([[0, 0, 1], [0, 0, 2]])
-    node_feats = np.zeros([num_nodes, feat_size])
-    feed_dict = {graph_embed.input_data: (node_ids, entity_ids, paths, node_feats)}
-
-    with tf.Session() as sess:
-        graph_embed.test(sess, feed_dict)
-        graph_embed.test_mp(sess, feed_dict)
-
+        # Repeat utterance for each entity
+        utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
+        new_utterance = tf.sparse_to_dense(inds, curr_utterances.get_shape(), utterance)
+        return curr_utterances + new_utterance
