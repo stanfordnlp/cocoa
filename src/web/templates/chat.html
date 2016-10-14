@@ -147,8 +147,8 @@
 			}
 
 		</script>
-        
-        <script type="text/javascript" charset="utf-8">
+		
+		<script type="text/javascript" charset="utf-8">
 			function getTimeRemaining(endtime) {
 				var t = Date.parse(endtime) - Date.parse(new Date());
 				var seconds = Math.floor((t / 1000) % 60);
@@ -164,30 +164,28 @@
 				var clock = document.getElementById(id);
 				var minutesSpan = clock.querySelector('.minutes');
 				var secondsSpan = clock.querySelector('.seconds');
-
+	
 				function updateClock() {
 					var t = getTimeRemaining(endtime);
-
 					minutesSpan.innerHTML = t.minutes+':';
 					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-
+		
 					if (t.total <= 0) {
 						clearInterval(validCheckInterval);
 						clearInterval(timeinterval);
 						pollServer();
 					}
 				}
-
+	
 				updateClock();
 				var timeinterval = setInterval(updateClock, 1000);
 			}
-
 
 			function init() {
 				var deadline = new Date(Date.parse(new Date()) + {{ num_seconds }} * 1000);
 				initializeClock('clockdiv', deadline);
 			}
-        </script>
+		</script>
     </head>
     
     <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false">
