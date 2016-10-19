@@ -10,6 +10,9 @@ import warnings
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
 from src.basic.lexicon import Lexicon
+from src.basic.event import Event
+from src.basic.dataset import Example
+from src.basic.kb import KB
 from src.basic.util import read_json
 from src.web import create_app, socketio
 from src.basic.systems.simple_system import SimpleSystem
@@ -17,6 +20,7 @@ from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
 from main import backend
+import atexit
 
 __author__ = 'anushabala'
 
@@ -46,10 +50,15 @@ def init_database(db_file):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     c.execute(
-        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer, connected_status integer, connected_timestamp integer, message text, room_id integer, partner_type text, partner_id text, scenario_id text, agent_index integer, selected_index integer, num_chats_completed integer)''')
+        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
+        connected_status integer, connected_timestamp integer, message text, room_id integer, partner_type text,
+        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)''')
+    c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
     c.execute(
-        '''CREATE TABLE mturk_task (name text, mturk_code text, num_chats_completed integer)''')
-    c.execute('''CREATE TABLE survey (name text, partner_type text, how_mechanical integer, how_effective integer)''')
+        '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
+        how_effective integer)''')
+    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
+    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
 
     conn.commit()
     conn.close()
@@ -72,7 +81,6 @@ def add_systems(config_dict, schema, lexicon):
     for (sys_name, info) in config_dict.iteritems():
         if info["active"]:
             type = info["type"]
-            model = None
             if type == SimpleSystem.name():
                 model = SimpleSystem()
             elif type == HeuristicSystem.name():
@@ -81,7 +89,9 @@ def add_systems(config_dict, schema, lexicon):
                 path = info["path"]
                 model = NeuralSystem(schema, lexicon, path)
             else:
-                warnings.warn('Unrecognized model type in {} for configuration {}'.format(info, sys_name))
+                warnings.warn(
+                    'Unrecognized model type in {} for configuration '
+                    '{}. Ignoring configuration.'.format(info, sys_name))
                 continue
             systems[sys_name] = model
 
@@ -89,6 +99,45 @@ def add_systems(config_dict, schema, lexicon):
     pairing_probabilities = {system_name: prob for system_name in systems.keys()}
 
     return systems, pairing_probabilities
+
+
+def cleanup(flask_app):
+    db_path = flask_app.config['user_params']['db']['location']
+    transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
+    log_events_to_json(app.config['scenario_db'], db_path, transcript_path)
+
+
+def log_events_to_json(scenario_db, db_path, json_path):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    # c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
+    cursor.execute('SELECT DISTINCT chat_id FROM event')
+    ids = cursor.fetchall()
+
+    examples = []
+    for chat_id in ids:
+        # chat_id is a tuple   (id,)
+        cursor.execute('SELECT agent, action, time, data FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
+        logged_events = cursor.fetchall()
+        cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', chat_id)
+        (uuid, outcome) = cursor.fetchone()
+        print uuid, outcome
+        outcome = json.loads(outcome)
+        chat_events = []
+        for (agent, action, time, data) in logged_events:
+            if action == 'select':
+                data = KB.string_to_ordered_item(data)
+            event = Event(agent, time, action, data)
+            chat_events.append(event)
+        ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome)
+        examples.append(ex)
+
+    outfile = open(json_path, 'w')
+    json.dump([ex.to_dict() for ex in examples], outfile)
+    outfile.close()
+    conn.close()
+
+
 
 
 def init(output_dir):
@@ -143,7 +192,7 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, False)
+    lexicon = None
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
@@ -161,4 +210,5 @@ if __name__ == "__main__":
     app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)
 
+    atexit.register(cleanup, flask_app=app)
     socketio.run(app, host=args.host, port=args.port)

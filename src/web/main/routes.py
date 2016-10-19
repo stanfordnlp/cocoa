@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 __author__ = 'anushabala'
 
 from flask import session, render_template, request, redirect, url_for
@@ -86,6 +84,7 @@ def index():
         logger.info("Getting chat information for user %s" % userid()[:6])
         chat_info = backend.get_chat_info(userid())
         session["room"] = chat_info.room_id
+        session["chat_id"] = chat_info.chat_id
         schema = backend.get_schema()
         if not request.args.get('scenario') or request.args.get('scenario') != chat_info.scenario_id:
             return redirect(url_for('main.index', scenario=chat_info.scenario_id, **request.args))

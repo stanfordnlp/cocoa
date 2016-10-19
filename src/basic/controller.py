@@ -8,10 +8,12 @@ class Controller(object):
     """
     The controller takes two systems and can run them to generate a dialgoue.
     """
-    def __init__(self, scenario, sessions, debug=True):
+    def __init__(self, scenario, sessions, chat_id=None, debug=True):
+
         self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
+        self.chat_id = chat_id
         assert len(self.sessions) == 2
         if debug:
             for agent in (0, 1):
@@ -74,6 +76,9 @@ class Controller(object):
     def game_over(self):
         return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
+    def get_outcome(self):
+        return {'reward': self.reward}
+
     def inactive(self):
         """
         Return whether this controller is currently controlling an active chat session or not (by checking whether both
@@ -102,9 +107,12 @@ class Controller(object):
                 for idx in agents:
                     self.sessions[idx] = None
 
+    def get_chat_id(self):
+        return self.chat_id
+
     def dump(self, path):
         self.events = sorted(self.events, key=lambda x:x.time)
 
-        outcome = {'reward': self.reward}
+        outcome = self.get_outcome()
         ex = Example(self.scenario, self.scenario.uuid, self.events, outcome)
         json.dump(ex.to_dict(), open(path, 'w'))

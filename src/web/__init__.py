@@ -3,20 +3,19 @@ __author__ = 'anushabala'
 from flask import Flask
 from flask.ext.socketio import SocketIO
 from flask import g
+
 # from multiprocessing import Process, Queue
 socketio = SocketIO()
 controller_process = None
 
 
-#@app.teardown_appcontext
 def close_connection(exception):
     backend = getattr(g, '_backend', None)
     if backend is not None:
         backend.close()
-    # if controller_process is not None:
-    #     controller_process.terminate()
 
 
+# def dump_events_to_json():
 def create_app(debug=False, templates_dir='templates'):
     """Create an application."""
     global controller_process
