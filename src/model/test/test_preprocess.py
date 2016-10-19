@@ -6,6 +6,9 @@ from basic.schema import Schema
 from basic.util import read_json
 from basic.lexicon import Lexicon
 from basic.scenario_db import ScenarioDB
+from model.graph import GraphMetadata, Graph
+import numpy as np
+from numpy.testing import assert_array_equal
 
 class TestPreprocess(object):
     @pytest.fixture(scope='session')
@@ -26,7 +29,10 @@ class TestPreprocess(object):
 
     @pytest.fixture(scope='session')
     def generator(self, examples, lexicon, schema):
-        return DataGenerator(examples, None, None, schema, lexicon)
+        return DataGenerator(examples, examples, None, schema, lexicon, use_kb=True)
+
+    def set_metadata(self, schema, generator):
+        Graph.metadata = GraphMetadata(schema, generator.entity_map, generator.relation_map, 10)
 
     def test_preprocess(self, generator, examples, capsys):
         dialogue = generator._process_example(examples[0])
@@ -45,6 +51,11 @@ class TestPreprocess(object):
     @pytest.fixture(scope='session')
     def dialogue_batch(self, generator):
         dialogues = generator.dialogues['train'][:2]
+        return  DialogueBatch(dialogues)
+
+    @pytest.fixture(scope='session')
+    def test_dialogue_batch(self, generator):
+        dialogues = generator.dialogues['dev'][:2]
         return  DialogueBatch(dialogues)
 
     def test_normalize_dialogue(self, generator, dialogue_batch, capsys):
@@ -66,8 +77,8 @@ class TestPreprocess(object):
                 print map(generator.vocab.to_word, list(turn_batches[i][0]))
                 print map(generator.vocab.to_word, list(turn_batches[i][1]))
 
-    def test_create_batches(self, generator, dialogue_batch, capsys):
-        batches = dialogue_batch.create_batches()
+    def test_create_batches(self, generator, test_dialogue_batch, capsys):
+        batches = test_dialogue_batch.create_batches()
         with capsys.disabled():
             for i in xrange(2):  # Which perspective
                 batch = batches[i]
@@ -81,12 +92,27 @@ class TestPreprocess(object):
                             print 'encode: None'
                         else:
                             print 'encode:', map(generator.vocab.to_word, list(b['encoder_inputs'][j]))
+                            print 'encode last ind:', b['encoder_inputs_last_inds'][j]
                         print 'decode:', map(generator.vocab.to_word, list(b['decoder_inputs'][j]))
-                        print 'targets:', map(generator.vocab.to_word, list(b['decoder_targets'][j]))
+                        print 'decode last ind:', b['decoder_inputs_last_inds'][j]
+                        print 'targets:', map(generator.vocab.to_word, list(b['targets'][j]))
+                        print 'tokens:', b['tokens'][j]
 
-    def test_generator(self, generator):
-        train_generator = generator.train_generator('train', 5)
-        batch = train_generator.next()
-        assert len(batch['agent']) == 5
-        assert len(batch['kb']) == 5
-        assert batch['batch_seq'][0]['decoder_inputs'].shape[0] == 5
+    def test_generator(self, schema, generator):
+        self.set_metadata(schema, generator)
+        batch_size = 4
+        generator = generator.generator('train', batch_size)
+        num_batches = generator.next()
+        #assert num_batches == 4
+        batch = generator.next()
+        assert len(batch['agent']) == batch_size
+        assert len(batch['kb']) == batch_size
+        assert batch['batch_seq'][0]['decoder_inputs'].shape[0] == batch_size
+
+    def test_last_inds(self, dialogue_batch):
+        pad = -1
+        inputs = np.array([[1,2,3],
+                           [1,pad, pad]], dtype=np.int32)
+        inds = dialogue_batch._get_last_inds(inputs, pad)
+        expected = np.array([2, 0])
+        assert_array_equal(inds, expected)

@@ -6,8 +6,9 @@ import random
 import re
 import numpy as np
 from vocab import Vocabulary, is_entity
-from graph import Graph
-from itertools import chain
+from graph import Graph, GraphBatch
+from itertools import chain, izip
+import copy
 
 # Special symbols
 EOT = '</t>'  # End of turn
@@ -24,12 +25,13 @@ def tokenize(utterance):
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     return tokens
 
-def build_schema_mappings(offset, schema):
+def build_schema_mappings(schema, offset=0, disjoint=False):
+    offset = offset if disjoint else 0
     entity_map = Vocabulary(offset=offset, unk=True, pad=False)
     for type_, values in schema.values.iteritems():
         entity_map.add_words(((value.lower(), type_) for value in values))
-    offset += entity_map.size
 
+    offset = offset + entity_map.size if disjoint else 0
     relation_map = Vocabulary(offset=offset, unk=False, pad=False)
     attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
     relation_map.add_words((a.lower() for a in attribute_types.keys()))
@@ -59,14 +61,31 @@ def build_vocab(dialogues, special_symbols=[], add_entity=True):
     vocab.add_words(special_symbols)
     return vocab
 
+#def text_to_int(tokens, vocab, entity_map):
+#    # Use canonical string for entities
+#    return [vocab.to_ind(token) if not is_entity(token) else entity_map.to_ind(token[1]) if entity_map else vocab.to_ind(token[1]) for token in tokens]
+
+def text_to_int(tokens, vocab):
+    # We look for the caninical form (token[1]) of an entity in the vocab
+    return [vocab.to_ind(token) if not is_entity(token) else vocab.to_ind(token[1]) for token in tokens]
+
+def int_to_text(inds, vocab):
+    return [vocab.to_word(ind) for ind in inds]
+
 class Dialogue(object):
     def __init__(self, kbs, turns=None, agents=None):
+        '''
+        Dialogue data that is needed by the model.
+        '''
         self.kbs = kbs
         self.turns = turns or []
         self.agents = agents or []
         assert len(self.turns) == len(self.agents)
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
+
+    def create_graph(self):
+        self.graphs = [Graph(kb) for kb in self.kbs]
 
     def add_utterance(self, agent, utterance):
         # Same agent talking
@@ -76,13 +95,13 @@ class Dialogue(object):
             self.agents.append(agent)
             self.turns.append([utterance])
 
-    def _text_to_int(self, tokens, vocab, entity_map):
-        # Use canonical string for entities
-        return [vocab.to_ind(token) if not is_entity(token) else entity_map.to_ind(token[1]) if entity_map else vocab.to_ind(token[1]) for token in tokens]
-
-    def convert_to_int(self, vocab, entity_map=None):
+    def convert_to_int(self, vocab, entity_map=None, keep_tokens=False):
+        if self.is_int:
+            return
+        if keep_tokens:
+            self.token_turns = copy.copy(self.turns)
         for i, turn in enumerate(self.turns):
-           self.turns[i] = [self._text_to_int(utterance, vocab, entity_map) for utterance in turn]
+            self.turns[i] = [text_to_int(utterance, vocab, entity_map) for utterance in turn]
         self.is_int = True
 
     def flatten_turns(self):
@@ -91,11 +110,18 @@ class Dialogue(object):
         '''
         if self.flattened:
             return
+
         turns = self.turns
         for i, turn in enumerate(turns):
             for utterance in turn:
                 utterance.append(EOU)
             turns[i] = [x for x in chain.from_iterable(turn)] + [EOT]
+
+        if hasattr(self, 'token_turns'):
+            turns = self.token_turns
+            for i, turn in enumerate(turns):
+                turns[i] = [x for x in chain.from_iterable(turn)]
+
         self.flattened = True
 
     def pad_turns(self, num_turns):
@@ -108,8 +134,9 @@ class Dialogue(object):
             turns.append([])
 
 class DialogueBatch(object):
-    def __init__(self, dialogues):
+    def __init__(self, dialogues, use_kb=False):
         self.dialogues = dialogues
+        self.use_kb = use_kb
 
     def _normalize_dialogue(self):
         '''
@@ -127,9 +154,12 @@ class DialogueBatch(object):
         '''
         max_num_tokens = max([len(t) for t in turn_batch])
         batch_size = len(turn_batch)
-        T = np.full([batch_size, max_num_tokens], PAD, dtype=np.int32)
+        T = np.full([batch_size, max_num_tokens+1], PAD, dtype=np.int32)
+        # Insert </t> at the beginning at each turn because for decoding we want to
+        # start from </t> to generate
+        T[:, 0] = EOT
         for i, turn in enumerate(turn_batch):
-            T[i, :len(turn)] = turn
+            T[i, 1:len(turn)+1] = turn
         return T
 
     def _create_turn_batches(self):
@@ -141,21 +171,54 @@ class DialogueBatch(object):
     def _get_agent_batch(self, i):
         return [dialogue.agents[i] for dialogue in self.dialogues]
 
-    def _get_kb_batch(self, i):
-        return [dialogue.kbs[dialogue.agents[i]] for dialogue in self.dialogues]
+    def _get_kb_batch(self, agents):
+        return [dialogue.kbs[agent] for dialogue, agent in izip(self.dialogues, agents)]
 
-    def _create_one_batch(self, encode_turn, decode_turn):
-        decoder_go = np.full([decode_turn.shape[0], 1], EOT, dtype=np.int32)
-        # NOTE: decoder_go is inserted to padded turn as well, i.e. </t> <pad> ...
-        # This probably doesn't matter
-        decoder_inputs = np.concatenate((decoder_go, decode_turn[:, :-1]), axis=1)
-        decoder_targets = decode_turn
+    def _get_graph_batch(self, agents):
+        return GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
+
+    def _create_one_batch(self, encode_turn, decode_turn, encode_tokens, decode_tokens):
+        # Encoder inptus: remove </t> since it's used to start decoding, i.e. token <pad>
+        if encode_turn is not None:
+            # </t> at the beginning and end of utterance
+            # Replace the end </t> but keep the beginning one to separate it from the previous utterance
+            encoder_inputs = np.copy(encode_turn[:, :-1])
+            encoder_inputs[encoder_inputs == EOT] = PAD
+            encoder_inputs[:, 0] = EOT
+        else:
+            encoder_inputs = None
+        # Decoder inptus: start from </t> to generate, i.e. </t> <token> NOTE: </t> is
+        # inserted to padded turns as well, i.e. </t> <pad>, probably doesn't matter though..
+        decoder_inputs = decode_turn[:, :-1]
+        decoder_targets = decode_turn[:, 1:]
         batch = {
-                 'encoder_inputs': encode_turn,
+                 'encoder_inputs': encoder_inputs,
+                 'encoder_inputs_last_inds': None if encoder_inputs is None else self._get_last_inds(encoder_inputs, PAD),
                  'decoder_inputs': decoder_inputs,
-                 'decoder_targets': decoder_targets
+                 'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, PAD),
+                 'targets': decoder_targets
                 }
+        if encode_tokens is not None or decode_tokens is not None:
+            batch['encoder_tokens'] = encode_tokens
+            batch['decoder_tokens'] = decode_tokens
         return batch
+
+    def _get_last_inds(self, inputs, stop_symbol):
+        '''
+        Return the last index which is not stop_symbol.
+        inputs: (batch_size, input_size)
+        '''
+        assert type(stop_symbol) is int
+        inds = np.argmax(inputs == stop_symbol, axis=1)
+        inds[inds == 0] = inputs.shape[1]
+        inds = inds - 1
+        return inds
+
+    def _get_token_turns(self, i):
+        if not hasattr(self.dialogues[0], 'token_turns'):
+            return None
+        return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else None
+                for dialogue in self.dialogues]
 
     def create_batches(self):
         self._normalize_dialogue()
@@ -165,19 +228,24 @@ class DialogueBatch(object):
         batches = []
         for start_encode in (0, 1):
             encode_turn_ids = range(start_encode, self.num_turns-1, 2)
-            batch_seq = [self._create_one_batch(turn_batches[i], turn_batches[i+1]) for i in encode_turn_ids]
+            batch_seq = [self._create_one_batch(turn_batches[i], turn_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1)) for i in encode_turn_ids]
             if start_encode == 1:
                 # We still want to generate the first turn
-                batch_seq.insert(0, self._create_one_batch(None, turn_batches[0]))
+                batch_seq.insert(0, self._create_one_batch(None, turn_batches[0], None, self._get_token_turns(0)))
             # Add agents and kbs
+            agents = self._get_agent_batch(start_encode + 1)  # Decoding agent
+            kbs = self._get_kb_batch(agents)
             batch = {
-                     'agent': self._get_agent_batch(start_encode + 1),
-                     'kb': self._get_kb_batch(start_encode + 1),
+                     'agent': agents,
+                     'kb': kbs,
                      'batch_seq': batch_seq,
                     }
+            if self.use_kb:
+                batch['graph'] = self._get_graph_batch(agents)
             batches.append(batch)
         return batches
 
+# TODO: separate Preprocessor (currently the constructor of DataGenerator)
 class DataGenerator(object):
     def __init__(self, train_examples, dev_examples, test_examples, schema, lexicon, mappings=None, use_kb=False):
         # TODO: change basic/dataset so that it uses the dict structure
@@ -198,26 +266,30 @@ class DataGenerator(object):
         print 'Entity size:', self.entity_map.size
         print 'Relation size:', self.relation_map.size
 
+        # Convert dialogue utterances to integers
         self.convert_to_int()
 
-    def create_mappings(self, schema):
-        # NOTE: vocab, entity_map and relation_map have disjoint mappings so that we can
-        # tell if an integer represents an entity or a token
-        self.vocab = build_vocab(self.dialogues['train'], markers, add_entity=(not self.use_kb))
-        self.entity_map, self.relation_map = build_schema_mappings(self.vocab.size, schema)
-
-    def convert_to_int(self):
-        '''
-        Conver tokens to integers.
-        '''
-        entity_map = self.entity_map if self.use_kb else None
-        for _, dialogues in self.dialogues.iteritems():
-            for dialogue in dialogues:
-                dialogue.convert_to_int(self.vocab, entity_map=entity_map)
+        # Convert special symbols to integer
         global PAD, EOT, EOU
         EOT = self.vocab.to_ind(EOT)
         EOU = self.vocab.to_ind(EOU)
         PAD = self.vocab.to_ind(self.vocab.PAD)
+
+    def create_mappings(self, schema):
+        # NOTE: DISABLED NOW.
+        # vocab, entity_map and relation_map have disjoint mappings so that we can
+        # tell if an integer represents an entity or a token
+        self.vocab = build_vocab(self.dialogues['train'], markers, add_entity=(not self.use_kb))
+        self.entity_map, self.relation_map = build_schema_mappings(schema, offset=self.vocab.size, disjoint=False)
+
+    def convert_to_int(self, entity_map=None):
+        '''
+        Convert tokens to integers.
+        '''
+        for fold, dialogues in self.dialogues.iteritems():
+            keep_tokens = True if fold in ['dev', 'test'] else False
+            for dialogue in dialogues:
+                dialogue.convert_to_int(self.vocab, entity_map=entity_map, keep_tokens=keep_tokens)
 
     def _process_example(self, ex):
         '''
@@ -266,20 +338,43 @@ class DataGenerator(object):
         while start < N:
             end = start + batch_size
             # We don't have enough examples for the last batch; repeat examples in the
-            # previous batch. TODO: repeated examples should have lower weights.
+            # previous batch. TODO: repeated examples should have lower weights, or better,
+            # make batch_size a variable
             if end > N:
-                dialogue_batch = dialogues[-batch_size:]
+                # dialogue_batch = dialogues[-batch_size:]
+                # We need deepcopy here because data in Graph will be written
+                dialogue_batch = dialogues[start:] + [copy.deepcopy(dialogue) for dialogue in dialogues[start-1:start-(end-N+1):-1]]
+                assert len(dialogue_batch) == batch_size
             else:
                 dialogue_batch = dialogues[start:end]
-            dialogue_batches.extend(DialogueBatch(dialogue_batch).create_batches())
+            dialogue_batches.extend(DialogueBatch(dialogue_batch, self.use_kb).create_batches())
             start = end
         return dialogue_batches
 
-    def train_generator(self, name, batch_size, shuffle=True):
-        dialogue_batches = self.create_dialogue_batches(self.dialogues[name], batch_size)
+    def create_graph(self, dialogues):
+        if not self.use_kb:
+            return
+        for dialogue in dialogues:
+            dialogue.create_graph()
+
+    def reset_graph(self, dialogues):
+        if not self.use_kb:
+            return
+        for dialogue in dialogues:
+            for graph in dialogue.graphs:
+                graph.reset()
+
+    def generator(self, name, batch_size, shuffle=True):
+        dialogues = self.dialogues[name]
+        # NOTE: we assume that GraphMetadata has been constructed before DataGenerator is called
+        self.create_graph(dialogues)
+        dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
+        yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
         while True:
             if shuffle:
                 random.shuffle(inds)
             for ind in inds:
                 yield dialogue_batches[ind]
+            # We want graphs clean of dialgue history for the new epoch
+            self.reset_graph(dialogues)

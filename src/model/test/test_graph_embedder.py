@@ -5,9 +5,10 @@ from numpy.testing import assert_array_equal
 from model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 
 class TestGraphEmbedder(object):
+    num_nodes = 5
+
     @pytest.fixture(scope='session')
     def config(self):
-        num_nodes = 5
         num_edge_labels = 1
         node_embed_size = 4
         edge_embed_size = 4
@@ -15,7 +16,7 @@ class TestGraphEmbedder(object):
         feat_size = 1
         batch_size = 2
         max_degree = 2
-        return GraphEmbedderConfig(num_nodes, num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, batch_size=batch_size, max_degree=max_degree)
+        return GraphEmbedderConfig(num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, batch_size=batch_size, max_degree=max_degree)
 
     @pytest.fixture(scope='session')
     def graph_embedder(self, config):
@@ -23,12 +24,13 @@ class TestGraphEmbedder(object):
 
     def test_update_utterance(self, graph_embedder):
         config = graph_embedder.config
-        init_utterances = tf.zeros([2, config.num_nodes, config.utterance_size])
+        init_utterances = tf.zeros([2, self.num_nodes, config.utterance_size])
         entity_indices = tf.constant([[1, 2], [3, 4]])
-        utterance = tf.concat(0, [tf.ones([1, config.utterance_size]), tf.ones([1, config.utterance_size])*2])
+        utterance = tf.placeholder(tf.float32, shape=[None, None])
+        numpy_utterance = np.array([[1,1,1,1],[2,2,2,2]])
         updated_utterances = graph_embedder.update_utterance(entity_indices, utterance, init_utterances)
         with tf.Session() as sess:
-            [ans] = sess.run([updated_utterances])
+            [ans] = sess.run([updated_utterances], feed_dict={utterance: numpy_utterance})
 
         expected_ans = np.array([[[0,0,0,0],\
                                   [1,1,1,1],\
@@ -53,7 +55,7 @@ class TestGraphEmbedder(object):
                                        [1,1,1,1]]], dtype=tf.float32)
         edge_embedding = tf.constant([[0,0,0,0]], dtype=tf.float32)
 
-        path_pad = graph_embedder.config.PATH_PAD
+        path_pad = (0, 0, 0)
         paths = tf.constant([[[0,0,1], [0,0,2], path_pad],
                              [[1,0,2], path_pad, path_pad]], dtype=tf.int32)
         path_embeds = graph_embedder.embed_path(node_embedding, edge_embedding, paths)
@@ -77,32 +79,35 @@ class TestGraphEmbedder(object):
             tf.initialize_all_variables().run()
             [ans] = sess.run([new_embed])
 
-        expected_ans = np.array([[[1,1,1],[0,0,0],[0,0,0],[0,0,0]],
-                                 [[0,0,0],[2,2,2],[0,0,0],[0,0,0]]])
+        expected_ans = np.array([[[1,1,1],[-2,-2,-2],[-2,-2,-2],[-2,-2,-2]],
+                                 [[-2,-2,-2],[1,1,1],[-2,-2,-2],[-2,-2,-2]]])
         assert_array_equal(ans, expected_ans)
 
     def test_get_context(self, graph_embedder, capsys):
         config = graph_embedder.config
         node_ids = np.array([[0,1,2], [0,1,2]], dtype=np.int32)
         entity_ids = np.zeros([2, 3], dtype=np.int32)
-        pad_path = config.PATH_PAD
+        pad_path = (0, 0, 0)
         paths = np.array([[pad_path, [0,0,1], [0,0,2]],\
                           [pad_path, [1,0,2], pad_path]], dtype=np.int32)
         node_paths = np.array([[[1,2], [0,0], [0,0]],\
                                [[0,0], [1,0], [0,0]]], dtype=np.int32)
         node_feats = np.ones([2, 3, config.feat_size], dtype=np.float)
-        utterances = np.zeros([2, config.num_nodes, config.utterance_size], dtype=np.float)
+        utterances = np.zeros([2, self.num_nodes, config.utterance_size], dtype=np.float)
         input_data = (node_ids, entity_ids, paths, node_paths, node_feats, utterances)
         feed_dict = {graph_embedder.input_data: input_data}
 
-        context2 = graph_embedder.get_context()
+        context2, mask2 = graph_embedder.get_context()
         config.mp_iters = 1
         tf.get_variable_scope().reuse_variables()
-        context1 = graph_embedder.get_context()
+        context1, mask1 = graph_embedder.get_context()
 
         with tf.Session() as sess:
             tf.initialize_all_variables().run()
-            [ans1, ans2] = sess.run([context1, context2], feed_dict = feed_dict)
+            [ans1, ans2, m1, m2] = sess.run([context1, context2, mask1, mask2], feed_dict = feed_dict)
+        expected_mask = np.array([[True, False, False], [False, True, False]])
+        assert_array_equal(m1, expected_mask)
+        assert_array_equal(m2, expected_mask)
         with capsys.disabled():
             print 'Before update:'
             print utterances
