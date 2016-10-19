@@ -6,10 +6,10 @@ from datetime import datetime
 import os
 import shutil
 import warnings
+import atexit
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.basic.lexicon import Lexicon
 from src.basic.event import Event
 from src.basic.dataset import Example
 from src.basic.kb import KB
@@ -20,7 +20,6 @@ from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
 from main import backend
-import atexit
 
 __author__ = 'anushabala'
 

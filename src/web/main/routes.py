@@ -1,12 +1,15 @@
 __author__ = 'anushabala'
 
+import uuid
+import logging
+
 from flask import session, render_template, request, redirect, url_for
+
 from flask import current_app as app
+
 from . import main
 from web_utils import get_backend
-import uuid
 from backend import Status
-import logging
 
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')

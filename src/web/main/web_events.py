@@ -1,12 +1,13 @@
-from flask import session, request
-from flask.ext.socketio import emit, join_room, leave_room, send
-from src.web import socketio
 from datetime import datetime
+import logging
+
+from flask import session, request
+
+from flask.ext.socketio import emit, join_room, leave_room
+from src.web import socketio
 from web_utils import get_backend
-from backend import Status
 from routes import userid
 from src.basic.event import Event
-import logging
 
 date_fmt = '%m-%d-%Y:%H-%M-%S'
 logger = logging.getLogger(__name__)

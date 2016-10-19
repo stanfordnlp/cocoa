@@ -13,7 +13,6 @@ from src.basic.controller import Controller
 from src.basic.event import Event
 from src.basic.kb import KB
 from flask import Markup
-import os
 from uuid import uuid4
 
 

@@ -1,8 +1,10 @@
 __author__ = 'anushabala'
 
 from flask import Flask
-from flask.ext.socketio import SocketIO
 from flask import g
+
+from flask.ext.socketio import SocketIO
+
 
 # from multiprocessing import Process, Queue
 socketio = SocketIO()
