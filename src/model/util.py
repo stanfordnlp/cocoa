@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
 from tensorflow.python.ops.rnn_cell import _linear as linear
+from itertools import izip
 
 def batch_embedding_lookup(embeddings, indices):
     '''
@@ -8,18 +9,16 @@ def batch_embedding_lookup(embeddings, indices):
     embeddings: (batch_size, num_words, embedding_size)
     indices: (batch_size, num_inds)
     '''
+    # Use static shape when possible
     batch_size, num_words, embed_size = embeddings.get_shape().as_list()
-    if num_words is not None:
-        offset = tf.reshape(tf.range(batch_size) * num_words, [batch_size, 1])
-        flat_embeddings = tf.reshape(embeddings, [-1, embed_size])
-        flat_indices = tf.reshape(indices + offset, [-1])
-        embeds = tf.reshape(tf.nn.embedding_lookup(flat_embeddings, flat_indices), [batch_size, -1, embed_size])
-    else:
-        print 'Warning (batch_embedding_lookup): number of words in each batch is unknown. Using for loop instead of batching.'
-        embeds = []
-        for i in xrange(batch_size):
-            embeds.append(tf.nn.embedding_lookup(embeddings[i], indices[i]))
-        embeds = tf.pack(embeds)
+    shape = tf.shape(embeddings)
+    batch_size = batch_size or shape[0]
+    num_words = num_words or shape[1]
+
+    offset = tf.reshape(tf.range(batch_size) * num_words, [batch_size, 1])
+    flat_embeddings = tf.reshape(embeddings, [-1, embed_size])
+    flat_indices = tf.reshape(indices + offset, [-1])
+    embeds = tf.reshape(tf.nn.embedding_lookup(flat_embeddings, flat_indices), [batch_size, -1, embed_size])
     return embeds
 
 def batch_linear(args, output_size, bias):
@@ -29,7 +28,7 @@ def batch_linear(args, output_size, bias):
     '''
     if not nest.is_sequence(args):
         args = [args]
-    batch_size = args[0].get_shape().as_list()[0]
+    batch_size = args[0].get_shape().as_list()[0] or tf.shape(args[0])[0]
     flat_args = []
     for arg in args:
         m = arg.get_shape().as_list()[2]

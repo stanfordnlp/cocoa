@@ -101,7 +101,7 @@ class Dialogue(object):
         if keep_tokens:
             self.token_turns = copy.copy(self.turns)
         for i, turn in enumerate(self.turns):
-            self.turns[i] = [text_to_int(utterance, vocab, entity_map) for utterance in turn]
+            self.turns[i] = [text_to_int(utterance, vocab) for utterance in turn]
         self.is_int = True
 
     def flatten_turns(self):
@@ -186,14 +186,15 @@ class DialogueBatch(object):
             encoder_inputs[encoder_inputs == EOT] = PAD
             encoder_inputs[:, 0] = EOT
         else:
-            encoder_inputs = None
+            # If there's no input to encode, use </t> as the encoder input.
+            encoder_inputs = decode_turn[:, [0]]
         # Decoder inptus: start from </t> to generate, i.e. </t> <token> NOTE: </t> is
         # inserted to padded turns as well, i.e. </t> <pad>, probably doesn't matter though..
         decoder_inputs = decode_turn[:, :-1]
         decoder_targets = decode_turn[:, 1:]
         batch = {
                  'encoder_inputs': encoder_inputs,
-                 'encoder_inputs_last_inds': None if encoder_inputs is None else self._get_last_inds(encoder_inputs, PAD),
+                 'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, PAD),
                  'decoder_inputs': decoder_inputs,
                  'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, PAD),
                  'targets': decoder_targets
@@ -217,6 +218,7 @@ class DialogueBatch(object):
     def _get_token_turns(self, i):
         if not hasattr(self.dialogues[0], 'token_turns'):
             return None
+        # Return None for padded turns
         return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else None
                 for dialogue in self.dialogues]
 
@@ -279,7 +281,7 @@ class DataGenerator(object):
         # NOTE: DISABLED NOW.
         # vocab, entity_map and relation_map have disjoint mappings so that we can
         # tell if an integer represents an entity or a token
-        self.vocab = build_vocab(self.dialogues['train'], markers, add_entity=(not self.use_kb))
+        self.vocab = build_vocab(self.dialogues['train'], markers, add_entity=True)
         self.entity_map, self.relation_map = build_schema_mappings(schema, offset=self.vocab.size, disjoint=False)
 
     def convert_to_int(self, entity_map=None):
@@ -287,7 +289,8 @@ class DataGenerator(object):
         Convert tokens to integers.
         '''
         for fold, dialogues in self.dialogues.iteritems():
-            keep_tokens = True if fold in ['dev', 'test'] else False
+            #keep_tokens = True if fold in ['dev', 'test'] else False
+            keep_tokens = True
             for dialogue in dialogues:
                 dialogue.convert_to_int(self.vocab, entity_map=entity_map, keep_tokens=keep_tokens)
 

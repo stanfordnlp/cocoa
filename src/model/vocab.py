@@ -15,7 +15,7 @@ class Vocabulary(object):
         self.size = 0
         self.offset = offset
         if pad:
-            self.add_word(self.PAD)
+            self.add_word(self.PAD)  # PAD = 0
         if unk:
             self.add_word(self.UNK)
 

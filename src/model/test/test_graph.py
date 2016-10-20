@@ -7,23 +7,6 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 class TestGraph(object):
-    @pytest.fixture(scope='session')
-    def schema(self):
-        return Schema('data/friends-schema.json')
-
-    @pytest.fixture(scope='session')
-    def metadata(self, schema):
-        entity_map, relation_map = build_schema_mappings(schema)
-        return GraphMetadata(schema, entity_map, relation_map, 3, 3, max_degree=5)
-
-    @pytest.fixture
-    def graph(self, metadata, schema):
-        Graph.metadata = metadata
-        items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
-                 {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
-        kb = KB.from_dict(schema, items)
-        return Graph(kb)
-
     def test_mappings(self, graph, capsys):
         with capsys.disabled():
             print 'Entity map:'
@@ -82,17 +65,6 @@ class TestGraph(object):
         assert_array_equal(graph.entities, [alice, -1, -1, google])
         assert graph.nodes.size == graph.feats.shape[0]
         assert_array_equal(graph.get_entity_list(2), [[alice], [alice, google]])
-
-    @pytest.fixture
-    def graph2(self, schema):
-        items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'reading'},\
-                 {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
-        kb = KB.from_dict(schema, items)
-        return Graph(kb)
-
-    @pytest.fixture
-    def graph_batch(self, graph, graph2):
-        return GraphBatch((graph, graph2))
 
     def test_update_utterances(self, graph_batch):
         utterances = np.ones([2, 3, Graph.metadata.utterance_size])

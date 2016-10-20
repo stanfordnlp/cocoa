@@ -2,15 +2,14 @@
 Main learning loop.
 '''
 
-import os, sys
+import os
 import time
 import tensorflow as tf
-from preprocess import END_TURN, END_UTTERANCE
-from lib.bleu import compute_bleu
+from preprocess import int_to_text
 from lib import logstats
-import numpy as np
 from vocab import is_entity
 import resource
+import numpy as np
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -21,7 +20,7 @@ def add_learner_arguments(parser):
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--max-epochs', type=int, default=10, help='Number of training epochs')
-    parser.add_argument('--num-per-epoch', type=int, help='Number of examples per epoch')
+    parser.add_argument('--num-per-epoch', type=int, default=None, help='Number of examples per epoch')
     parser.add_argument('--print-every', type=int, default=1, help='Number of examples between printing training loss')
     parser.add_argument('--init-from', help='Initial parameters')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
@@ -33,99 +32,97 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
         }
 
 class Learner(object):
-    def __init__(self, data, model, verbose=False):
+    def __init__(self, data, model, evaluator, verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
+        if type(model).__name__ == 'BasicEncoderDecoder':
+            self._run_batch = self._run_batch_basic
+        elif type(model).__name__ == 'GraphEncoderDecoder':
+            self._run_batch = self._run_batch_graph
+        self.batch_size = model.batch_size
+        self.evaluator = evaluator
         self.verbose = verbose
 
-    def entity_acc(self, preds, targets, lexicon, vocab):
-        def get_entity(x):
-            x = map(vocab.to_word, x)
-            return [e[0] for e in x if is_entity(e)]
-        preds = set(get_entity(preds))
-        targets = set(get_entity(targets))
-        # Don't record cases where no entity is presented
-        if len(targets) == 0:
-            return None
-        recall = sum([1 if e in preds else 0 for e in targets]) / float(len(targets))
-        return recall
-
-    def test_bleu(self, sess, split='dev'):
-        '''
-        Go through each message of the agent and try to predict it
-        given the perfect past.
-        Return the average BLEU score across messages.
-        '''
-        test_data = self.data.generator_eval(split)
-        stop_symbols = map(self.data.vocab.to_ind, (END_TURN, END_UTTERANCE))
-        #stop_symbols = []
-        max_len = 20
-        summary_map = {}
-        for ex in test_data:
-            agent, kb, inputs, graph, targets = ex
-            preds, _ = self.model.generate(sess, inputs, graph, stop_symbols, max_len)
-            bleu = compute_bleu(preds, targets)
-            ent_acc = self.entity_acc(preds, targets, self.data.lexicon, self.data.vocab)
-            # ent_acc is None means targets has not entity
-            if ent_acc is not None:
-                logstats.update_summary_map(summary_map, {'acc': ent_acc})
-            logstats.update_summary_map(summary_map, {'bleu': bleu})
-
-            if self.verbose:
-                #kb.dump()
-                print 'AGENT=%d' % agent
-                print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
-                print 'TARGET:', map(self.data.vocab.to_word, targets)
-                print 'PRED:', map(self.data.vocab.to_word, preds)
-                print 'BLEU=%.2f' % bleu
-        # This means no entity is detected in the test data. Probably something wrong.
-        if 'acc' not in summary_map:
-            return summary_map['bleu']['mean'], -1
-        return summary_map['bleu']['mean'], summary_map['acc']['mean']
-
-    def test_loss(self, sess, split='dev'):
+    def test_loss(self, sess, test_data, num_batches):
         '''
         Return the cross-entropy loss.
         '''
-        test_data = self.data.generator_train(split)
         summary_map = {}
-        for i in xrange(2*self.data.num_examples[split]):
-            feed_dict, graph = self._get_feed_dict(test_data)
-            output, loss = sess.run([self.model.outputs, self.model.loss], feed_dict=feed_dict)
-            if self.verbose:
-                pred = self.model.get_prediction(output, graph)
-                print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
-                print 'LOSS:', loss
-            logstats.update_summary_map(summary_map, {'loss': loss})
+        for i in xrange(num_batches):
+            dialogue_batch = test_data.next()
+            self._run_batch(dialogue_batch, sess, summary_map, test=True)
         return summary_map['loss']['mean']
 
-    def _get_feed_dict(self, data):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None):
+        feed_dict = self.model.update_feed_dict(encoder_inputs=batch['encoder_inputs'],
+                decoder_inputs=batch['decoder_inputs'],
+                targets=batch['targets'],
+                encoder_inputs_last_inds=batch['encoder_inputs_last_inds'],
+                decoder_inputs_last_inds=batch['decoder_inputs_last_inds'],
+                encoder_init_state=encoder_init_state)
+        if graph_data is not None:
+            feed_dict = self.model.update_feed_dict(feed_dict=feed_dict,
+                    encoder_entities=graph_data['encoder_entities'],
+                    decoder_entities=graph_data['decoder_entities'],
+                    encoder_input_utterances=graph_data['utterances'])
+            feed_dict = self.model.add_graph_data(feed_dict, graph_data)
+        return feed_dict
+
+    def _print_batch(self, inputs, targets, preds, loss):
+        # Go over each example in the batch
+        vocab = self.data.vocab
+        for i in xrange(inputs.shape[0]):
+            print i
+            print 'INPUT:', int_to_text(inputs[i], vocab)
+            print 'TARGET:', int_to_text(targets[i], vocab)
+            print 'PRED:', int_to_text(preds[i], vocab)
+        print 'BATCH LOSS:', loss
+
+    def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
         '''
-        Take a data generator, return a feed_dict as input to the model.
+        Run truncated RNN through a sequence of batch examples with knowledge graphs.
         '''
-        agent, kb, inputs, graph, targets, iswrite = data.next()
-        if self.verbose:
-            kb.dump()
-            print 'INPUT:', map(self.data.vocab.to_word, list(inputs[0]))
-            target_words = [self.data.vocab.to_word(t) if w else 'null' for t, w in zip(list(targets[0]), list(iswrite[0]))]
-            print 'TARGET:', target_words
-        feed_dict = {}
-        self.model.update_feed_dict(feed_dict, inputs, None, targets=targets, graph=graph, iswrite=iswrite)
-        return feed_dict, graph
+        encoder_init_state = None
+        utterances = None
+        graphs = dialogue_batch['graph']
+        for i, batch in enumerate(dialogue_batch['batch_seq']):
+            graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data)
+            if test:
+                logits, final_state, utterances, loss = sess.run([self.model.logits, self.model.decoder_final_state, self.model.decoder_output_utterances, self.model.loss], feed_dict=feed_dict)
+            else:
+                _, logits, final_state, utterances, loss, gn = sess.run([self.train_op, self.model.logits, self.model.decoder_final_state, self.model.decoder_output_utterances, self.model.loss, self.grad_norm], feed_dict=feed_dict)
+            # NOTE: final_state = (rnn_state, attn, context)
+            encoder_init_state = final_state[0]
 
-    def _learn_step(self, data, sess, summary_map):
-        feed_dict, graph = self._get_feed_dict(data)
-        _, output, loss, gn = sess.run([self.train_op, self.model.outputs, self.model.loss, self.grad_norm], feed_dict=feed_dict)
+            if self.verbose:
+                preds = self.model.get_prediction(logits)
+                self._print_batch(batch['encoder_inputs'], batch['targets'], preds, loss)
 
-        if self.verbose:
-            pred = self.model.get_prediction(output, graph)
-            print 'PRED:', map(self.data.vocab.to_word, list(pred[0]))
-            print 'LOSS:', loss
+            logstats.update_summary_map(summary_map, {'loss': loss})
+            if not test:
+                logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
-        logstats.update_summary_map(summary_map, \
-                {'loss': loss, \
-                'grad_norm': gn, \
-                })
+    def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
+        '''
+        Run truncated RNN through a sequence of batch examples.
+        '''
+        encoder_init_state = None
+        for batch in dialogue_batch['batch_seq']:
+            feed_dict = self._get_feed_dict(batch, encoder_init_state)
+            if test:
+                logits, final_state, loss = sess.run([self.model.logits, self.model.decoder_final_state, self.model.loss], feed_dict=feed_dict)
+            else:
+                _, logits, final_state, loss, gn = sess.run([self.train_op, self.model.logits, self.model.decoder_final_state, self.model.loss, self.grad_norm], feed_dict=feed_dict)
+            encoder_init_state = final_state
+
+            if self.verbose:
+                preds = self.model.get_prediction(logits)
+                self._print_batch(batch['encoder_inputs'], batch['targets'], preds, loss)
+
+            logstats.update_summary_map(summary_map, {'loss': loss})
+            if not test:
+                logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def learn(self, args, config, ckpt=None, split='train'):
         assert args.optimizer in optim.keys()
@@ -148,9 +145,8 @@ class Learner(object):
         self.train_op = optimizer.apply_gradients(clipped_grads_and_vars)
 
         # Training loop
-        train_data = self.data.generator_train(split)
-        # x2 because training from both agents' perspective
-        num_per_epoch = args.num_per_epoch if args.num_per_epoch else self.data.num_examples[split] * 2
+        train_data = self.data.generator(split, self.batch_size)
+        num_per_epoch = args.num_per_epoch or train_data.next()
         step = 0
         saver = tf.train.Saver()
         save_path = os.path.join(args.checkpoint, 'tf_model.ckpt')
@@ -161,6 +157,10 @@ class Learner(object):
         best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
         best_bleu = -1
 
+        # Testing
+        dev_data = self.data.generator('dev', self.batch_size)
+        num_dev_batches = dev_data.next()
+
         with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
             if args.init_from:
@@ -170,7 +170,7 @@ class Learner(object):
                 print '================== Epoch %d ==================' % (epoch+1)
                 for i in xrange(num_per_epoch):
                     start_time = time.time()
-                    self._learn_step(train_data, sess, summary_map)
+                    self._run_batch(train_data.next(), sess, summary_map, test=False)
                     end_time = time.time()
                     logstats.update_summary_map(summary_map, \
                             {'time(s)/batch': end_time - start_time, \
@@ -185,13 +185,15 @@ class Learner(object):
                 saver.save(sess, save_path, global_step=epoch)
 
                 # Evaluate on dev
-                for eval_data in ('test',):
-                    print '================== Eval %s ==================' % eval_data
-                    bleu, ent_recall = self.test_bleu(sess, eval_data)
-                    loss = self.test_loss(sess, eval_data)
-                    if eval_data == 'test' and bleu > best_bleu:
+                for split, test_data, num_batches in self.evaluator.dataset():
+                    print '================== Eval %s ==================' % split
+                    start_time = time.time()
+                    loss = self.test_loss(sess, test_data, num_batches)
+                    bleu, ent_recall = self.evaluator.test_bleu(sess, test_data, num_batches)
+                    end_time = time.time()
+                    if split == 'dev' and bleu > best_bleu:
                         print 'New best model'
                         best_bleu = bleu
                         best_saver.save(sess, best_save_path)
-                    print 'bleu=%.4f entity_recall=%.4f loss=%.4f' % (bleu, ent_recall, loss)
+                    print 'bleu=%.4f entity_recall=%.4f loss=%.4f time(s)=%.4f' % (bleu, ent_recall, loss, end_time - start_time)
 

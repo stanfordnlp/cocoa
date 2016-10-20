@@ -7,21 +7,6 @@ from model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 class TestGraphEmbedder(object):
     num_nodes = 5
 
-    @pytest.fixture(scope='session')
-    def config(self):
-        num_edge_labels = 1
-        node_embed_size = 4
-        edge_embed_size = 4
-        utterance_size = 4
-        feat_size = 1
-        batch_size = 2
-        max_degree = 2
-        return GraphEmbedderConfig(num_edge_labels, node_embed_size, edge_embed_size, utterance_size, feat_size, batch_size=batch_size, max_degree=max_degree)
-
-    @pytest.fixture(scope='session')
-    def graph_embedder(self, config):
-        return GraphEmbedder(config)
-
     def test_update_utterance(self, graph_embedder):
         config = graph_embedder.config
         init_utterances = tf.zeros([2, self.num_nodes, config.utterance_size])
@@ -79,8 +64,8 @@ class TestGraphEmbedder(object):
             tf.initialize_all_variables().run()
             [ans] = sess.run([new_embed])
 
-        expected_ans = np.array([[[1,1,1],[-2,-2,-2],[-2,-2,-2],[-2,-2,-2]],
-                                 [[-2,-2,-2],[1,1,1],[-2,-2,-2],[-2,-2,-2]]])
+        expected_ans = np.array([[[1,1,1],[0,0,0],[0,0,0],[0,0,0]],
+                                 [[0,0,0],[2,2,2],[0,0,0],[0,0,0]]])
         assert_array_equal(ans, expected_ans)
 
     def test_get_context(self, graph_embedder, capsys):
@@ -93,14 +78,14 @@ class TestGraphEmbedder(object):
         node_paths = np.array([[[1,2], [0,0], [0,0]],\
                                [[0,0], [1,0], [0,0]]], dtype=np.int32)
         node_feats = np.ones([2, 3, config.feat_size], dtype=np.float)
-        utterances = np.zeros([2, self.num_nodes, config.utterance_size], dtype=np.float)
-        input_data = (node_ids, entity_ids, paths, node_paths, node_feats, utterances)
+        utterances = tf.constant(np.zeros([2, self.num_nodes, config.utterance_size], dtype=np.float), dtype=tf.float32)
+        input_data = (node_ids, entity_ids, paths, node_paths, node_feats)
         feed_dict = {graph_embedder.input_data: input_data}
 
-        context2, mask2 = graph_embedder.get_context()
+        context2, mask2 = graph_embedder.get_context(utterances)
         config.mp_iters = 1
         tf.get_variable_scope().reuse_variables()
-        context1, mask1 = graph_embedder.get_context()
+        context1, mask1 = graph_embedder.get_context(utterances)
 
         with tf.Session() as sess:
             tf.initialize_all_variables().run()

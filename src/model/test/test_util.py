@@ -6,13 +6,14 @@ from model.util import batch_embedding_lookup, batch_linear
 
 class TestUtil(object):
     def test_batch_embedding_lookup(self):
-        embeddings = tf.constant([[[0,0,0],[1,1,1],[2,2,2]],
-                                  [[0,0,0],[3,3,3],[4,4,4]]])
+        embeddings_input = np.array([[[0,0,0],[1,1,1],[2,2,2]],
+                                     [[0,0,0],[3,3,3],[4,4,4]]])
+        embeddings = tf.placeholder(tf.int32, shape=[2, None, 3])
         indices = tf.constant([[0,1],[1,2]])
         embeds = batch_embedding_lookup(embeddings, indices)
 
         with tf.Session() as sess:
-            [ans] = sess.run([embeds])
+            [ans] = sess.run([embeds], feed_dict={embeddings: embeddings_input})
         expected_ans = np.array([[[0,0,0],[1,1,1]],
                                  [[3,3,3],[4,4,4]]])
         assert_array_equal(ans, expected_ans)

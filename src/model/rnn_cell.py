@@ -5,10 +5,28 @@ RNN cell with attention over an input context.
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
+from util import batch_linear
 
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
     parser.add_argument('--attn-output', default='project', help='How to combine rnn output and attention {concat, project}')
+
+recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
+                  'gru': tf.nn.rnn_cell.GRUCell,
+                  'lstm': tf.nn.rnn_cell.LSTMCell,
+                 }
+
+def build_rnn_cell(rnn_type, rnn_size, num_layers):
+    '''
+    Create the internal multi-layer recurrent cell.
+    '''
+    if rnn_type == 'lstm':
+        cell = recurrent_cell[rnn_type](rnn_size, state_is_tuple=True)
+    else:
+        cell = recurrent_cell[rnn_type](rnn_size)
+    if num_layers > 1:
+        cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
+    return cell
 
 class AttnRNNCell(object):
     '''
@@ -16,99 +34,121 @@ class AttnRNNCell(object):
     Derived class should follow signatures in RNNCell.
     '''
 
-    def __init__(self, num_units, kg, rnn_type='lstm', scoring='linear', output='project', output_size=None, num_layers=1, activation=tanh):
-        '''
-        output_size: projected size of output + attention, used for prediction
-        context_size: size of the context/attention vector
-        '''
-        self.rnn_cell = self._build_rnn_cell(rnn_type, num_units, num_layers)
-        self._num_units = num_units
-        self.kg = kg
-        self._context_size = kg.node_embed_size
+    def __init__(self, rnn_size, context_size, rnn_type='lstm', scoring='linear', output='project', num_layers=1):
+        self.rnn_cell = build_rnn_cell(rnn_type, rnn_size, num_layers)
+        self.rnn_size = rnn_size
+        self.context_size = context_size
 
-        output_size = output_size or num_units
-        if output == 'project':
-            self._output_size = output_size
-            self.output = self._output_project
-        elif output == 'concat':
-            self._output_size = self._num_units + self._context_size
-            self.output = self._output_concat
+        self.scorer = scoring
+        self.output_combiner = output
+
+        if self.output_combiner == 'project':
+            self.output_size = self.rnn_size
+        elif self.output_combiner == 'concat':
+            self.output_size = self.rnn_size + self.context_size
         else:
             raise ValueError('Unknown output model')
 
-        if scoring == 'linear':
-            self.score_context = self._score_context_linear
-        elif scoring == 'bilinear':
-            self.score_context = self._score_context_bilinear
+    def init_state(self, rnn_state, rnn_output, context):
+        attn, scores = self.compute_attention(rnn_output, context)
+        return (rnn_state, attn, context)
+
+    def zero_state(self, batch_size, init_context, dtype=tf.float32):
+        zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
+        zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
+        zero_attn, scores = self.compute_attention(zero_h, init_context)
+        return (zero_rnn_state, zero_attn, init_context)
+
+    def score_context(self, h, context):
+        # Repeat h for each cell in context
+        context_len = tf.shape(context)[1]
+        h = tf.tile(tf.expand_dims(h, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
+
+        if self.scorer == 'linear':
+            return self._score_context_linear(h, context)
+        elif self.scorer == 'bilinear':
+            return self._score_context_bilinear(h, context)
         else:
             raise ValueError('Unknown scoring model')
 
-    def _build_rnn_cell(self, rnn_type, rnn_size, num_layers):
-        recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
-                          'gru': tf.nn.rnn_cell.GRUCell,
-                          'lstm': tf.nn.rnn_cell.LSTMCell,
-                         }
-
-        cell = None
-        if rnn_type == 'lstm':
-            cell = recurrent_cell[rnn_type](rnn_size, state_is_tuple=True)
-        else:
-            cell = recurrent_cell[rnn_type](rnn_size)
-        if num_layers > 1:
-            cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
-        return cell
-
-    def zero_state(self, batch_size, dtype):
-        zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
-        zero_h = tf.zeros([batch_size, self.rnn_cell.output_size])
-        zero_context = self.kg.get_context()
-        zero_attn, scores = self.compute_attention(zero_h, zero_context, self._num_units)
-        return (zero_rnn_state, zero_attn, zero_context)
-
-    @property
-    def output_size(self):
-        return self._output_size
-
     def _score_context_linear(self, h, context):
-        attn_size = self._num_units
-        # Projection vector
-        v = tf.get_variable('AttnProject', [attn_size, 1])
-        def project_context(ctxt):
-            a = tanh(linear([h, ctxt], attn_size, True))  # batch_size x attn_size
-            return tf.squeeze(tf.matmul(a, v), [1])
-        attns = tf.map_fn(project_context, tf.transpose(context, [1, 0, 2]))
+        '''
+        Concatenate state h and context, combine them to a vector, then project to a scalar.
+        h: (batch_size, context_len, rnn_size)
+        context: (batch_size, context_len, context_size)
+        Return context_scores (batch_size, context_len)
+        '''
+        attn_size = self.rnn_size
+        with tf.variable_scope('ScoreContextLinear'):
+            with tf.variable_scope('Combine'):
+                attns = tanh(batch_linear([h, context], attn_size, True))  # (batch_size, context_len, attn_size)
+            with tf.variable_scope('Project'):
+                attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
 
     def _score_context_bilinear(self, h, context):
-        W = tf.get_variable('BilinearW', [self._num_units, self._context_size])
-        def project_context(ctxt):
-            return tf.reduce_sum(tf.mul(tf.matmul(h, W), ctxt), 1)
-        attns = tf.map_fn(project_context, tf.transpose(context, [1, 0, 2]))
+        '''
+        Project h to context_size then do dot-product with context.
+        h: (batch_size, context_len, rnn_size)
+        context: (batch_size, context_len, context_size)
+        Return context_scores (batch_size, context_len)
+        '''
+        context_size = context.get_shape().as_list()[-1]
+        with tf.variable_scope('ScoreContextBilinear'):
+            h = batch_linear(h, context_size, False)  # (batch_size, context_len, context_size)
+            attns = tf.reduce_sum(tf.mul(h, context), 2)  # (batch_size, context_len)
         return attns
+
+    def output_with_attention(self, output, attn):
+        '''
+        Combine rnn output and the attention vector to generate the final output.
+        '''
+        if self.output_combiner == 'project':
+            return self._output_project(output, attn, self.output_size)
+        elif self.output_combiner == 'concat':
+            return self._output_concat(output, attn)
+        else:
+            raise ValueError('Unknown output model')
 
     def _output_concat(self, output, attn):
         return tf.concat(1, [output, attn])
 
-    def _output_project(self, output, attn):
+    def _output_project(self, output, attn, project_size):
         with tf.variable_scope("AttnOutputProjection"):
-            new_output = tanh(linear([output, attn], self._output_size, True))
+            new_output = tanh(linear([output, attn], project_size, True))
         return new_output
 
-    def compute_attention(self, h, context, attn_size):
+    def compute_attention(self, h, context):
         '''
-        context: batch_size x context_len x context_size
-        attn_size: vector size used for scoring each context
+        context_mask filteres padded context cell, i.e., their attn_score is -inf.
+        context: (batch_size, context_len, context_size)
+        context_mask: (batch_size, context_len)
         '''
         with tf.variable_scope('Attention'):
-            attn_scores = self.score_context(h, context)
-            attn_scores = tf.transpose(attn_scores) # batch_size x context_len
+            context, context_mask = context
+            attn_scores = self.score_context(h, context)  # (batch_size, context_len)
             attns = tf.nn.softmax(attn_scores)
+            zero_attns = tf.zeros_like(attns)
+            attns = tf.select(context_mask, attns, zero_attns)
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
-            weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # batch_size x context_size
+            weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
+            # TODO: try setting padded attn_scores to -inf here. This has caused difficulty in optimization though.
             return weighted_context, attn_scores
 
     def __call__(self, inputs, state, scope=None):
+        with tf.variable_scope(scope or type(self).__name__):
+            prev_rnn_state, prev_attn, prev_context = state
+            # RNN step
+            new_inputs = tf.concat(1, [inputs, prev_attn])
+            output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
+            # No update in context inside an utterance
+            attn, attn_scores = self.compute_attention(output, prev_context)
+            # Output
+            new_output = self.output_with_attention(output, attn)
+            return (new_output, attn_scores), (rnn_state, attn, prev_context)
+
+    def __call__old(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             inputs, entities, updates = inputs
             prev_rnn_state, prev_attn, prev_context = state
@@ -126,49 +166,8 @@ class AttnRNNCell(object):
             #        lambda : new_context(), \
             #        lambda : prev_context)
             context = new_context()
-            attn, attn_scores = self.compute_attention(output, context, self._num_units)
+            attn, attn_scores = self.compute_attention(output, context, self.rnn_size)
             # Output
             new_output = self.output(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, context)
-
-# test
-if __name__ == '__main__':
-    # Test single cell step
-    with tf.variable_scope('test1'):
-        cell = AttnRNNCell(10, 'lstm', 8, 12)
-        inputs = tf.ones([1,5], dtype=tf.float32)
-        context = tf.random_uniform([1,2,3])
-        init_state = cell.zero_state(context, 1, tf.float32)
-        with tf.Session() as sess:
-            tf.initialize_all_variables().run()
-            output, state = cell(inputs, init_state)
-            tf.get_variable_scope().reuse_variables()
-            output, state = cell(inputs, state)
-
-    # Test dynamic rnn
-    T = 10
-    # NOTE: current TF does not support rand>3 matrix with time_major=False!
-    with tf.variable_scope('test2'):
-        cell = AttnRNNCell(5, 5, 'lstm') # num_units=5, context_size=5
-        context = tf.random_uniform([1,4,5])
-        init_state = cell.zero_state(context, 1, tf.float32)
-        inputs = tf.ones([T,1,5], dtype=tf.float32)
-        outputs, states = tf.scan(lambda a, x: cell(x, a[1]), elems=inputs, initializer=(tf.zeros([1, 5]), init_state), parallel_iterations=1)
-
-        w = tf.get_variable('output_w', [5, 2])
-        b = tf.get_variable('output_b', [2])
-        outputs = tf.map_fn(lambda x: tf.matmul(x, w) + b, outputs)
-        target = tf.ones([10,1], dtype=tf.int32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(outputs, target)
-        tvars = tf.trainable_variables()
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
-        grads_and_vars = optimizer.compute_gradients(loss, tvars)
-        train_op = optimizer.apply_gradients(grads_and_vars)
-        with tf.Session() as sess:
-            tf.initialize_all_variables().run()
-            outputs, states = sess.run([outputs, states])
-            print len(outputs), outputs[0].shape, outputs[1].shape
-            sess.run(train_op)
-            sess.run(train_op)
-            print 'run gradient'
 

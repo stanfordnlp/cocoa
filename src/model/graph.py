@@ -7,6 +7,8 @@ from graph_embedder import GraphEmbedderConfig
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Number of items in each KB')
     parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
+    parser.add_argument('--max-num-entities', type=int, default=30, help='Estimate of maximum number of entities in a dialogue')
+    parser.add_argument('--max-degree', type=int, default=10, help='Maximum degree of a node in the graph')
 
 def inv_rel(relation):
     return '*' + relation
@@ -40,7 +42,7 @@ class GraphMetadata(object):
         self.max_num_entities = max_num_entities
 
         # Node features {feat_name: (offset, feat_size)}
-        # degree: 0-10
+        # degree: 0-max_degree
         # node_type: entity, item, attr
         degree_size = max_degree + 1
         self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, 3)}
@@ -83,6 +85,12 @@ class GraphBatch(object):
     def _batch_node_ids(self, max_num_nodes):
         return self._make_batch((self.batch_size, max_num_nodes), Graph.metadata.NODE_PAD, np.int32, 'node_ids')
 
+    def _batch_mask(self, max_num_nodes):
+        mask = np.full((self.batch_size, max_num_nodes), False, dtype=np.bool)
+        for i, graph in enumerate(self.graphs):
+            mask[i][:len(graph.node_ids)] = True
+        return mask
+
     def _batch_entity_ids(self, max_num_nodes):
         return self._make_batch((self.batch_size, max_num_nodes), Graph.metadata.ENTITY_PAD, np.int32, 'entity_ids')
 
@@ -92,8 +100,6 @@ class GraphBatch(object):
     def _batch_node_paths(self, max_num_nodes, max_num_paths_per_node):
         batch_data = np.full((self.batch_size, max_num_nodes, max_num_paths_per_node), Graph.metadata.PAD_PATH_ID, dtype=np.int32)
         for i, graph in enumerate(self.graphs):
-            print i, 'node_paths'
-            print graph.node_paths
             for j, node_path in enumerate(graph.node_paths):
                 batch_data[i][j][:len(node_path)] = node_path
         return batch_data
@@ -102,12 +108,11 @@ class GraphBatch(object):
         return self._make_batch((self.batch_size, max_num_nodes, Graph.metadata.feat_size), 0, np.float32, 'feats')
 
     def update_entities(self, tokens):
-        # Encoder tokens can be None
-        if tokens is None:
-            return
         assert len(tokens) == self.batch_size
         for graph, toks in izip(self.graphs, tokens):
-            graph.read_utterance(toks)
+            # toks is None when this is a padded turn
+            if toks is not None:
+                graph.read_utterance(toks)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
         max_len = Graph.metadata.entity_cache_size
@@ -123,24 +128,18 @@ class GraphBatch(object):
                 batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
-    def update_graph(self, encoder_tokens, decoder_tokens):
+    def update_graph(self, tokens):
         '''
-        Look ahead to see what (new) entities we will have and updated the graph (nodes,
-        node_paths etc) accordingly.
-        Return lists of entities at the end of encoder sequence and decoder sequence
-        respectively, so that the encoder an decoder can update the utterance matrix
-        accordingly.
+        Update graph: add new entities tokens.
+        Return lists of entities at the end of the sequence of tokens so that the encoder
+        or decoder can update the utterance matrix accordingly.
         '''
-        self.update_entities(encoder_tokens)
-        if encoder_tokens is None:
-            encoder_entity_lists = [[] for graph in self.graphs]
+        if tokens is not None:
+            self.update_entities(tokens)
+            entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
+            return entity_lists
         else:
-            encoder_entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
-
-        self.update_entities(decoder_tokens)
-        decoder_entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
-
-        return encoder_entity_lists, decoder_entity_lists
+            return [[] for graph in self.graphs]
 
     def _batch_zero_utterances(self, max_num_nodes):
         # Plus one because the last utterance is the padding.
@@ -172,10 +171,11 @@ class GraphBatch(object):
           we will get updated utterance matrices from GraphEmbedder.
         - node_ids, entity_ids, paths, node_paths, node_feats
         '''
-        encoder_entity_lists, decoder_entity_lists = self.update_graph(encoder_tokens, decoder_tokens)
+        encoder_entity_lists = self.update_graph(encoder_tokens)
+        decoder_entity_lists = self.update_graph(decoder_tokens)
 
         max_num_nodes = self._max_num_nodes()
-        if not utterances:
+        if utterances is None:
             utterances = self._batch_zero_utterances(max_num_nodes)
         else:
             utterances = self.update_utterances(utterances, max_num_nodes)
@@ -184,6 +184,7 @@ class GraphBatch(object):
         max_num_paths_per_node = self._max_num_paths_per_node()
         batch = {
                  'node_ids': self._batch_node_ids(max_num_nodes),
+                 'mask': self._batch_mask(max_num_nodes),
                  'entity_ids': self._batch_entity_ids(max_num_nodes),
                  'paths': self._batch_paths(max_num_paths),
                  'node_paths': self._batch_node_paths(max_num_nodes, max_num_paths_per_node),
