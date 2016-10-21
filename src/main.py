@@ -13,7 +13,7 @@ from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
-from model.encdec import BasicEncoder, BasicDecoder, BasicEncoderDecoder, GraphEncoder, GraphDecoder, GraphEncoderDecoder, add_model_arguments
+from model.encdec import BasicEncoder, BasicDecoder, BasicEncoderDecoder, GraphEncoder, GraphDecoder, GraphEncoderDecoder, CopyGraphDecoder, add_model_arguments
 from model.learner import add_learner_arguments, Learner
 from model.evaluate import Evaluator
 from model.graph import Graph, GraphMetadata, add_graph_arguments
@@ -82,7 +82,8 @@ if __name__ == '__main__':
 
     # Dataset
     use_kb = False if args.model == 'encdec' else True
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, schema, lexicon, mappings, use_kb)
+    copy = True if args.model == 'attn-copy-encdec' else False
+    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, schema, lexicon, args.num_items, mappings, use_kb, copy)
     for d in data_generator.num_examples:
         logstats.add('data', d, 'num_dialogues', data_generator.num_examples[d])
     logstats.add('vocab_size', data_generator.vocab.size)
@@ -116,31 +117,11 @@ if __name__ == '__main__':
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
         if args.model == 'attn-encdec':
             decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
-            model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
+        elif args.model == 'attn-copy-encdec':
+            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
+        model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
     else:
         raise ValueError('Unknown model')
-
-    #tf.reset_default_graph()
-    #tf.set_random_seed(args.random_seed)
-    #kg = None
-    #if args.model == 'encdec':
-    #    model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
-    #elif args.model.startswith('attn'):
-    #    # Build graph embedding model
-    #    max_degree = args.num_items + len(schema.attributes)
-    #    Graph.static_init(schema, mappings['entity'], mappings['relation'], args.rnn_size, max_degree=max_degree, entity_hist_len=args.entity_hist_len)
-    #    max_num_nodes = args.num_items * len(schema.attributes) * 2
-    #    num_edge_labels = Graph.relation_map.size
-    #    kg = GraphEmbed(max_num_nodes, num_edge_labels, args.node_embed_size, args.edge_embed_size, args.rnn_size, Graph.feat_size, entity_cache_size=args.entity_cache_size, mp_iter=args.mp_iter, message=args.combine_message, num_entities=Graph.entity_map.size, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding)
-
-    #    if args.model == 'attn-encdec':
-    #        model = AttnEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
-    #    elif args.model == 'attn-copy-encdec':
-    #        model = AttnCopyEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
-    #    else:
-    #        raise ValueError('Unknown model')
-    #else:
-    #    raise ValueError('Unknown model')
 
     # Tensorflow config
     if args.gpu == 0:

@@ -33,10 +33,11 @@ def schema():
 
 @pytest.fixture(scope='session')
 def metadata(schema):
-    entity_map, relation_map = build_schema_mappings(schema)
+    num_items = 4
+    entity_map, relation_map = build_schema_mappings(schema, num_items)
     return GraphMetadata(schema, entity_map, relation_map, 3, 15, max_degree=max_degree)
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def graph(metadata, schema):
     Graph.metadata = metadata
     items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
@@ -44,14 +45,14 @@ def graph(metadata, schema):
     kb = KB.from_dict(schema, items)
     return Graph(kb)
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def graph2(schema):
     items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'reading'},\
              {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
     kb = KB.from_dict(schema, items)
     return Graph(kb)
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 def graph_batch(graph, graph2):
     return GraphBatch((graph, graph2))
 

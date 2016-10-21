@@ -5,7 +5,6 @@ Main learning loop.
 import os
 import time
 import tensorflow as tf
-from preprocess import int_to_text
 from lib import logstats
 from vocab import is_entity
 import resource
@@ -70,12 +69,11 @@ class Learner(object):
 
     def _print_batch(self, inputs, targets, preds, loss):
         # Go over each example in the batch
-        vocab = self.data.vocab
         for i in xrange(inputs.shape[0]):
             print i
-            print 'INPUT:', int_to_text(inputs[i], vocab)
-            print 'TARGET:', int_to_text(targets[i], vocab)
-            print 'PRED:', int_to_text(preds[i], vocab)
+            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i])
+            print 'TARGET:', self.data.textint_map.int_to_text(targets[i])
+            print 'PRED:', self.data.textint_map.int_to_text(preds[i])
         print 'BATCH LOSS:', loss
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
@@ -88,6 +86,14 @@ class Learner(object):
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data)
+            if self.data.copy:
+                new_targets = graphs.copy_targets(batch['targets'], self.data.vocab.size)
+                new_encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.data.vocab)
+                new_decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.data.vocab)
+                feed_dict = self.model.update_feed_dict(feed_dict=feed_dict,
+                        targets=new_targets,
+                        encoder_inputs=new_encoder_inputs,
+                        decoder_inputs=new_decoder_inputs)
             if test:
                 logits, final_state, utterances, loss = sess.run([self.model.logits, self.model.decoder_final_state, self.model.decoder_output_utterances, self.model.loss], feed_dict=feed_dict)
             else:
@@ -97,6 +103,7 @@ class Learner(object):
 
             if self.verbose:
                 preds = self.model.get_prediction(logits)
+                preds = graphs.copy_preds(preds, self.data.vocab.size)
                 self._print_batch(batch['encoder_inputs'], batch['targets'], preds, loss)
 
             logstats.update_summary_map(summary_map, {'loss': loss})

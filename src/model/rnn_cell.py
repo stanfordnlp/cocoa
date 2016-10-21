@@ -133,7 +133,8 @@ class AttnRNNCell(object):
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
             weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
-            # TODO: try setting padded attn_scores to -inf here. This has caused difficulty in optimization though.
+            neginf = float('-inf') * tf.ones_like(context_mask, dtype=tf.float32)
+            masked_attn_scores = tf.select(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
     def __call__(self, inputs, state, scope=None):
@@ -147,27 +148,3 @@ class AttnRNNCell(object):
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context)
-
-    def __call__old(self, inputs, state, scope=None):
-        with tf.variable_scope(scope or type(self).__name__):
-            inputs, entities, updates = inputs
-            prev_rnn_state, prev_attn, prev_context = state
-            # RNN step
-            new_inputs = tf.concat(1, [inputs, prev_attn])
-            output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
-            def new_context():
-                # Update graph
-                utterances = self.kg.update_utterance(entities, output)
-                # Compute attention
-                # context: batch_size x context_len x context_size
-                new_context = self.kg.get_context(utterances)
-                return new_context
-            #context = tf.cond(tf.reshape(updates, []), \
-            #        lambda : new_context(), \
-            #        lambda : prev_context)
-            context = new_context()
-            attn, attn_scores = self.compute_attention(output, context, self.rnn_size)
-            # Output
-            new_output = self.output(output, attn)
-            return (new_output, attn_scores), (rnn_state, attn, context)
-

@@ -25,14 +25,15 @@ def tokenize(utterance):
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     return tokens
 
-def build_schema_mappings(schema, offset=0, disjoint=False):
-    offset = offset if disjoint else 0
-    entity_map = Vocabulary(offset=offset, unk=True, pad=False)
+def build_schema_mappings(schema, num_items):
+    entity_map = Vocabulary(unk=True, pad=False)
     for type_, values in schema.values.iteritems():
         entity_map.add_words(((value.lower(), type_) for value in values))
+    # Add item nodes
+    for i in xrange(num_items):
+        entity_map.add_word(('item-%d' % i, 'item'))
 
-    offset = offset + entity_map.size if disjoint else 0
-    relation_map = Vocabulary(offset=offset, unk=False, pad=False)
+    relation_map = Vocabulary(unk=False, pad=False)
     attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
     relation_map.add_words((a.lower() for a in attribute_types.keys()))
 
@@ -61,18 +62,39 @@ def build_vocab(dialogues, special_symbols=[], add_entity=True):
     vocab.add_words(special_symbols)
     return vocab
 
-#def text_to_int(tokens, vocab, entity_map):
-#    # Use canonical string for entities
-#    return [vocab.to_ind(token) if not is_entity(token) else entity_map.to_ind(token[1]) if entity_map else vocab.to_ind(token[1]) for token in tokens]
+class TextIntMap(object):
+    '''
+    Map between text and int for visualizing results.
+    '''
+    def __init__(self, vocab, entity_map, copy):
+        self.vocab = vocab
+        self.entity_map = entity_map
+        self.copy = copy
 
-def text_to_int(tokens, vocab):
-    # We look for the caninical form (token[1]) of an entity in the vocab
-    return [vocab.to_ind(token) if not is_entity(token) else vocab.to_ind(token[1]) for token in tokens]
+    def text_to_int(self, tokens):
+        '''
+        Look up tokens in vocab; if entity_map is not used, look up for an entity using its
+        canonical form (token[1]) in vocab; otherwise look up it in the entity_map and make
+        sure the id is disjoint with the vocab id by adding an offset.
+        '''
+        if not self.copy:
+            return [self.vocab.to_ind(token) if not is_entity(token) else self.vocab.to_ind(token[1]) for token in tokens]
+        else:
+            offset = self.vocab.size
+            return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token[1]) + offset for token in tokens]
 
-def int_to_text(inds, vocab):
-    return [vocab.to_word(ind) for ind in inds]
+    def int_to_text(self, inds):
+        '''
+        Inverse of text_to_int.
+        '''
+        if not self.copy:
+            return [self.vocab.to_word(ind) for ind in inds]
+        else:
+            return [self.vocab.to_word(ind) if ind < self.vocab.size else self.entity_map.to_word(ind - self.vocab.size) for ind in inds]
 
 class Dialogue(object):
+    textint_map = None
+
     def __init__(self, kbs, turns=None, agents=None):
         '''
         Dialogue data that is needed by the model.
@@ -95,13 +117,13 @@ class Dialogue(object):
             self.agents.append(agent)
             self.turns.append([utterance])
 
-    def convert_to_int(self, vocab, entity_map=None, keep_tokens=False):
+    def convert_to_int(self, keep_tokens=False):
         if self.is_int:
             return
         if keep_tokens:
             self.token_turns = copy.copy(self.turns)
         for i, turn in enumerate(self.turns):
-            self.turns[i] = [text_to_int(utterance, vocab) for utterance in turn]
+            self.turns[i] = [self.textint_map.text_to_int(utterance) for utterance in turn]
         self.is_int = True
 
     def flatten_turns(self):
@@ -249,17 +271,18 @@ class DialogueBatch(object):
 
 # TODO: separate Preprocessor (currently the constructor of DataGenerator)
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, schema, lexicon, mappings=None, use_kb=False):
+    def __init__(self, train_examples, dev_examples, test_examples, schema, lexicon, num_items, mappings=None, use_kb=False, copy=False):
         # TODO: change basic/dataset so that it uses the dict structure
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.lexicon = lexicon
-        self.use_kb = use_kb
+        self.use_kb = use_kb  # Whether to generate graph
+        self.copy = copy
 
         self.dialogues = self.preprocess(examples)
 
         if not mappings:
-            self.create_mappings(schema)
+            self.create_mappings(schema, num_items)
         else:
             self.vocab = mappings['vocab']
             self.entity_map = mappings['entity']
@@ -268,7 +291,10 @@ class DataGenerator(object):
         print 'Entity size:', self.entity_map.size
         print 'Relation size:', self.relation_map.size
 
-        # Convert dialogue utterances to integers
+        self.textint_map = TextIntMap(self.vocab, self.entity_map, copy)
+        Dialogue.textint_map = self.textint_map
+
+        # Convert dialogue utterances to integers (requires textint_map)
         self.convert_to_int()
 
         # Convert special symbols to integer
@@ -277,14 +303,11 @@ class DataGenerator(object):
         EOU = self.vocab.to_ind(EOU)
         PAD = self.vocab.to_ind(self.vocab.PAD)
 
-    def create_mappings(self, schema):
-        # NOTE: DISABLED NOW.
-        # vocab, entity_map and relation_map have disjoint mappings so that we can
-        # tell if an integer represents an entity or a token
+    def create_mappings(self, schema, num_items):
         self.vocab = build_vocab(self.dialogues['train'], markers, add_entity=True)
-        self.entity_map, self.relation_map = build_schema_mappings(schema, offset=self.vocab.size, disjoint=False)
+        self.entity_map, self.relation_map = build_schema_mappings(schema, num_items)
 
-    def convert_to_int(self, entity_map=None):
+    def convert_to_int(self):
         '''
         Convert tokens to integers.
         '''
@@ -292,7 +315,7 @@ class DataGenerator(object):
             #keep_tokens = True if fold in ['dev', 'test'] else False
             keep_tokens = True
             for dialogue in dialogues:
-                dialogue.convert_to_int(self.vocab, entity_map=entity_map, keep_tokens=keep_tokens)
+                dialogue.convert_to_int(keep_tokens=keep_tokens)
 
     def _process_example(self, ex):
         '''

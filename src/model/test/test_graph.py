@@ -1,10 +1,11 @@
 import pytest
 from model.graph import Graph, GraphMetadata, GraphBatch
 from basic.schema import Schema
-from model.preprocess import build_schema_mappings
 from basic.kb import KB
 import numpy as np
-from numpy.testing import assert_array_equal
+from numpy.testing import assert_array_equal, assert_equal
+from model.vocab import Vocabulary
+from model.preprocess import TextIntMap
 
 class TestGraph(object):
     def test_mappings(self, graph, capsys):
@@ -71,7 +72,7 @@ class TestGraph(object):
         max_num_nodes = 5
         utterances = graph_batch.update_utterances(utterances, max_num_nodes)
 
-        x = np.zeros([max_num_nodes+1, Graph.metadata.utterance_size])
+        x = np.zeros([Graph.metadata.max_num_entities+1, Graph.metadata.utterance_size])
         x[:3, :] = 1
         expected = np.tile(np.expand_dims(x, 0), [2, 1, 1])
         assert_array_equal(utterances, expected)
@@ -92,9 +93,26 @@ class TestGraph(object):
 
         max_num_nodes = graph_batch._max_num_nodes()
         assert max_num_nodes == 12
-        assert batch['utterances'].shape[1] == max_num_nodes + 1
+        assert batch['utterances'].shape[1] >= max_num_nodes + 1
 
         with capsys.disabled():
             for k, v in batch.iteritems():
                 print k
                 print v
+
+    def test_copy(self, graph_batch, metadata, capsys):
+        vocab = Vocabulary(unk=False, pad=False)
+        vocab.add_words(['work', 'like', ('alice', 'person'), ('hiking', 'hobby')])
+        alice = metadata.entity_map.to_ind(('alice', 'person')) + vocab.size
+        hiking = metadata.entity_map.to_ind(('hiking', 'hobby')) + vocab.size
+        targets = np.array([[0, alice, hiking],
+                            [1, alice, hiking]])
+        textint_map = TextIntMap(vocab, metadata.entity_map, True)
+
+        new_targets = graph_batch.copy_targets(targets, vocab.size)
+        assert graph_batch.graphs[0].nodes.to_word(new_targets[0][1]-vocab.size) == ('alice', 'person')
+        assert graph_batch.graphs[0].nodes.to_word(new_targets[0][2]-vocab.size) == ('hiking', 'hobby')
+        preds = graph_batch.copy_preds(new_targets, vocab.size)
+        tokens = textint_map.int_to_text(preds[0])
+        expected = ['work', ('alice', 'person'), ('hiking', 'hobby')]
+        assert_equal(tokens, expected)

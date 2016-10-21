@@ -4,9 +4,9 @@ from tensorflow.python.ops.rnn_cell import _linear as linear
 from util import batch_embedding_lookup, batch_linear
 
 def add_graph_embed_arguments(parser):
-    parser.add_argument('--node-embed-size', default=50, help='Knowledge graph node/subgraph embedding size')
-    parser.add_argument('--edge-embed-size', default=20, help='Knowledge graph edge label embedding size')
-    parser.add_argument('--entity-embed-size', default=50, help='Knowledge graph entity embedding size')
+    parser.add_argument('--node-embed-size', default=10, help='Knowledge graph node/subgraph embedding size')
+    parser.add_argument('--edge-embed-size', default=10, help='Knowledge graph edge label embedding size')
+    parser.add_argument('--entity-embed-size', default=10, help='Knowledge graph entity embedding size')
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=1, help='Number of iterations of message passing on the graph')
@@ -111,6 +111,7 @@ class GraphEmbedder(object):
                     # It saves some reshapes to do batch_linear and batch_embedding_lookup
                     # together, but this way is clearer.
                     # TODO: initial_node_embed: just concat is fine, don't do linear
+                    #return tf.nn.embedding_lookup(self.entity_embedding, entity_ids), mask
                     if self.config.use_entity_embedding:
                         initial_node_embed = batch_linear([tf.nn.embedding_lookup(self.entity_embedding, entity_ids), batch_embedding_lookup(utterances, node_ids), node_feats], self.config.node_embed_size, True)
                     else:
@@ -133,7 +134,7 @@ class GraphEmbedder(object):
             raise ValueError('Unknown message combining method')
 
         # Set padded context to zero
-        context = context * tf.to_float(tf.expand_dims(mask, 2))
+        #context = context * tf.to_float(tf.expand_dims(mask, 2))
 
         self.context_initialized = True
         return context, mask

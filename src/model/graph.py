@@ -22,7 +22,7 @@ class GraphMetadata(object):
         self.attribute_types = schema.get_attributes()
 
         # Entity to id
-        # TODO: add item node and attr node
+        # TODO: add attribute nodes
         self.entity_map = entity_map
 
         # Relation to id. Add inverse relations.
@@ -128,6 +128,52 @@ class GraphBatch(object):
                 batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
+    def entity_to_vocab(self, inputs, vocab):
+        '''
+        Convert entity ids to vocab ids. In preprocessing we have replaced all entities to
+        entity ids (offset by vocab.size). Now to process them during encoding we need to
+        map them back to vocab ids.
+        '''
+        new_inputs = np.array(inputs)
+        for i, graph in enumerate(self.graphs):
+            for j, t in enumerate(new_inputs[i]):
+                if t >= vocab.size:
+                    entity = Graph.metadata.entity_map.to_word(t - vocab.size)
+                    new_inputs[i][j] = vocab.to_ind(entity)
+        return new_inputs
+
+    def copy_targets(self, targets, vocab_size):
+        '''
+        Replace targets that are entities to node ids, so that we learn to copy them from graph.
+        We assume that entities in targets are mapped by entity_map and offset by vocab.size.
+        '''
+        new_targets = np.array(targets)
+        for i, graph in enumerate(self.graphs):
+            for j, t in enumerate(new_targets[i]):
+                if t >= vocab_size:
+                    entity = Graph.metadata.entity_map.to_word(t - vocab_size)
+                    new_targets[i][j] = graph.nodes.to_ind(entity) + vocab_size
+        return new_targets
+
+    def copy_preds(self, preds, vocab_size, vocab=None):
+        '''
+        Inverse of copy_targets. If vocab is input, convert entities by vocab.
+        '''
+        new_preds = np.array(preds)
+        for i, graph in enumerate(self.graphs):
+            for j, t in enumerate(new_preds[i]):
+                if t >= vocab_size:
+                    try:
+                        entity = graph.nodes.to_word(t - vocab_size)
+                    except KeyError:
+                        new_preds[i][j] = 0
+                        continue
+                    if not vocab:
+                        new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
+                    else:
+                        new_preds[i][j] = vocab.to_ind(entity)
+        return new_preds
+
     def update_graph(self, tokens):
         '''
         Update graph: add new entities tokens.
@@ -136,10 +182,8 @@ class GraphBatch(object):
         '''
         if tokens is not None:
             self.update_entities(tokens)
-            entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
-            return entity_lists
-        else:
-            return [[] for graph in self.graphs]
+        entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
+        return entity_lists
 
     def _batch_zero_utterances(self, max_num_nodes):
         # Plus one because the last utterance is the padding.
@@ -328,6 +372,10 @@ class Graph(object):
         - E.g. I went to Stanford and MIT . => [[], [], [], [Stanford], [Stanford], [Stanford, MIT]]
         '''
         N = len(self.entities)
+        if N == 0:
+            if not last_n:
+                return [[]]
+            return [[] for _ in xrange(last_n)]
         if not last_n:
             position = xrange(N)
         else:

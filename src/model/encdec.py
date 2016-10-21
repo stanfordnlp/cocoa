@@ -17,11 +17,11 @@ from itertools import izip
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
-    parser.add_argument('--rnn-size', type=int, default=50, help='Dimension of hidden units of RNN')
+    parser.add_argument('--rnn-size', type=int, default=20, help='Dimension of hidden units of RNN')
     parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
     parser.add_argument('--num-layers', type=int, default=1, help='Number of RNN layers')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
-    parser.add_argument('--word-embed-size', type=int, default=50, help='Word embedding size')
+    parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     add_attention_arguments(parser)
 
 class BasicEncoder(object):
@@ -183,12 +183,20 @@ class GraphDecoder(GraphEncoder):
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
         outputs, attn_scores = rnn_outputs
-        # TODO: to have encoder continue from decoder's final state, need to decompose it..
-        # currently it's state, attention, context
         return {'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state}
 
 class CopyGraphDecoder(GraphDecoder):
-    pass
+    '''
+    Decoder with copy mechanism over the attention context.
+    '''
+    def _build_output(self, output_dict):
+        '''
+        Take RNN outputs and produce logits over the vocab and the attentions.
+        '''
+        logits = super(CopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
+        attn_scores = transpose_first_two_dims(output_dict['attn_scores'])
+        return tf.concat(2, [logits, attn_scores])
+
 
 class BasicEncoderDecoder(object):
     '''
@@ -214,7 +222,10 @@ class BasicEncoderDecoder(object):
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
         '''
-        batch_size, _, num_symbols = logits.get_shape().as_list()
+        #batch_size, _, num_symbols = logits.get_shape().as_list()
+        shape = tf.shape(logits)
+        batch_size = shape[0]
+        num_symbols = shape[2]
         # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
         logits = tf.reshape(logits, [-1, num_symbols])
         targets = tf.reshape(targets, [-1])
@@ -225,7 +236,7 @@ class BasicEncoderDecoder(object):
         # Average over words in each sequence
         loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights
         # Average over sequences in the batch
-        loss = tf.reduce_sum(loss, 0) / batch_size
+        loss = tf.reduce_sum(loss, 0) / tf.to_float(batch_size)
         return loss
 
     def _encoder_input_dict(self):
@@ -282,11 +293,19 @@ class BasicEncoderDecoder(object):
         return preds
 
     # TODO: put this in evaluator
-    def generate(self, sess, batch, encoder_init_state, max_len, graphs=None, utterances=None):
+    def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None):
+        if copy:
+            encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], vocab)
+            decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], vocab)
+        else:
+            encoder_inputs = batch['encoder_inputs']
+            decoder_inputs = batch['decoder_inputs']
+
+
         # Initial feed dict, with encoder inputs, and </t> to start the decoder
         decoder_inputs_last_inds = np.zeros([self.batch_size], dtype=np.int32)
-        feed_dict = self.update_feed_dict(encoder_inputs=batch['encoder_inputs'],
-                                          decoder_inputs=batch['decoder_inputs'][:, [0]],
+        feed_dict = self.update_feed_dict(encoder_inputs=encoder_inputs,
+                                          decoder_inputs=decoder_inputs[:, [0]],
                                           encoder_inputs_last_inds=batch['encoder_inputs_last_inds'],
                                           decoder_inputs_last_inds=decoder_inputs_last_inds,
                                           encoder_init_state=encoder_init_state)
@@ -300,17 +319,15 @@ class BasicEncoderDecoder(object):
         preds = np.zeros([self.batch_size, max_len], dtype=np.int32)
         true_final_state = None
         for i in xrange(max_len):
-            if graphs is not None and i == 0:
-                # Use the same context through generation
-                logits, final_state = sess.run([self.logits, self.decoder_final_state], feed_dict=feed_dict)
-            else:
-                logits, final_state = sess.run([self.logits, self.decoder_final_state], feed_dict=feed_dict)
+            logits, final_state = sess.run([self.logits, self.decoder_final_state], feed_dict=feed_dict)
             # After step 0, we will use our prediction as input instead of the ground true
             if i == 0:
                 true_final_state = final_state
-            decoder_inputs = self.get_prediction(logits)
-            preds[:, [i]] = decoder_inputs
-            feed_dict = self.update_feed_dict(decoder_inputs=decoder_inputs,
+            step_decoder_inputs = self.get_prediction(logits)
+            preds[:, [i]] = step_decoder_inputs
+            if copy:
+                step_decoder_inputs = graphs.copy_preds(step_decoder_inputs, vocab.size, vocab)
+            feed_dict = self.update_feed_dict(decoder_inputs=step_decoder_inputs,
                                               decoder_inputs_last_inds=decoder_inputs_last_inds,
                                               decoder_init_state=final_state)
 
@@ -320,7 +337,7 @@ class BasicEncoderDecoder(object):
         # NOTE: we get <0 indices when this is a padded turn, i.e. </t> <pad> <pad> ...
         # At real test time, we want to use batch_size = 1 so this shouldn't happen
         decoder_inputs_last_inds[decoder_inputs_last_inds < 0] = 0
-        feed_dict = self.update_feed_dict(decoder_inputs=batch['decoder_inputs'][:, 1:],
+        feed_dict = self.update_feed_dict(decoder_inputs=decoder_inputs[:, 1:],
                                           decoder_inputs_last_inds=decoder_inputs_last_inds,
                                           decoder_init_state=true_final_state)
         if graphs is not None:
@@ -330,8 +347,8 @@ class BasicEncoderDecoder(object):
             # the decoder_tokens. The utterances is the utterances before runing through the
             # encoder, and it is resized according to the new graph structure if necessary.
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], utterances)
-            feed_dict = self.update_feed_dict(encoder_inputs=batch['encoder_inputs'],
-                    decoder_inputs=batch['decoder_inputs'],
+            feed_dict = self.update_feed_dict(encoder_inputs=encoder_inputs,
+                    decoder_inputs=decoder_inputs,
                     encoder_inputs_last_inds=batch['encoder_inputs_last_inds'],
                     decoder_inputs_last_inds=batch['decoder_inputs_last_inds'],
                     encoder_init_state=encoder_init_state,
@@ -395,28 +412,3 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
                     graph_data['node_feats']))
         return feed_dict
 
-#class AttnCopyEncoderDecoder(AttnEncoderDecoder):
-#    '''
-#    Encoder-decoder RNN with attention + copy mechanism over a sequence with conditional write.
-#    Attention context is built from knowledge graph (Graph object).
-#    Optionally copy from an entity in the knowledge graph.
-#    '''
-#
-#    def __init__(self, vocab, rnn_size, kg, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
-#        super(AttnCopyEncoderDecoder, self).__init__(vocab, rnn_size, kg, rnn_type, num_layers, scoring, output)
-#
-#    def _build_output(self, h, h_size):
-#        token_scores = super(AttnCopyEncoderDecoder, self)._build_output(h, h_size)
-#        h, attn_scores = h
-#        return tf.concat(1, [token_scores, attn_scores])
-#
-#    def update_feed_dict(self, feed_dict, inputs, init_state, targets=None, graph=None, iswrite=None):
-#        # Don't update targets in parent
-#        super(AttnCopyEncoderDecoder, self).update_feed_dict(feed_dict, inputs, init_state, graph=graph, iswrite=iswrite)
-#        if targets is not None:
-#            feed_dict[self.targets] = graph.copy_target(targets, iswrite, self.vocab)
-#
-#    def get_prediction(self, outputs, graph):
-#        preds = super(AttnCopyEncoderDecoder, self).get_prediction(outputs)
-#        preds = graph.copy_output(preds, self.vocab)
-#        return preds
