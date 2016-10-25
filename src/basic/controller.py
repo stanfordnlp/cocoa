@@ -60,6 +60,10 @@ class Controller(object):
         with self.lock:
             # try to send messages from one session to the other(s)
             for agent, session in enumerate(self.sessions):
+                if session is None:
+                    # fail silently, this means that the session has been reset and the controller is effectively
+                    # inactive
+                    continue
                 event = session.send()
                 if event is None:
                     continue

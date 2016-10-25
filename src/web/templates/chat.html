@@ -1,6 +1,6 @@
 <html>
     <head>
-    	<title>Who's Our Mutual Friend?</title>
+    	<title>{{ title }}</title>
 		<style>
 			.clearfix {
 				overflow: auto;
@@ -82,32 +82,37 @@
 		<script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
 		<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
 		<script type="text/javascript" charset="utf-8">
-			var socket, validCheckInterval;
+			var validCheckInterval, inboxCheckInterval;
+			var BASE_URL = 'http://' + document.domain + ':' + location.port;
 			var selectTime = null;
 			$(document).ready(function(){
-				socket = io.connect('http://' + document.domain + ':' + location.port+'/chat');
-				socket.on('connect', function() {
-					socket.emit('joined', {});
-				});
-				socket.on('message', function(data) {
-					$('#chat').val($('#chat').val() + data.msg + '\n');
-					$('#chat').scrollTop($('#chat')[0].scrollHeight);
-				});
-				socket.on('disconnect', function() {
-					socket.disconnect();
-					clearInterval(validCheckInterval);
-				});
-				socket.on('endchat', function(data) {
-					clearInterval(validCheckInterval);
-					window.location.reload(true);
-				});
+				$.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+
+            	$.ajax({
+            		url: BASE_URL + '/_join_chat/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}"},
+            		dataType: "json",
+            		success: function(response) {
+            			displayText(response['message']);
+            		}
+            	});
+		
+				inboxCheckInterval = setInterval(checkInbox, 1000);
+				validCheckInterval = setInterval(pollServer, 3000);
+				window.onbeforeunload = disconnect;
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;
 					console.log(code);
 					if (code == 13) {
 						text = $('#text').val();
 						$('#text').val('');
-						socket.emit('text', {msg: text});
+						sendMessage(text);
 					}
 				});
 		
@@ -116,34 +121,100 @@
 					if(selectTime == null) {
 						// if no selection has been made before, log selection and save selection time
 						selectTime = new Date();
-						socket.emit('select', {selection: selected});
+						select(selected);
 					}
 					else {
 						var currentTime = new Date();
 						// check if last selection was more than 10 seconds ago; selections can only be made > 10 seconds apart.
 						// If the last selection was made < 10 seconds ago, do nothing (no selection event is logged).
 						if ((currentTime - selectTime) > 10000) {
-							socket.emit('select', {selection: selected});
+							select(selected);
 							selectTime = currentTime;
 						} // otherwise do nothing
 					}
 				});
-		
-				inboxCheckInterval = setInterval(checkInbox, 1000);
-				validCheckInterval = setInterval(pollServer, 3000);
 			});
-	
-			function checkInbox() {
-				socket.emit('check_inbox', {});
+			
+			
+			function displayText(message) {
+				$('#chat').val($('#chat').val() + message + '\n');
+				$('#chat').scrollTop($('#chat')[0].scrollHeight);
 			}
 
-			function pollServer() {
-				socket.emit('is_chat_valid', {}, function(data) {
-					if (!data['valid']) { 
-						window.location.reload(true);   
+			function sendMessage(message) {
+				$.ajax({
+					url: BASE_URL + '/_send_message/',
+					type: "get",
+					data: {
+						"uid": "{{ uid }}",
+						"message": message
+					},
+					dataType: "json",
+					success: function(response) {
+						displayText(response['message']);
 					}
 				});
 			}
+			function select(selection) {
+				$.ajax({
+					url: BASE_URL + '/_select_option/',
+					type: "get",
+					data: { 
+						"uid": "{{ uid }}",
+						"selection": selection
+					},
+					dataType: "json",
+					success: function(response) {
+						displayText(response['message']);
+					}
+
+				});
+			}
+			function checkInbox() {
+				$.ajax({
+					url: BASE_URL + '/_check_inbox/',
+					type: "get",
+					data: { "uid": "{{ uid }}" },
+					dataType: "json",
+					success: function(response) {
+						if(response['received']	) {
+							displayText(response['message']);
+						}
+					}
+				});
+			}
+
+			function pollServer() {
+				$.ajax({
+					url: BASE_URL + '/_check_chat_valid/',
+					type: "get",
+					data: {"uid": "{{ uid }}"},
+					dataType: "json",
+					success: function(response) {
+						if(!response['valid']) {
+							disconnect();
+							window.location.reload(true);
+						}
+					}
+				})
+				
+			}
+
+			function disconnect() {
+            	clearInterval(validCheckInterval);
+            	clearInterval(inboxCheckInterval);
+            	console.log("Disconnecting from server....");
+            	$.ajax({
+            		url: BASE_URL + '/_leave_chat/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}"}
+            	})
+            	$.ajax({
+            		url: BASE_URL + '/_disconnect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" }
+            	});
+            }
 
 		</script>
 
@@ -191,25 +262,8 @@
       <div class="clearfix">
     <div id="chat_container">
     <div id="instructions">
-        <h1 style="color:#004d00">Who's Our Mutual Friend?</h1>
-        <p>
-            You and another user online have exactly one mutual friend in common. Your goal is to find that mutual friend!
-        </p>
-	<h2>Instructions</h2>
-	<ul>
-		<li style="color:#FF0000">Please use <b> natural sentences </b> as much as possible.
-			<ul>
-				<li style="color:#009933"> <b>Do:<b> three of my friends went to ut austin</li>
-				<li style="color:#FF0000"> <b>Don't do:<b> 3 ut austin</li>
-			</ul>
-		 </li>
-		<li style="color:#FF0000">Avoid simply listing out the names of your friends.</li>
-		<li> Look at your <b>list of friends</b> at right. </li>
-		<li> Use the <b>chat box below</b> to find out more about the other user's friends and discover your mutual friend. </li>
-		<li> Once you've found out who it is, select their <b>number</b> (the first column) from the <b>drop down list on the right</b>.
-		<li style="color:#FF0000"><b>Please select carefully</b>. If you select a friend once, the website will not allow you to select another friend for 10 seconds after your first selection.</li>
-	  
-	</ul>
+        <h1 style="color:#004d00">{{ title}}</h1>
+        {{ instructions }}
 	</div>
 
         <div id="clockdiv" align="right">
@@ -255,12 +309,12 @@
 				{% endfor %}
 			</tbody>
 			</table>
-			<h3>Choose a friend below:</h3>
+			<h3>Choose an option below:</h3>
 				<select id="itemSelection">
-					<option value="-1">Select a friend</option>
+					<option value="-1">Select..</option>
 					{% set ctr = 0 %}
 					{% for item in kb %}
-					<option value={{ctr}}>Friend {{ ctr+1 }}</option>
+					<option value={{ctr}}>{{ ctr+1 }}</option>
 					{% set ctr = ctr + 1 %}
 					{% endfor %}
 				</select>

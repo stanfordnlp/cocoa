@@ -9,7 +9,6 @@ from web_utils import get_backend
 from routes import userid
 from src.basic.event import Event
 
-date_fmt = '%m-%d-%Y:%H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -173,14 +172,4 @@ def emit_message_to_self(message, status_message=False):
 def emit_message_to_chat_room(message, status_message=False):
     fmt_message = format_message(message, status_message)
     emit('message', {'msg': fmt_message}, room=session["room"])
-
-
-def start_chat():
-    backend = get_backend()
-    uid = userid()
-    chat_info = backend.get_chat_info(uid)
-    backend.send(uid,
-                 Event.JoinEvent(chat_info.agent_index,
-                                 uid,
-                                 datetime.now().strftime(date_fmt)))
 

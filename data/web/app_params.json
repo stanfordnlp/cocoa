@@ -20,6 +20,8 @@
     "scenarios_json_file": "/Users/anushabala/projects/game-dialogue/data/friends-scenarios-large.json",
     "connection_timeout_num_seconds": 3,
     "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates",
-    "end_survey": 0
+    "end_survey": 0,
+    "instructions": "/Users/anushabala/projects/game-dialogue/data/web/mutual-friends-instructions.html",
+    "task_title": "Who's Our Mutual Friend?"
 }
 

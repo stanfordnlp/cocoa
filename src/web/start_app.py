@@ -14,12 +14,13 @@ from src.basic.event import Event
 from src.basic.dataset import Example
 from src.basic.kb import KB
 from src.basic.util import read_json
-from src.web import create_app, socketio
+from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
 from main import backend
+from gevent.wsgi import WSGIServer
 
 __author__ = 'anushabala'
 
@@ -120,10 +121,11 @@ def log_events_to_json(scenario_db, db_path, json_path):
         logged_events = cursor.fetchall()
         cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', chat_id)
         (uuid, outcome) = cursor.fetchone()
-        print uuid, outcome
         outcome = json.loads(outcome)
         chat_events = []
         for (agent, action, time, data) in logged_events:
+            if action == 'join' or action == 'leave':
+                continue
             if action == 'select':
                 data = KB.string_to_ordered_item(data)
             event = Event(agent, time, action, data)
@@ -135,8 +137,6 @@ def log_events_to_json(scenario_db, db_path, json_path):
     json.dump([ex.to_dict() for ex in examples], outfile)
     outfile.close()
     conn.close()
-
-
 
 
 def init(output_dir):
@@ -174,6 +174,18 @@ if __name__ == "__main__":
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
 
+    if 'task_title' not in params.keys():
+        raise ValueError("Title of task should be specified in config file with the key 'task_title'")
+
+    instructions = None
+    if 'instructions' in params.keys():
+        instructions_file = open(params['instructions'], 'r')
+        instructions = "".join(instructions_file.readlines())
+        instructions_file.close()
+    else:
+        raise ValueError("Location of file containing instructions for task should be specified in config with the key "
+                         "'instructions")
+
     templates_dir = None
     if 'templates_dir' in params.keys():
         templates_dir = params['templates_dir']
@@ -208,6 +220,9 @@ if __name__ == "__main__":
     app.config['user_params'] = params
     app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)
-
+    app.config['instructions'] = instructions
+    app.config['task_title'] = params['task_title']
     atexit.register(cleanup, flask_app=app)
-    socketio.run(app, host=args.host, port=args.port)
+
+    server = WSGIServer(('', args.port), app)
+    server.serve_forever()

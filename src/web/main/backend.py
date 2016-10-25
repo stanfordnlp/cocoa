@@ -370,7 +370,6 @@ class BackendConnection(object):
         with self.conn:
             cursor = self.conn.cursor()
             now = current_timestamp_in_seconds()
-            logger.debug("Created user %s" % username[:6])
             cursor.execute('''INSERT OR IGNORE INTO active_user VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                            (username, Status.Waiting, now, 0, now, "", -1, "", "", "", -1, -1, ""))
 
@@ -601,7 +600,6 @@ class BackendConnection(object):
                     if u.status == Status.Waiting:
                         logger.debug("User %s is waiting. Checking if other users are available for chat..")
                         self.attempt_join_room(userid)
-                        u = self._get_user_info(cursor, userid, assumed_status=assumed_status)
                     logger.debug("Returning TRUE (user status hasn't changed)")
                     return True
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
@@ -616,6 +614,12 @@ class BackendConnection(object):
             print("WARNING: Rolled back transaction")
 
     def receive(self, userid):
+        controller = self.controller_map[userid]
+        if controller is None:
+            # fail silently - this just means that receive is called between the time that the chat has ended and the
+            # time that the page is refreshed
+            return None
+        controller.step()
         session = self._get_session(userid)
         return session.poll_inbox()
 
@@ -639,6 +643,10 @@ class BackendConnection(object):
         session = self._get_session(userid)
         session.enqueue(event)
         controller = self.controller_map[userid]
+        if controller is None:
+            # fail silently because this just means that the user tries to send something after their partner has left
+            # (but before the chat has ended)
+            return None
         controller.step()
         self.add_event_to_db(controller.get_chat_id(), event)
 
