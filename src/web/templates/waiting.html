@@ -36,6 +36,7 @@
             		dataType: "json"
             	});
           		pollInterval = setInterval(pollServer, 1000);
+                window.onbeforeunload = disconnect;
             });
     
             function pollServer() {

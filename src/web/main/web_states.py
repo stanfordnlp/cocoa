@@ -18,8 +18,7 @@ class WaitingState(object):
 
 
 class UserChatState(object):
-    def __init__(self, room_id, agent_index, scenario_id, chat_id, kb, num_seconds):
-        self.room_id = room_id
+    def __init__(self, agent_index, scenario_id, chat_id, kb, num_seconds):
         self.agent_index = agent_index
         self.scenario_id = scenario_id
         self.chat_id = chat_id
@@ -27,8 +26,7 @@ class UserChatState(object):
         self.num_seconds = num_seconds
 
     def to_dict(self):
-        return {"room": self.room_id,
-                "agent_index": self.agent_index,
+        return {"agent_index": self.agent_index,
                 "scenario_id": self.scenario_id,
                 "chat_id": self.chat_id,
                 "kb": self.kb.to_dict(),

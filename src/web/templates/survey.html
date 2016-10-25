@@ -12,22 +12,41 @@
         <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
         <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
         <script type="text/javascript" charset="utf-8">
-            var socket;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
             $(document).ready(function() {
-                socket = io.connect('http://' + document.domain + ':' + location.port+'/main');
-                socket.on('disconnect', function() {
-                	socket.disconnect();
-                });
+                $.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
             });
             
 			function validateAndSubmit() {
-				data = validateData();
-				if (data['valid']) {
-					socket.emit('submit_survey', data, function() {
-						window.location.reload(true);
-					});
+				formData = validateData();
+				responseData = {"uid": "{{ uid }}", "response": formData};
+				if (formData['valid']) {
+					$.ajax({
+						url: BASE_URL + '/_submit_survey/',
+						type: "post",
+						data: JSON.stringify(responseData),
+						contentType: 'application/json; charset=utf-8',
+						success: function(response) {
+							window.location.reload(true);
+						}
+					})
 				}
 			}
+
+			function disconnect() {
+            	$.ajax({
+            		url: BASE_URL + '/_disconnect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+            }
+
 			function validateData() {
 				q1_response = $('input[name="q1"]:checked').val();
 				q2_response = $('input[name="q2"]:checked').val();
@@ -43,6 +62,7 @@
 						'question2':q2_response,
 						'valid':true};
 			}
+
 		</script>
     </head>
     <body>

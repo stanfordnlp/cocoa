@@ -2,7 +2,7 @@ import json
 
 __author__ = 'anushabala'
 import uuid
-from src.web.main.web_sessions import FinishedState, UserChatState, WaitingState
+from src.web.main.web_states import FinishedState, UserChatState, WaitingState
 import hashlib
 import sqlite3
 import time
@@ -83,13 +83,12 @@ class User(object):
         self.connected_status = row[3]
         self.connected_timestamp = row[4]
         self.message = row[5]
-        self.room_id = row[6]
-        self.partner_type = row[7]
-        self.partner_id = row[8]
-        self.scenario_id = row[9]
-        self.agent_index = row[10]
-        self.selected_index = row[11]
-        self.chat_id = row[12]
+        self.partner_type = row[6]
+        self.partner_id = row[7]
+        self.scenario_id = row[8]
+        self.agent_index = row[9]
+        self.selected_index = row[10]
+        self.chat_id = row[11]
 
 
 class BackendConnection(object):
@@ -131,13 +130,11 @@ class BackendConnection(object):
         self.controller_map[userid] = None
         self._update_user(cursor, userid,
                           status=Status.Waiting,
-                          room_id=-1,
                           connected_status=1,
                           message=message)
         if partner_id != Partner.Bot:
             self._update_user(cursor, partner_id,
                               status=Status.Waiting,
-                              room_id=-1,
                               message=partner_message)
 
     def _stop_waiting_and_transition_to_finished(self, cursor, userid):
@@ -235,7 +232,7 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
-    def attempt_join_room(self, userid):
+    def attempt_join_chat(self, userid):
         def _init_controller(my_index, partner_type, scenario, chat_id):
             my_session = self.systems[Partner.Human].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
@@ -252,10 +249,8 @@ class BackendConnection(object):
             self.sessions[userid] = my_session
             self.sessions[partner_id] = partner_session
 
-            next_room_id = _get_max_room_id(cursor)
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
-                              room_id=next_room_id,
                               partner_id=userid,
                               scenario_id=scenario.uuid,
                               agent_index=1 - my_index,
@@ -265,7 +260,6 @@ class BackendConnection(object):
 
             self._update_user(cursor, userid,
                               status=Status.Chat,
-                              room_id=next_room_id,
                               partner_id=partner_id,
                               scenario_id=scenario_id,
                               agent_index=my_index,
@@ -273,7 +267,7 @@ class BackendConnection(object):
                               message="",
                               chat_id=chat_id)
 
-            return next_room_id
+            return True
 
         def _pair_with_bot(cursor, userid, my_index, bot_type, scenario, chat_id):
             controller, my_session, bot_session = _init_controller(my_index, bot_type, scenario, chat_id)
@@ -281,10 +275,8 @@ class BackendConnection(object):
 
             self.sessions[userid] = my_session
 
-            next_room_id = _get_max_room_id(cursor)
             self._update_user(cursor, userid,
                               status=Status.Chat,
-                              room_id=next_room_id,
                               partner_id=Partner.Bot,
                               scenario_id=scenario_id,
                               agent_index=my_index,
@@ -292,17 +284,13 @@ class BackendConnection(object):
                               message="",
                               chat_id=chat_id)
 
-            return next_room_id
+            return True
 
         def _get_other_waiting_users(cursor, userid):
             cursor.execute("SELECT name FROM active_user WHERE name!=? AND status=? AND connected_status=1",
                            (userid, Status.Waiting))
             userids = [r[0] for r in cursor.fetchall()]
             return userids
-
-        def _get_max_room_id(cursor):
-            cursor.execute("SELECT MAX(room_id) FROM active_user", ())
-            return cursor.fetchone()[0]
 
         try:
             with self.conn:
@@ -370,8 +358,8 @@ class BackendConnection(object):
         with self.conn:
             cursor = self.conn.cursor()
             now = current_timestamp_in_seconds()
-            cursor.execute('''INSERT OR IGNORE INTO active_user VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                           (username, Status.Waiting, now, 0, now, "", -1, "", "", "", -1, -1, ""))
+            cursor.execute('''INSERT OR IGNORE INTO active_user VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
+                           (username, Status.Waiting, now, 0, now, "", "", "", "", -1, -1, ""))
 
     def disconnect(self, userid):
         try:
@@ -392,7 +380,8 @@ class BackendConnection(object):
                 num_seconds_remaining = (self.config["status_params"]["chat"]["num_seconds"] +
                                          u.status_timestamp) - current_timestamp_in_seconds()
                 scenario = self.scenario_db.get(u.scenario_id)
-                return UserChatState(u.room_id, u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index), num_seconds_remaining)
+                return UserChatState(u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index),
+                                     num_seconds_remaining)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -556,7 +545,7 @@ class BackendConnection(object):
                                                                  partner_message=Messages.YouLeftRoom)
                         return False
 
-                    if u.room_id != u2.room_id or self.controller_map[userid] != self.controller_map[u.partner_id]:
+                    if self.controller_map[userid] != self.controller_map[u.partner_id]:
                         return False
 
                 if self.check_game_over_and_transition(cursor, userid, u.partner_id):
@@ -599,7 +588,7 @@ class BackendConnection(object):
                     u = self._get_user_info(cursor, userid, assumed_status=assumed_status)
                     if u.status == Status.Waiting:
                         logger.debug("User %s is waiting. Checking if other users are available for chat..")
-                        self.attempt_join_room(userid)
+                        self.attempt_join_chat(userid)
                     logger.debug("Returning TRUE (user status hasn't changed)")
                     return True
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:

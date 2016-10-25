@@ -1,10 +1,12 @@
+import json
+
 __author__ = 'anushabala'
 
 import uuid
 import logging
 from datetime import datetime
 
-from flask import jsonify, session, render_template, request, redirect, url_for, Markup
+from flask import jsonify, render_template, request, redirect, url_for, Markup
 from flask import current_app as app
 
 from . import main
@@ -72,9 +74,9 @@ def is_chat_valid():
 @main.route('/_submit_survey/', methods=['POST'])
 def submit_survey():
     backend = get_backend()
-    data = request.get_json(silent=True)
-    logger.debug("User %s submitted survey. Form data: %s" % (userid_prefix(), str(data)))
-    backend.submit_survey(userid(), data)
+    data = request.json['response']
+    uid = request.json['uid']
+    backend.submit_survey(uid, data)
     return jsonify(success=True)
 
 
@@ -197,7 +199,6 @@ def index():
     elif status == Status.Finished:
         logger.info("Getting finished information for user %s" % userid()[:6])
         finished_info = backend.get_finished_info(userid(), from_mturk=mturk)
-        session["__clear__"] = True
         mturk_code = finished_info.mturk_code if mturk else None
         return render_template('finished.html',
                                finished_message=finished_info.message,
@@ -206,12 +207,9 @@ def index():
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         chat_info = backend.get_chat_info(userid())
-        session["room"] = chat_info.room_id
-        session["chat_id"] = chat_info.chat_id
         schema = backend.get_schema()
         return render_template('chat.html',
                                uid=userid(),
-                               room=chat_info.room_id,
                                kb=chat_info.kb.to_dict(),
                                attributes=[attr.name for attr in schema.attributes],
                                num_seconds=chat_info.num_seconds,
@@ -219,4 +217,5 @@ def index():
                                instructions=Markup(app.config['instructions']))
     elif status == Status.Survey:
         return render_template('survey.html',
-                               title=app.config['task_title'])
+                               title=app.config['task_title'],
+                               uid=userid())
