@@ -362,17 +362,9 @@ class DataGenerator(object):
         dialogue_batches = []
         start = 0
         while start < N:
-            end = start + batch_size
-            # We don't have enough examples for the last batch; repeat examples in the
-            # previous batch. TODO: repeated examples should have lower weights, or better,
-            # make batch_size a variable
-            if end > N:
-                # dialogue_batch = dialogues[-batch_size:]
-                # We need deepcopy here because data in Graph will be written
-                dialogue_batch = dialogues[start:] + [copy.deepcopy(dialogue) for dialogue in dialogues[start-1:start-(end-N+1):-1]]
-                assert len(dialogue_batch) == batch_size
-            else:
-                dialogue_batch = dialogues[start:end]
+            # NOTE: last batch may have a smaller size if we don't have enough examples
+            end = min(start + batch_size, N)
+            dialogue_batch = dialogues[start:end]
             dialogue_batches.extend(DialogueBatch(dialogue_batch, self.use_kb).create_batches())
             start = end
         return dialogue_batches

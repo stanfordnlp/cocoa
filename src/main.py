@@ -105,20 +105,20 @@ if __name__ == '__main__':
     pad = vocab.to_ind(vocab.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
-        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.batch_size)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.batch_size)
+        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
         graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], args.rnn_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, entity_cache_size=args.entity_cache_size)
-        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, message_combiner=args.combine_message, batch_size=args.batch_size)
+        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, message_combiner=args.combine_message)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
         elif args.model == 'attn-copy-encdec':
-            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, batch_size=args.batch_size)
+            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
         model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
     else:
         raise ValueError('Unknown model')
@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
-        evaluator = Evaluator(data_generator, model, ('test',), args.verbose)
+        evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
         with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
             print 'Load TF model'
@@ -147,6 +147,6 @@ if __name__ == '__main__':
                 bleu, entity_recall = evaluator.test_bleu(sess, test_data, num_batches)
                 print 'bleu=%.4f entity_recall=%.4f' % (bleu, entity_recall)
     else:
-        evaluator = Evaluator(data_generator, model, ('dev',), args.verbose)
-        learner = Learner(data_generator, model, evaluator, args.verbose)
+        evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
+        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         learner.learn(args, config, ckpt)

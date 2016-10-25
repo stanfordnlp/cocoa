@@ -13,7 +13,7 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--combine-message', default='concat', help='How to combine propogated message {concat, sum}')
 
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, message_combiner='concat', batch_size=1):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, message_combiner='concat'):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -43,8 +43,6 @@ class GraphEmbedderConfig(object):
             self.num_entities = graph_metadata.entity_map.size
             self.entity_embed_size = entity_embed_size
 
-        self.batch_size = batch_size
-
         # padding
         self.pad_path_id = graph_metadata.PAD_PATH_ID
         self.node_pad = graph_metadata.NODE_PAD
@@ -68,31 +66,29 @@ class GraphEmbedder(object):
                 with tf.variable_scope('EntityEmbedding'):
                     self.entity_embedding = tf.get_variable('entity', [self.config.num_entities, self.config.entity_embed_size])
 
-            # TODO: make batch_size a variable so that we can feed in batches with arbitray batch size
             with tf.name_scope('Inputs'):
-                batch_size = self.config.batch_size
                 # Nodes in the Graph, id is row index in utterances.
                 # The number of nodes can vary in each batch.
-                node_ids = tf.placeholder(tf.int32, shape=[batch_size, None], name='node_ids')
-                mask = tf.placeholder(tf.bool, shape=[batch_size, None], name='mask')
+                node_ids = tf.placeholder(tf.int32, shape=[None, None], name='node_ids')
+                mask = tf.placeholder(tf.bool, shape=[None, None], name='mask')
 
                 # Entity ids used for look up in entity_embedding when use_entity_embedding.
                 # NOTE: node_ids is local; it's essentially range(number of nodes). entity_ids
                 # use the global entity mapping.
-                entity_ids = tf.placeholder(tf.int32, shape=[batch_size, None], name='entity_ids')
+                entity_ids = tf.placeholder(tf.int32, shape=[None, None], name='entity_ids')
 
                 # A path is a tuple of (node_id, edge_label, node_id)
                 # NOTE: we assume the first path is always a padding path (NODE_PAD, EDGE_PAD,
                 # NODE_PAD) when computing mask in pass_message
                 # The number of paths can vary in each batch.
-                paths = tf.placeholder(tf.int32, shape=[batch_size, None, 3], name='paths')
+                paths = tf.placeholder(tf.int32, shape=[None, None, 3], name='paths')
 
                 # Each node has a list of paths starting from that node. path id is row index
                 # in paths. Paths of padded nodes are PATH_PAD.
-                node_paths = tf.placeholder(tf.int32, shape=[batch_size, None, None], name='node_paths')
+                node_paths = tf.placeholder(tf.int32, shape=[None, None, None], name='node_paths')
 
                 # Node features. NOTE: feats[i] must corresponds to node_ids[i]
-                node_feats = tf.placeholder(tf.float32, shape=[batch_size, None, self.config.feat_size], name='node_feats')
+                node_feats = tf.placeholder(tf.float32, shape=[None, None, self.config.feat_size], name='node_feats')
 
                 self.input_data = (node_ids, mask, entity_ids, paths, node_paths, node_feats)
 
@@ -208,7 +204,7 @@ class GraphEmbedder(object):
         Padded entities in entity_indices corresponds to the padded utterance. This is handled
         by GraphBatch during construnction of the input data.
         '''
-        B = self.config.batch_size
+        B = tf.shape(entity_indices)[0]  # batch_size is a variable
         E = self.config.entity_cache_size
         U = self.config.utterance_size
         # Construct indices corresponding to each entry to be updated in self.utterances

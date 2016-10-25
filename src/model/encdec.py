@@ -28,11 +28,10 @@ class BasicEncoder(object):
     '''
     A basic RNN encoder.
     '''
-    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1, batch_size=1):
+    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1):
         self.rnn_size = rnn_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
-        self.batch_size = batch_size
 
     def _build_init_output(self, cell):
         '''
@@ -72,18 +71,20 @@ class BasicEncoder(object):
         inputs: (batch_size, seq_len, input_size)
         '''
         with tf.variable_scope(scope or type(self).__name__):
+            inputs = input_dict['inputs']
+            self.batch_size = tf.shape(inputs)[0]
+
             cell = self._build_rnn_cell()
             self.init_state = self._build_init_state(cell, input_dict, initial_state)
             self.output_size = cell.output_size
 
-            inputs = input_dict['inputs']
             inputs = word_embedder.embed(inputs)
             if not time_major:
                 inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
 
             rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
 
-            self.last_inds = tf.placeholder(tf.int32, shape=[self.batch_size], name='last_inds')
+            self.last_inds = tf.placeholder(tf.int32, shape=[None], name='last_inds')
 
         return self._build_output_dict(rnn_outputs, states)
 
@@ -95,8 +96,8 @@ class GraphEncoder(BasicEncoder):
     '''
     RNN encoder that update knowledge graph at the end.
     '''
-    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, batch_size=1):
-        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, batch_size)
+    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1):
+        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers)
         self.graph_embedder = graph_embedder
 
     def build_model(self, input_dict, word_embedder, initial_state=None, time_major=True, scope=None):
@@ -112,8 +113,8 @@ class GraphEncoder(BasicEncoder):
         return output_dict
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, batch_size=1):
-        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, batch_size)
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1):
+        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers)
         self.num_symbols = num_symbols
 
     def _build_output(self, output_dict):
@@ -137,8 +138,8 @@ class GraphDecoder(GraphEncoder):
     Decoder with attention mechanism over the graph.
     '''
     # TODO: group input args: rnn_config, attention_config etc.
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, batch_size=1, scoring='linear', output='project'):
-        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, batch_size)
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
+        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers)
         self.num_symbols = num_symbols
         # Config for the attention cell
         self.context_size = self.graph_embedder.config.context_size
@@ -203,8 +204,6 @@ class BasicEncoderDecoder(object):
     Basic seq2seq model.
     '''
     def __init__(self, word_embedder, encoder, decoder, pad, scope=None):
-        assert encoder.batch_size == decoder.batch_size
-        self.batch_size = encoder.batch_size
         self.PAD = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
@@ -222,7 +221,6 @@ class BasicEncoderDecoder(object):
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
         '''
-        #batch_size, _, num_symbols = logits.get_shape().as_list()
         shape = tf.shape(logits)
         batch_size = shape[0]
         num_symbols = shape[2]
@@ -241,12 +239,12 @@ class BasicEncoderDecoder(object):
 
     def _encoder_input_dict(self):
         return {
-                'inputs': tf.placeholder(tf.int32, shape=[self.batch_size, None], name='encoder_inputs'),
+                'inputs': tf.placeholder(tf.int32, shape=[None, None], name='encoder_inputs'),
                }
 
     def _decoder_input_dict(self, encoder_output_dict):
         return {
-                'inputs': tf.placeholder(tf.int32, shape=[self.batch_size, None], name='decoder_inputs'),
+                'inputs': tf.placeholder(tf.int32, shape=[None, None], name='decoder_inputs'),
                }
 
     def _decoder_initial_state(self, encoder_output_dict):
@@ -271,7 +269,7 @@ class BasicEncoderDecoder(object):
             self.decoder_inputs = decoder_input_dict['inputs']
             self.encoder_inputs_last_inds = encoder.last_inds
             self.decoder_inputs_last_inds = decoder.last_inds
-            self.targets = tf.placeholder(tf.int32, shape=[self.batch_size, None], name='targets')
+            self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Outputs (accessed through sess.run)
             self.decoder_final_state = decoder_output_dict['final_state']
@@ -300,10 +298,11 @@ class BasicEncoderDecoder(object):
         else:
             encoder_inputs = batch['encoder_inputs']
             decoder_inputs = batch['decoder_inputs']
+        batch_size = encoder_inputs.shape[0]
 
 
         # Initial feed dict, with encoder inputs, and </t> to start the decoder
-        decoder_inputs_last_inds = np.zeros([self.batch_size], dtype=np.int32)
+        decoder_inputs_last_inds = np.zeros_like(batch['decoder_inputs_last_inds'], dtype=np.int32)
         feed_dict = self.update_feed_dict(encoder_inputs=encoder_inputs,
                                           decoder_inputs=decoder_inputs[:, [0]],
                                           encoder_inputs_last_inds=batch['encoder_inputs_last_inds'],
@@ -316,7 +315,7 @@ class BasicEncoderDecoder(object):
                     encoder_input_utterances=graph_data['utterances'])
             self.add_graph_data(feed_dict, graph_data)
 
-        preds = np.zeros([self.batch_size, max_len], dtype=np.int32)
+        preds = np.zeros([batch_size, max_len], dtype=np.int32)
         true_final_state = None
         for i in xrange(max_len):
             logits, final_state = sess.run([self.logits, self.decoder_final_state], feed_dict=feed_dict)
@@ -369,8 +368,8 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
     def _encoder_input_dict(self):
         with tf.name_scope(type(self).__name__+'/encoder_input_dict'):
             input_dict = super(GraphEncoderDecoder, self)._encoder_input_dict()
-            input_dict['utterances'] = tf.placeholder(tf.float32, shape=[self.batch_size, None, self.graph_embedder.config.utterance_size], name='utterances')
-            input_dict['entities'] = tf.placeholder(tf.int32, shape=[self.batch_size, self.graph_embedder.config.entity_cache_size], name='encoder_entities')
+            input_dict['utterances'] = tf.placeholder(tf.float32, shape=[None, None, self.graph_embedder.config.utterance_size], name='utterances')
+            input_dict['entities'] = tf.placeholder(tf.int32, shape=[None, self.graph_embedder.config.entity_cache_size], name='encoder_entities')
         return input_dict
 
     def _decoder_input_dict(self, encoder_output_dict):
@@ -379,7 +378,7 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
             # This is used to compute the initial attention
             input_dict['init_output'] = self.encoder._get_final_state(encoder_output_dict['outputs'])
             input_dict['utterances'] = encoder_output_dict['utterances']
-            input_dict['entities'] = tf.placeholder(tf.int32, shape=[self.batch_size, self.graph_embedder.config.entity_cache_size], name='decoder_entities')
+            input_dict['entities'] = tf.placeholder(tf.int32, shape=[None, self.graph_embedder.config.entity_cache_size], name='decoder_entities')
             input_dict['context'] = encoder_output_dict['context']
         return input_dict
 

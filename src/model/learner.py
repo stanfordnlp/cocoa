@@ -31,14 +31,14 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
         }
 
 class Learner(object):
-    def __init__(self, data, model, evaluator, verbose=False):
+    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
         if type(model).__name__ == 'BasicEncoderDecoder':
             self._run_batch = self._run_batch_basic
         elif type(model).__name__ == 'GraphEncoderDecoder':
             self._run_batch = self._run_batch_graph
-        self.batch_size = model.batch_size
+        self.batch_size = batch_size
         self.evaluator = evaluator
         self.verbose = verbose
 
