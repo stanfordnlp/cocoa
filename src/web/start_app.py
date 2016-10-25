@@ -10,9 +10,7 @@ import atexit
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.basic.event import Event
-from src.basic.dataset import Example
-from src.basic.kb import KB
+from src.web.dump_events_to_json import log_events_to_json
 from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
@@ -105,38 +103,6 @@ def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     log_events_to_json(app.config['scenario_db'], db_path, transcript_path)
-
-
-def log_events_to_json(scenario_db, db_path, json_path):
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    # c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
-    cursor.execute('SELECT DISTINCT chat_id FROM event')
-    ids = cursor.fetchall()
-
-    examples = []
-    for chat_id in ids:
-        # chat_id is a tuple   (id,)
-        cursor.execute('SELECT agent, action, time, data FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
-        logged_events = cursor.fetchall()
-        cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', chat_id)
-        (uuid, outcome) = cursor.fetchone()
-        outcome = json.loads(outcome)
-        chat_events = []
-        for (agent, action, time, data) in logged_events:
-            if action == 'join' or action == 'leave':
-                continue
-            if action == 'select':
-                data = KB.string_to_ordered_item(data)
-            event = Event(agent, time, action, data)
-            chat_events.append(event)
-        ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome)
-        examples.append(ex)
-
-    outfile = open(json_path, 'w')
-    json.dump([ex.to_dict() for ex in examples], outfile)
-    outfile.close()
-    conn.close()
 
 
 def init(output_dir):
