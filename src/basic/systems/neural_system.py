@@ -4,8 +4,10 @@ import os
 import tensorflow as tf
 from system import System
 from src.basic.sessions.neural_session import NeuralSession
-from src.basic.util import read_pickle
-
+from src.basic.util import read_pickle, read_json
+from model.encdec import build_model
+from model.preprocess import EOT, EOS, TextIntMap
+from collections import namedtuple
 
 class NeuralSystem(System):
     """
@@ -14,27 +16,33 @@ class NeuralSystem(System):
     """
     def __init__(self, schema, lexicon, model_path):
         super(NeuralSystem, self).__init__()
+        self.schema = schema
+        self.lexicon = lexicon
 
-        # Load vocab
-        vocab_path = os.path.join(model_path, 'vocab.pkl')
-        self.vocab = read_pickle(vocab_path)
+        # Load arguments
+        args_path = os.path.join(model_path, 'config.json')
+        args = read_json(args_path)
 
-        # Load TF model (graph and parameters)
+        mappings_path = os.path.join(model_path, 'vocab.pkl')
+        mappings = read_pickle(mappings_path)
+        vocab = mappings['vocab']
+
+        model = build_model(schema, mappings, args)
+
+        # Load TF model parameters
         ckpt = tf.train.get_checkpoint_state(model_path)
         assert ckpt, 'No checkpoint found'
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
         # NOTE: need to close the session when done
-        self.tf_session = tf.Session()
-        saver = tf.train.import_meta_graph('%s.meta' % ckpt.model_checkpoint_path)
+        tf_session = tf.Session()
+        saver = tf.train.Saver()
         saver.restore(self.tf_session, ckpt.model_checkpoint_path)
-        self.tf_graph = {}
-        # TODO: add these nodes to collection during saving
-        self.tf_graph['outputs'] = tf.get_collection('outputs')
-        self.tf_graph['init_state'] = tf.get_collection('init_state')
-        self.tf_graph['final_state'] = tf.get_collection('final_state')
 
-        self.schema = schema
-        self.lexicon = lexicon
+        copy = True if args.model == 'attn-copy-encdec' else False
+        textint_map = TextIntMap(vocab, mappings['entity_map'], copy)
+
+        Env = namedtuple('Env', ['model', 'tf-session', 'lexicon', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
+        self.env = Env(model, tf_session, lexicon, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(EOT), remove_symbols=map(vocab.to_ind, (EOT, EOS)), max_len=20)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:
@@ -45,4 +53,4 @@ class NeuralSystem(System):
         return 'neural'
 
     def new_session(self, agent, kb):
-        return NeuralSession(agent, kb, self.lexicon, self.vocab, self.tf_graph, self.tf_session)
+        return NeuralSession(agent, kb, self.env)
