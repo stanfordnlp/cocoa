@@ -6,8 +6,8 @@ Encode when action is read and decode when action is write.
 import tensorflow as tf
 import numpy as np
 from rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell
-from graph import Graph
-from graph_embedder import GraphEmbedder
+from graph import Graph, GraphMetadata
+from graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from word_embedder import WordEmbedder
 from vocab import is_entity
 from preprocess import EOT
@@ -23,6 +23,33 @@ def add_model_arguments(parser):
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     add_attention_arguments(parser)
+
+def build_model(schema, mappings, args):
+    tf.reset_default_graph()
+    tf.set_random_seed(args.random_seed)
+
+    vocab = mappings['vocab']
+    pad = vocab.to_ind(vocab.PAD)
+    word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
+    if args.model == 'encdec':
+        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
+        model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
+    elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
+        max_degree = args.num_items + len(schema.attributes)
+        graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], args.rnn_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, entity_cache_size=args.entity_cache_size)
+        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, message_combiner=args.combine_message)
+        Graph.metadata = graph_metadata
+        graph_embedder = GraphEmbedder(graph_embedder_config)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+        if args.model == 'attn-encdec':
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+        elif args.model == 'attn-copy-encdec':
+            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+        model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
+    else:
+        raise ValueError('Unknown model')
+    return model
 
 class BasicEncoder(object):
     '''
@@ -272,7 +299,9 @@ class BasicEncoderDecoder(object):
             self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Outputs (accessed through sess.run)
+            self.encoder_final_state = encoder_output_dict['final_state']
             self.decoder_final_state = decoder_output_dict['final_state']
+            self.decoder_outputs = decoder_output_dict['outputs']
             # Loss
             self.logits = decoder_output_dict['logits']
             self.loss = self.compute_loss(self.logits, self.targets)
@@ -283,7 +312,8 @@ class BasicEncoderDecoder(object):
 
         return encoder_input_dict, encoder_output_dict, decoder_input_dict, decoder_output_dict
 
-    def get_prediction(self, logits, graph=None):
+    @classmethod
+    def get_prediction(cls, logits):
         '''
         Return predicted vocab from output/logits (batch_size, seq_len, vocab_size).
         '''
@@ -300,8 +330,7 @@ class BasicEncoderDecoder(object):
             decoder_inputs = batch['decoder_inputs']
         batch_size = encoder_inputs.shape[0]
 
-
-        # Initial feed dict, with encoder inputs, and </t> to start the decoder
+        # Initial feed dict, with encoder inputs, and <go> to start the decoder
         decoder_inputs_last_inds = np.zeros_like(batch['decoder_inputs_last_inds'], dtype=np.int32)
         feed_dict = self.update_feed_dict(encoder_inputs=encoder_inputs,
                                           decoder_inputs=decoder_inputs[:, [0]],
@@ -325,7 +354,10 @@ class BasicEncoderDecoder(object):
             step_decoder_inputs = self.get_prediction(logits)
             preds[:, [i]] = step_decoder_inputs
             if copy:
-                step_decoder_inputs = graphs.copy_preds(step_decoder_inputs, vocab.size, vocab)
+                # Convert local node ids to global entity ids
+                step_decoder_inputs = graphs.copy_preds(step_decoder_inputs, vocab.size)
+                # Convert entity ids to vocab ids
+                step_decoder_inputs = graphs.entity_to_vocab(step_decoder_inputs, vocab)
             feed_dict = self.update_feed_dict(decoder_inputs=step_decoder_inputs,
                                               decoder_inputs_last_inds=decoder_inputs_last_inds,
                                               decoder_init_state=final_state)
@@ -333,7 +365,7 @@ class BasicEncoderDecoder(object):
         # Decode over the ground truth
         # -1 because we start from the second input token
         decoder_inputs_last_inds = batch['decoder_inputs_last_inds'] - 1
-        # NOTE: we get <0 indices when this is a padded turn, i.e. </t> <pad> <pad> ...
+        # NOTE: we get <0 indices when this is a padded turn, i.e. <pad> <pad> <pad> ...
         # At real test time, we want to use batch_size = 1 so this shouldn't happen
         decoder_inputs_last_inds[decoder_inputs_last_inds < 0] = 0
         feed_dict = self.update_feed_dict(decoder_inputs=decoder_inputs[:, 1:],
@@ -392,11 +424,11 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
             self.encoder_input_utterances = encoder_input_dict['utterances']
             self.decoder_input_utterances = decoder_input_dict['utterances']
             self.graph_structure = self.graph_embedder.input_data
-            # Outputs
+            # Outputs: updated utterances and context
             self.encoder_output_utterances = encoder_output_dict['utterances']
             self.decoder_output_utterances = decoder_output_dict['utterances']
-            # Updated context at the end of the encoder/decoder sequence
-            self.encoder_context = encoder_output_dict['context']
+            self.encoder_output_context = encoder_output_dict['context']
+            self.decoder_output_context = decoder_output_dict['context']
 
     def add_graph_data(self, feed_dict, graph_data):
         '''

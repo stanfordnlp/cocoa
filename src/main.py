@@ -13,12 +13,11 @@ from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
 from model.preprocess import DataGenerator
-from model.encdec import BasicEncoder, BasicDecoder, BasicEncoderDecoder, GraphEncoder, GraphDecoder, GraphEncoderDecoder, CopyGraphDecoder, add_model_arguments
+from model.encdec import add_model_arguments, build_model
 from model.learner import add_learner_arguments, Learner
 from model.evaluate import Evaluator
 from model.graph import Graph, GraphMetadata, add_graph_arguments
-from model.graph_embedder import GraphEmbedder, GraphEmbedderConfig, add_graph_embed_arguments
-from model.word_embedder import WordEmbedder
+from model.graph_embedder import add_graph_embed_arguments
 from lib import logstats
 
 if __name__ == '__main__':
@@ -97,31 +96,7 @@ if __name__ == '__main__':
         write_pickle(mappings, vocab_path)
 
     # Build the model
-    vocab = mappings['vocab']
-
-    tf.reset_default_graph()
-    tf.set_random_seed(args.random_seed)
-
-    pad = vocab.to_ind(vocab.PAD)
-    word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
-    if args.model == 'encdec':
-        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
-        model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
-    elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
-        max_degree = args.num_items + len(schema.attributes)
-        graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], args.rnn_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, entity_cache_size=args.entity_cache_size)
-        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, message_combiner=args.combine_message)
-        Graph.metadata = graph_metadata
-        graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
-        if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
-        elif args.model == 'attn-copy-encdec':
-            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
-        model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
-    else:
-        raise ValueError('Unknown model')
+    model = build_model(schema, mappings, args)
 
     # Tensorflow config
     if args.gpu == 0:
