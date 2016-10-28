@@ -1,28 +1,30 @@
 <html>
     <head>
-    <style>
-		#timer{
-		color: #000;
-		display: inline-block;
-		text-align: center;
-		}
-
-		#timer > div{
-			display: inline-block;
-			font-size: 20px;
-		}
-
-		#timer div > span{
-			font-weight: bolder;
-			font-size: 20px;	
-			display: inline-block;
-		}
-		
-		#timer div > .seconds{
-			margin-left:-3px;
-		}
-    </style>
         <title>Who's Our Mutual Friend?</title>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
+        <style>
+    		#timer{
+    		color: #000;
+    		display: inline-block;
+    		text-align: center;
+    		}
+
+    		#timer > div{
+    			display: inline-block;
+    			font-size: 20px;
+    		}
+
+    		#timer div > span{
+    			font-weight: bolder;
+    			font-size: 20px;	
+    			display: inline-block;
+    		}
+    		
+    		#timer div > .seconds{
+    			margin-left:-3px;
+    		}
+        </style>
+        
         <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
         <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
         <script type="text/javascript" charset="utf-8">
@@ -108,15 +110,20 @@
     <div id="content">
         <h2>Who's Our Mutual Friend?</h2>
         <div id="timer">
+            <div>
+                Time left to wait:
+            </div>
+            <div style="padding: 0 0 0 30px;">
+            <span class="minutes"></span>
+            </div>
+            <div>
+            <span class="seconds"></span>
+            </div>
+        </div>
         <div>
-            {{ waiting_message }}
-        </div>
-        <div style="padding: 0 0 0 30px;">
-        <span class="minutes"></span>
-        </div>
-        <div>
-        <span class="seconds"></span>
-        </div>
+            <h3>{{ waiting_message }}</h3>
+
+            <h4>When we pair you with another user, you'll see a page containing a chat box and the instructions for a timed task that involves using the chat interface to chat with the other user. Be sure to read the instructions carefully while completing the task. </h4>
         </div>
     </div>
 

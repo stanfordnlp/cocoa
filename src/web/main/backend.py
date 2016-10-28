@@ -16,7 +16,7 @@ from flask import Markup
 from uuid import uuid4
 
 
-date_fmt = '%m-%d-%Y:%H-%M-%S'
+date_fmt = '%Y-%m-%d:%H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -132,10 +132,6 @@ class BackendConnection(object):
                           status=Status.Waiting,
                           connected_status=1,
                           message=message)
-        if partner_id != Partner.Bot:
-            self._update_user(cursor, partner_id,
-                              status=Status.Waiting,
-                              message=partner_message)
 
     def _stop_waiting_and_transition_to_finished(self, cursor, userid):
         logger.info("User waiting duration exceeded time limit. Ending session for user.")
@@ -156,7 +152,7 @@ class BackendConnection(object):
         if timeout_limit < 0:
             return False
         num_seconds_remaining = (timeout_limit + timestamp) - current_timestamp_in_seconds()
-        return num_seconds_remaining < 0
+        return num_seconds_remaining <= 0
 
     def _assert_no_connection_timeout(self, connection_status, connection_timestamp):
         logger.debug("Checking for connection timeout: Connection status %d" % connection_status)

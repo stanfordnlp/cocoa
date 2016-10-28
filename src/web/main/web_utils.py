@@ -4,8 +4,6 @@ from flask import current_app as app
 
 from backend import BackendConnection
 
-DATE_FMT = '%m-%d-%Y:%H-%M-%S'
-
 
 def get_backend():
     backend = getattr(g, '_backend', None)

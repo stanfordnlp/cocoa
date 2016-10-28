@@ -14,7 +14,7 @@ from web_utils import get_backend
 from backend import Status
 from src.basic.event import Event
 
-date_fmt = '%m-%d-%Y:%H-%M-%S'
+date_fmt = '%Y-%m-%d:%H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -138,7 +138,7 @@ def check_inbox():
         elif event.action == 'leave':
             message = format_message("Your friend has left the room.", True)
         elif event.action == 'select':
-            message = format_message("Your friend selected {}".format(", ".join([v[1] for v in event.data])), False)
+            message = format_message("Your friend selected {}".format(", ".join([v[1] for v in event.data])), True)
         return jsonify(message=message, received=True)
     return jsonify(received=False)
 
