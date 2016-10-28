@@ -107,12 +107,12 @@ class GraphBatch(object):
     def _batch_node_feats(self, max_num_nodes):
         return self._make_batch((self.batch_size, max_num_nodes, Graph.metadata.feat_size), 0, np.float32, 'feats')
 
-    def update_entities(self, tokens):
+    def update_entities(self, tokens, partner):
         assert len(tokens) == self.batch_size
         for graph, toks in izip(self.graphs, tokens):
             # toks is None when this is a padded turn
             if toks is not None:
-                graph.read_utterance(toks)
+                graph.read_utterance(toks, partner)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
         max_len = Graph.metadata.entity_cache_size
@@ -132,7 +132,8 @@ class GraphBatch(object):
         '''
         Convert entity ids to vocab ids. In preprocessing we have replaced all entities to
         entity ids (offset by vocab.size). Now to process them during encoding we need to
-        map them back to vocab ids.
+        map them back to vocab ids. Note that some entities will become UNK.
+        TODO: better entity encoding.
         '''
         new_inputs = np.array(inputs)
         for i, graph in enumerate(self.graphs):
@@ -155,9 +156,9 @@ class GraphBatch(object):
                     new_targets[i][j] = graph.nodes.to_ind(entity) + vocab_size
         return new_targets
 
-    def copy_preds(self, preds, vocab_size, vocab=None):
+    def copy_preds(self, preds, vocab_size):
         '''
-        Inverse of copy_targets. If vocab is input, convert entities by vocab.
+        Inverse of copy_targets.
         '''
         new_preds = np.array(preds)
         for i, graph in enumerate(self.graphs):
@@ -168,20 +169,17 @@ class GraphBatch(object):
                     except KeyError:
                         new_preds[i][j] = 0
                         continue
-                    if not vocab:
-                        new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
-                    else:
-                        new_preds[i][j] = vocab.to_ind(entity)
+                    new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
         return new_preds
 
-    def update_graph(self, tokens):
+    def update_graph(self, tokens, partner):
         '''
         Update graph: add new entities tokens.
         Return lists of entities at the end of the sequence of tokens so that the encoder
         or decoder can update the utterance matrix accordingly.
         '''
         if tokens is not None:
-            self.update_entities(tokens)
+            self.update_entities(tokens, partner)
         entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
         return entity_lists
 
@@ -215,8 +213,8 @@ class GraphBatch(object):
           we will get updated utterance matrices from GraphEmbedder.
         - node_ids, entity_ids, paths, node_paths, node_feats
         '''
-        encoder_entity_lists = self.update_graph(encoder_tokens)
-        decoder_entity_lists = self.update_graph(decoder_tokens)
+        encoder_entity_lists = self.update_graph(encoder_tokens, True)
+        decoder_entity_lists = self.update_graph(decoder_tokens, False)
 
         max_num_nodes = self._max_num_nodes()
         if utterances is None:
@@ -306,7 +304,8 @@ class Graph(object):
             # Item nodes
             item_node = ('item-%d' % i, 'item')
             self.nodes.add_word(item_node)
-            for attr_name, value in item.iteritems():
+            attrs = sorted(item.items(), key=lambda x: x[0])
+            for attr_name, value in attrs:
                 type_ = Graph.metadata.attribute_types[attr_name]
                 attr_name = attr_name.lower()
                 value = value.lower()
@@ -325,13 +324,12 @@ class Graph(object):
                 self._add_path(attr_node, 'has', entity_node)
         self.paths = np.array(self.paths, dtype=np.int32)
 
-    def read_utterance(self, tokens):
+    def read_utterance(self, tokens, partner):
         '''
         Map entities to node ids and tokens to -1. Add new nodes if needed.
         tokens: from batch['encoder/decoder_tokens']; entities are represented
-        as (surface_form, (canonical_form, type)).
+        as (surface_form, (canonical_form, type)), i.e. output of entitylink.
         '''
-        # x[1] to get the entity only (without the surface form)
         new_entities = set([x[1] for x in tokens if is_entity(x) and not self.nodes.has(x[1])])
         self.add_entity_nodes(new_entities)
         node_ids = (self.nodes.to_ind(x[1]) if is_entity(x) else -1 for x in tokens)
@@ -426,64 +424,3 @@ class Graph(object):
             f[i][get_index('node_type', node_type)] = 1
 
         return f
-
-    def copy_target(self, targets, iswrite, vocab):
-        # Don't change the original targets, will be used later
-        new_targets = np.copy(targets)
-        for target, write in izip(new_targets, iswrite):
-            for i, (t, w) in enumerate(izip(target, write)):
-                if w:
-                    # TODO: what if this is an UNK. inputs and targets from data generator
-                    # should be tokens and entities. and they should be mapped in update_feed_dict.
-                    token = vocab.to_word(t)
-                    if is_entity(token):
-                        try:
-                            target[i] = vocab.size + self.nodes.to_ind(token)
-                        except KeyError:
-                            # TODO: for real data, this may not be a bug: we might have failed to
-                            # detect a previously mentioned entity.
-                            import sys
-                            print token
-                            self.nodes.dump()
-                            sys.exit()
-        return new_targets
-
-    def copy_output(self, outputs, vocab):
-        for output in outputs:
-            for i, pred in enumerate(output):
-                if pred >= vocab.size:
-                    entity = self.nodes.to_word(pred - vocab.size)
-                    # TODO: again, this could be an UNK. output shoule be tokens/entities instead of numbers
-                    output[i] = vocab.to_ind(entity)
-        return outputs
-
-if __name__ == '__main__':
-    from basic.schema import Schema
-    from model.preprocess import build_schema_mappings
-    from basic.kb import KB
-
-    schema = Schema('data/friends-schema.json')
-    entity_map, relation_map = build_schema_mappings(schema)
-    max_degree = 3
-
-    items = [{'Name': 'Alice', 'Company': 'Microsoft', 'Hobby': 'hiking'},\
-             {'Name': 'Bob', 'Company': 'Apple', 'Hobby': 'hiking'}]
-    kb = KB.from_dict(schema, items)
-
-    Graph.static_init(schema, entity_map, relation_map, max_degree)
-    graph = Graph(kb)
-
-    # Test copy
-    vocab = Vocabulary()
-    words = [('alice', 'person'), ('hiking', 'hobby')]
-    vocab.add_words(words)
-
-    print 'Copy targets:'
-    targets = np.array([map(vocab.to_ind, words)])
-    iswrite = np.array([[False, True]])
-    new_targets = graph.copy_target(targets, iswrite, vocab)
-    assert new_targets[0][0] == targets[0][0]
-    assert new_targets[0][1] == vocab.size + graph.nodes.to_ind(('hiking', 'hobby'))
-
-    print 'Copy outputs:'
-    assert np.array_equal(graph.copy_output(new_targets, vocab), targets)

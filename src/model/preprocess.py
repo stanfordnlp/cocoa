@@ -12,9 +12,10 @@ import copy
 
 # Special symbols
 EOT = '</t>'  # End of turn
-EOU = '</s>'  # End of utterance
+EOS = '</s>'  # End of utterance
+GO = '<go>'
 SELECT = '<select>'
-markers = (EOT, EOU, SELECT)
+markers = (EOT, EOS, SELECT, GO)
 
 def tokenize(utterance):
     '''
@@ -54,7 +55,7 @@ def build_vocab(dialogues, special_symbols=[], add_entity=True):
     # Add words
     for dialogue in dialogues:
         assert dialogue.is_int is False
-        for turn in dialogue.turns:
+        for turn in dialogue.turns[Dialogue.ENC]:
             for token in chain.from_iterable(turn):
                 _add_token(token)
 
@@ -94,36 +95,68 @@ class TextIntMap(object):
 
 class Dialogue(object):
     textint_map = None
+    DEC = 0
+    ENC = 1
 
-    def __init__(self, kbs, turns=None, agents=None):
+    def __init__(self, kbs):
         '''
         Dialogue data that is needed by the model.
         '''
         self.kbs = kbs
-        self.turns = turns or []
-        self.agents = agents or []
-        assert len(self.turns) == len(self.agents)
+        # turns[0]: utterances from the encoder's perspective
+        # turns[1]: utterances from the decoder's perspective
+        self.turns = ([], [])
+        self.agents = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
 
     def create_graph(self):
         self.graphs = [Graph(kb) for kb in self.kbs]
 
+    def _process_encoder_utterance(self, utterance):
+        '''
+        In _process_event, we represent a select action as [SELECT, item id, item entities].
+        For encoding, we want to use [SELECT, item entities].
+        '''
+        if utterance[0] == SELECT:
+            return utterance[:1] + utterance[2:]
+        return utterance
+
+    def _process_decoder_utterance(self, utterance):
+        '''
+        In _process_event, we represent a select action as [SELECT, item id, item entities].
+        For decoding, we want to use [SELECT, item id].
+        '''
+        if utterance[0] == SELECT:
+            return utterance[:2]
+        return utterance
+
+    def _process_utterance(self, utterance, stage):
+        if stage == self.DEC:
+            return self._process_encoder_utterance(utterance)
+        elif stage == self.ENC:
+            return self._process_decoder_utterance(utterance)
+        else:
+            raise ValueError
+
     def add_utterance(self, agent, utterance):
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
-            self.turns[-1].append(utterance)
+            for i in xrange(2):
+                self.turns[i][-1].append(self._process_utterance(utterance, i))
         else:
             self.agents.append(agent)
-            self.turns.append([utterance])
+            for i in xrange(2):
+                self.turns[i].append([self._process_utterance(utterance, i)])
 
     def convert_to_int(self, keep_tokens=False):
         if self.is_int:
             return
         if keep_tokens:
-            self.token_turns = copy.copy(self.turns)
-        for i, turn in enumerate(self.turns):
-            self.turns[i] = [self.textint_map.text_to_int(utterance) for utterance in turn]
+            self.token_turns = copy.deepcopy(self.turns)
+        for i, turns in enumerate(self.turns):
+            for j, turn in enumerate(turns):
+                self.turns[i][j] = [self.textint_map.text_to_int(utterance) for utterance in turn]
         self.is_int = True
 
     def flatten_turns(self):
@@ -133,16 +166,16 @@ class Dialogue(object):
         if self.flattened:
             return
 
-        turns = self.turns
-        for i, turn in enumerate(turns):
-            for utterance in turn:
-                utterance.append(EOU)
-            turns[i] = [x for x in chain.from_iterable(turn)] + [EOT]
+        for i, turns in enumerate(self.turns):
+            for j, turn in enumerate(turns):
+                for utterance in turn:
+                    utterance.append(EOS)
+                self.turns[i][j] = [x for x in chain.from_iterable(turn)] + [EOT]
 
         if hasattr(self, 'token_turns'):
-            turns = self.token_turns
-            for i, turn in enumerate(turns):
-                turns[i] = [x for x in chain.from_iterable(turn)]
+            for i, turns in enumerate(self.token_turns):
+                for j, turn in enumerate(turns):
+                    self.token_turns[i][j] = [x for x in chain.from_iterable(turn)]
 
         self.flattened = True
 
@@ -151,9 +184,11 @@ class Dialogue(object):
         Pad turns to length num_turns.
         '''
         turns, agents = self.turns, self.agents
-        for i in xrange(len(turns), num_turns):
+        assert len(turns[0]) == len(turns[1])
+        for i in xrange(len(turns[0]), num_turns):
             agents.append(1 - agents[-1])
-            turns.append([])
+            turns[0].append([])
+            turns[1].append([])
 
 class DialogueBatch(object):
     def __init__(self, dialogues, use_kb=False):
@@ -164,11 +199,12 @@ class DialogueBatch(object):
         '''
         All dialogues in a batch should have the same number of turns.
         '''
-        max_num_turns = max([len(d.turns) for d in self.dialogues])
+        # len(turns[0]) == len(turns[1])
+        max_num_turns = max([len(d.turns[0]) for d in self.dialogues])
         for dialogue in self.dialogues:
             dialogue.flatten_turns()
             dialogue.pad_turns(max_num_turns)
-        self.num_turns = len(self.dialogues[0].turns)
+        self.num_turns = len(self.dialogues[0].turns[0])
 
     def _normalize_turn(self, turn_batch):
         '''
@@ -177,17 +213,20 @@ class DialogueBatch(object):
         max_num_tokens = max([len(t) for t in turn_batch])
         batch_size = len(turn_batch)
         T = np.full([batch_size, max_num_tokens+1], PAD, dtype=np.int32)
-        # Insert </t> at the beginning at each turn because for decoding we want to
-        # start from </t> to generate
-        T[:, 0] = EOT
         for i, turn in enumerate(turn_batch):
             T[i, 1:len(turn)+1] = turn
+            # Insert <go> at the beginning at each turn because for decoding we want to
+            # start from <go> to generate, except for padded turns
+            if T[i][1] != PAD:
+                T[i][0] = GO
         return T
 
     def _create_turn_batches(self):
-        turn_batches = [self._normalize_turn(
-                [dialogue.turns[i] for dialogue in self.dialogues])
-                for i in xrange(self.num_turns)]
+        turn_batches = []
+        for i in xrange(2):
+            turn_batches.append([self._normalize_turn(
+                [dialogue.turns[i][j] for dialogue in self.dialogues])
+                for j in xrange(self.num_turns)])
         return turn_batches
 
     def _get_agent_batch(self, i):
@@ -197,33 +236,33 @@ class DialogueBatch(object):
         return [dialogue.kbs[agent] for dialogue, agent in izip(self.dialogues, agents)]
 
     def _get_graph_batch(self, agents):
-        return GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
+        g = GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
+        assert g.graphs[0] == self.dialogues[0].graphs[agents[0]]
+        return g
 
     def _create_one_batch(self, encode_turn, decode_turn, encode_tokens, decode_tokens):
-        # Encoder inptus: remove </t> since it's used to start decoding, i.e. token <pad>
         if encode_turn is not None:
-            # </t> at the beginning and end of utterance
-            # Replace the end </t> but keep the beginning one to separate it from the previous utterance
-            encoder_inputs = np.copy(encode_turn[:, :-1])
+            # Remove <go> and </t> at the beginning and end of utterance
+            encoder_inputs = np.copy(encode_turn[:, 1:-1])
             encoder_inputs[encoder_inputs == EOT] = PAD
-            encoder_inputs[:, 0] = EOT
         else:
-            # If there's no input to encode, use </t> as the encoder input.
-            encoder_inputs = decode_turn[:, [0]]
-        # Decoder inptus: start from </t> to generate, i.e. </t> <token> NOTE: </t> is
-        # inserted to padded turns as well, i.e. </t> <pad>, probably doesn't matter though..
+            # If there's no input to encode, use </s> as the encoder input.
+            encoder_inputs = np.full((decode_turn.shape[0], 1), EOS, dtype=np.int32)
+            # encode_tokens are empty lists
+
+        # Decoder inptus: start from <go> to generate, i.e. <go> <token>
         decoder_inputs = decode_turn[:, :-1]
         decoder_targets = decode_turn[:, 1:]
+
         batch = {
                  'encoder_inputs': encoder_inputs,
                  'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, PAD),
                  'decoder_inputs': decoder_inputs,
                  'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, PAD),
-                 'targets': decoder_targets
+                 'targets': decoder_targets,
+                 'encoder_tokens': encode_tokens,
+                 'decoder_tokens': decode_tokens,
                 }
-        if encode_tokens is not None or decode_tokens is not None:
-            batch['encoder_tokens'] = encode_tokens
-            batch['decoder_tokens'] = decode_tokens
         return batch
 
     def _get_last_inds(self, inputs, stop_symbol):
@@ -237,11 +276,11 @@ class DialogueBatch(object):
         inds = inds - 1
         return inds
 
-    def _get_token_turns(self, i):
+    def _get_token_turns(self, i, stage):
         if not hasattr(self.dialogues[0], 'token_turns'):
             return None
         # Return None for padded turns
-        return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else None
+        return [dialogue.token_turns[stage][i] if i < len(dialogue.token_turns[stage]) else None
                 for dialogue in self.dialogues]
 
     def create_batches(self):
@@ -250,12 +289,13 @@ class DialogueBatch(object):
         # A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
         batches = []
+        enc, dec = 0, 1
         for start_encode in (0, 1):
             encode_turn_ids = range(start_encode, self.num_turns-1, 2)
-            batch_seq = [self._create_one_batch(turn_batches[i], turn_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1)) for i in encode_turn_ids]
+            batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], self._get_token_turns(i, enc), self._get_token_turns(i+1, dec)) for i in encode_turn_ids]
             if start_encode == 1:
                 # We still want to generate the first turn
-                batch_seq.insert(0, self._create_one_batch(None, turn_batches[0], None, self._get_token_turns(0)))
+                batch_seq.insert(0, self._create_one_batch(None, turn_batches[dec][0], None, self._get_token_turns(0, dec)))
             # Add agents and kbs
             agents = self._get_agent_batch(start_encode + 1)  # Decoding agent
             kbs = self._get_kb_batch(agents)
@@ -276,6 +316,7 @@ class DataGenerator(object):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.lexicon = lexicon
+        self.attribute_types = schema.get_attributes()
         self.use_kb = use_kb  # Whether to generate graph
         self.copy = copy
 
@@ -298,9 +339,11 @@ class DataGenerator(object):
         self.convert_to_int()
 
         # Convert special symbols to integer
-        global PAD, EOT, EOU
+        global PAD, EOT, EOS, GO, SELECT
         EOT = self.vocab.to_ind(EOT)
-        EOU = self.vocab.to_ind(EOU)
+        EOS = self.vocab.to_ind(EOS)
+        GO = self.vocab.to_ind(GO)
+        SELECT = self.vocab.to_ind(SELECT)
         PAD = self.vocab.to_ind(self.vocab.PAD)
 
     def create_mappings(self, schema, num_items):
@@ -328,6 +371,18 @@ class DataGenerator(object):
             dialogue.add_utterance(e.agent, utterance)
         return dialogue
 
+    def _item_to_entities(self, item):
+        '''
+        Convert an item to a list of entities representing that item.
+        '''
+        entities = []
+        attrs = sorted(item.items(), key=lambda x: x[0])
+        for attr_name, value in attrs:
+            type_ = self.attribute_types[attr_name]
+            value = value.lower()
+            entities.append((value, (value, type_)))
+        return entities
+
     def _process_event(self, e, kb):
         '''
         Convert event to a list of tokens and entities.
@@ -344,8 +399,9 @@ class DataGenerator(object):
                     break
             assert item_id is not None
             item_str = 'item-%d' % item_id
-            # Treat item as an entity
-            entity_tokens = [SELECT, (item_str, (item_str, 'item'))]
+            # Convert an item to item-id (wrt to the speaker) and a list of entities
+            # We use the entities to represent the item during encoding and item-id during decoding
+            entity_tokens = [SELECT, (item_str, (item_str, 'item'))] + self._item_to_entities(e.data)
         else:
             raise ValueError('Unknown event action.')
         return entity_tokens
@@ -375,11 +431,11 @@ class DataGenerator(object):
         for dialogue in dialogues:
             dialogue.create_graph()
 
-    def reset_graph(self, dialogues):
+    def reset_graph(self, dialogue_batches):
         if not self.use_kb:
             return
-        for dialogue in dialogues:
-            for graph in dialogue.graphs:
+        for dialogue_batch in dialogue_batches:
+            for graph in dialogue_batch['graph'].graphs:
                 graph.reset()
 
     def generator(self, name, batch_size, shuffle=True):
@@ -395,4 +451,5 @@ class DataGenerator(object):
             for ind in inds:
                 yield dialogue_batches[ind]
             # We want graphs clean of dialgue history for the new epoch
-            self.reset_graph(dialogues)
+            self.reset_graph(dialogue_batches)
+            # TODO: after reset, graphs in dialogues are not changed
