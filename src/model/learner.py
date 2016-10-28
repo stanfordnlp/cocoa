@@ -165,9 +165,6 @@ class Learner(object):
         best_bleu = -1
 
         # Testing
-        dev_data = self.data.generator('dev', self.batch_size)
-        num_dev_batches = dev_data.next()
-
         with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
             if args.init_from:

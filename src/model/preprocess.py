@@ -111,6 +111,7 @@ class Dialogue(object):
         self.flattened = False
 
     def create_graph(self):
+        assert not hasattr(self, 'graphs')
         self.graphs = [Graph(kb) for kb in self.kbs]
 
     def _process_encoder_utterance(self, utterance):
@@ -236,9 +237,7 @@ class DialogueBatch(object):
         return [dialogue.kbs[agent] for dialogue, agent in izip(self.dialogues, agents)]
 
     def _get_graph_batch(self, agents):
-        g = GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
-        assert g.graphs[0] == self.dialogues[0].graphs[agents[0]]
-        return g
+        return GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
 
     def _create_one_batch(self, encode_turn, decode_turn, encode_tokens, decode_tokens):
         if encode_turn is not None:
@@ -452,4 +451,3 @@ class DataGenerator(object):
                 yield dialogue_batches[ind]
             # We want graphs clean of dialgue history for the new epoch
             self.reset_graph(dialogue_batches)
-            # TODO: after reset, graphs in dialogues are not changed
