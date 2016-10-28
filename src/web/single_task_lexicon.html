@@ -11,6 +11,34 @@
 <script>
     spanToEntity = {};
     array = ["UIUC", "Columbia", "Ford", "GE"];
+    text = "";
+
+    // Add dropdown on load
+    window.onload = function(){
+        var entities = document.getElementById("entities");
+        var selectList = document.createElement("select");
+        selectList.id = "entitiesSelect";
+        entities.appendChild(selectList);
+
+        //Create and append the options for dropdown
+        for (var i = 0; i < array.length; i++) {
+            var option = document.createElement("option");
+            option.value = array[i];
+            option.text = array[i];
+            selectList.appendChild(option);
+        }
+
+        // Submit button for entity
+        var submit = document.createElement("INPUT");
+        submit.setAttribute("class", "submitButton")
+        submit.setAttribute("type", "button");
+        submit.setAttribute("value", "submit");
+        submit.onclick = function(){
+            getSelected(text)
+        };
+        entities.appendChild(submit);
+    }
+
 
     // Highlight text and give option for selecting matching entity
     function highlightText(){
@@ -30,29 +58,34 @@
 
     // Get element from dropdown that has been selected
     function getSelected(span){
-        // Get element selected
-        var e = document.getElementById("entitiesSelect");
-        var entityPicked = e.options[e.selectedIndex].value;
-        spanToEntity[span] = entityPicked;
+        if (text == ""){
+            window.alert("You have not highlighted any span of text!");
+        }else{
+            // Get element selected
+            var e = document.getElementById("entitiesSelect");
+            var entityPicked = e.options[e.selectedIndex].value;
+            spanToEntity[span] = entityPicked;
 
-        // Add to table of span: entity
-        selectedEntitiesTable = document.getElementById("selectedentities");
-        console.log(selectedEntitiesTable.rows.length);
-        var newRow = selectedEntitiesTable.insertRow(selectedEntitiesTable.rows.length);
+            // Add to table of span: entity
+            selectedEntitiesTable = document.getElementById("selectedentities");
+            console.log(selectedEntitiesTable.rows.length);
+            var newRow = selectedEntitiesTable.insertRow(selectedEntitiesTable.rows.length);
 
-        // Add span
-        var newSpan  = newRow.insertCell(0);
-        // Append a text node to the cell
-        var newText  = document.createTextNode(span);
-        newSpan.appendChild(newText);
+            // Add span
+            var newSpan  = newRow.insertCell(0);
+            // Append a text node to the cell
+            var newText  = document.createTextNode(span);
+            newSpan.appendChild(newText);
 
-        // Add entity
-        var newEntity = newRow.insertCell(1);
-        // Append a text node to the cell
-        var newText  = document.createTextNode(entityPicked);
-        newEntity.appendChild(newText);
+            // Add entity
+            var newEntity = newRow.insertCell(1);
+            // Append a text node to the cell
+            var newText  = document.createTextNode(entityPicked);
+            newEntity.appendChild(newText);
 
-        console.log(spanToEntity);
+            console.log(spanToEntity);
+        }
+
     }
 
 
@@ -63,7 +96,7 @@
         selectList.id = "entitiesSelect";
         entities.appendChild(selectList);
 
-
+        text = textHighlighted;
         //Create and append the options for dropdown
         for (var i = 0; i < array.length; i++) {
             var option = document.createElement("option");
@@ -78,7 +111,7 @@
         submit.setAttribute("type", "button");
         submit.setAttribute("value", "submit");
         submit.onclick = function(){
-            getSelected(textHighlighted)
+            getSelected(text)
         };
         entities.appendChild(submit);
     }
@@ -100,6 +133,7 @@
         var spans = $(".text").find("span").contents().unwrap();
         // Reset span to entity mapping
         spanToEntity = {};
+        text = ""
 
         // Clear rows in table
         selectedEntitiesTable = document.getElementById("selectedentities");
@@ -115,9 +149,23 @@
 <body >
     <div class="wrapper" >
         <header>
-            <h1><b>Instructions</b></h1>
-               <span style="text-align:center">TODO: Add instructions here!</span>
-            <!-- Add instructions for Turkers -->
+            <h1><b>Instructions</b></h1> <br>
+               <span style="text-align:center;"> Below you will be presented with a dialogue between two individuals
+               discussing their friends. Their friends have a number of different attributes, including occcupation and
+               schools where they studied. All of these attributes are listed in the table below. Your task is as follows:</span> <br> <br>
+
+                <ul style="margin-left: 30px;">
+                <li>Highlight each span of text in every line in the dialogue that may refer to an item in the table</li>
+                appear below the dialogue.</li>
+                <li> Once you highlight the appropriate span of text, select the item from the dropdown that corresponds to the span of text you have identified. For example,
+                the dialogue may use <span style="color:red">UPenn</span> to refer to the item <span style="color:green">University of Pennsylvania</span>.</li>
+                <li> Once you have selected the correct entity, click the submit button. The span of text and the entity you
+                selected will appear as a row in the table below the dropdown.</li>
+                <li>Highlight <b>EVERY</b> span of text in the dialogue that refers to an entity in the table, or
+                <b>your work will be rejected</b>.</li>
+                <li>If you have made a mistake, you can clear the entities you have highlighted by clicking the <i> Clear Highlighting </i>
+                    button at the bottom of the page.</li> <br>
+                </ul>
         </header>
         <br>
         <br>
@@ -144,6 +192,7 @@
         </div>
         <br> <br>
 
+        <!-- Fill in a dialogue here -->
         <div class="text" onmouseup="highlightText()">
         <p> Agent 1: I'm from Columbia, majored in physics. </p>
             <p> Agent 0: I went to University of Pensylvania and most my friends are from there.</p>
@@ -159,8 +208,8 @@
 
         <!-- Will be filled in with dropdown to be used for selecting entities-->
         <div id="entities"> </div>
-        
 
+        <br>
 
         <table id="selectedentities" align="middle" border="1" width="700">
         <tr>
@@ -171,11 +220,13 @@
 
         </table>
 
-        <br><br>
+        <br>
 
-        <div class="buttons"></div>
+        <!--<section class="main-controls">-->
+        <div class="buttons" style="text-align:center;">
          <button type="button" onclick="clearSpans()">Clear Highlighting!</button>
         </div>
+        <!--</section>-->
 
     </div>
 

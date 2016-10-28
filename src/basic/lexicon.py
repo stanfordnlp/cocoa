@@ -229,9 +229,7 @@ class SingleTokenLexicon(BaseLexicon):
     """
     def __init__(self, schema, learned_lex):
         super(SingleTokenLexicon, self).__init__(schema, learned_lex)
-        # Maintain mapping from token to its various synonyms to avoid recomputing for multiple entities
-        self.synonyms = defaultdict(list)
-        self.seen_tokens = set()
+        # TODO: Maintain mapping from token to its various synonyms to avoid recomputing for multiple entities
 
     # TODO: compute dialogue num entity average as metric for system performance
     def compute_synonyms(self):
@@ -240,7 +238,6 @@ class SingleTokenLexicon(BaseLexicon):
         :return:
         """
         # Keep track of tokens we have seen to handle repeats
-        all_seen_tokens = set()
         for entity, type in self.entities.items():
             phrases = []
             mod_entity = entity
@@ -249,8 +246,7 @@ class SingleTokenLexicon(BaseLexicon):
 
             # Add all tokens in entity -- we only compute token-level edits (except for acronyms/prefixes...)
             entity_tokens = mod_entity.split(' ')
-            # TODO: Maintain mapping from base token to its variants and use this to then keep from computing edits for same token repeatedly
-            phrases.extend([t for t in entity_tokens if t not in all_seen_tokens])
+            phrases.extend([t for t in entity_tokens])
 
             synonyms = []
             if entity == 'facebook':
@@ -271,12 +267,13 @@ class SingleTokenLexicon(BaseLexicon):
                 synonyms.extend(phrase_level_acronyms)
                 synonyms.extend(phrase_level_prefixes)
 
+
             # Add to lexicon
             for synonym in set(synonyms):
                 self.lexicon[synonym].append((entity, type))
 
 
-    def entitylink(self, raw_tokens, num_entities=False):
+    def entitylink(self, raw_tokens, return_entities=False):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -288,6 +285,7 @@ class SingleTokenLexicon(BaseLexicon):
         num_entities_found = 0
         entities = []
         stop_words = set(['of'])
+        entities_found = []
         while i < len(raw_tokens):
             candidate_entities = None
             single_char = False
@@ -323,6 +321,8 @@ class SingleTokenLexicon(BaseLexicon):
                                 break
                         if not entity:
                             entity = candidate_entities
+
+                    entities_found.append(entity)
                     entities.append((phrase, entity))
                     i += l
                     break
@@ -331,8 +331,8 @@ class SingleTokenLexicon(BaseLexicon):
                 i += 1
 
         # For computing per dialogue entities found
-        if num_entities:
-            return entities, num_entities_found
+        if return_entities:
+            return entities, entities_found
 
         return entities
 
