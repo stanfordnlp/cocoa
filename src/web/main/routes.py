@@ -132,13 +132,13 @@ def check_inbox():
     if event is not None:
         message = None
         if event.action == 'message':
-            message = format_message("Friend: {}".format(event.data), False)
+            message = format_message("Partner: {}".format(event.data), False)
         elif event.action == 'join':
-            message = format_message("Your friend has joined the room.", True)
+            message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
-            message = format_message("Your friend has left the room.", True)
+            message = format_message("Your partner has left the room.", True)
         elif event.action == 'select':
-            message = format_message("Your friend selected {}".format(", ".join([v[1] for v in event.data])), True)
+            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in event.data])), True)
         return jsonify(message=message, received=True)
     return jsonify(received=False)
 

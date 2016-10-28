@@ -63,10 +63,10 @@ class Partner(object):
 
 class Messages(object):
     ChatExpired = "Darn, you ran out of time! Waiting for a new chat..."
-    PartnerConnectionTimeout = "Your friend's connection has timed out! Waiting for a new chat..."
+    PartnerConnectionTimeout = "Your partner's connection has timed out! Waiting for a new chat..."
     ConnectionTimeout = "Your connection has timed out! Waiting for a new chat..."
     YouLeftRoom = "You have left the room. Waiting for a new chat..."
-    PartnerLeftRoom = "Your friend has left the room! Waiting for a new chat..."
+    PartnerLeftRoom = "Your partner has left the room! Waiting for a new chat..."
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment."
     ChatCompleted = "Great, you've completed the chat!"
 
