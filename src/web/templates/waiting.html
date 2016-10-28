@@ -67,63 +67,19 @@
             }
 
         </script>
-        <script type="text/javascript" charset="utf-8">
-			function getTimeRemaining(endtime) {
-			  var t = Date.parse(endtime) - Date.parse(new Date());
-			  var seconds = Math.floor((t / 1000) % 60);
-			  var minutes = Math.floor((t / 1000 / 60));
-			  return {
-				'total': t,
-				'minutes': minutes,
-				'seconds': seconds
-			  };
-			}
-			function init() {
-			  var deadline = new Date(Date.parse(new Date()) + {{ seconds_until_expiration }} * 1000);
-			  initializeClock('timer', deadline);
-			}
-			function initializeClock(id, endtime) {
-			  var clock = document.getElementById(id);
-			  var minutesSpan = clock.querySelector('.minutes');
-			  var secondsSpan = clock.querySelector('.seconds');
-
-			  function updateClock() {
-				var t = getTimeRemaining(endtime);
-				
-				if (t.total <= 0) {
-					clearInterval(timeinterval);
-				}
-				
-				if (t.total >=0) {
-					minutesSpan.innerHTML = t.minutes+':';
-					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-				}
-
-			  }
-
-			  updateClock();
-			  var timeinterval = setInterval(updateClock, 1000);
-			}
-        </script>
     </head>
     <body onload="init()">
     <div id="content">
-        <h2>Who's Our Mutual Friend?</h2>
-        <div id="timer">
-            <div>
-                Time left to wait:
-            </div>
-            <div style="padding: 0 0 0 30px;">
-            <span class="minutes"></span>
-            </div>
-            <div>
-            <span class="seconds"></span>
-            </div>
-        </div>
         <div>
-            <h3>{{ waiting_message }}</h3>
+             <div style="float:left; margin: 0px 20px 0px 10px;">
+                <img height="120" width="120" src="{{ url_for('static', filename='img/handshake.jpg') }}"/>
+            </div>
+            <div style="float:left">
+                <h2>Who's Our Mutual Friend?</h2>
+                <h3>{{ waiting_message }}</h3>
 
-            <h4>When we pair you with another user, you'll see a page containing a chat box and the instructions for a timed task that involves using the chat interface to chat with the other user. Be sure to read the instructions carefully while completing the task. </h4>
+                <h4>Make sure you have read the instructions carefully, as the task is timed and the clock will start immediately once you are paired. </h4>
+            </div>
         </div>
     </div>
 

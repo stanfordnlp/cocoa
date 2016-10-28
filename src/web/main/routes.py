@@ -14,7 +14,7 @@ from web_utils import get_backend
 from backend import Status
 from src.basic.event import Event
 
-date_fmt = '%Y-%m-%d:%H-%M-%S'
+date_fmt = '%Y-%m-%d %H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")

@@ -116,7 +116,6 @@
 				window.onbeforeunload = disconnect;
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;
-					console.log(code);
 					if (code == 13) {
 						text = $('#text').val();
 						$('#text').val('');
@@ -124,23 +123,6 @@
 					}
 				});
 		
-				$('#itemSelection').change(function() {
-					selected = $('option:selected').val();
-					if(selectTime == null) {
-						// if no selection has been made before, log selection and save selection time
-						selectTime = new Date();
-						select(selected);
-					}
-					else {
-						var currentTime = new Date();
-						// check if last selection was more than 10 seconds ago; selections can only be made > 10 seconds apart.
-						// If the last selection was made < 10 seconds ago, do nothing (no selection event is logged).
-						if ((currentTime - selectTime) > 10000) {
-							select(selected);
-							selectTime = currentTime;
-						} // otherwise do nothing
-					}
-				});
 			});
 			
 			function makeSelection(selected) {
@@ -215,7 +197,6 @@
 					data: {"uid": "{{ uid }}"},
 					dataType: "json",
 					success: function(response) {
-						console.log(response['valid']);
 						if(!response['valid']) {
 							disconnect();
 							window.location.reload(true);
@@ -228,7 +209,6 @@
 			function disconnect() {
             	clearInterval(validCheckInterval);
             	clearInterval(inboxCheckInterval);
-            	console.log("Disconnecting from server....");
             	$.ajax({
             		url: BASE_URL + '/_leave_chat/',
             		type: "get",
@@ -325,7 +305,7 @@
 				{% set ctr = 1 %}
 				{% for item in kb %}
 				<tr>
-					<td><a href="javascript:void(0)" onclick="makeSelection({{ctr}} - 1)"><b>{{ctr}}</b></a></td>
+					<td><a href="javascript:void(0)" onclick="makeSelection({{ctr}} - 1)"><b>Select</b></a></td>
 					{% for attr in attributes %}
 					<td>{{item[attr]}}</td>
 					{% endfor %}
