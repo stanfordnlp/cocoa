@@ -4,16 +4,15 @@ from tensorflow.python.ops.rnn_cell import _linear as linear
 from util import batch_embedding_lookup, batch_linear
 
 def add_graph_embed_arguments(parser):
-    parser.add_argument('--node-embed-size', default=10, help='Knowledge graph node/subgraph embedding size')
+    parser.add_argument('--node-embed-size', default=20, help='Knowledge graph node/subgraph embedding size')
     parser.add_argument('--edge-embed-size', default=10, help='Knowledge graph edge label embedding size')
     parser.add_argument('--entity-embed-size', default=10, help='Knowledge graph entity embedding size')
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=1, help='Number of iterations of message passing on the graph')
-    parser.add_argument('--combine-message', default='concat', help='How to combine propogated message {concat, sum}')
 
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, message_combiner='concat'):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -29,14 +28,11 @@ class GraphEmbedderConfig(object):
 
         # Number of message passing iterations
         self.mp_iters = mp_iters
-        # How to combine messages from each iteration
-        self.message_combiner = message_combiner
-        if message_combiner == 'concat':
-            self.context_size = self.node_embed_size * (mp_iters + 1)
-        elif message_combiner == 'sum':
-            self.context_size = self.node_embed_size
-        else:
-            raise ValueError('Unknown message combiner')
+        #self.context_size = self.node_embed_size * (mp_iters + 1)
+        self.context_size = self.node_embed_size * mp_iters
+        self.context_size += (self.utterance_size + self.feat_size)
+        if use_entity_embedding:
+            self.context_size += entity_embed_size
 
         self.use_entity_embedding = use_entity_embedding
         if use_entity_embedding:
@@ -106,31 +102,30 @@ class GraphEmbedder(object):
                 with tf.variable_scope('InitNodeEmbedding') as scope:
                     # It saves some reshapes to do batch_linear and batch_embedding_lookup
                     # together, but this way is clearer.
-                    # TODO: initial_node_embed: just concat is fine, don't do linear
-                    #return tf.nn.embedding_lookup(self.entity_embedding, entity_ids), mask
                     if self.config.use_entity_embedding:
-                        initial_node_embed = batch_linear([tf.nn.embedding_lookup(self.entity_embedding, entity_ids), batch_embedding_lookup(utterances, node_ids), node_feats], self.config.node_embed_size, True)
+                        initial_node_embed = tf.concat(2, [tf.nn.embedding_lookup(self.entity_embedding, entity_ids), batch_embedding_lookup(utterances, node_ids), node_feats])
                     else:
-                        initial_node_embed = batch_linear([batch_embedding_lookup(utterances, node_ids), node_feats], self.config.node_embed_size, True)
+                        initial_node_embed = tf.concat(2, [batch_embedding_lookup(utterances, node_ids), node_feats])
                     scope.reuse_variables()
 
                 # Message passing
                 def mp(curr_node_embedding):
                     messages = self.embed_path(curr_node_embedding, self.edge_embedding, paths)
                     return self.pass_message(messages, node_paths, self.config.pad_path_id)
-                node_embeds = tf.scan(lambda curr_embed, _: mp(curr_embed), \
-                        tf.range(0, self.config.mp_iters), \
-                        initial_node_embed)  # (mp_iters, batch_size, num_nodes, embed_size)
+                #node_embeds = tf.scan(lambda curr_embed, _: mp(curr_embed), \
+                #        tf.range(0, self.config.mp_iters), \
+                #        initial_node_embed)  # (mp_iters, batch_size, num_nodes, embed_size)
 
-        if self.config.message_combiner == 'concat':
-            context = tf.concat(2, [initial_node_embed] + tf.unpack(node_embeds, axis=0))
-        elif self.config.message_combiner == 'sum':
-            context = tf.add_n([initial_node_embed] + tf.unpack(node_embeds, axis=0))
-        else:
-            raise ValueError('Unknown message combining method')
+                node_embeds = [initial_node_embed]
+                # NOTE: initial MP uses different parameters because the node_embed_size is different
+                with tf.variable_scope('InitialMP'):
+                    node_embeds.append(mp(node_embeds[-1]))
+                for i in xrange(self.config.mp_iters-1):
+                    if i > 0:
+                        tf.get_variable_scope().reuse_variables()
+                    node_embeds.append(mp(node_embeds[-1]))
 
-        # Set padded context to zero
-        #context = context * tf.to_float(tf.expand_dims(mask, 2))
+        context = tf.concat(2, node_embeds)
 
         self.context_initialized = True
         return context, mask
@@ -177,18 +172,6 @@ class GraphEmbedder(object):
         mask = tf.expand_dims(mask, 3)  # (batch_size, num_nodes, num_neighbors, 1)
         embeds = embeds * mask
         new_node_embeds = tf.reduce_sum(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
-
-        # The for-loop version
-        #new_node_embeds = []
-        #num_neighbors = neighbors.get_shape().as_list()[-1]
-        #path_embed_size = path_embeds.get_shape().as_list()[-1]
-        #for i in xrange(self.config.batch_size):
-        #    node_inds = tf.reshape(neighbors[i], [-1])  # (num_nodes x num_neighbors)
-        #    batch_mask = tf.reshape(mask[i], [-1, 1])  # (num_nodes x num_neighbors, 1)
-        #    embeds = tf.gather(path_embeds[i], node_inds) * batch_mask  # (num_nodes x num_neighbors, path_embed_size)
-        #    embeds = tf.reduce_sum(tf.reshape(embeds, [-1, num_neighbors, path_embed_size]), 1)  # (num_nodes, path_embed_size)
-        #    new_node_embeds.append(embeds)
-        #new_node_embeds = tf.pack(new_node_embeds)
 
         return new_node_embeds
 
