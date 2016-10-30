@@ -177,7 +177,7 @@ class Lexicon(object):
     def entitylink(self, raw_tokens):
         '''
         Add detected entities to each token
-        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
+        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple', 'company'))]
         '''
         i = 0
         entities = []
