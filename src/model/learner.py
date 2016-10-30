@@ -155,9 +155,9 @@ class Learner(object):
         train_data = self.data.generator(split, self.batch_size)
         num_per_epoch = args.num_per_epoch or train_data.next()
         step = 0
-        saver = tf.train.Saver()
+        saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
         save_path = os.path.join(args.checkpoint, 'tf_model.ckpt')
-        best_saver = tf.train.Saver(max_to_keep=1)
+        best_saver = tf.train.Saver(max_to_keep=1, write_version=tf.train.SaverDef.V2)
         best_checkpoint = args.checkpoint+'-best'
         if not os.path.isdir(best_checkpoint):
             os.mkdir(best_checkpoint)

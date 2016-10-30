@@ -103,8 +103,8 @@ if __name__ == '__main__':
         print 'GPU is disabled'
         config = tf.ConfigProto(device_count = {'GPU': 0})
     else:
-        config = tf.ConfigProto()
-        #config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
+        config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
 
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
@@ -113,7 +113,7 @@ if __name__ == '__main__':
             tf.initialize_all_variables().run()
             print 'Load TF model'
             start = time.time()
-            saver = tf.train.Saver()
+            saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
             saver.restore(sess, ckpt.model_checkpoint_path)
             print 'Done [%fs]' % (time.time() - start)
 
