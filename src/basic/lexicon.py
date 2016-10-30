@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+import datetime
 ### Helper functions
 
 def get_prefixes(entity, min_length=3, max_length=5):
@@ -96,6 +96,7 @@ class Lexicon(object):
     The current lexicon just uses several heuristics to do the matching.
     '''
     def __init__(self, schema, learned_lex):
+        start_time = datetime.datetime.now()
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
@@ -110,7 +111,11 @@ class Lexicon(object):
         #for phrase, entities in self.lexicon.items():
         #    if len(entities) > 1:
         #        print phrase, entities
-        print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
+
+        end_time = datetime.datetime.now()
+        print 'Created lexicon in %d seconds: %d phrases mapping to %d entities, %f entities per phrase' % \
+              ((end_time - start_time).seconds, len(self.lexicon), len(self.entities),
+               sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
 
     def load_entities(self):
         for type_, values in self.schema.values.iteritems():
