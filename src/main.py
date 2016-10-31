@@ -12,7 +12,7 @@ from basic.dataset import add_dataset_arguments, read_dataset
 from basic.schema import Schema
 from basic.scenario_db import ScenarioDB, add_scenario_arguments
 from basic.lexicon import Lexicon
-from model.preprocess import DataGenerator
+from model.preprocess import DataGenerator, Preprocessor
 from model.encdec import add_model_arguments, build_model
 from model.learner import add_learner_arguments, Learner
 from model.evaluate import Evaluator
@@ -80,20 +80,20 @@ if __name__ == '__main__':
         ckpt = None
 
     # Dataset
+    preprocessor = Preprocessor(schema, lexicon)
     use_kb = False if args.model == 'encdec' else True
     copy = True if args.model == 'attn-copy-encdec' else False
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, schema, lexicon, args.num_items, mappings, use_kb, copy)
-    for d in data_generator.num_examples:
-        logstats.add('data', d, 'num_dialogues', data_generator.num_examples[d])
-    logstats.add('vocab_size', data_generator.vocab.size)
+    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, preprocessor, schema, args.num_items, mappings, use_kb, copy)
+    for d, n in data_generator.num_examples.iteritems():
+        logstats.add('data', d, 'num_dialogues', n)
 
-    # Save vocab
+    # Save mappings
     if not mappings:
-        mappings = {'vocab': data_generator.vocab,\
-                    'entity': data_generator.entity_map,\
-                    'relation': data_generator.relation_map}
+        mappings = data_generator.mappings
         vocab_path = os.path.join(args.checkpoint, 'vocab.pkl')
         write_pickle(mappings, vocab_path)
+    for name, m in mappings.iteritems():
+        logstats.add('mappings', name, 'size', m.size)
 
     # Build the model
     model = build_model(schema, mappings, args)

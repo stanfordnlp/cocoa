@@ -1,5 +1,5 @@
 from itertools import izip, izip_longest
-from preprocess import EOT, EOS
+from preprocess import markers
 from graph import Graph
 from lib.bleu import compute_bleu
 from vocab import is_entity
@@ -25,6 +25,7 @@ class Evaluator(object):
         self.model = model
         self.batch_size = batch_size
         self.data = data
+        self.vocab = data.mappings['vocab']
         self.verbose = verbose
         self.copy = data.copy
 
@@ -33,8 +34,9 @@ class Evaluator(object):
         self.num_batches = {split: data.next() for split, data in self.eval_data.iteritems()}
 
         # For post-processing of generated utterances
-        self.stop_symbol = self.data.vocab.to_ind(EOT)
-        self.remove_symbols = map(self.data.vocab.to_ind, (EOT, EOS))
+        markers.to_int(self.vocab)
+        self.stop_symbol = markers.EOT
+        self.remove_symbols = (markers.EOT, markers.EOS, markers.PAD)
 
     def dataset(self):
         '''
@@ -61,13 +63,13 @@ class Evaluator(object):
             utterances = None
             for batch in dialogue_batch['batch_seq']:
                 max_len = batch['targets'].shape[1] + 10
-                preds, _, true_final_state, utterances = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.data.vocab, copy=self.copy)
+                preds, _, true_final_state, utterances = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy)
                 if graphs:
                     encoder_init_state = true_final_state[0]
                 else:
                     encoder_init_state = true_final_state
                 if self.copy:
-                    preds = graphs.copy_preds(preds, self.data.vocab.size)
+                    preds = graphs.copy_preds(preds, self.vocab.size)
                 pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
                 bleu_scores = self.bleu_score(pred_tokens, batch['decoder_tokens'])
                 entity_recalls = self.entity_recall(pred_tokens, batch['decoder_tokens'])

@@ -34,6 +34,7 @@ class Learner(object):
     def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
+        self.vocab = data.mappings['vocab']
         if type(model).__name__ == 'BasicEncoderDecoder':
             self._run_batch = self._run_batch_basic
         elif type(model).__name__ == 'GraphEncoderDecoder':
@@ -87,9 +88,9 @@ class Learner(object):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data)
             if self.data.copy:
-                new_targets = graphs.copy_targets(batch['targets'], self.data.vocab.size)
-                new_encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.data.vocab)
-                new_decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.data.vocab)
+                new_targets = graphs.copy_targets(batch['targets'], self.vocab.size)
+                new_encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.vocab)
+                new_decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.vocab)
                 feed_dict = self.model.update_feed_dict(feed_dict=feed_dict,
                         targets=new_targets,
                         encoder_inputs=new_encoder_inputs,

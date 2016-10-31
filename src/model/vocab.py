@@ -7,15 +7,12 @@ def is_entity(word):
 class Vocabulary(object):
 
     UNK = '<unk>'
-    PAD = '<pad>'
 
-    def __init__(self, offset=0, unk=True, pad=True):
+    def __init__(self, offset=0, unk=True):
         self.word_to_ind = {}
         self.ind_to_word = {}
         self.size = 0
         self.offset = offset
-        if pad:
-            self.add_word(self.PAD)  # PAD = 0
         if unk:
             self.add_word(self.UNK)
 

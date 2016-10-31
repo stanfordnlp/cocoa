@@ -254,7 +254,7 @@ class Graph(object):
         This is required during training when we go through one dialogue multiple times.
         '''
         # Map each node in the graph to an integer
-        self.nodes = Vocabulary(unk=False, pad=False)
+        self.nodes = Vocabulary(unk=False)
         # All paths in the KB; each path is a 3-tuple (node_id, edge_id, node_id)
         # NOTE: The first path is always a padding path
         self.paths = [Graph.metadata.PATH_PAD]
