@@ -10,8 +10,14 @@
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script>
     spanToEntity = {};
+    // List of entities to include in dropdown -- TODO: Will probably need to reformat using Jinja
     array = ["UIUC", "Columbia", "Ford", "GE"];
-    text = "";
+    highlighted =  "";
+
+    // TODO: Submit data to server before reloading
+    function submitHIT(){
+        location.reload();
+    }
 
     // Add dropdown on load
     window.onload = function(){
@@ -32,9 +38,9 @@
         var submit = document.createElement("INPUT");
         submit.setAttribute("class", "submitButton")
         submit.setAttribute("type", "button");
-        submit.setAttribute("value", "submit");
+        submit.setAttribute("value", "Select Item");
         submit.onclick = function(){
-            getSelected(text)
+            getSelected(highlighted)
         };
         entities.appendChild(submit);
     }
@@ -44,7 +50,7 @@
     function highlightText(){
         if (window.getSelection){
             var entities = document.getElementById("entities");
-            entities.innerHTML = "";
+            //entities.innerHTML = "";
             var selection = window.getSelection();
             var selectionStr = selection.toString();
 
@@ -52,13 +58,13 @@
                 highlightRange(selection.getRangeAt(i));
             }
 
-            createDropdown(selectionStr);
+            updateSelected(selectionStr);
         }
     }
 
     // Get element from dropdown that has been selected
     function getSelected(span){
-        if (text == ""){
+        if (highlighted == ""){
             window.alert("You have not highlighted any span of text!");
         }else{
             // Get element selected
@@ -88,32 +94,9 @@
 
     }
 
-
-    // Create dropdown for options to select
-    function createDropdown(textHighlighted){
-        var entities = document.getElementById("entities");
-        var selectList = document.createElement("select");
-        selectList.id = "entitiesSelect";
-        entities.appendChild(selectList);
-
-        text = textHighlighted;
-        //Create and append the options for dropdown
-        for (var i = 0; i < array.length; i++) {
-            var option = document.createElement("option");
-            option.value = array[i];
-            option.text = array[i];
-            selectList.appendChild(option);
-        }
-
-        // Submit button for entity
-        var submit = document.createElement("INPUT");
-        submit.setAttribute("class", "submitButton")
-        submit.setAttribute("type", "button");
-        submit.setAttribute("value", "submit");
-        submit.onclick = function(){
-            getSelected(text)
-        };
-        entities.appendChild(submit);
+    // Update selected text to be filled into span-> entity table
+    function updateSelected(textHighlighted){
+        highlighted = textHighlighted;
     }
 
 
@@ -159,12 +142,14 @@
                 appear below the dialogue.</li>
                 <li> Once you highlight the appropriate span of text, select the item from the dropdown that corresponds to the span of text you have identified. For example,
                 the dialogue may use <span style="color:red">UPenn</span> to refer to the item <span style="color:green">University of Pennsylvania</span>.</li>
-                <li> Once you have selected the correct entity, click the submit button. The span of text and the entity you
+                <li> Once you have selected the correct entity, click the <span style="color:blue"> Select Item </span> button. The span of text and the entity you
                 selected will appear as a row in the table below the dropdown.</li>
                 <li>Highlight <b>EVERY</b> span of text in the dialogue that refers to an entity in the table, or
                 <b>your work will be rejected</b>.</li>
-                <li>If you have made a mistake, you can clear the entities you have highlighted by clicking the <i> Clear Highlighting </i>
-                    button at the bottom of the page.</li> <br>
+                <li>If you have made a mistake, you can clear the entities you have highlighted by clicking the <span style="color: purple">Clear Highlighting</span>
+                    button at the bottom of the page.</li>
+                <li> Once you are done highlighting <strong> ALL </strong> spans of text, click the <span style="color:red"> Submit HIT</span> button.</li>
+                <li> NOTE: Please only highlight one span of text at a time!</li> <br>
                 </ul>
         </header>
         <br>
@@ -195,13 +180,21 @@
         <!-- Fill in a dialogue here -->
         <div class="text" onmouseup="highlightText()">
         <p> Agent 1: I'm from Columbia, majored in physics. </p>
+            <br>
             <p> Agent 0: I went to University of Pensylvania and most my friends are from there.</p>
+            <br>
         <p>Agent 1: I have a single Apple friend.</p>
+            <br>
            <p> Agent 0: I work at Apple and all but one of my friends do, too,</p>
+            <br>
             <p>Agent 0: Who is your Apple friend?</p>
+            <br>
         <p>Agent 1: All my Penn friend works for Amazon.</p>
+            <br>
             <p>Agent 1: Laverna</p>
+            <br>
             <p>Agent 0: Nope. Do you know Colin who works at Amazon?</p>
+            <br>
             <p>Agent 1: Yes!</p>
         </div>
         <br>
@@ -222,11 +215,10 @@
 
         <br>
 
-        <!--<section class="main-controls">-->
         <div class="buttons" style="text-align:center;">
          <button type="button" onclick="clearSpans()">Clear Highlighting!</button>
+         <button type="button" onclick="submitHIT()">Submit HIT!</button>
         </div>
-        <!--</section>-->
 
     </div>
 
