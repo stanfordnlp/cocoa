@@ -41,8 +41,10 @@ class NeuralSystem(System):
         copy = True if args.model == 'attn-copy-encdec' else False
         textint_map = TextIntMap(vocab, mappings['entity_map'], copy)
 
-        Env = namedtuple('Env', ['model', 'tf-session', 'lexicon', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
-        self.env = Env(model, tf_session, lexicon, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(EOT), remove_symbols=map(vocab.to_ind, (EOT, EOS)), max_len=20)
+        preprocessor = Preprocessor(schema, lexicon)
+
+        Env = namedtuple('Env', ['model', 'tf-session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(EOT), remove_symbols=map(vocab.to_ind, (EOT, EOS)), max_len=20)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:

@@ -106,12 +106,12 @@ class NeuralSession(Session):
         if event.action == 'select':
             self.matched_item = self._match(event.data)
             if self.matched_item is None:
-                entity_tokens = [SELECT]
+                entity_tokens = [SELECT] + self.env.preprocessor.item_to_entities(event.data)
             else:
                 # Got a match; we're done.
                 return
         elif event.action == 'message':
-            entity_tokens = self.lexicon.entitylink(tokenize(event.data))
+            entity_tokens = self.env.preprocessor.process_event(event)
         else:
             raise ValueError('Unknown event action.')
         entity_tokens += [EOS]
