@@ -13,6 +13,7 @@ from vocab import is_entity
 from util import transpose_first_two_dims, batch_linear, batch_embedding_lookup
 from tensorflow.python.util import nest
 from itertools import izip
+from preprocess import markers
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -28,7 +29,8 @@ def build_model(schema, mappings, args):
     tf.set_random_seed(args.random_seed)
 
     vocab = mappings['vocab']
-    pad = vocab.to_ind(vocab.PAD)
+    markers.to_int(vocab)
+    pad = markers.PAD
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
@@ -74,7 +76,11 @@ class BasicEncoder(object):
             flat_last_states = []
             for state in flat_states:
                 state = transpose_first_two_dims(state)  # (batch_size, time_seq, state_size)
-                last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(self.last_inds, [-1, 1])), 1)
+                # NOTE: when state has dim=4, it's the context which does not change in a seq; just take the last one.
+                if len(state.get_shape()) == 4:
+                    last_state = state[:, -1, :, :]
+                else:
+                    last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(self.last_inds, [-1, 1])), 1)
                 flat_last_states.append(last_state)
             last_states = nest.pack_sequence_as(states, flat_last_states)
         return last_states

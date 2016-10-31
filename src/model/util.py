@@ -14,6 +14,7 @@ def batch_embedding_lookup(embeddings, indices):
     shape = tf.shape(embeddings)
     batch_size = batch_size or shape[0]
     num_words = num_words or shape[1]
+    embed_size = embed_size or shape[2]
 
     offset = tf.reshape(tf.range(batch_size) * num_words, [batch_size, 1])
     flat_embeddings = tf.reshape(embeddings, [-1, embed_size])
