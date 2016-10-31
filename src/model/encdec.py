@@ -10,8 +10,7 @@ from graph import Graph, GraphMetadata
 from graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from word_embedder import WordEmbedder
 from vocab import is_entity
-from preprocess import EOT
-from util import transpose_first_two_dims, batch_linear
+from util import transpose_first_two_dims, batch_linear, batch_embedding_lookup
 from tensorflow.python.util import nest
 from itertools import izip
 
@@ -72,14 +71,10 @@ class BasicEncoder(object):
         '''
         with tf.name_scope(type(self).__name__+'/get_final_state'):
             flat_states = nest.flatten(states)
-            #last_ind = tf.shape(flat_states[0])[0] - 1
-            #flat_last_states = [tf.nn.embedding_lookup(state, last_ind) for state in flat_states]
             flat_last_states = []
             for state in flat_states:
                 state = transpose_first_two_dims(state)  # (batch_size, time_seq, state_size)
-                # For each batch, gather(state, last_ind). state: (time_seq, state_size)
-                last_state = tf.map_fn(lambda x: tf.gather(x[0], x[1]),
-                        (state, self.last_inds), dtype=state.dtype)  # (batch_size, state_size)
+                last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(self.last_inds, [-1, 1])), 1)
                 flat_last_states.append(last_state)
             last_states = nest.pack_sequence_as(states, flat_last_states)
         return last_states
