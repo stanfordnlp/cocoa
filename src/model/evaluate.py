@@ -1,9 +1,9 @@
 from itertools import izip, izip_longest
-from preprocess import markers
-from graph import Graph
-from lib.bleu import compute_bleu
-from vocab import is_entity
-from lib import logstats
+from src.model.preprocess import markers
+from src.model.graph import Graph
+from src.lib.bleu import compute_bleu
+from src.model.vocab import is_entity
+from src.lib import logstats
 
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map):
     '''
@@ -34,9 +34,8 @@ class Evaluator(object):
         self.num_batches = {split: data.next() for split, data in self.eval_data.iteritems()}
 
         # For post-processing of generated utterances
-        markers.to_int(self.vocab)
-        self.stop_symbol = markers.EOT
-        self.remove_symbols = (markers.EOT, markers.EOS, markers.PAD)
+        self.stop_symbol = self.vocab.to_ind(markers.EOT)
+        self.remove_symbols = map(self.vocab.to_ind, (markers.EOT, markers.EOS, markers.PAD))
 
     def dataset(self):
         '''

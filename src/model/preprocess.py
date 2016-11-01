@@ -8,31 +8,11 @@ import numpy as np
 from vocab import Vocabulary, is_entity
 from graph import Graph, GraphBatch
 from itertools import chain, izip
+from collections import namedtuple
 import copy
 
-class SpecialSymbols(object):
-    def __init__(self):
-        self.EOT = '</t>'  # End of turn
-        self.EOS = '</s>'  # End of utterance
-        self.GO = '<go>'  # Start to decode
-        self.SELECT = '<select>'
-        self.PAD = '<pad>'
-        self.is_int = False
-
-    def to_int(self, vocab):
-        if self.is_int:
-            return
-        self.EOT = vocab.to_ind(self.EOT)
-        self.EOS = vocab.to_ind(self.EOS)
-        self.GO = vocab.to_ind(self.GO)
-        self.SELECT = vocab.to_ind(self.SELECT)
-        self.PAD = vocab.to_ind(self.PAD)
-        self.is_int = True
-
-    def get_list(self):
-        return (self.EOT, self.EOS, self.GO, self.SELECT, self.PAD)
-
-markers = SpecialSymbols()
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOT', 'EOS', 'GO', 'SELECT', 'PAD'])
+markers = SpecialSymbols(EOT='</t>', EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
 
 def tokenize(utterance):
     '''
@@ -81,7 +61,7 @@ def build_vocab(dialogues, special_symbols=[], add_entity=True):
     return vocab
 
 def create_mappings(dialogues, schema, num_items):
-    vocab = build_vocab(dialogues, markers.get_list(), add_entity=True)
+    vocab = build_vocab(dialogues, markers, add_entity=True)
     entity_map, relation_map = build_schema_mappings(schema, num_items)
     return {'vocab': vocab,
             'entity': entity_map,
@@ -195,8 +175,8 @@ class Dialogue(object):
         for i, turns in enumerate(self.turns):
             for j, turn in enumerate(turns):
                 for utterance in turn:
-                    utterance.append(markers.EOS)
-                self.turns[i][j] = [x for x in chain.from_iterable(turn)] + [markers.EOT]
+                    utterance.append(int_markers.EOS)
+                self.turns[i][j] = [x for x in chain.from_iterable(turn)] + [int_markers.EOT]
 
         if hasattr(self, 'token_turns'):
             for i, turns in enumerate(self.token_turns):
@@ -238,13 +218,13 @@ class DialogueBatch(object):
         '''
         max_num_tokens = max([len(t) for t in turn_batch])
         batch_size = len(turn_batch)
-        T = np.full([batch_size, max_num_tokens+1], markers.PAD, dtype=np.int32)
+        T = np.full([batch_size, max_num_tokens+1], int_markers.PAD, dtype=np.int32)
         for i, turn in enumerate(turn_batch):
             T[i, 1:len(turn)+1] = turn
             # Insert <go> at the beginning at each turn because for decoding we want to
             # start from <go> to generate, except for padded turns
-            if T[i][1] != markers.PAD:
-                T[i][0] = markers.GO
+            if T[i][1] != int_markers.PAD:
+                T[i][0] = int_markers.GO
         return T
 
     def _create_turn_batches(self):
@@ -268,10 +248,10 @@ class DialogueBatch(object):
         if encode_turn is not None:
             # Remove <go> and </t> at the beginning and end of utterance
             encoder_inputs = np.copy(encode_turn[:, 1:-1])
-            encoder_inputs[encoder_inputs == markers.EOT] = markers.PAD
+            encoder_inputs[encoder_inputs == int_markers.EOT] = int_markers.PAD
         else:
             # If there's no input to encode, use </s> as the encoder input.
-            encoder_inputs = np.full((decode_turn.shape[0], 1), markers.EOS, dtype=np.int32)
+            encoder_inputs = np.full((decode_turn.shape[0], 1), int_markers.EOS, dtype=np.int32)
             # encode_tokens are empty lists
 
         # Decoder inptus: start from <go> to generate, i.e. <go> <token>
@@ -280,9 +260,9 @@ class DialogueBatch(object):
 
         batch = {
                  'encoder_inputs': encoder_inputs,
-                 'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, markers.PAD),
+                 'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, int_markers.PAD),
                  'decoder_inputs': decoder_inputs,
-                 'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, markers.PAD),
+                 'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, int_markers.PAD),
                  'targets': decoder_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
@@ -407,6 +387,9 @@ class DataGenerator(object):
         self.textint_map = TextIntMap(mappings['vocab'], mappings['entity'], copy)
         Dialogue.textint_map = self.textint_map
 
+        global int_markers
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+
     def convert_to_int(self):
         '''
         Convert tokens to integers.
@@ -447,7 +430,6 @@ class DataGenerator(object):
         dialogues = self.dialogues[name]
         for dialogue in dialogues:
             dialogue.convert_to_int(keep_tokens=True)
-        markers.to_int(self.mappings['vocab'])
         # NOTE: we assume that GraphMetadata has been constructed before DataGenerator is called
         self.create_graph(dialogues)
         dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)

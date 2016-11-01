@@ -29,14 +29,14 @@ def build_model(schema, mappings, args):
     tf.set_random_seed(args.random_seed)
 
     vocab = mappings['vocab']
-    markers.to_int(vocab)
-    pad = markers.PAD
+    pad = vocab.to_ind(markers.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
+        # TODO: fix max degree and use bin
         max_degree = args.num_items + len(schema.attributes)
         graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], args.rnn_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, entity_cache_size=args.entity_cache_size)
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters)
@@ -136,6 +136,7 @@ class GraphEncoder(BasicEncoder):
         new_utterances = self.graph_embedder.update_utterance(input_dict['entities'], final_output, input_dict['utterances'])
         with tf.variable_scope(tf.get_variable_scope(), reuse=self.graph_embedder.context_initialized):
             context = self.graph_embedder.get_context(new_utterances)
+
         output_dict['utterances'] = new_utterances
         output_dict['context'] = context
         return output_dict
