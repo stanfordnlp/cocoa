@@ -81,7 +81,7 @@ class AttnRNNCell(object):
         attn_size = self.rnn_size
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
-                attns = tanh(batch_linear([h, context], attn_size, True))  # (batch_size, context_len, attn_size)
+                attns = tanh(batch_linear([h, context], attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -115,7 +115,7 @@ class AttnRNNCell(object):
 
     def _output_project(self, output, attn, project_size):
         with tf.variable_scope("AttnOutputProjection"):
-            new_output = tanh(linear([output, attn], project_size, True))
+            new_output = tanh(linear([output, attn], project_size, False))
         return new_output
 
     def compute_attention(self, h, context):
