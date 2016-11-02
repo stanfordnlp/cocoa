@@ -5,7 +5,7 @@ RNN cell with attention over an input context.
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from util import batch_linear
+from src.model.util import batch_linear
 
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')

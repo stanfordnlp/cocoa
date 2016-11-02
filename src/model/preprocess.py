@@ -5,8 +5,8 @@ Preprocess examples in a dataset and generate data for models.
 import random
 import re
 import numpy as np
-from vocab import Vocabulary, is_entity
-from graph import Graph, GraphBatch
+from src.model.vocab import Vocabulary, is_entity
+from src.model.graph import Graph, GraphBatch
 from itertools import chain, izip
 from collections import namedtuple
 import copy
