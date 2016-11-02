@@ -7,18 +7,18 @@ import random
 import os
 import time
 import tensorflow as tf
-from basic.util import read_json, write_json, read_pickle, write_pickle
-from basic.dataset import add_dataset_arguments, read_dataset
-from basic.schema import Schema
-from basic.scenario_db import ScenarioDB, add_scenario_arguments
-from basic.lexicon import Lexicon
-from model.preprocess import DataGenerator, Preprocessor
-from model.encdec import add_model_arguments, build_model
-from model.learner import add_learner_arguments, Learner
-from model.evaluate import Evaluator
-from model.graph import Graph, GraphMetadata, add_graph_arguments
-from model.graph_embedder import add_graph_embed_arguments
-from lib import logstats
+from src.basic.util import read_json, write_json, read_pickle, write_pickle
+from src.basic.dataset import add_dataset_arguments, read_dataset
+from src.basic.schema import Schema
+from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
+from src.basic.lexicon import Lexicon
+from src.model.preprocess import DataGenerator, Preprocessor
+from src.model.encdec import add_model_arguments, build_model
+from src.model.learner import add_learner_arguments, Learner
+from src.model.evaluate import Evaluator
+from src.model.graph import Graph, GraphMetadata, add_graph_arguments
+from src.model.graph_embedder import add_graph_embed_arguments
+from src.lib import logstats
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -55,9 +55,15 @@ if __name__ == '__main__':
         # Check config compatibility
         saved_config = read_json(config_path)
         curr_config = vars(args)
+        # TODO: more keys here
         assert_keys = ['model', 'rnn_size', 'rnn_type', 'num_layers']
-        for k in assert_keys:
-            assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
+        for k in curr_config:
+            if k in assert_keys:
+                assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
+            else:
+                # Rewrite previous config, e.g. batch size, learning rate
+                saved_config[k] = curr_config[k]
+        args = argparse.Namespace(**saved_config)
 
         # Checkpoint
         if args.test and args.best:
