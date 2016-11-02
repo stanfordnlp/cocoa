@@ -25,13 +25,6 @@ class KB(object):
         for row in rows:
             print ' ', '  '.join(('%%-%ds' % widths[i]) % (row[attr.name],) for i, attr in enumerate(self.schema.attributes))
 
-    def sorted_attr(self):
-        counts = defaultdict(int)
-        for item in self.items:
-            for attr_name, attr_value in item.iteritems():
-                counts[(attr_name, attr_value)] += 1
-        return sorted_candidates(counts.items())
-
     def get_item(self, idx):
         return self.items[idx]
 
