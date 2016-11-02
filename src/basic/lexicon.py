@@ -339,8 +339,8 @@ class SingleTokenLexicon(BaseLexicon):
 
     def test(self):
         phrases = ['foodie', 'evening', 'evenings', 'food']
-        for x in phrases:
-            print x, '=>', self.lookup(x)
+        # for x in phrases:
+        #     print x, '=>', self.lookup(x)
 
         sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
         sentence3 = [t.lower() for t in sentence3]
@@ -349,10 +349,16 @@ class SingleTokenLexicon(BaseLexicon):
 
 if __name__ == "__main__":
     from schema import Schema
+    import time
     # TODO: Update path to location of desired schema used for basic testing
-    path = None
+    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-large.json"
+    start_build = time.time()
     schema = Schema(path)
     lex = SingleTokenLexicon(schema, learned_lex=True)
+    print "Building complete: ", time.time() - start_build
+    start_test = time.time()
     lex.test()
+    print "Testing Complete: ", time.time() - start_test
+
 
 
