@@ -2,7 +2,7 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <link rel="stylesheet" type="text/css" href="single_task_lexicon.css">
+    <link rel="stylesheet" type="text/css" href="../static/single_task_lexicon.css">
     <title>Single Task Lexicon</title>
 </head>
 
@@ -10,7 +10,7 @@
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script>
     spanToEntity = {};
-    // List of entities to include in dropdown -- TODO: Will probably need to reformat using Jinja
+    // List of entities to include in dropdown
     array = ["UIUC", "Columbia", "Ford", "GE"];
     highlighted =  "";
 
@@ -22,17 +22,14 @@
     // Add dropdown on load
     window.onload = function(){
         var entities = document.getElementById("entities");
-        var selectList = document.createElement("select");
-        selectList.id = "entitiesSelect";
-        entities.appendChild(selectList);
 
         //Create and append the options for dropdown
-        for (var i = 0; i < array.length; i++) {
-            var option = document.createElement("option");
-            option.value = array[i];
-            option.text = array[i];
-            selectList.appendChild(option);
-        }
+//        for (var i = 0; i < array.length; i++) {
+//            var option = document.createElement("option");
+//            option.value = array[i];
+//            option.text = array[i];
+//            selectList.appendChild(option);
+//        }
 
         // Submit button for entity
         var submit = document.createElement("INPUT");
@@ -157,20 +154,26 @@
         <div class="kb">
         <table align="middle" border="1">
         <tr>
-            <th>Name</th>
-            <th>School</th>
-            <th>Employer</th>
+            {% for name in column_names %}
+            <th>{{name}}</th>
+            {% endfor %}
         </tr>
+        {% for row in kb1 %}
         <tr>
-            <td>John </td>
-            <td>Columbia </td>
-            <td>Ford</td>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
         </tr>
+        {% endfor %}
+
+        {% for row in kb2 %}
         <tr>
-            <td>Anna </td>
-            <td>University of Illinois Urbana-Champagna</td>
-            <td>GE</td>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
         </tr>
+        {% endfor %}
+
 
         </table>
 
@@ -179,28 +182,33 @@
 
         <!-- Fill in a dialogue here -->
         <div class="text" onmouseup="highlightText()">
-        <p> Agent 1: I'm from Columbia, majored in physics. </p>
-            <br>
-            <p> Agent 0: I went to University of Pensylvania and most my friends are from there.</p>
-            <br>
-        <p>Agent 1: I have a single Apple friend.</p>
-            <br>
-           <p> Agent 0: I work at Apple and all but one of my friends do, too,</p>
-            <br>
-            <p>Agent 0: Who is your Apple friend?</p>
-            <br>
-        <p>Agent 1: All my Penn friend works for Amazon.</p>
-            <br>
-            <p>Agent 1: Laverna</p>
-            <br>
-            <p>Agent 0: Nope. Do you know Colin who works at Amazon?</p>
-            <br>
-            <p>Agent 1: Yes!</p>
+            {% for idx, turn in dialogue.items() %}
+                <p> <strong>{{turn.agent}}:   </strong> {{turn.data}}</p>
+
+            {% endfor %}
+
         </div>
         <br>
 
         <!-- Will be filled in with dropdown to be used for selecting entities-->
-        <div id="entities"> </div>
+        <div id="entities">
+            <select id="entitiesSelect">
+                {% for entity in entities %}
+                    <option value="{{entity}}"> {{entity}}</option>
+                {% endfor %}
+                <!--{% for row in kb1 %}-->
+                 <!--{% for name, val in row.items()%}-->
+                     <!--<option value="{{val}}"> {{val}}</option>-->
+                 <!--{% endfor %}-->
+                <!--{% endfor %}-->
+
+                <!--{% for row in kb2 %}-->
+                 <!--{% for name, val in row.items()%}-->
+                     <!--<option value="{{val}}"> {{val}}</option>-->
+                 <!--{% endfor %}-->
+                <!--{% endfor %}-->
+            </select>
+        </div>
 
         <br>
 

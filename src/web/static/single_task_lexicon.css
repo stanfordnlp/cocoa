@@ -33,6 +33,12 @@ header{
   margin-right:auto;
 }
 
+.text{
+   border-style: solid;
+  border-color: green;
+  padding-left: 10px;
+}
+
 #selectedentities{
   align: middle;
   text-align: center;
