@@ -53,19 +53,37 @@ class Learner(object):
             self._run_batch(dialogue_batch, sess, summary_map, test=True)
         return summary_map['loss']['mean']
 
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None):
-        feed_dict = self.model.update_feed_dict(encoder_inputs=batch['encoder_inputs'],
-                decoder_inputs=batch['decoder_inputs'],
-                targets=batch['targets'],
-                encoder_inputs_last_inds=batch['encoder_inputs_last_inds'],
-                decoder_inputs_last_inds=batch['decoder_inputs_last_inds'],
-                encoder_init_state=encoder_init_state)
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False):
+        # NOTE: We need to do the processing here instead of in preprocess because the
+        # graph is dynamic; also the original batch data should not be modified.
+        if copy:
+            targets = graphs.copy_targets(batch['targets'], self.vocab.size)
+            encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.vocab)
+            decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.vocab)
+        else:
+            targets = batch['targets']
+            encoder_inputs = batch['encoder_inputs']
+            decoder_inputs = batch['decoder_inputs']
+
+        encoder_args = {'inputs': encoder_inputs,
+                'last_inds': batch['encoder_inputs_last_inds'],
+                'init_state': encoder_init_state,
+                }
+        decoder_args = {'inputs': decoder_inputs,
+                'last_inds': batch['decoder_inputs_last_inds'],
+                }
+        kwargs = {'encoder': encoder_args,
+                'decoder': decoder_args,
+                'targets': targets,
+                }
+
         if graph_data is not None:
-            feed_dict = self.model.update_feed_dict(feed_dict=feed_dict,
-                    encoder_entities=graph_data['encoder_entities'],
-                    decoder_entities=graph_data['decoder_entities'],
-                    encoder_input_utterances=graph_data['utterances'])
-            feed_dict = self.model.add_graph_data(feed_dict, graph_data)
+            encoder_args['entities'] = graph_data['encoder_entities']
+            decoder_args['entities'] = graph_data['decoder_entities']
+            encoder_args['utterances'] = graph_data['utterances']
+            kwargs['graph_embedder'] = graph_data
+
+        feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
 
     def _print_batch(self, inputs, targets, preds, loss):
@@ -86,19 +104,21 @@ class Learner(object):
         graphs = dialogue_batch['graph']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data)
-            if self.data.copy:
-                new_targets = graphs.copy_targets(batch['targets'], self.vocab.size)
-                new_encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.vocab)
-                new_decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.vocab)
-                feed_dict = self.model.update_feed_dict(feed_dict=feed_dict,
-                        targets=new_targets,
-                        encoder_inputs=new_encoder_inputs,
-                        decoder_inputs=new_decoder_inputs)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy)
             if test:
-                logits, final_state, utterances, loss = sess.run([self.model.logits, self.model.decoder_final_state, self.model.decoder_output_utterances, self.model.loss], feed_dict=feed_dict)
+                logits, final_state, utterances, loss = sess.run(
+                        [self.model.decoder.output_dict['logits'],
+                         self.model.decoder.output_dict['final_state'],
+                         self.model.decoder.output_dict['utterances'],
+                         self.model.loss], feed_dict=feed_dict)
             else:
-                _, logits, final_state, utterances, loss, gn = sess.run([self.train_op, self.model.logits, self.model.decoder_final_state, self.model.decoder_output_utterances, self.model.loss, self.grad_norm], feed_dict=feed_dict)
+                _, logits, final_state, utterances, loss, gn = sess.run(
+                        [self.train_op,
+                         self.model.decoder.output_dict['logits'],
+                         self.model.decoder.output_dict['final_state'],
+                         self.model.decoder.output_dict['utterances'],
+                         self.model.loss,
+                         self.grad_norm], feed_dict=feed_dict)
             # NOTE: final_state = (rnn_state, attn, context)
             encoder_init_state = final_state[0]
 

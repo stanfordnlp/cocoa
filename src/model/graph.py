@@ -1,8 +1,8 @@
 from collections import defaultdict
 import numpy as np
 from itertools import izip, islice
-from vocab import is_entity, Vocabulary
-from graph_embedder import GraphEmbedderConfig
+from src.model.vocab import is_entity, Vocabulary
+from src.model.graph_embedder import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Number of items in each KB')
@@ -107,12 +107,12 @@ class GraphBatch(object):
     def _batch_node_feats(self, max_num_nodes):
         return self._make_batch((self.batch_size, max_num_nodes, Graph.metadata.feat_size), 0, np.float32, 'feats')
 
-    def update_entities(self, tokens, partner):
+    def update_entities(self, tokens):
         assert len(tokens) == self.batch_size
         for graph, toks in izip(self.graphs, tokens):
             # toks is None when this is a padded turn
             if toks is not None:
-                graph.read_utterance(toks, partner)
+                graph.read_utterance(toks)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
         max_len = Graph.metadata.entity_cache_size
@@ -128,6 +128,7 @@ class GraphBatch(object):
                 batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
+    # TODO: this function does not belong here
     def entity_to_vocab(self, inputs, vocab):
         '''
         Convert entity ids to vocab ids. In preprocessing we have replaced all entities to
@@ -172,14 +173,14 @@ class GraphBatch(object):
                     new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
         return new_preds
 
-    def update_graph(self, tokens, partner):
+    def update_graph(self, tokens):
         '''
         Update graph: add new entities tokens.
         Return lists of entities at the end of the sequence of tokens so that the encoder
         or decoder can update the utterance matrix accordingly.
         '''
         if tokens is not None:
-            self.update_entities(tokens, partner)
+            self.update_entities(tokens)
         entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
         return entity_lists
 
@@ -213,8 +214,8 @@ class GraphBatch(object):
           we will get updated utterance matrices from GraphEmbedder.
         - node_ids, entity_ids, paths, node_paths, node_feats
         '''
-        encoder_entity_lists = self.update_graph(encoder_tokens, True)
-        decoder_entity_lists = self.update_graph(decoder_tokens, False)
+        encoder_entity_lists = self.update_graph(encoder_tokens)
+        decoder_entity_lists = self.update_graph(decoder_tokens)
 
         max_num_nodes = self._max_num_nodes()
         if utterances is None:
@@ -324,7 +325,7 @@ class Graph(object):
                 self._add_path(attr_node, 'has', entity_node)
         self.paths = np.array(self.paths, dtype=np.int32)
 
-    def read_utterance(self, tokens, partner):
+    def read_utterance(self, tokens):
         '''
         Map entities to node ids and tokens to -1. Add new nodes if needed.
         tokens: from batch['encoder/decoder_tokens']; entities are represented

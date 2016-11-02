@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from util import batch_embedding_lookup, batch_linear
+from src.model.util import batch_embedding_lookup, batch_linear
 
 def add_graph_embed_arguments(parser):
     parser.add_argument('--node-embed-size', default=10, help='Knowledge graph node/subgraph embedding size')
@@ -87,9 +87,21 @@ class GraphEmbedder(object):
                 node_feats = tf.placeholder(tf.float32, shape=[None, None, self.config.feat_size], name='node_feats')
 
                 self.input_data = (node_ids, mask, entity_ids, paths, node_paths, node_feats)
+                # TODO:
+                self.node_ids, self.mask, self.entity_ids, self.paths, self.node_paths, self.node_feats = self.input_data
 
             # This will be used by GraphDecoder to figure out the shape of the output attention scores
             self.node_ids = self.input_data[0]
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = kwargs.pop('feed_dict', {})
+        feed_dict[self.node_ids] = kwargs.pop('node_ids')
+        feed_dict[self.mask] = kwargs.pop('mask')
+        feed_dict[self.entity_ids] = kwargs.pop('entity_ids')
+        feed_dict[self.paths] = kwargs.pop('paths')
+        feed_dict[self.node_paths] = kwargs.pop('node_paths')
+        feed_dict[self.node_feats] = kwargs.pop('node_feats')
+        return feed_dict
 
     def get_context(self, utterances):
         '''
