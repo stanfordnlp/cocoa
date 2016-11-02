@@ -9,6 +9,7 @@ from lib import logstats
 from vocab import is_entity
 import resource
 import numpy as np
+from preprocess import entity_to_vocab
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -58,8 +59,8 @@ class Learner(object):
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
             targets = graphs.copy_targets(batch['targets'], self.vocab.size)
-            encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], self.vocab)
-            decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], self.vocab)
+            encoder_inputs = entity_to_vocab(batch['encoder_inputs'], self.vocab)
+            decoder_inputs = entity_to_vocab(batch['decoder_inputs'], self.vocab)
         else:
             targets = batch['targets']
             encoder_inputs = batch['encoder_inputs']
@@ -139,9 +140,16 @@ class Learner(object):
         for batch in dialogue_batch['batch_seq']:
             feed_dict = self._get_feed_dict(batch, encoder_init_state)
             if test:
-                logits, final_state, loss = sess.run([self.model.logits, self.model.decoder_final_state, self.model.loss], feed_dict=feed_dict)
+                logits, final_state, loss = sess.run([
+                    self.model.decoder.output_dict['logits'],
+                    self.model.decoder.output_dict['final_state'],
+                    self.model.loss], feed_dict=feed_dict)
             else:
-                _, logits, final_state, loss, gn = sess.run([self.train_op, self.model.logits, self.model.decoder_final_state, self.model.loss, self.grad_norm], feed_dict=feed_dict)
+                _, logits, final_state, loss, gn = sess.run([
+                    self.train_op,
+                    self.model.decoder.output_dict['logits'],
+                    self.model.decoder.output_dict['final_state'],
+                    self.model.loss, self.grad_norm], feed_dict=feed_dict)
             encoder_init_state = final_state
 
             if self.verbose:

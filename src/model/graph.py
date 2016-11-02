@@ -128,22 +128,6 @@ class GraphBatch(object):
                 batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
-    # TODO: this function does not belong here
-    def entity_to_vocab(self, inputs, vocab):
-        '''
-        Convert entity ids to vocab ids. In preprocessing we have replaced all entities to
-        entity ids (offset by vocab.size). Now to process them during encoding we need to
-        map them back to vocab ids. Note that some entities will become UNK.
-        TODO: better entity encoding.
-        '''
-        new_inputs = np.array(inputs)
-        for i, graph in enumerate(self.graphs):
-            for j, t in enumerate(new_inputs[i]):
-                if t >= vocab.size:
-                    entity = Graph.metadata.entity_map.to_word(t - vocab.size)
-                    new_inputs[i][j] = vocab.to_ind(entity)
-        return new_inputs
-
     def copy_targets(self, targets, vocab_size):
         '''
         Replace targets that are entities to node ids, so that we learn to copy them from graph.

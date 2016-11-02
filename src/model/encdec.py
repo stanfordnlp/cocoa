@@ -13,7 +13,7 @@ from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
 from src.model.vocab import is_entity
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup
-from src.model.preprocess import markers
+from src.model.preprocess import markers, entity_to_vocab
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -207,7 +207,7 @@ class BasicDecoder(BasicEncoder):
     def build_model(self, input_dict, word_embedder, initial_state=None, time_major=True, scope=None):
         super(BasicDecoder, self).build_model(input_dict, word_embedder, initial_state=initial_state, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(scope or type(self).__name__):
-            logits = self._build_output(output_dict)
+            logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
 
     def preds_to_inputs(self, preds, **kwargs):
@@ -304,13 +304,21 @@ class GraphDecoder(GraphEncoder):
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
         for i in xrange(max_len):
-            logits, final_state = sess.run([self.output_dict['logits'], self.output_dict['final_state']], feed_dict=feed_dict)
+            logits, final_state, final_output = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output']], feed_dict=feed_dict)
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
             feed_dict = self.get_feed_dict(inputs=self.preds_to_inputs(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)
-        return {'preds': preds, 'final_state': final_state}
+        return {'preds': preds, 'final_state': final_state, 'final_output': final_output}
+
+    def update_utterances(self, sess, entities, final_output, utterances, graph_data):
+        feed_dict = {self.entities: entities,
+                self.output_dict['final_output']: final_output,
+                self.utterances: utterances}
+        feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **graph_data)
+        new_utterances = sess.run(self.output_dict['utterances'], feed_dict=feed_dict)
+        return new_utterances
 
 class CopyGraphDecoder(GraphDecoder):
     '''
@@ -328,7 +336,7 @@ class CopyGraphDecoder(GraphDecoder):
         graphs = kwargs.pop('graphs')
         vocab = kwargs.pop('vocab')
         preds = graphs.copy_preds(preds, vocab.size)
-        preds = graphs.entity_to_vocab(preds, vocab)
+        preds = entity_to_vocab(preds, vocab)
         return preds
 
 class BasicEncoderDecoder(object):
@@ -399,8 +407,8 @@ class BasicEncoderDecoder(object):
 
     def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None):
         if copy:
-            encoder_inputs = graphs.entity_to_vocab(batch['encoder_inputs'], vocab)
-            decoder_inputs = graphs.entity_to_vocab(batch['decoder_inputs'], vocab)
+            encoder_inputs = entity_to_vocab(batch['encoder_inputs'], vocab)
+            decoder_inputs = entity_to_vocab(batch['decoder_inputs'], vocab)
         else:
             encoder_inputs = batch['encoder_inputs']
             decoder_inputs = batch['decoder_inputs']
@@ -413,8 +421,6 @@ class BasicEncoderDecoder(object):
                 }
         if graphs:
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], None, utterances)
-            #encoder_args['graphs'] = graphs
-            #encoder_args['tokens'] = batch['encoder_tokens']
             encoder_args['entities'] = graph_data['encoder_entities']
             encoder_args['utterances'] = graph_data['utterances']
             encoder_args['graph_data'] = graph_data
@@ -430,15 +436,16 @@ class BasicEncoderDecoder(object):
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'])
-            decoder_args['graphs'] = graphs
-            decoder_args['vocab'] = vocab
-
+            if copy:
+                decoder_args['graphs'] = graphs
+                decoder_args['vocab'] = vocab
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
         decoder_args['inputs'] = decoder_inputs
         decoder_args['last_inds'] = batch['decoder_inputs_last_inds']
         if graphs is not None:
+            # TODO: why do we need to do encoding again
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], utterances)
             encoder_args['utterances'] = new_graph_data['utterances']
             decoder_args['entities'] = new_graph_data['decoder_entities']

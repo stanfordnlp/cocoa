@@ -68,6 +68,21 @@ def create_mappings(dialogues, schema, num_items):
             'relation': relation_map,
             }
 
+def entity_to_vocab(inputs, vocab):
+    '''
+    Convert entity ids to vocab ids. In preprocessing we have replaced all entities to
+    entity ids (offset by vocab.size). Now to process them during encoding we need to
+    map them back to vocab ids. Note that some entities will become UNK.
+    TODO: better entity encoding.
+    '''
+    new_inputs = np.array(inputs)
+    for i, array in enumerate(new_inputs):
+        for j, value in enumerate(array):
+            if value >= vocab.size:
+                entity = Graph.metadata.entity_map.to_word(value - vocab.size)
+                new_inputs[i][j] = vocab.to_ind(entity)
+    return new_inputs
+
 class TextIntMap(object):
     '''
     Map between text and int for visualizing results.
