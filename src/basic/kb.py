@@ -1,6 +1,7 @@
 from collections import defaultdict
 from sample_utils import sorted_candidates
 import csv
+import json
 
 
 class KB(object):
@@ -41,17 +42,15 @@ class KB(object):
         return ordered_item
 
     @classmethod
-    def ordered_item_to_string(cls, ordered_item):
-        # Convert an ordered item (a tuple) to a string
-        str_items = ["'\"%s\":\"%s\"'" % (i[0], i[1]) for i in ordered_item]  # [ '"name":"Claire"', '"school":"Stanford University"',...]
-        return ",".join(str_items)  # '"name":"Claire","school":"Stanford University",..."
+    def ordered_item_to_dict(cls, ordered_item):
+        # Convert an ordered item (a list of (key, value) pairs) to a string representation
+        # of the corresponding dictionary
+        # e.g. [("name","Claire"),("school","Stanford University"),...]"
+        d = dict((key, val) for (key,val) in ordered_item)  # {"name": "Claire", "school": "Stanford University",..}
+        return json.dumps(d)  # "{\"name\": \"Claire\", \"school\": \"Stanford University\",..}"
 
     @classmethod
-    def string_to_ordered_item(cls, str_data):
+    def string_to_item(cls, str_data):
         # Convert the string representation of an item back to an ordered item (a tuple)
-        str_data = [str_data]
-        reader = csv.reader(str_data, quotechar="'", delimiter=',', quoting=csv.QUOTE_ALL, skipinitialspace=True)
-        str_items = next(reader)
-        formatted_items = [x.split(":") for x in str_items]
-        data = [(x[0].strip('"'), x[1].strip('"')) for x in formatted_items]
-        return data
+        # e.g. string representation: "{\"name\": \"Claire\", \"school\": \"Stanford University\",..}"
+        return json.loads(str_data)
