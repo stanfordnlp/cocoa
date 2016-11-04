@@ -10,26 +10,37 @@
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script>
     spanToEntity = {};
-    // List of entities to include in dropdown
-    array = ["UIUC", "Columbia", "Ford", "GE"];
-    highlighted =  "";
 
-    // TODO: Submit data to server before reloading
-    function submitHIT(){
-        location.reload();
-    }
+    pToSpans = {};
+    highlighted =  "";
+    currSpanText = [];
+
+    // Try with a simple thing
+    $(document).ready(function() {
+        $("#submit").click(function() {
+            $.ajax({
+                url: "/submit",
+                type: "POST",
+                data: JSON.stringify(pToSpans),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log("SHIT");
+                }
+            })
+
+        });
+    });
+
 
     // Add dropdown on load
     window.onload = function(){
         var entities = document.getElementById("entities");
-
-        //Create and append the options for dropdown
-//        for (var i = 0; i < array.length; i++) {
-//            var option = document.createElement("option");
-//            option.value = array[i];
-//            option.text = array[i];
-//            selectList.appendChild(option);
-//        }
 
         // Submit button for entity
         var submit = document.createElement("INPUT");
@@ -46,16 +57,30 @@
     // Highlight text and give option for selecting matching entity
     function highlightText(){
         if (window.getSelection){
-            var entities = document.getElementById("entities");
             //entities.innerHTML = "";
             var selection = window.getSelection();
             var selectionStr = selection.toString();
+            var pID = selection.anchorNode.parentNode.id;
+            parentText = $("#" + pID).text();
+            // Initialize if not already existent
+            if (!(pID in pToSpans)){
+                pToSpans[pID] = [];
+            }
+            //console.log(pToSpans);
+            spanStart = parentText.search(selectionStr);
+            spanEnd = spanStart + selectionStr.length;
 
+            // highlighted span will be represented as:
+            // [pID, start of span, end of span, selected string, entity matched]
+            currSpanText = [pID, spanStart, spanEnd, selectionStr];
+
+            console.log("Substring: " + parentText.substring(spanStart, spanEnd));
+            // Highlight span of text
             for(var i = 0; i < selection.rangeCount; i++) {
                 highlightRange(selection.getRangeAt(i));
             }
 
-            updateSelected(selectionStr);
+            highlighted = selectionStr;
         }
     }
 
@@ -68,10 +93,13 @@
             var e = document.getElementById("entitiesSelect");
             var entityPicked = e.options[e.selectedIndex].value;
             spanToEntity[span] = entityPicked;
+            pID = currSpanText[0];
+            currSpanText.push(entityPicked);
+            pToSpans[pID].push(currSpanText);
+            currSpanText = [];
 
             // Add to table of span: entity
             selectedEntitiesTable = document.getElementById("selectedentities");
-            console.log(selectedEntitiesTable.rows.length);
             var newRow = selectedEntitiesTable.insertRow(selectedEntitiesTable.rows.length);
 
             // Add span
@@ -85,15 +113,8 @@
             // Append a text node to the cell
             var newText  = document.createTextNode(entityPicked);
             newEntity.appendChild(newText);
-
-            console.log(spanToEntity);
         }
 
-    }
-
-    // Update selected text to be filled into span-> entity table
-    function updateSelected(textHighlighted){
-        highlighted = textHighlighted;
     }
 
 
@@ -112,8 +133,9 @@
     function clearSpans(){
         var spans = $(".text").find("span").contents().unwrap();
         // Reset span to entity mapping
-        spanToEntity = {};
-        text = ""
+        pToSpans = {};
+        currSpanText = [];
+        highlighted = "";
 
         // Clear rows in table
         selectedEntitiesTable = document.getElementById("selectedentities");
@@ -183,7 +205,7 @@
         <!-- Fill in a dialogue here -->
         <div class="text" onmouseup="highlightText()">
             {% for idx, turn in dialogue.items() %}
-                <p> <strong>{{turn.agent}}:   </strong> {{turn.data}}</p>
+                <p id="{{idx}}"> <strong>{{turn.agent}}:   </strong> {{turn.data}}</p>
 
             {% endfor %}
 
@@ -196,17 +218,6 @@
                 {% for entity in entities %}
                     <option value="{{entity}}"> {{entity}}</option>
                 {% endfor %}
-                <!--{% for row in kb1 %}-->
-                 <!--{% for name, val in row.items()%}-->
-                     <!--<option value="{{val}}"> {{val}}</option>-->
-                 <!--{% endfor %}-->
-                <!--{% endfor %}-->
-
-                <!--{% for row in kb2 %}-->
-                 <!--{% for name, val in row.items()%}-->
-                     <!--<option value="{{val}}"> {{val}}</option>-->
-                 <!--{% endfor %}-->
-                <!--{% endfor %}-->
             </select>
         </div>
 
@@ -225,7 +236,7 @@
 
         <div class="buttons" style="text-align:center;">
          <button type="button" onclick="clearSpans()">Clear Highlighting!</button>
-         <button type="button" onclick="submitHIT()">Submit HIT!</button>
+         <button type="button" id="submit" >Submit HIT!</button>
         </div>
 
     </div>
