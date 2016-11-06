@@ -2,6 +2,10 @@ from collections import defaultdict
 import datetime
 ### Helper functions
 
+# TODO: hack for dubious synonyms (went, friends) before we have a better lexicon
+with open('data/common_words.txt') as fin:
+    common_words = set([w.strip() for w in fin.read().split()[:2000] if len(w.strip()) > 1])
+
 def get_prefixes(entity, min_length=3, max_length=5):
     # computer science => ['comp sci', ...]
     words = entity.split()
@@ -15,7 +19,8 @@ def get_prefixes(entity, min_length=3, max_length=5):
                 for i in range(min_length, max_length):
                     new_candidates.append(c + ' ' + word[:i])
         candidates = new_candidates
-    return [c[1:] for c in candidates if c[1:] != entity]
+    # TODO: hack for false positives
+    return [c[1:] for c in candidates if c[1:] != entity and c[1:] not in common_words]
 
 def get_acronyms(entity):
     words = entity.split()
@@ -35,6 +40,8 @@ def get_acronyms(entity):
         acronym += words[-1][:4]
         acronyms.append(acronym)
 
+    # TODO: hack for false positives
+    acronyms = [w for w in acronyms if w not in common_words]
     return acronyms
 
 alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z', ' ']
@@ -163,7 +170,7 @@ class Lexicon(object):
             for phrase in phrases:
                 synonyms.append(phrase)
                 if type != 'person':
-                    synonyms.extend(get_edits(phrase))
+                    #synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
                     synonyms.extend(get_prefixes(phrase))
                     synonyms.extend(get_acronyms(phrase))
@@ -171,7 +178,9 @@ class Lexicon(object):
             # Add to lexicon
             for synonym in set(synonyms):
                 #print synonym, '=>', entity
-                self.lexicon[synonym].append((entity, type))
+                # TODO: hack!!
+                if synonym != 'friends':
+                    self.lexicon[synonym].append((entity, type))
 
     def add_numbers(self):
         numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']

@@ -76,7 +76,7 @@ class Evaluator(object):
                 self.update_summary(summary_map, bleu_scores, entity_recalls)
 
                 if self.verbose:
-                    self._print_batch(batch['encoder_inputs'], batch['decoder_tokens'], pred_tokens, bleu_scores)
+                    self._print_batch(batch['encoder_inputs'], batch['decoder_tokens'], pred_tokens, bleu_scores, graphs)
         # This means no entity is detected in the test data. Probably something wrong.
         if 'recall' not in summary_map:
             return summary_map['bleu']['mean'], -1
@@ -89,15 +89,17 @@ class Evaluator(object):
         '''
         return [token[1] if is_entity(token) else token for token in tokens]
 
-    def _print_batch(self, inputs, targets, preds, bleu_scores):
+    def _print_batch(self, inputs, targets, preds, bleu_scores, graphs):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
             # Skip padded turns
-            if target is None:
+            if not target:
                 continue
             print i
+            if graphs:
+                graphs.graphs[i].kb.dump()
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i]) if inputs is not None else None
             print 'TARGET:', target
             print 'PRED:', pred

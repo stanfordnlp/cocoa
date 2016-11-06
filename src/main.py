@@ -28,6 +28,7 @@ if __name__ == '__main__':
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
+    parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
     add_model_arguments(parser)
@@ -40,7 +41,7 @@ if __name__ == '__main__':
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
 
-    schema = Schema(args.schema_path)
+    schema = Schema(args.schema_path, args.domain)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     lexicon = Lexicon(schema, args.learned_lex)
 
@@ -52,18 +53,8 @@ if __name__ == '__main__':
         print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
         vocab_path = os.path.join(args.init_from, 'vocab.pkl')
-        # Check config compatibility
         saved_config = read_json(config_path)
-        curr_config = vars(args)
-        # TODO: more keys here
-        assert_keys = ['model', 'rnn_size', 'rnn_type', 'num_layers']
-        for k in curr_config:
-            if k in assert_keys:
-                assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
-            else:
-                # Rewrite previous config, e.g. batch size, learning rate
-                saved_config[k] = curr_config[k]
-        args = argparse.Namespace(**saved_config)
+        model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
         if args.test and args.best:
@@ -82,14 +73,18 @@ if __name__ == '__main__':
             os.makedirs(args.checkpoint)
         config_path = os.path.join(args.checkpoint, 'config.json')
         write_json(vars(args), config_path)
+        model_args = args
         mappings = None
         ckpt = None
 
     # Dataset
     preprocessor = Preprocessor(schema, lexicon)
-    use_kb = False if args.model == 'encdec' else True
-    copy = True if args.model == 'attn-copy-encdec' else False
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, preprocessor, schema, args.num_items, mappings, use_kb, copy)
+    use_kb = False if model_args.model == 'encdec' else True
+    copy = True if model_args.model == 'attn-copy-encdec' else False
+    if args.test:
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
+    else:
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
 
@@ -102,7 +97,7 @@ if __name__ == '__main__':
         logstats.add('mappings', name, 'size', m.size)
 
     # Build the model
-    model = build_model(schema, mappings, args)
+    model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
     if args.gpu == 0:

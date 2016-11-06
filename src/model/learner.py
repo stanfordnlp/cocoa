@@ -10,6 +10,7 @@ from vocab import is_entity
 import resource
 import numpy as np
 from preprocess import entity_to_vocab
+from encdec import get_prediction
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -87,11 +88,19 @@ class Learner(object):
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
 
-    def _print_batch(self, inputs, targets, preds, loss):
+    def _print_batch(self, batch, preds, loss):
+        encoder_tokens = batch['encoder_tokens']
+        inputs = batch['encoder_inputs']
+        decoder_tokens = batch['decoder_tokens']
+        targets = batch['targets']
         # Go over each example in the batch
         for i in xrange(inputs.shape[0]):
+            if len(targets[i]) == 0:
+                continue
             print i
+            print 'RAW INPUT:', [x[0] if is_entity(x) else x for x in encoder_tokens[i]]
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i])
+            print 'RAW TARGET:', [x[0] if is_entity(x) else x for x in decoder_tokens[i]]
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i])
             print 'PRED:', self.data.textint_map.int_to_text(preds[i])
         print 'BATCH LOSS:', loss
@@ -124,9 +133,9 @@ class Learner(object):
             encoder_init_state = final_state[0]
 
             if self.verbose:
-                preds = self.model.get_prediction(logits)
-                preds = graphs.copy_preds(preds, self.data.vocab.size)
-                self._print_batch(batch['encoder_inputs'], batch['targets'], preds, loss)
+                preds = get_prediction(logits)
+                preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
+                self._print_batch(batch, preds, loss)
 
             logstats.update_summary_map(summary_map, {'loss': loss})
             if not test:
@@ -153,8 +162,8 @@ class Learner(object):
             encoder_init_state = final_state
 
             if self.verbose:
-                preds = self.model.get_prediction(logits)
-                self._print_batch(batch['encoder_inputs'], batch['targets'], preds, loss)
+                preds = get_prediction(logits)
+                self._print_batch(batch, preds, loss)
 
             logstats.update_summary_map(summary_map, {'loss': loss})
             if not test:
@@ -182,7 +191,7 @@ class Learner(object):
 
         # Training loop
         train_data = self.data.generator(split, self.batch_size)
-        num_per_epoch = args.num_per_epoch or train_data.next()
+        num_per_epoch = train_data.next()
         step = 0
         saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
         save_path = os.path.join(args.checkpoint, 'tf_model.ckpt')
@@ -209,9 +218,10 @@ class Learner(object):
                             {'time(s)/batch': end_time - start_time, \
                              'memory(MB)': memory()})
                     step += 1
-                    if step % args.print_every == 0:
+                    if step % args.print_every == 0 or step % num_per_epoch == 0:
                         print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))
                         summary_map = {}  # Reset
+                step = 0
 
                 # Save model after each epoch
                 print 'Save model checkpoint to', save_path

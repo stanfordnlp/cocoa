@@ -22,12 +22,9 @@ class GraphMetadata(object):
         self.attribute_types = schema.get_attributes()
 
         # Entity to id
-        # TODO: add attribute nodes
         self.entity_map = entity_map
 
         # Relation to id. Add inverse relations.
-        relation_map.add_word('has')
-        relation_map.add_words([inv_rel(r) for r in relation_map.word_to_ind])
         self.relation_map = relation_map
 
         # An utterance udpate all entities within entity_hist_len (counting backward
@@ -45,8 +42,12 @@ class GraphMetadata(object):
         # degree: 0-max_degree
         # node_type: entity, item, attr
         degree_size = max_degree + 1
-        self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, 3)}
+        node_types = Vocabulary(unk=False)
+        node_types.add_words(self.attribute_types.values())
+        node_types.add_words(['item', 'attr'])
+        self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
+        self.node_types = node_types
 
         # This affects the size of the utterance matrix
         self.utterance_size = utterance_size
@@ -325,8 +326,8 @@ class Graph(object):
         self.node_ids = np.arange(self.nodes.size, dtype=np.int32)
 
     def _update_feats(self, entities):
-        # degree=0, node_type=entity
-        feats = [[0, 'entity'] for _ in entities]
+        # degree=0, node_type=entity type
+        feats = [[0, x[1]] for x in entities]
         new_feat_vec = self.get_feat_vec(feats)
         self.feats = np.concatenate((self.feats, new_feat_vec), axis=0)
 
@@ -400,12 +401,12 @@ class Graph(object):
         for i, (degree, node_type) in enumerate(raw_feats):
             f[i][get_index('degree', degree)] = 1
 
-            if node_type == 'item':
-                node_type = 0
-            elif node_type == 'attr':
-                node_type = 1
-            else:
-                node_type = 2
-            f[i][get_index('node_type', node_type)] = 1
+            #if node_type == 'item':
+            #    node_type = 0
+            #elif node_type == 'attr':
+            #    node_type = 1
+            #else:
+            #    node_type = 2
+            f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f

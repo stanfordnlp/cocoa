@@ -48,7 +48,7 @@ def summary_map_to_str(m):
 def update_summary_map(m1, m2):
     for k, s in m2.items():
         if k not in m1:
-            m1[k] = {} 
+            m1[k] = {}
         update_summary(m1[k], s)
 
 def update_summary(s1, s2):

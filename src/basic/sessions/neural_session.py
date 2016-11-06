@@ -125,7 +125,6 @@ class NeuralSession(Session):
             raise ValueError('Unknown event action.')
         entity_tokens += [markers.EOS]
 
-        print 'INPUT:', entity_tokens
         self.encode(entity_tokens)
 
     def send(self):

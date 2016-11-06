@@ -6,7 +6,7 @@ import random
 import re
 import numpy as np
 from src.model.vocab import Vocabulary, is_entity
-from src.model.graph import Graph, GraphBatch
+from src.model.graph import Graph, GraphBatch, inv_rel
 from itertools import chain, izip
 from collections import namedtuple
 import copy
@@ -21,6 +21,8 @@ def tokenize(utterance):
     utterance = utterance.encode('utf-8').lower()
     # Split on punctuation
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
+    # Remove punctuation
+    tokens = [x for x in tokens if x not in '.,!?;']
     return tokens
 
 def build_schema_mappings(schema, num_items):
@@ -30,10 +32,14 @@ def build_schema_mappings(schema, num_items):
     # Add item nodes
     for i in xrange(num_items):
         entity_map.add_word(('item-%d' % i, 'item'))
+    # TODO: add attribute nodes
 
     relation_map = Vocabulary(unk=False)
     attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
     relation_map.add_words((a.lower() for a in attribute_types.keys()))
+    relation_map.add_word('has')
+    # Inverse relation
+    relation_map.add_words([inv_rel(r) for r in relation_map.word_to_ind])
 
     return entity_map, relation_map
 
@@ -52,9 +58,10 @@ def build_vocab(dialogues, special_symbols=[], add_entity=True):
     # Add words
     for dialogue in dialogues:
         assert dialogue.is_int is False
-        for turn in dialogue.turns[Dialogue.ENC]:
-            for token in chain.from_iterable(turn):
-                _add_token(token)
+        for turns in dialogue.turns:
+            for turn in turns:
+                for token in chain.from_iterable(turn):
+                    _add_token(token)
 
     # Add special symbols
     vocab.add_words(special_symbols)
@@ -115,13 +122,14 @@ class TextIntMap(object):
 
 class Dialogue(object):
     textint_map = None
-    DEC = 0
-    ENC = 1
+    ENC = 0
+    DEC = 1
 
-    def __init__(self, kbs):
+    def __init__(self, kbs, uuid):
         '''
         Dialogue data that is needed by the model.
         '''
+        self.uuid = uuid
         self.kbs = kbs
         # turns[0]: utterances from the encoder's perspective
         # turns[1]: utterances from the decoder's perspective
@@ -153,9 +161,9 @@ class Dialogue(object):
         return utterance
 
     def _process_utterance(self, utterance, stage):
-        if stage == self.DEC:
+        if stage == self.ENC:
             return self._process_encoder_utterance(utterance)
-        elif stage == self.ENC:
+        elif stage == self.DEC:
             return self._process_decoder_utterance(utterance)
         else:
             raise ValueError
@@ -265,9 +273,11 @@ class DialogueBatch(object):
             encoder_inputs = np.copy(encode_turn[:, 1:-1])
             encoder_inputs[encoder_inputs == int_markers.EOT] = int_markers.PAD
         else:
+            batch_size = decode_turn.shape[0]
             # If there's no input to encode, use </s> as the encoder input.
-            encoder_inputs = np.full((decode_turn.shape[0], 1), int_markers.EOS, dtype=np.int32)
+            encoder_inputs = np.full((batch_size, 1), int_markers.EOS, dtype=np.int32)
             # encode_tokens are empty lists
+            encode_tokens = [[''] for _ in xrange(batch_size)]
 
         # Decoder inptus: start from <go> to generate, i.e. <go> <token>
         decoder_inputs = decode_turn[:, :-1]
@@ -299,7 +309,7 @@ class DialogueBatch(object):
         if not hasattr(self.dialogues[0], 'token_turns'):
             return None
         # Return None for padded turns
-        return [dialogue.token_turns[stage][i] if i < len(dialogue.token_turns[stage]) else None
+        return [dialogue.token_turns[stage][i] if i < len(dialogue.token_turns[stage]) else ''
                 for dialogue in self.dialogues]
 
     def create_batches(self):
@@ -308,7 +318,7 @@ class DialogueBatch(object):
         # A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
         batches = []
-        enc, dec = 0, 1
+        enc, dec = Dialogue.ENC, Dialogue.DEC
         for start_encode in (0, 1):
             encode_turn_ids = range(start_encode, self.num_turns-1, 2)
             batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], self._get_token_turns(i, enc), self._get_token_turns(i+1, dec)) for i in encode_turn_ids]
@@ -316,7 +326,7 @@ class DialogueBatch(object):
                 # We still want to generate the first turn
                 batch_seq.insert(0, self._create_one_batch(None, turn_batches[dec][0], None, self._get_token_turns(0, dec)))
             # Add agents and kbs
-            agents = self._get_agent_batch(start_encode + 1)  # Decoding agent
+            agents = self._get_agent_batch(1 - start_encode)  # Decoding agent
             kbs = self._get_kb_batch(agents)
             batch = {
                      'agent': agents,
@@ -342,12 +352,14 @@ class Preprocessor(object):
         Convert example to turn-based dialogue.
         '''
         kbs = ex.scenario.kbs
-        dialogue = Dialogue(kbs)
+        dialogue = Dialogue(kbs, ex.uuid)
         for e in ex.events:
             utterance = self.process_event(e, kbs[e.agent])
-            dialogue.add_utterance(e.agent, utterance)
+            if utterance:
+                dialogue.add_utterance(e.agent, utterance)
         return dialogue
 
+    # TODO: use get_ordered_item
     def item_to_entities(self, item):
         '''
         Convert an item to a list of entities representing that item.
@@ -374,7 +386,11 @@ class Preprocessor(object):
                 if item == e.data:
                     item_id = i
                     break
-            assert item_id is not None
+            if item_id is None:
+                kb.dump()
+                print e.data
+                item_id = 0
+            #assert item_id is not None
             item_str = 'item-%d' % item_id
             # Convert an item to item-id (wrt to the speaker) and a list of entities (wrt to the listner)
             # We use the entities to represent the item during encoding and item-id during decoding
@@ -384,7 +400,17 @@ class Preprocessor(object):
         return entity_tokens
 
     def preprocess(self, examples):
-        return [self._process_example(ex) for ex in examples]
+        dialogues = []
+        for ex in examples:
+            d = self._process_example(ex)
+            if len(d.agents) < 2:
+                continue
+                print 'Removing dialogue %s' % d.uuid
+                for event in ex.events:
+                    print event.to_dict()
+            else:
+                dialogues.append(d)
+        return dialogues
 
 class DataGenerator(object):
     def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, num_items, mappings=None, use_kb=False, copy=False):
@@ -394,6 +420,8 @@ class DataGenerator(object):
         self.copy = copy
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
+        for fold, dialogues in self.dialogues.iteritems():
+            print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
 
         if not mappings:
             mappings = create_mappings(self.dialogues['train'], schema, num_items)
@@ -410,10 +438,8 @@ class DataGenerator(object):
         Convert tokens to integers.
         '''
         for fold, dialogues in self.dialogues.iteritems():
-            #keep_tokens = True if fold in ['dev', 'test'] else False
-            keep_tokens = True
             for dialogue in dialogues:
-                dialogue.convert_to_int(keep_tokens=keep_tokens)
+                dialogue.convert_to_int(keep_tokens=True)
 
     def create_dialogue_batches(self, dialogues, batch_size):
         dialogues.sort(key=lambda d: len(d.turns))
