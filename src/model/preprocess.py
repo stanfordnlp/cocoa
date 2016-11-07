@@ -131,8 +131,8 @@ class Dialogue(object):
         '''
         self.uuid = uuid
         self.kbs = kbs
-        # turns[0]: utterances from the encoder's perspective
-        # turns[1]: utterances from the decoder's perspective
+        # turns[0] and turns[1] are  utterances from the encoder's and the decoder's perspectives
+        # turns: input tokens of encoder and decoder, later converted to integers
         self.turns = ([], [])
         self.agents = []
         self.is_int = False  # Whether we've converted it to integers
@@ -344,6 +344,7 @@ class Preprocessor(object):
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
     def __init__(self, schema, lexicon):
+        self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
 
@@ -359,18 +360,30 @@ class Preprocessor(object):
                 dialogue.add_utterance(e.agent, utterance)
         return dialogue
 
-    # TODO: use get_ordered_item
     def item_to_entities(self, item):
         '''
         Convert an item to a list of entities representing that item.
         '''
-        entities = []
-        attrs = sorted(item.items(), key=lambda x: x[0])
-        for attr_name, value in attrs:
-            type_ = self.attribute_types[attr_name]
-            value = value.lower()
-            entities.append((value, (value, type_)))
+        entities = [(value, (value, type_)) for value, type_ in
+            ((item[attr.name].lower(), self.attribute_types[attr.name])
+                for attr in self.attributes)]
         return entities
+
+    @classmethod
+    def get_item_id(cls, kb, item):
+        '''
+        Return id of the item in kb.
+        '''
+        item_id = None
+        for i, it in enumerate(kb.items):
+            if it == item:
+                item_id = i
+                break
+        if item_id is None:
+            kb.dump()
+            print item
+        assert item_id is not None
+        return item_id
 
     def process_event(self, e, kb):
         '''
@@ -380,17 +393,7 @@ class Preprocessor(object):
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.entitylink(tokenize(e.data))
         elif e.action == 'select':
-            # Check which item is selected
-            item_id = None
-            for i, item in enumerate(kb.items):
-                if item == e.data:
-                    item_id = i
-                    break
-            if item_id is None:
-                kb.dump()
-                print e.data
-                item_id = 0
-            #assert item_id is not None
+            item_id = self.get_item_id(kb, e.data)
             item_str = 'item-%d' % item_id
             # Convert an item to item-id (wrt to the speaker) and a list of entities (wrt to the listner)
             # We use the entities to represent the item during encoding and item-id during decoding
