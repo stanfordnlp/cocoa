@@ -41,12 +41,6 @@ if __name__ == '__main__':
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
 
-    schema = Schema(args.schema_path, args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    lexicon = Lexicon(schema, args.learned_lex)
-
-    dataset = read_dataset(scenario_db, args)
-
     # Save or load models
     if args.init_from:
         start = time.time()
@@ -76,6 +70,11 @@ if __name__ == '__main__':
         model_args = args
         mappings = None
         ckpt = None
+
+    schema = Schema(model_args.schema_path, model_args.domain)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    lexicon = Lexicon(schema, args.learned_lex)
+    dataset = read_dataset(scenario_db, args)
 
     # Dataset
     preprocessor = Preprocessor(schema, lexicon)
