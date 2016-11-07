@@ -11,6 +11,10 @@ from itertools import chain, izip
 from collections import namedtuple
 import copy
 
+def add_preprocess_arguments(parser):
+    parser.add_argument('--entity-encoding-form', choices=['token', 'type', 'canonical'], default='canonical', help='Input entity form to the encoder')
+    parser.add_argument('--entity-decoding-form', choices=['token', 'type', 'canonical'], default='canonical', help='Input entity form to the decoder')
+
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOT', 'EOS', 'GO', 'SELECT', 'PAD'])
 markers = SpecialSymbols(EOT='</t>', EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
 
@@ -132,6 +136,8 @@ class Dialogue(object):
         self.uuid = uuid
         self.kbs = kbs
         # turns[0] and turns[1] are  utterances from the encoder's and the decoder's perspectives
+        # raw_turns: tokens and entitys (output of entitylink)
+        self.raw_turns = ([], [])
         # turns: input tokens of encoder and decoder, later converted to integers
         self.turns = ([], [])
         self.agents = []
@@ -142,41 +148,15 @@ class Dialogue(object):
         assert not hasattr(self, 'graphs')
         self.graphs = [Graph(kb) for kb in self.kbs]
 
-    def _process_encoder_utterance(self, utterance):
-        '''
-        In process_event, we represent a select action as [SELECT, item id, item entities].
-        For encoding, we want to use [SELECT, item entities].
-        '''
-        if utterance[0] == markers.SELECT:
-            return utterance[:1] + utterance[2:]
-        return utterance
-
-    def _process_decoder_utterance(self, utterance):
-        '''
-        In process_event, we represent a select action as [SELECT, item id, item entities].
-        For decoding, we want to use [SELECT, item id].
-        '''
-        if utterance[0] == markers.SELECT:
-            return utterance[:2]
-        return utterance
-
-    def _process_utterance(self, utterance, stage):
-        if stage == self.ENC:
-            return self._process_encoder_utterance(utterance)
-        elif stage == self.DEC:
-            return self._process_decoder_utterance(utterance)
-        else:
-            raise ValueError
-
-    def add_utterance(self, agent, utterance):
+    def add_utterance(self, agent, utterances):
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             for i in xrange(2):
-                self.turns[i][-1].append(self._process_utterance(utterance, i))
+                self.turns[i][-1].append(utterances[i])
         else:
             self.agents.append(agent)
             for i in xrange(2):
-                self.turns[i].append([self._process_utterance(utterance, i)])
+                self.turns[i].append([utterances[i]])
 
     def convert_to_int(self, keep_tokens=False):
         if self.is_int:
@@ -343,10 +323,12 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
+        self.entity_encoding_form = entity_encoding_form
+        self.entity_decoding_form = entity_decoding_form
 
     def _process_example(self, ex):
         '''
@@ -355,9 +337,9 @@ class Preprocessor(object):
         kbs = ex.scenario.kbs
         dialogue = Dialogue(kbs, ex.uuid)
         for e in ex.events:
-            utterance = self.process_event(e, kbs[e.agent])
-            if utterance:
-                dialogue.add_utterance(e.agent, utterance)
+            utterances = self.process_event(e, kbs[e.agent])
+            if utterances:
+                dialogue.add_utterance(e.agent, utterances)
         return dialogue
 
     def item_to_entities(self, item):
@@ -387,20 +369,24 @@ class Preprocessor(object):
 
     def process_event(self, e, kb):
         '''
-        Convert event to a list of tokens and entities.
+        Convert event to two lists of tokens and entities for encoding and decoding.
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.entitylink(tokenize(e.data))
+            if entity_tokens:
+                return (entity_tokens, entity_tokens)
+            else:
+                return None
         elif e.action == 'select':
+            # Convert an item to item-id (wrt to the speaker)
             item_id = self.get_item_id(kb, e.data)
             item_str = 'item-%d' % item_id
-            # Convert an item to item-id (wrt to the speaker) and a list of entities (wrt to the listner)
             # We use the entities to represent the item during encoding and item-id during decoding
-            entity_tokens = [markers.SELECT, (item_str, (item_str, 'item'))] + self.item_to_entities(e.data)
+            return ([markers.SELECT] + self.item_to_entities(e.data),
+                    [markers.SELECT, (item_str, (item_str, 'item'))])
         else:
             raise ValueError('Unknown event action.')
-        return entity_tokens
 
     def preprocess(self, examples):
         dialogues = []

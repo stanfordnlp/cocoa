@@ -12,7 +12,8 @@ from src.basic.dataset import add_dataset_arguments, read_dataset
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.lexicon import Lexicon
-from src.model.preprocess import DataGenerator, Preprocessor
+from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
+from src.model.entity import Entity
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
@@ -31,6 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
+    add_preprocess_arguments(parser)
     add_model_arguments(parser)
     add_graph_arguments(parser)
     add_graph_embed_arguments(parser)
@@ -77,7 +79,7 @@ if __name__ == '__main__':
     dataset = read_dataset(scenario_db, args)
 
     # Dataset
-    preprocessor = Preprocessor(schema, lexicon)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form)
     use_kb = False if model_args.model == 'encdec' else True
     copy = True if model_args.model == 'attn-copy-encdec' else False
     if args.test:
