@@ -9,7 +9,6 @@ from lib import logstats
 from vocab import is_entity
 import resource
 import numpy as np
-from preprocess import entity_to_vocab
 from encdec import get_prediction
 
 def memory():
@@ -60,18 +59,14 @@ class Learner(object):
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
             targets = graphs.copy_targets(batch['targets'], self.vocab.size)
-            encoder_inputs = entity_to_vocab(batch['encoder_inputs'], self.vocab)
-            decoder_inputs = entity_to_vocab(batch['decoder_inputs'], self.vocab)
         else:
             targets = batch['targets']
-            encoder_inputs = batch['encoder_inputs']
-            decoder_inputs = batch['decoder_inputs']
 
-        encoder_args = {'inputs': encoder_inputs,
+        encoder_args = {'inputs': batch['encoder_inputs'],
                 'last_inds': batch['encoder_inputs_last_inds'],
                 'init_state': encoder_init_state,
                 }
-        decoder_args = {'inputs': decoder_inputs,
+        decoder_args = {'inputs': batch['decoder_inputs'],
                 'last_inds': batch['decoder_inputs_last_inds'],
                 }
         kwargs = {'encoder': encoder_args,
@@ -99,10 +94,10 @@ class Learner(object):
                 continue
             print i
             print 'RAW INPUT:', [x[0] if is_entity(x) else x for x in encoder_tokens[i]]
-            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i])
+            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
             print 'RAW TARGET:', [x[0] if is_entity(x) else x for x in decoder_tokens[i]]
-            print 'TARGET:', self.data.textint_map.int_to_text(targets[i])
-            print 'PRED:', self.data.textint_map.int_to_text(preds[i])
+            print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
+            print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
         print 'BATCH LOSS:', loss
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):

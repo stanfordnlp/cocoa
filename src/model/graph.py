@@ -22,6 +22,7 @@ class GraphMetadata(object):
         self.attribute_types = schema.get_attributes()
 
         # Entity to id
+        # TODO: add attribute node
         self.entity_map = entity_map
 
         # Relation to id. Add inverse relations.

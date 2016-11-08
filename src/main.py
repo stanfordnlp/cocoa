@@ -79,9 +79,11 @@ if __name__ == '__main__':
     dataset = read_dataset(scenario_db, args)
 
     # Dataset
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form)
     use_kb = False if model_args.model == 'encdec' else True
     copy = True if model_args.model == 'attn-copy-encdec' else False
+    if model_args.model == 'attn-copy-encdec':
+        model_args.entity_target_form = 'graph'
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
     if args.test:
         data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     else:

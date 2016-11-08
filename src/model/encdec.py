@@ -11,7 +11,7 @@ from src.model.graph import Graph, GraphMetadata
 from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup
-from src.model.preprocess import markers, entity_to_vocab
+from src.model.preprocess import markers
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -207,11 +207,13 @@ class BasicDecoder(BasicEncoder):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
 
-    def preds_to_inputs(self, preds, **kwargs):
+    def pred_to_input(self, preds, **kwargs):
         '''
         Convert predictions to input of the next decoding step.
         '''
-        return preds
+        textint_map = kwargs.pop('textint_map')
+        inputs = textint_map.pred_to_input(preds)
+        return inputs
 
     def decode(self, sess, max_len, batch_size=1, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
@@ -222,7 +224,7 @@ class BasicDecoder(BasicEncoder):
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
-            feed_dict = self.get_feed_dict(inputs=self.preds_to_inputs(step_preds, **kwargs),
+            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)
         return {'preds': preds, 'final_state': final_state}
@@ -289,11 +291,13 @@ class GraphDecoder(GraphEncoder):
         outputs, attn_scores = rnn_outputs
         return {'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state}
 
-    def preds_to_inputs(self, preds, **kwargs):
+    def pred_to_input(self, preds, **kwargs):
         '''
         Convert predictions to input of the next decoding step.
         '''
-        return preds
+        textint_map = kwargs.pop('textint_map')
+        inputs = textint_map.pred_to_input(preds)
+        return inputs
 
     def decode(self, sess, max_len, batch_size=1, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
@@ -304,7 +308,7 @@ class GraphDecoder(GraphEncoder):
             logits, final_state, final_output = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output']], feed_dict=feed_dict)
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
-            feed_dict = self.get_feed_dict(inputs=self.preds_to_inputs(step_preds, **kwargs),
+            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)
         return {'preds': preds, 'final_state': final_state, 'final_output': final_output}
@@ -329,11 +333,12 @@ class CopyGraphDecoder(GraphDecoder):
         attn_scores = transpose_first_two_dims(output_dict['attn_scores'])
         return tf.concat(2, [logits, attn_scores])
 
-    def preds_to_inputs(self, preds, **kwargs):
+    def pred_to_input(self, preds, **kwargs):
         graphs = kwargs.pop('graphs')
         vocab = kwargs.pop('vocab')
+        textint_map = kwargs.pop('textint_map')
         preds = graphs.copy_preds(preds, vocab.size)
-        preds = entity_to_vocab(preds, vocab)
+        preds = textint_map.pred_to_input(preds)
         return preds
 
 class BasicEncoderDecoder(object):
@@ -402,13 +407,9 @@ class BasicEncoderDecoder(object):
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None):
-        if copy:
-            encoder_inputs = entity_to_vocab(batch['encoder_inputs'], vocab)
-            decoder_inputs = entity_to_vocab(batch['decoder_inputs'], vocab)
-        else:
-            encoder_inputs = batch['encoder_inputs']
-            decoder_inputs = batch['decoder_inputs']
+    def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None, textint_map=None):
+        encoder_inputs = batch['encoder_inputs']
+        decoder_inputs = batch['decoder_inputs']
         batch_size = encoder_inputs.shape[0]
 
         # Encode true prefix
@@ -426,7 +427,8 @@ class BasicEncoderDecoder(object):
         # Decode max_len steps
         decoder_args = {'inputs': decoder_inputs[:, [0]],
                 'last_inds': np.zeros([batch_size], dtype=np.int32),
-                'init_state': encoder_output_dict['final_state']
+                'init_state': encoder_output_dict['final_state'],
+                'textint_map': textint_map
                 }
         if graphs:
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,

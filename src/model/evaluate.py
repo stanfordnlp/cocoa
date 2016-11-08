@@ -17,7 +17,7 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map):
         return None
     tokens = []
     for pred in preds:
-        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred)] if not x in remove_symbols]))
+        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred)] if not x in remove_symbols], 'target'))
     return tokens
 
 class Evaluator(object):
@@ -62,7 +62,7 @@ class Evaluator(object):
             utterances = None
             for batch in dialogue_batch['batch_seq']:
                 max_len = batch['targets'].shape[1] + 10
-                preds, _, true_final_state, utterances = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy)
+                preds, _, true_final_state, utterances = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
                 if graphs:
                     encoder_init_state = true_final_state[0]
                 else:
@@ -100,7 +100,7 @@ class Evaluator(object):
             print i
             if graphs:
                 graphs.graphs[i].kb.dump()
-            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i]) if inputs is not None else None
+            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding') if inputs is not None else None
             print 'TARGET:', target
             print 'PRED:', pred
             print 'BLEU:', bleu
