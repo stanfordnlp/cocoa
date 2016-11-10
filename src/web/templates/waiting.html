@@ -1,6 +1,6 @@
 <html>
     <head>
-        <title>Who's Our Mutual Friend?</title>
+        <title>{{title}}</title>
         <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
         <style>
     		#timer{
@@ -72,10 +72,10 @@
     <div id="content">
         <div>
              <div style="float:left; margin: 0px 20px 0px 10px;">
-                <img height="120" width="120" src="{{ url_for('static', filename='img/handshake.jpg') }}"/>
+                <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
             </div>
             <div style="float:left">
-                <h2>Who's Our Mutual Friend?</h2>
+                <h2>{{title}}</h2>
                 <h3>{{ waiting_message }}</h3>
 
                 <h4>Make sure you have read the instructions carefully, as the task is timed and the clock will start immediately once you are paired. </h4>

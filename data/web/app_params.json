@@ -22,6 +22,7 @@
     "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates",
     "end_survey": 1,
     "instructions": "/Users/anushabala/projects/game-dialogue/data/web/mutual-friends-instructions.html",
-    "task_title": "Who's Our Mutual Friend?"
+    "task_title": "Who's Our Mutual Friend?",
+  	"icon": "handshake.jpg"
 }
 

@@ -1,0 +1,28 @@
+{
+    "status_params": {
+	"waiting": {
+	    "num_seconds": 180
+	},
+
+	"chat": {
+	    "num_seconds": 300
+	},
+
+	"finished": {
+	    "num_seconds": 15
+	},
+
+    "survey": {
+	    "num_seconds": -1
+	}
+    },
+
+    "scenarios_json_file": "/Users/anushabala/projects/game-dialogue/data/matchmaking-scenarios-large.json",
+    "connection_timeout_num_seconds": 5,
+    "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates",
+    "end_survey": 1,
+    "instructions": "/Users/anushabala/projects/game-dialogue/data/web/matchmaking-instructions.html",
+    "task_title": "Let's Set Our Friends Up!",
+    "icon": "heart.png"
+}
+

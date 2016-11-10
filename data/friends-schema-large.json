@@ -1130,9 +1130,9 @@
       "Youngstown State University"
     ],
     "time_pref":[
-      "morning",
-      "afternoon",
-      "evening"
+      "Morning",
+      "Afternoon",
+      "Evening"
     ],
     "name":[
       "James",
@@ -3471,7 +3471,6 @@
       "Video game collecting",
       "Vintage cars",
       "Antiquities",
-      "Auto audiophilia",
       "Flower collecting and pressing",
       "Fossil hunting",
       "Insect collecting",
@@ -3559,8 +3558,8 @@
       "Volleyball"
     ],
     "loc_pref":[
-      "indoor",
-      "outdoor"
+      "Indoor",
+      "Outdoor"
     ]
   }
 }

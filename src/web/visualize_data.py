@@ -33,7 +33,7 @@ def get_html_for_transcript(i, chat):
         if event.action == 'message':
             chat_html.append(event.data)
         elif event.action == 'select':
-            chat_html.append("Selected " + ", ".join([x[1] for x in event.data]))
+            chat_html.append("Selected " + ", ".join(event.data.values()))
 
     if current_user == 0:
         chat_html.append('</td><td width=\"50%%\">LEFT</td></tr>')

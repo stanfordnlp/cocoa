@@ -188,6 +188,10 @@ if __name__ == "__main__":
     app.config['controller_map'] = defaultdict(None)
     app.config['instructions'] = instructions
     app.config['task_title'] = params['task_title']
+    if 'icon' not in params.keys():
+        app.config['task_icon'] = 'handshake.jpg'
+    else:
+        app.config['task_icon'] = params['icon']
     atexit.register(cleanup, flask_app=app)
 
     server = WSGIServer(('', args.port), app)
