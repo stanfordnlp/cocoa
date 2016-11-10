@@ -1,5 +1,5 @@
-import json
 from kb import KB
+import numpy as np
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
@@ -20,6 +20,9 @@ class Scenario(object):
     def to_dict(self):
         return {'uuid': self.uuid, 'kbs': [kb.to_dict() for kb in self.kbs]}
 
+    def get_kb(self, agent):
+        return self.kbs[agent]
+
 
 class ScenarioDB(object):
     '''
@@ -32,6 +35,10 @@ class ScenarioDB(object):
             self.scenarios_map[scenario.uuid] = scenario
 
     def get(self, uuid):
+        return self.scenarios_map[uuid]
+
+    def select_random(self):
+        uuid = np.random.choice(self.scenarios_map.keys())
         return self.scenarios_map[uuid]
 
     @staticmethod
