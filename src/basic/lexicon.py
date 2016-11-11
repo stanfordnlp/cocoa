@@ -1,4 +1,8 @@
+import editdistance
+import re
+
 from collections import defaultdict
+from fuzzywuzzy import fuzz
 
 ### Helper functions
 
@@ -38,7 +42,6 @@ def get_acronyms(entity):
 
 alphabet = "abcdefghijklmnopqrstuvwxyz "
 def get_edits(entity):
-    # TODO:  Do we want to consider edit distance 2 or greater?
     if len(entity) < 3:
         return []
     edits = []
@@ -128,110 +131,18 @@ class BaseLexicon(object):
         return self.lexicon.get(phrase, [])
 
 
+
 class Lexicon(BaseLexicon):
-    '''
-    A lexicon maps freeform phrases to canonicalized entity.
-    The current lexicon just uses several heuristics to do the matching.
-    '''
-    def __init__(self, schema, learned_lex):
-        super(Lexicon, self).__init__(schema, learned_lex)
-
-
-    def compute_synonyms(self):
-        # Special cases
-        for entity, type in self.entities.items():
-            phrases = [entity]  # Representations of the canonical entity
-            # Consider any word in the entity that's unique
-            # Example: entity = 'university of california', 'university' would not be unique, but 'california' would be
-            if ' ' in entity:
-                for word in entity.split(' '):
-                    if len(word) >= 3 and self.word_counts[word] == 1:
-                        phrases.append(word)
-            # Consider removing stop words
-            mod_entity = entity
-            for s in [' of ', ' - ', '-']:
-                mod_entity = mod_entity.replace(s, ' ')
-            if entity != mod_entity:
-                phrases.append(mod_entity)
-
-            synonyms = []
-            # Special case -- is there a way to get other rules to handle this?
-            if entity == 'facebook':
-                synonyms.append('fb')
-
-            # General
-            for phrase in phrases:
-                synonyms.append(phrase)
-                if type != 'person':
-                    synonyms.extend(get_edits(phrase))
-                    synonyms.extend(get_morphological_variants(phrase))
-                    synonyms.extend(get_prefixes(phrase))
-                    synonyms.extend(get_acronyms(phrase))
-
-            # Add to lexicon
-            for synonym in set(synonyms):
-                self.lexicon[synonym].append((entity, type))
-
-    def add_numbers(self):
-        numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-        for i, n in enumerate(numbers):
-            for phrase in [str(i), n]:
-                self.lexicon[phrase].append((str(i), 'number'))
-
-
-    def entitylink(self, raw_tokens):
-        '''
-        Add detected entities to each token
-        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
-        '''
-        i = 0
-        entities = []
-        while i < len(raw_tokens):
-            # Find longest phrase (if any) that matches an entity
-            for l in range(5, 0, -1):
-                phrase = ' '.join(raw_tokens[i:i+l])
-                results = self.lookup(phrase)
-                if len(results) > 0:
-                    entity = None
-                    if self.learned_lex:
-                        # Will later use learned system -- returns full candidate set for now
-                        entity = results
-                    else:
-                        # NOTE: if more than one match, use the first one.
-                        # TODO: disambiguate
-                        # prioritize exact match (e.g. hiking, biking)
-                        for result in results:
-                            if result[0] == phrase:
-                                entity = result
-                                break
-                        if not entity:
-                            entity = results[0]
-                    entities.append((phrase, entity))
-                    i += l
-                    break
-            if not results:
-                entities.append(raw_tokens[i])
-                i += 1
-        return entities
-
-    def test(self):
-        phrases = ['foodie', 'evening', 'evenings', 'food']
-        for x in phrases:
-            print x, '=>', self.lookup(x)
-        sentence = ['i', 'like', 'hiking', 'biking']
-        print self.entitylink(sentence)
-
-
-
-class SingleTokenLexicon(BaseLexicon):
     """
     Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
-    def __init__(self, schema, learned_lex):
-        super(SingleTokenLexicon, self).__init__(schema, learned_lex)
-        # TODO: Maintain mapping from token to its various synonyms to avoid recomputing for multiple entities
+    def __init__(self, schema, learned_lex=False):
+        super(Lexicon, self).__init__(schema, learned_lex)
+        self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
+                                   "friends", "at", "for", "in", "many", "partner", "all", "we",
+                                   "start", "go", "school"])
 
-    # TODO: compute dialogue num entity average as metric for system performance
+
     def compute_synonyms(self):
         """
         Computes all variants (synonyms) for each token of every canonical entity
@@ -273,6 +184,44 @@ class SingleTokenLexicon(BaseLexicon):
                 self.lexicon[synonym].append((entity, type))
 
 
+    def score_and_match(self, span, candidates):
+        """
+        Score the given span with the list of candidate entities and returns best match
+        :param span:
+        :param candidates:
+        :return:
+        """
+        entity_scores = []
+        for c in candidates:
+            # Clean up punctuation
+            c_s = re.sub("-", " ", c[0])
+            span_tokens = span.split()
+            entity_tokens = c_s.split()
+            # Ideally would do this for major/company as well but too many common words picked up
+            if span in entity_tokens and (c[1] == "school"):
+                score = 1
+            # Prioritize multi phrase spans contained in entity
+            elif len(span_tokens) > 1 and span in c_s:
+                score = 1
+            else:
+                score = editdistance.eval(span, c[0])
+            entity_scores.append(c + (score,))
+
+        # Sort entity scores
+        entity_scores = sorted(entity_scores, key=lambda x: x[2])
+
+        # If exact match or substring match with an entity
+        if entity_scores[0][2] <= 1:
+            if span not in self.common_phrases:
+                best_match = entity_scores[0][:2]
+            else:
+                best_match = (span, None)
+        else:
+            best_match = (span, None)
+
+        return best_match
+
+
     def entitylink(self, raw_tokens, return_entities=False):
         """
         Add detected entities to each token
@@ -282,15 +231,14 @@ class SingleTokenLexicon(BaseLexicon):
         (disregarding stop words and special tokens) and find their intersection
         """
         i = 0
-        num_entities_found = 0
+        found_entities = []
         entities = []
         stop_words = set(['of'])
-        entities_found = []
         while i < len(raw_tokens):
             candidate_entities = None
             single_char = False
             # Find longest phrase (if any) that matches an entity
-            for l in range(5, 0, -1):
+            for l in range(6, 0, -1):
                 phrase = ' '.join(raw_tokens[i:i+l])
                 raw = raw_tokens[i:i+l]
 
@@ -308,53 +256,46 @@ class SingleTokenLexicon(BaseLexicon):
                 # Found some match
                 if len(candidate_entities) > 0:
                     entity = None
-                    num_entities_found += len(candidate_entities)
-                    if self.learned_lex:
-                        # Will later use learned system -- returns full candidate set for now
-                        entity = candidate_entities
+                    best_match = self.score_and_match(phrase, candidate_entities)
+                    # If best_match is entity from KB add to list
+                    if best_match[1] is not None:
+                        entities.append((phrase, best_match))
+                        found_entities.append((phrase, best_match[0]))
+                        i += l
+                        break
                     else:
-                        # NOTE: if more than one match, use the first one.
-                        # prioritize exact match (e.g. hiking, biking)
-                        for candidate in candidate_entities:
-                            if candidate == phrase:
-                                entity = candidate
-                                break
-                        if not entity:
-                            entity = candidate_entities
+                        candidate_entities = None
+                        continue
 
-                    entities_found.append(entity)
-                    entities.append((phrase, entity))
-                    i += l
-                    break
-            if not candidate_entities or single_char == True:
+            if not candidate_entities or single_char:
                 entities.append(raw_tokens[i])
                 i += 1
 
         # For computing per dialogue entities found
         if return_entities:
-            return entities, entities_found
+            return entities, found_entities
 
         return entities
 
 
     def test(self):
-        phrases = ['foodie', 'evening', 'evenings', 'food']
-        # for x in phrases:
-        #     print x, '=>', self.lookup(x)
-
         sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
-        sentence3 = [t.lower() for t in sentence3]
-        print self.entitylink(sentence3)
+        sentence3 = "Dylan at Fenway"
+        sentence3 = [t.lower() for t in sentence3.split()]
+
+        sentence2 = ["connecticut"]
+        print self.entitylink(sentence3, True)
+        print self.entitylink(sentence2, True)
 
 
 if __name__ == "__main__":
     from schema import Schema
     import time
     # TODO: Update path to location of desired schema used for basic testing
-    path = "/Users/mihaileric/Documents/Research/game-dialogue/data/friends-schema-large.json"
+    path = None 
     start_build = time.time()
     schema = Schema(path)
-    lex = SingleTokenLexicon(schema, learned_lex=True)
+    lex = Lexicon(schema, learned_lex=True)
     print "Building complete: ", time.time() - start_build
     start_test = time.time()
     lex.test()
