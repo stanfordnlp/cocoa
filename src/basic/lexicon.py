@@ -3,10 +3,11 @@ import datetime
 ### Helper functions
 
 # TODO: hack for dubious synonyms (went, friends) before we have a better lexicon
+# TODO: common words in this corpus
 with open('data/common_words.txt') as fin:
     common_words = set([w.strip() for w in fin.read().split()[:2000] if len(w.strip()) > 1])
 
-def get_prefixes(entity, min_length=3, max_length=5):
+def get_prefixes(entity, min_length=3, max_length=5, common_words=[]):
     # computer science => ['comp sci', ...]
     words = entity.split()
     candidates = ['']
@@ -22,7 +23,7 @@ def get_prefixes(entity, min_length=3, max_length=5):
     # TODO: hack for false positives
     return [c[1:] for c in candidates if c[1:] != entity and c[1:] not in common_words]
 
-def get_acronyms(entity):
+def get_acronyms(entity, common_words):
     words = entity.split()
     if len(words) < 2:
         return []
@@ -102,11 +103,15 @@ class Lexicon(object):
     A lexicon maps freeform phrases to canonicalized entity.
     The current lexicon just uses several heuristics to do the matching.
     '''
-    def __init__(self, schema, learned_lex):
+    def __init__(self, schema, learned_lex, word_counts=None):
         start_time = datetime.datetime.now()
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
+        if word_counts:
+            self.common_words = [x for x in word_counts if word_counts[x] > 20]
+        else:
+            self.common_words = common_words
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
@@ -148,7 +153,7 @@ class Lexicon(object):
             # Example: entity = 'university of california', 'university' would not be unique, but 'california' would be
             if ' ' in entity:
                 for word in entity.split(' '):
-                    if len(word) >= 3 and self.word_counts[word] == 1:
+                    if len(word) >= 3 and self.word_counts[word] == 1 and not word.lower() in self.common_words:
                         phrases.append(word)
             # Consider removing stop words
             mod_entity = entity
@@ -167,20 +172,19 @@ class Lexicon(object):
                 if len(first_name) >= 3 and first_name not in synonyms:
                     synonyms.append(first_name)
             # General
+            n = len(entity.split())
             for phrase in phrases:
                 synonyms.append(phrase)
                 if type != 'person':
                     #synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
-                    synonyms.extend(get_prefixes(phrase))
-                    synonyms.extend(get_acronyms(phrase))
+                    synonyms.extend(get_prefixes(phrase, common_words=self.common_words))
+                    synonyms.extend(get_acronyms(phrase, self.common_words))
 
             # Add to lexicon
             for synonym in set(synonyms):
                 #print synonym, '=>', entity
-                # TODO: hack!!
-                if synonym != 'friends':
-                    self.lexicon[synonym].append((entity, type))
+                self.lexicon[synonym].append((entity, type))
 
     def add_numbers(self):
         numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
@@ -228,14 +232,33 @@ class Lexicon(object):
         phrases = ['foodie', 'evening', 'evenings', 'food']
         for x in phrases:
             print x, '=>', self.lookup(x)
-        sentence = ['i', 'like', 'hiking', 'biking']
+        sentence = 'none of mine did parks'.split()
         print self.entitylink(sentence)
 
 
 if __name__ == "__main__":
     from schema import Schema
-    # TODO: Update path to location of desired schema used for basic testing
-    path = None
-    schema = Schema(path)
-    lex = Lexicon(schema, learned_lex=False)
+    from src.model.preprocess import Preprocessor
+    from dataset import read_dataset
+    from scenario_db import ScenarioDB
+    from itertools import chain
+    from util import read_json
+    import argparse
+
+    path = 'data/friends-schema-large.json'
+    schema = Schema(path, 'MutualFriends')
+
+    paths = ['output/friends-scenarios-large.json', 'output/friends-scenarios-large-peaky.json', 'output/friends-scenarios-large-peaky-04-002.json']
+    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in paths))
+
+    args = {'train_examples_paths': ['data/mutualfriends/train.json'],
+            'test_examples_paths': ['data/mutualfriends/test.json'],
+            'train_max_examples': None,
+            'test_max_examples': None,
+            }
+    args = argparse.Namespace(**args)
+    dataset = read_dataset(scenario_db, args)
+
+    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
+    lex = Lexicon(schema, False, word_counts)
     lex.test()

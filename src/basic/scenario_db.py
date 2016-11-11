@@ -3,7 +3,7 @@ import numpy as np
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
+    parser.add_argument('--scenarios-path', nargs='*', default=[], help='Output path for the scenarios generated', required=True)
 
 
 class Scenario(object):
@@ -16,7 +16,7 @@ class Scenario(object):
 
     @staticmethod
     def from_dict(schema, raw):
-        return Scenario(raw['uuid'], [KB.from_dict(schema, kb) for kb in raw['kbs']]) 
+        return Scenario(raw['uuid'], [KB.from_dict(schema, kb) for kb in raw['kbs']])
     def to_dict(self):
         return {'uuid': self.uuid, 'kbs': [kb.to_dict() for kb in self.kbs]}
 
@@ -42,7 +42,7 @@ class ScenarioDB(object):
         return self.scenarios_map[uuid]
 
     @staticmethod
-    def from_dict(schema, raw):
-        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw])
+    def from_dict(schema, raw_list):
+        return ScenarioDB([Scenario.from_dict(schema, s) for raw in raw_list for s in raw])
     def to_dict(self):
         return [s.to_dict() for s in self.scenarios_list]

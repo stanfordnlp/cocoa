@@ -90,12 +90,12 @@ class Learner(object):
         targets = batch['targets']
         # Go over each example in the batch
         for i in xrange(inputs.shape[0]):
-            if len(targets[i]) == 0:
+            if len(decoder_tokens[i]) == 0:
                 continue
             print i
-            print 'RAW INPUT:', [x[0] if is_entity(x) else x for x in encoder_tokens[i]]
+            print 'RAW INPUT:', encoder_tokens[i]
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
-            print 'RAW TARGET:', [x[0] if is_entity(x) else x for x in decoder_tokens[i]]
+            print 'RAW TARGET:', decoder_tokens[i]
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
         print 'BATCH LOSS:', loss

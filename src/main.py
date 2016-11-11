@@ -7,6 +7,7 @@ import random
 import os
 import time
 import tensorflow as tf
+from itertools import chain
 from src.basic.util import read_json, write_json, read_pickle, write_pickle
 from src.basic.dataset import add_dataset_arguments, read_dataset
 from src.basic.schema import Schema
@@ -74,9 +75,10 @@ if __name__ == '__main__':
         ckpt = None
 
     schema = Schema(model_args.schema_path, model_args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    lexicon = Lexicon(schema, args.learned_lex)
+    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
+    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
+    lexicon = Lexicon(schema, args.learned_lex, word_counts=None)
 
     # Dataset
     use_kb = False if model_args.model == 'encdec' else True

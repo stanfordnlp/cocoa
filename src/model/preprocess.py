@@ -8,7 +8,7 @@ import numpy as np
 from src.model.vocab import Vocabulary, is_entity
 from src.model.graph import Graph, GraphBatch, inv_rel
 from itertools import chain, izip
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import copy
 
 def add_preprocess_arguments(parser):
@@ -425,6 +425,17 @@ class Preprocessor(object):
                     [markers.SELECT, (item_str, (item_str, 'item'))])
         else:
             raise ValueError('Unknown event action.')
+
+    @classmethod
+    def count_words(cls, examples):
+        counts = defaultdict(int)
+        for ex in examples:
+            for event in ex.events:
+                if event.action == 'message':
+                    tokens = tokenize(event.data)
+                    for token in tokens:
+                        counts[token] += 1
+        return counts
 
     def preprocess(self, examples):
         dialogues = []
