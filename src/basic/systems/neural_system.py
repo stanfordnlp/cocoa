@@ -53,10 +53,13 @@ class NeuralSystem(System):
         saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
         saver.restore(tf_session, ckpt.model_checkpoint_path)
 
-        copy = True if args.model == 'attn-copy-encdec' else False
-        textint_map = TextIntMap(vocab, mappings['entity'], copy)
-
-        preprocessor = Preprocessor(schema, lexicon)
+        if args.model == 'attn-copy-encdec':
+            args.entity_target_form = 'graph'
+            copy = True
+        else:
+            copy = False
+        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
+        textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
         Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
         self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOT), remove_symbols=map(vocab.to_ind, (markers.EOT, markers.EOS)), max_len=20)

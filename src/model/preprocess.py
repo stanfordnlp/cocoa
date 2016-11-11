@@ -110,9 +110,8 @@ class TextIntMap(object):
 
     def text_to_int(self, utterance, stage):
         '''
-        Look up tokens in vocab; if entity_map is not used, look up for an entity using its
-        canonical form (token[1]) in vocab; otherwise look up it in the entity_map and make
-        sure the id is disjoint with the vocab id by adding an offset.
+        Process entities in the utterance based on whether it is used for encoding, decoding
+        or ground truth.
         '''
         use_entity_map = self.setting[stage]
         tokens = self.preprocessor.process_utterance(utterance, stage)
@@ -145,10 +144,9 @@ class Dialogue(object):
         '''
         self.uuid = uuid
         self.kbs = kbs
-        # turns[0] and turns[1] are  utterances from the encoder's and the decoder's perspectives
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = ([], [])
-        # turns: input tokens of encoder and decoder, later converted to integers
+        # turns: input tokens of encoder, decoder input and target, later converted to integers
         self.turns = ([], [], [])
         self.agents = []
         self.is_int = False  # Whether we've converted it to integers

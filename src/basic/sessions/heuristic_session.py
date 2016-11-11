@@ -66,7 +66,7 @@ class HeuristicSession(SimpleSession):
             self.informed_facts.add(self.fact_hash(f))
 
     def fact_hash(self, fact):
-        return tuple(fact[0])
+        return tuple(sorted(fact[0]))
 
     def filter_fact(self, fact):
         '''
@@ -153,7 +153,7 @@ class HeuristicSession(SimpleSession):
         self.state = ('inform', fact)
         self.update_informed_facts(fact)
         fact_str = self.fact_to_str(fact, item_set)
-        conditioned = True if len(item_set['items']) < len(self.curr_set['items']) else False
+        conditioned = True if len(item_set['items']) < len(self.kb.items) else False
         # Global information
         if not conditioned:
             message = 'I have %s.' % fact_str
@@ -310,11 +310,13 @@ class HeuristicSession(SimpleSession):
 
         # Check if we get a match
         if len(self.curr_set['items']) == 1:
+            print 'select 1'
             return self.select(self.curr_set['items'][0])
         if len(self.possible_set['items']) == 1 and len(self.possible_set['attrs']) == self.total_num_attrs:
+            print 'select 2'
             return self.select(self.possible_set['items'][0])
 
-        if random.random() < 0.5:  # Wait randomly
+        if random.random() < 0.2:  # Wait randomly
             return None
 
         # Say hi first
@@ -331,7 +333,7 @@ class HeuristicSession(SimpleSession):
                 return self.answer()
 
         # Wait for an answer
-        if self.state and self.state[0] == 'ask' and (not self.received_state or self.received_state[0] == 'answer'):
+        if self.state and self.state[0] == 'ask' and (not self.received_state or self.received_state[0] != 'answer'):
             return None
 
         # Inform when the partner's constraint results in an empty set

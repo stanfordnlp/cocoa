@@ -2,7 +2,7 @@ __author__ = 'anushabala'
 from session import Session
 from src.model.graph import Graph, GraphBatch
 from src.model.encdec import GraphEncoderDecoder
-from src.model.preprocess import markers, entity_to_vocab
+from src.model.preprocess import markers
 from src.model.vocab import is_entity
 from src.model.evaluate import pred_to_token
 import numpy as np
@@ -29,11 +29,11 @@ class NeuralSession(Session):
             self.graph = None
 
         self.matched_item = None
-        # Current encoder state, starting state for encoder
+
         self.encoder_state = None
+        self.decoder_state = None
         self.encoder_output_dict = None
-        # Current encoder output, initial output for encoder (only used in attention models)
-        self.encoder_output = None
+
         self.utterances = None
         self.context = None
         self.graph_data = None
@@ -53,9 +53,7 @@ class NeuralSession(Session):
 
     def encode(self, entity_tokens):
         # Convert inputs to integers
-        inputs = np.reshape(self.env.textint_map.text_to_int(entity_tokens), [1, -1])
-        if self.env.copy:
-            inputs = entity_to_vocab(inputs, self.env.vocab)
+        inputs = np.reshape(self.env.textint_map.text_to_int(entity_tokens, 'encoding'), [1, -1])
 
         encoder_args = {'inputs': inputs,
                 'last_inds': self._get_last_inds(inputs),
@@ -67,21 +65,24 @@ class NeuralSession(Session):
             encoder_args['utterances'] = graph_data['utterances']
             encoder_args['graph_data'] = graph_data
         self.encoder_output_dict = self.model.encoder.encode(self.env.tf_session, **encoder_args)
+        self.encoder_state = self.encoder_output_dict['final_state']
 
     def decode(self):
         sess = self.env.tf_session
 
         if self.encoder_output_dict is None:
             self.encode([markers.EOS])
-        inputs = np.reshape(self.env.textint_map.text_to_int([markers.GO]), [1, 1])
+        inputs = np.reshape(self.env.textint_map.text_to_int([markers.GO], 'decoding'), [1, 1])
 
+        init_state = self.encoder_state
         decoder_args = {'inputs': inputs,
                 'last_inds': np.zeros([1], dtype=np.int32),
-                'init_state': self.encoder_output_dict['final_state']
+                'init_state': init_state,
+                'textint_map': self.env.textint_map,
                 }
         if self.graph is not None:
             decoder_args['init_state'] = self.model.decoder.compute_init_state(sess,
-                    self.encoder_output_dict['final_state'],
+                    init_state,
                     self.encoder_output_dict['final_output'],
                     self.encoder_output_dict['context'])
             if self.env.copy:
@@ -100,6 +101,8 @@ class NeuralSession(Session):
         if self.env.copy:
             preds = self.graph.copy_preds(preds, self.env.vocab.size)
         entity_tokens = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
+        # TODO: The output does not have surface form yet. Add the canonical form as surface for now.
+        entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
 
         # Update graph and utterances
         if self.graph is not None:
@@ -107,8 +110,7 @@ class NeuralSession(Session):
             self.utterances = self.model.decoder.update_utterances(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], graph_data['utterances'], graph_data)
 
         # Text message
-        message = ' '.join([x if not is_entity(x) else x[0] for x in entity_tokens[0]])
-        return message
+        return [x if not is_entity(x) else x[0] for x in entity_tokens[0]]
 
     def receive(self, event):
         # Parse utterance
@@ -121,6 +123,12 @@ class NeuralSession(Session):
                 return
         elif event.action == 'message':
             entity_tokens = self.env.preprocessor.process_event(event, self.kb)
+            # Empty message
+            if entity_tokens is None:
+                return
+            else:
+                # Take the encoding version of sequence
+                entity_tokens = entity_tokens[0]
         else:
             raise ValueError('Unknown event action.')
         entity_tokens += [markers.EOS]
@@ -132,4 +140,8 @@ class NeuralSession(Session):
             return self.select(self.matched_item)
         if random.random() < 0.5:  # Wait randomly
             return None
-        return self.message(self.decode())
+        tokens = self.decode()
+        if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
+            item = self.kb.items[int(tokens[1].split('-')[1])]
+            return self.select(item)
+        return self.message(' '.join(tokens))

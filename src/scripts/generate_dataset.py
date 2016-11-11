@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use {heuristic}', nargs='*')
 parser.add_argument('--model-path', help='Path to model (used for neural agents)')
+parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 args = parser.parse_args()
@@ -43,7 +44,7 @@ def get_system(name):
 if not args.agents:
     args.agents = ['simple', 'simple']
 agents = [get_system(name) for name in args.agents]
-num_examples = 0
+num_examples = args.scenario_offset
 
 def generate_examples(description, examples_path, max_examples):
     global num_examples
