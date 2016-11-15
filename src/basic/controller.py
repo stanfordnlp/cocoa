@@ -48,6 +48,7 @@ class Controller(object):
                 # Game is over when the two selections are the same
                 if self.game_over():
                     self.reward = 1
+                    break
             if self.game_over():
                 break
 

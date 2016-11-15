@@ -34,7 +34,7 @@ test:
 	PYTHONPATH=. python src/main.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --init-from $(checkpoint) --rnn-type lstm --test-examples-paths output/friends-test-examples.json --test --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --num-items $(num_items) --batch-size $(batch_size) --best --stats-file $(stats_file).test
 
 bot-chat:
-	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --test-examples-paths output/friends-bot-chat-$(model)-$(exp).json --train-max-examples 0 --test-max-examples 1 --agents neural neural --model-path $(checkpoint) --scenario-offset 1000
+	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --test-examples-paths output/friends-bot-chat-$(model)-$(exp).json --train-max-examples 0 --test-max-examples 5 --agents neural neural --model-path $(checkpoint) --scenario-offset 1000
 
 app:
 	PYTHONPATH=. python src/web/start_app.py --port 5000 --schema-path data/friends-schema.json --config data/web/app_params.json --scenarios-path output/friends-scenarios.json
