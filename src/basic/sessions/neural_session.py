@@ -79,28 +79,31 @@ class NeuralSession(Session):
             self.encode([markers.EOS])
         if self.new_turn:
             start_symbol = markers.GO
+            init_state = self.model.decoder.compute_init_state(sess,
+                    self.encoder_state,
+                    self.encoder_output_dict['final_output'],
+                    self.encoder_output_dict['context'])
             self.new_turn = False
         else:
+            assert self.decoder_state is not None
+            init_state = self.decoder_state
             start_symbol = markers.EOS
         inputs = np.reshape(self.env.textint_map.text_to_int([start_symbol], 'decoding'), [1, 1])
 
-        init_state = self.encoder_state
         decoder_args = {'inputs': inputs,
                 'last_inds': np.zeros([1], dtype=np.int32),
                 'init_state': init_state,
                 'textint_map': self.env.textint_map,
                 }
         if self.graph is not None:
-            decoder_args['init_state'] = self.model.decoder.compute_init_state(sess,
-                    init_state,
-                    self.encoder_output_dict['final_output'],
-                    self.encoder_output_dict['context'])
             if self.env.copy:
                 decoder_args['graphs'] = self.graph
                 decoder_args['vocab'] = self.env.vocab
         decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
 
-        # TODO: separate!
+        # TODO: update context in decoder state; for now this is fine because it never "wait",
+        # i.e. each turn has one utterance.
+        self.decoder_state = decoder_output_dict['final_state']
         if self.graph is not None:
             self.encoder_state = decoder_output_dict['final_state'][0]
         else:
@@ -148,8 +151,8 @@ class NeuralSession(Session):
     def send(self):
         if self.matched_item is not None:
             return self.select(self.matched_item)
-        if random.random() < 0.5:  # Wait randomly
-            return None
+        #if random.random() < 0.5:  # Wait randomly
+        #    return None
         tokens = self.decode()
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
             item = self.kb.items[int(tokens[1].split('-')[1])]
