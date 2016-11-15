@@ -38,6 +38,9 @@ class NeuralSession(Session):
         self.context = None
         self.graph_data = None
 
+        self.new_turn = False
+        self.end_turn = False
+
     def _match(self, item):
         for it in self.kb.items:
             if it == item:
@@ -67,12 +70,19 @@ class NeuralSession(Session):
         self.encoder_output_dict = self.model.encoder.encode(self.env.tf_session, **encoder_args)
         self.encoder_state = self.encoder_output_dict['final_state']
 
+        self.new_turn = True
+
     def decode(self):
         sess = self.env.tf_session
 
         if self.encoder_output_dict is None:
             self.encode([markers.EOS])
-        inputs = np.reshape(self.env.textint_map.text_to_int([markers.GO], 'decoding'), [1, 1])
+        if self.new_turn:
+            start_symbol = markers.GO
+            self.new_turn = False
+        else:
+            start_symbol = markers.EOS
+        inputs = np.reshape(self.env.textint_map.text_to_int([start_symbol], 'decoding'), [1, 1])
 
         init_state = self.encoder_state
         decoder_args = {'inputs': inputs,
@@ -88,7 +98,7 @@ class NeuralSession(Session):
             if self.env.copy:
                 decoder_args['graphs'] = self.graph
                 decoder_args['vocab'] = self.env.vocab
-        decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, 1, **decoder_args)
+        decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
 
         # TODO: separate!
         if self.graph is not None:

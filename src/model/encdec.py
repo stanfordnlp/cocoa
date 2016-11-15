@@ -215,7 +215,9 @@ class BasicDecoder(BasicEncoder):
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
-    def decode(self, sess, max_len, batch_size=1, **kwargs):
+    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+        if stop_symbol is not None:
+            assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
@@ -224,6 +226,8 @@ class BasicDecoder(BasicEncoder):
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
+            if step_preds[0][0] == stop_symbol:
+                break
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)
@@ -299,7 +303,9 @@ class GraphDecoder(GraphEncoder):
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
-    def decode(self, sess, max_len, batch_size=1, **kwargs):
+    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+        if stop_symbol is not None:
+            assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
@@ -308,6 +314,8 @@ class GraphDecoder(GraphEncoder):
             logits, final_state, final_output = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output']], feed_dict=feed_dict)
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
+            if step_preds[0][0] == stop_symbol:
+                break
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)

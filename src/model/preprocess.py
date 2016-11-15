@@ -16,8 +16,8 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-decoding-form', choices=['canonical'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOT', 'EOS', 'GO', 'SELECT', 'PAD'])
-markers = SpecialSymbols(EOT='</t>', EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])
+markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
 
 def tokenize(utterance):
     '''
@@ -197,7 +197,7 @@ class Dialogue(object):
             for j, turn in enumerate(turns):
                 for utterance in turn:
                     utterance.append(int_markers.EOS)
-                self.turns[i][j] = [x for x in chain.from_iterable(turn)] + [int_markers.EOT]
+                self.turns[i][j] = [x for x in chain.from_iterable(turn)]
 
         if hasattr(self, 'token_turns'):
             for i, turns in enumerate(self.token_turns):
@@ -264,11 +264,21 @@ class DialogueBatch(object):
     def _get_graph_batch(self, agents):
         return GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
 
+    def _remove_last(self, array, value):
+        '''
+        For each row, replace (in place) the last occurence of value to <pad>.
+        The last token input to decoder should not be </s> otherwise the model will learn
+        </s> <pad> (deterministically).
+        '''
+        col_inds = np.max(np.where(array == value), axis=1)
+        row_inds = np.arange(array.shape[0])
+        array[row_inds, col_inds] = int_markers.PAD
+        return array
+
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, encode_tokens, decode_tokens):
         if encode_turn is not None:
-            # Remove <go> and </t> at the beginning and end of utterance
-            encoder_inputs = np.copy(encode_turn[:, 1:-1])
-            encoder_inputs[encoder_inputs == int_markers.EOT] = int_markers.PAD
+            # Remove <go> at the beginning of utterance
+            encoder_inputs = encode_turn[:, 1:]
         else:
             batch_size = decode_turn.shape[0]
             # If there's no input to encode, use </s> as the encoder input.
@@ -276,9 +286,10 @@ class DialogueBatch(object):
             # encode_tokens are empty lists
             encode_tokens = [[''] for _ in xrange(batch_size)]
 
-        # Decoder inptus: start from <go> to generate, i.e. <go> <token>
+        # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
-        decoder_inputs = decode_turn[:, :-1]
+        decoder_inputs = np.copy(decode_turn)
+        decoder_inputs = self._replace_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
         batch = {

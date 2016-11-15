@@ -62,7 +62,7 @@ class NeuralSystem(System):
         textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
         Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOT), remove_symbols=map(vocab.to_ind, (markers.EOT, markers.EOS)), max_len=20)
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:

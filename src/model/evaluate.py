@@ -7,7 +7,7 @@ from src.lib import logstats
 
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map):
     '''
-    Convert integer predition to tokens. Remove PAD, EOT and EOS.
+    Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
     '''
     def find_stop(array):
@@ -34,8 +34,8 @@ class Evaluator(object):
         self.num_batches = {split: data.next() for split, data in self.eval_data.iteritems()}
 
         # For post-processing of generated utterances
-        self.stop_symbol = self.vocab.to_ind(markers.EOT)
-        self.remove_symbols = map(self.vocab.to_ind, (markers.EOT, markers.EOS, markers.PAD))
+        self.stop_symbol = self.vocab.to_ind(markers.EOS)
+        self.remove_symbols = map(self.vocab.to_ind, (markers.EOS, markers.PAD))
 
     def dataset(self):
         '''
