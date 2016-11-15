@@ -97,6 +97,7 @@ class Evaluator(object):
         inputs = batch['encoder_inputs']
         decoder_tokens = batch['decoder_tokens']
         targets = decoder_tokens
+        print '-------------- batch ----------------'
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
             # Skip padded turns
             if len(decoder_tokens[i]) == 0:
@@ -105,8 +106,9 @@ class Evaluator(object):
             if graphs:
                 graphs.graphs[i].kb.dump()
             print 'RAW INPUT:', encoder_tokens[i]
-            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
             print 'RAW TARGET:', target
+            print '----------'
+            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
             print 'TARGET:', self._process_target_tokens(target)
             print 'PRED:', pred
             print 'BLEU:', bleu

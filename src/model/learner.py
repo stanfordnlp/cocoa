@@ -85,20 +85,24 @@ class Learner(object):
 
     def _print_batch(self, batch, preds, loss):
         encoder_tokens = batch['encoder_tokens']
-        inputs = batch['encoder_inputs']
+        encoder_inputs = batch['encoder_inputs']
+        decoder_inputs = batch['decoder_inputs']
         decoder_tokens = batch['decoder_tokens']
         targets = batch['targets']
         # Go over each example in the batch
-        for i in xrange(inputs.shape[0]):
+        print '-------------- batch ----------------'
+        for i in xrange(encoder_inputs.shape[0]):
             if len(decoder_tokens[i]) == 0:
                 continue
             print i
             print 'RAW INPUT:', encoder_tokens[i]
-            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
             print 'RAW TARGET:', decoder_tokens[i]
+            print '----------'
+            print 'ENC INPUT:', self.data.textint_map.int_to_text(encoder_inputs[i], 'encoding')
+            print 'DEC INPUT:', self.data.textint_map.int_to_text(decoder_inputs[i], 'decoding')
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
-        print 'BATCH LOSS:', loss
+            print 'LOSS:', loss[i]
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
         '''
@@ -111,18 +115,19 @@ class Learner(object):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy)
             if test:
-                logits, final_state, utterances, loss = sess.run(
+                logits, final_state, utterances, loss, seq_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
-                         self.model.loss], feed_dict=feed_dict)
+                         self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
             else:
-                _, logits, final_state, utterances, loss, gn = sess.run(
+                _, logits, final_state, utterances, loss, seq_loss, gn = sess.run(
                         [self.train_op,
                          self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
                          self.model.loss,
+                         self.model.seq_loss,
                          self.grad_norm], feed_dict=feed_dict)
             # NOTE: final_state = (rnn_state, attn, context)
             encoder_init_state = final_state[0]
@@ -130,11 +135,12 @@ class Learner(object):
             if self.verbose:
                 preds = get_prediction(logits)
                 preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
-                self._print_batch(batch, preds, loss)
+                self._print_batch(batch, preds, seq_loss)
 
             logstats.update_summary_map(summary_map, {'loss': loss})
             if not test:
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
+        import sys; sys.exit()
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
         '''
@@ -144,21 +150,21 @@ class Learner(object):
         for batch in dialogue_batch['batch_seq']:
             feed_dict = self._get_feed_dict(batch, encoder_init_state)
             if test:
-                logits, final_state, loss = sess.run([
+                logits, final_state, loss, seq_loss = sess.run([
                     self.model.decoder.output_dict['logits'],
                     self.model.decoder.output_dict['final_state'],
-                    self.model.loss], feed_dict=feed_dict)
+                    self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
             else:
-                _, logits, final_state, loss, gn = sess.run([
+                _, logits, final_state, loss, seq_loss, gn = sess.run([
                     self.train_op,
                     self.model.decoder.output_dict['logits'],
                     self.model.decoder.output_dict['final_state'],
-                    self.model.loss, self.grad_norm], feed_dict=feed_dict)
+                    self.model.loss, self.model.seq_loss, self.grad_norm], feed_dict=feed_dict)
             encoder_init_state = final_state
 
             if self.verbose:
                 preds = get_prediction(logits)
-                self._print_batch(batch, preds, loss)
+                self._print_batch(batch, preds, seq_loss)
 
             logstats.update_summary_map(summary_map, {'loss': loss})
             if not test:
@@ -224,9 +230,11 @@ class Learner(object):
 
                 # Evaluate on dev
                 for split, test_data, num_batches in self.evaluator.dataset():
-                    print '================== Eval %s ==================' % split
                     start_time = time.time()
+                    print '================== Eval %s ==================' % split
+                    print '================== Perplexity =================='
                     loss = self.test_loss(sess, test_data, num_batches)
+                    print '================== Sampling =================='
                     bleu, ent_recall = self.evaluator.test_bleu(sess, test_data, num_batches)
                     end_time = time.time()
                     if split == 'dev' and bleu > best_bleu:

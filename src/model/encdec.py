@@ -376,9 +376,10 @@ class BasicEncoderDecoder(object):
         token_weights = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + 1e-12
         # Average over words in each sequence
         loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights
+        seq_loss = loss
         # Average over sequences in the batch
         loss = tf.reduce_sum(loss, 0) / tf.to_float(batch_size)
-        return loss
+        return loss, seq_loss
 
     def _encoder_input_dict(self):
         return {
@@ -406,7 +407,7 @@ class BasicEncoderDecoder(object):
             self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Loss
-            self.loss = self.compute_loss(decoder.output_dict['logits'], self.targets)
+            self.loss, self.seq_loss = self.compute_loss(decoder.output_dict['logits'], self.targets)
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})

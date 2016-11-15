@@ -270,9 +270,12 @@ class DialogueBatch(object):
         The last token input to decoder should not be </s> otherwise the model will learn
         </s> <pad> (deterministically).
         '''
-        col_inds = np.max(np.where(array == value), axis=1)
-        row_inds = np.arange(array.shape[0])
-        array[row_inds, col_inds] = int_markers.PAD
+        nrows, ncols = array.shape
+        for i in xrange(nrows):
+            for j in xrange(ncols-1, -1, -1):
+                if array[i][j] == value:
+                    array[i][j] = int_markers.PAD
+                    break
         return array
 
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, encode_tokens, decode_tokens):
@@ -289,7 +292,7 @@ class DialogueBatch(object):
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
         decoder_inputs = np.copy(decode_turn)
-        decoder_inputs = self._replace_last(decoder_inputs, int_markers.EOS)[:, :-1]
+        decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
         batch = {
