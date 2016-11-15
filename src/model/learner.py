@@ -140,7 +140,6 @@ class Learner(object):
             logstats.update_summary_map(summary_map, {'loss': loss})
             if not test:
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
-        import sys; sys.exit()
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
         '''
