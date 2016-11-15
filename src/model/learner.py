@@ -200,7 +200,7 @@ class Learner(object):
         if not os.path.isdir(best_checkpoint):
             os.mkdir(best_checkpoint)
         best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
-        best_bleu = -1
+        best_loss = float('inf')
 
         # Testing
         with tf.Session(config=config) as sess:
@@ -238,7 +238,7 @@ class Learner(object):
                     start_time = time.time()
                     bleu, ent_recall = self.evaluator.test_bleu(sess, test_data, num_batches)
                     print 'bleu=%.4f entity_recall=%.4f time(s)=%.4f' % (bleu, ent_recall, time.time() - start_time)
-                    if split == 'dev' and bleu > best_bleu:
+                    if split == 'dev' and loss < best_loss:
                         print 'New best model'
-                        best_bleu = bleu
+                        best_loss = loss
                         best_saver.save(sess, best_save_path)
