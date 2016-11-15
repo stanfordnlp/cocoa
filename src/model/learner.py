@@ -229,16 +229,16 @@ class Learner(object):
 
                 # Evaluate on dev
                 for split, test_data, num_batches in self.evaluator.dataset():
-                    start_time = time.time()
                     print '================== Eval %s ==================' % split
                     print '================== Perplexity =================='
+                    start_time = time.time()
                     loss = self.test_loss(sess, test_data, num_batches)
+                    print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                     print '================== Sampling =================='
+                    start_time = time.time()
                     bleu, ent_recall = self.evaluator.test_bleu(sess, test_data, num_batches)
-                    end_time = time.time()
+                    print 'bleu=%.4f entity_recall=%.4f time(s)=%.4f' % (bleu, ent_recall, time.time() - start_time)
                     if split == 'dev' and bleu > best_bleu:
                         print 'New best model'
                         best_bleu = bleu
                         best_saver.save(sess, best_save_path)
-                    print 'bleu=%.4f entity_recall=%.4f loss=%.4f time(s)=%.4f' % (bleu, ent_recall, loss, end_time - start_time)
-

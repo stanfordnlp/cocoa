@@ -127,10 +127,13 @@ if __name__ == '__main__':
             for split, test_data, num_batches in evaluator.dataset():
                 print '================== Eval %s ==================' % split
                 print '================== Sampling =================='
-                bleu, entity_recall = evaluator.test_bleu(sess, test_data, num_batches)
+                start_time = time.time()
+                bleu, ent_recall = evaluator.test_bleu(sess, test_data, num_batches)
+                print 'bleu=%.4f entity_recall=%.4f time(s)=%.4f' % (bleu, ent_recall, time.time() - start_time)
                 print '================== Perplexity =================='
+                start_time = time.time()
                 loss = learner.test_loss(sess, test_data, num_batches)
-                print 'loss=%.4f, bleu=%.4f entity_recall=%.4f' % (loss, bleu, entity_recall)
+                print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
