@@ -4,8 +4,8 @@ import datetime
 
 # TODO: hack for dubious synonyms (went, friends) before we have a better lexicon
 # TODO: common words in this corpus
-with open('data/common_words.txt') as fin:
-    common_words = set([w.strip() for w in fin.read().split()[:2000] if len(w.strip()) > 1])
+#with open('data/common_words.txt') as fin:
+#    common_words = set([w.strip() for w in fin.read().split()[:2000] if len(w.strip()) > 1])
 
 def get_prefixes(entity, min_length=3, max_length=5, common_words=[]):
     # computer science => ['comp sci', ...]
@@ -111,7 +111,7 @@ class Lexicon(object):
         if word_counts:
             self.common_words = [x for x in word_counts if word_counts[x] > 20]
         else:
-            self.common_words = common_words
+            self.common_words = []
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
@@ -232,7 +232,7 @@ class Lexicon(object):
         phrases = ['foodie', 'evening', 'evenings', 'food']
         for x in phrases:
             print x, '=>', self.lookup(x)
-        sentence = 'none of mine did parks'.split()
+        sentence = 'hiking biking'.split()
         print self.entitylink(sentence)
 
 
@@ -245,14 +245,22 @@ if __name__ == "__main__":
     from util import read_json
     import argparse
 
-    path = 'data/friends-schema-large.json'
-    schema = Schema(path, 'MutualFriends')
+    #path = 'data/friends-schema-large.json'
+    #schema = Schema(path, 'MutualFriends')
+    path = 'data/friends-schema.json'
+    schema = Schema(path)
 
-    paths = ['output/friends-scenarios-large.json', 'output/friends-scenarios-large-peaky.json', 'output/friends-scenarios-large-peaky-04-002.json']
+    #paths = ['output/friends-scenarios-large.json', 'output/friends-scenarios-large-peaky.json', 'output/friends-scenarios-large-peaky-04-002.json']
+    paths = ['output/friends-scenarios.json']
     scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in paths))
 
-    args = {'train_examples_paths': ['data/mutualfriends/train.json'],
-            'test_examples_paths': ['data/mutualfriends/test.json'],
+    #args = {'train_examples_paths': ['data/mutualfriends/train.json'],
+    #        'test_examples_paths': ['data/mutualfriends/test.json'],
+    #        'train_max_examples': None,
+    #        'test_max_examples': None,
+    #        }
+    args = {'train_examples_paths': ['output/friends-train-examples.json'],
+            'test_examples_paths': ['output/friends-test-examples.json'],
             'train_max_examples': None,
             'test_max_examples': None,
             }

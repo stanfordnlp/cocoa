@@ -9,7 +9,7 @@ from src.basic.util import read_json
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
-from src.basic.systems.heuristic_system import HeuristicSystem
+from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.controller import Controller
@@ -22,6 +22,7 @@ parser.add_argument('--model-path', help='Path to model (used for neural agents)
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
+add_heuristic_system_arguments(parser)
 args = parser.parse_args()
 if args.random_seed:
     random.seed(args.random_seed)
@@ -34,7 +35,7 @@ def get_system(name):
     if name == 'simple':
         return SimpleSystem()
     elif name == 'heuristic':
-        return HeuristicSystem()
+        return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path)
