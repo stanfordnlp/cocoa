@@ -48,7 +48,7 @@ def get_tp_fp_fn(gold_annotation, candidate_annotation):
 
     # How to handle empty gold and candidate sets?
 
-    return tp, fp, fn
+    return {"true_positive": tp, "false_positive": fp, "false_negative": fn}
 
 
 def entity_link_examples_file(lexicon, examples_infile, processed_outfile, re_pattern):
@@ -72,7 +72,7 @@ def entity_link_examples_file(lexicon, examples_infile, processed_outfile, re_pa
             msg_data = e["data"]
             action = e["action"]
             if action == "message":
-                if msg_data != None:
+                if msg_data is not None:
                     num_sentences += 1
                     raw_tokens = re.findall(re_pattern, msg_data)
                     lower_raw_tokens = [r.lower() for r in raw_tokens]
@@ -110,13 +110,17 @@ def eval_lexicon(lexicon, examples, re_pattern):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                linked, candidate_annotation = lexicon.entitylink(lower_raw_tokens, return_entities=True)
+                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True)
 
                 total_num_annotations += len(gold_annotation)
-                tp, fp, fn = get_tp_fp_fn(gold_annotation, candidate_annotation)
+                metrics = get_tp_fp_fn(gold_annotation, candidate_annotation)
+                tp = metrics["true_positive"]
+                fp = metrics["false_positive"]
+                fn = metrics["false_negative"]
                 total_tp += tp
                 total_fp += fp
                 total_fn += fn
+
                 # Output mistakes to stdout
                 if fp >= 1 or fn >= 1:
                     print msg_data
@@ -133,6 +137,8 @@ def eval_lexicon(lexicon, examples, re_pattern):
 
 
 if __name__ == "__main__":
+    # Regex to remove all punctuation in utterances
+    # TODO: Use easier regex
     re_pattern = r"<|>|[(\w*)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\&|\$|\%|\@|\{|\}|\:"
     schema = Schema(args.schema_path)
 

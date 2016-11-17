@@ -138,6 +138,7 @@ class Lexicon(BaseLexicon):
     """
     def __init__(self, schema, learned_lex=False):
         super(Lexicon, self).__init__(schema, learned_lex)
+        # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
                                    "start", "go", "school"])
@@ -222,7 +223,7 @@ class Lexicon(BaseLexicon):
         return best_match
 
 
-    def entitylink(self, raw_tokens, return_entities=False):
+    def link_entity(self, raw_tokens, return_entities=False):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -284,15 +285,20 @@ class Lexicon(BaseLexicon):
         sentence3 = [t.lower() for t in sentence3.split()]
 
         sentence2 = ["connecticut"]
-        print self.entitylink(sentence3, True)
-        print self.entitylink(sentence2, True)
+        print self.link_entity(sentence3, True)
+        print self.link_entity(sentence2, True)
 
 
 if __name__ == "__main__":
     from schema import Schema
+    import argparse
     import time
-    # TODO: Update path to location of desired schema used for basic testing
-    path = None 
+
+    parser = argparse.ArgumentParser("arguments for basic testing lexicon")
+    parser.add_argument("--schema", type=str, help="path to schema to use")
+    args = parser.parse_args()
+
+    path = args.schema
     start_build = time.time()
     schema = Schema(path)
     lex = Lexicon(schema, learned_lex=True)

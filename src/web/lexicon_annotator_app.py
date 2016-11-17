@@ -1,3 +1,4 @@
+import argparse
 import collections
 import json
 import pprint
@@ -8,9 +9,14 @@ from flask import Flask, render_template, request, jsonify, session
 
 app = Flask(__name__)
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--scenarios", type=str, help="path to scenarios file")
+parser.add_argument("--examples", type=str, help="path to examples file")
+args = parser.parse_args()
+
 
 # Load scenarios containing KB info
-scenarios_json = "/Users/mihaileric/Documents/Research/game-dialogue/src/web/static/friends-scenarios-large.json"
+scenarios_json = args.scenarios
 with open(scenarios_json, "r") as f:
     scenarios_info = json.load(f)
 
@@ -20,7 +26,7 @@ for scenario in scenarios_info:
     uuid_to_scenario[uuid] = scenario
 
 # Load examples containing UUIDs for scenarios
-examples_file = "/Users/mihaileric/Documents/Research/game-dialogue/src/web/static/transcripts.json"
+examples_file = args.examples
 with open(examples_file, "r") as f:
     examples = json.load(f)
 
@@ -38,6 +44,7 @@ def get_all_entities(kbs):
 
     entities = list(entities)
     return sorted(entities)
+
 
 annotated_examples = []
 
@@ -65,7 +72,7 @@ def handle_submit():
 
     # Dump if annotated
     if count % 10 == 0:
-        with open("annotated_examples_6.json", "w") as f:
+        with open("annotated_examples.json", "w") as f:
             print "WRITING ANNOTATIONS TO DISK"
             json.dump(annotated_examples, f)
 
