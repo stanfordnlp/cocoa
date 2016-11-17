@@ -77,7 +77,7 @@ def entity_link_examples_file(lexicon, examples_infile, processed_outfile, re_pa
                     raw_tokens = re.findall(re_pattern, msg_data)
                     lower_raw_tokens = [r.lower() for r in raw_tokens]
                     outfile.write("Agent {0}: ".format(agent) + msg_data + "\n")
-                    linked = lexicon.entitylink(lower_raw_tokens, return_entities=True)
+                    linked = lexicon.link_entity(lower_raw_tokens, return_entities=True)
 
                     outfile.write("Linked: " + str(linked) + "\n\n")
                     outfile.write("-"*10 + "\n")
