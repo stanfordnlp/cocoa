@@ -4,6 +4,8 @@ A schema specifies information about a domain (types, entities, relations).
 
 import json
 import numpy as np
+from itertools import izip
+
 
 class Attribute(object):
     def __init__(self, name, value_type, unique):
@@ -15,6 +17,7 @@ class Attribute(object):
         return Attribute(raw['name'], raw['value_type'], raw['unique'])
     def to_json(self):
         return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique}
+
 
 class Schema(object):
     '''
@@ -46,24 +49,24 @@ class Schema(object):
             self.values = values
             self.attributes = attributes
         else:
-            raise ValueError('Unknowd domain.')
+            raise ValueError('Unknown domain.')
         self.domain = domain
 
         # Dirichlet alphas for scenario generation
         if domain == 'Matchmaking':
             self.alphas = [1.] * len(self.attributes)
-            for i, attr in enumerate(self.attributes):
-                if attr.name == 'Hobby':
-                    self.alphas[i] = 0.5
-                    break
         else:
-            self.alphas = list(np.linspace(1, 0.1, len(self.attributes)))
-            np.random.shuffle(self.alphas)
-            # The attribute (Name) always have a dense distribution
-            for i, attr in enumerate(self.attributes):
-                if attr.name == 'Name':
-                    self.alphas[i] = 2
-                    break
+            alphas = list(np.linspace(1, 0.1, len(self.attributes)))
+        self.alphas = dict((attr, alpha) for (attr, alpha) in izip(self.attributes, alphas))
+        for i, attr in enumerate(self.attributes):
+            if attr.name == 'Name':
+                self.alphas[attr] = 2
+            elif attr.name == 'Hobby':
+                self.alphas[attr] = 0.5
+            elif attr.name == 'Time Preference':
+                self.alphas[attr] = 1.0
+            elif attr.name == 'Location Preference':
+                self.alphas[attr] = 1.0
 
     # NOTE: this function will be removed in the new model because a) we don't need all
     # entities for embedding and b) all entities in the schema may not be used in some
@@ -79,3 +82,14 @@ class Schema(object):
         Return a dict {name: value_type} of all attributes.
         '''
         return {attr.name: attr.value_type for attr in self.attributes}
+
+    def get_ordered_attribute_subset(self, attribute_subset):
+        """
+        Order a subset of this schema's attributes using the original order of attributes in the schema.
+        attribute_subset: A list containing the names of the attributes present in the subset
+        :return The same list, preserving the original order of attributes in this schema
+        """
+
+        subset_ordered = sorted([(attr, self.attributes.index(attr)) for attr in attribute_subset], key=lambda x: x[1])
+
+        return [x[0] for x in subset_ordered]

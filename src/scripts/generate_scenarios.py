@@ -13,26 +13,38 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=1)
 parser.add_argument('--num-items', help='Number of items to generate per scenario', type=int, default=10)
-parser.add_argument('--domain', help='{mutualfriend, matchmaking}', default=None)
+parser.add_argument('--domain', help='{MutualFriends, Matchmaking}', default=None)
+parser.add_argument('--random-attributes', action='store_true',
+                    help='If specified, uses a random number and subset of attributes for each scenario')
 add_scenario_arguments(parser)
 args = parser.parse_args()
 if args.random_seed:
     random.seed(args.random_seed)
     np.random.seed(args.random_seed)
 
+
 def get_multinomial(alpha, n):
     return np.random.dirichlet([alpha] * n)
+
 
 def generate_scenario(schema):
     num_items = args.num_items
     alphas = schema.alphas
+    random_attributes = args.random_attributes
+    scenario_attributes = schema.attributes
+    if random_attributes:
+        # sample random number and set of attributes
+        num_attributes = min(np.random.choice(xrange(3, 5)), len(schema.attributes))
+        scenario_attributes = np.random.choice(schema.attributes, num_attributes)
+        scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
+        alphas = dict((attr, schema.alphas[attr]) for attr in scenario_attributes)
 
     # Generate the profile of the two agents
     agents = (0, 1)
     distribs = ([], [])
     values = {}  # {attr_name: possible values}
     num_values = num_items * 2
-    for attr, alpha in izip(schema.attributes, alphas):
+    for attr, alpha in alphas.iteritems():
         n = min(len(schema.values[attr.value_type]), num_values)
         values[attr.name] = random.sample(schema.values[attr.value_type], n)
         for agent in agents:
@@ -50,8 +62,9 @@ def generate_scenario(schema):
             # Create the item (and its hash)
             item = {}
             item_hash = []
-            for attr, distrib in zip(schema.attributes, distribs[agent]):
+            for attr, distrib in zip(scenario_attributes, distribs[agent]):
                 index = random_multinomial(distrib)
+                # print attr.name, index, len(values[attr.name])
                 value = values[attr.name][index]
                 item[attr.name] = value
                 item_hash.append(index)
