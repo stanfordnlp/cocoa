@@ -51,7 +51,7 @@ def compute_bleu(candidate, reference, smoothed=True):
 def test():
     candidate = 'a b c'
     candidate = candidate.split()
-    reference = 'a b d'
+    reference = 'a b c'
     reference = reference.split()
 
     print compute_bleu(candidate, reference)
