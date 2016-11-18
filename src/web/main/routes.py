@@ -195,7 +195,8 @@ def index():
                                seconds_until_expiration=waiting_info.num_seconds,
                                waiting_message=waiting_info.message,
                                uid=userid(),
-                               title=app.config['task_title'])
+                               title=app.config['task_title'],
+                               icon=app.config['task_icon'])
     elif status == Status.Finished:
         logger.info("Getting finished information for user %s" % userid()[:6])
         finished_info = backend.get_finished_info(userid(), from_mturk=mturk)
@@ -203,7 +204,8 @@ def index():
         return render_template('finished.html',
                                finished_message=finished_info.message,
                                mturk_code=mturk_code,
-                               title=app.config['task_title'])
+                               title=app.config['task_title'],
+                               icon=app.config['task_icon'])
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         chat_info = backend.get_chat_info(userid())
@@ -214,8 +216,10 @@ def index():
                                attributes=[attr.name for attr in schema.attributes],
                                num_seconds=chat_info.num_seconds,
                                title=app.config['task_title'],
-                               instructions=Markup(app.config['instructions']))
+                               instructions=Markup(app.config['instructions']),
+                               icon=app.config['task_icon'])
     elif status == Status.Survey:
         return render_template('survey.html',
                                title=app.config['task_title'],
-                               uid=userid())
+                               uid=userid(),
+                               icon=app.config['task_icon'])

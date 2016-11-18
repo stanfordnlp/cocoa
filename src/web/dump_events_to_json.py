@@ -33,7 +33,7 @@ def log_events_to_json(scenario_db, db_path, json_path):
             if action == 'join' or action == 'leave':
                 continue
             if action == 'select':
-                data = KB.string_to_ordered_item(data)
+                data = KB.string_to_item(data)
             event = Event(agent, time, action, data)
             chat_events.append(event)
         ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome)

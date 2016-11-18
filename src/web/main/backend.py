@@ -67,7 +67,7 @@ class Messages(object):
     ConnectionTimeout = "Your connection has timed out! Waiting for a new chat..."
     YouLeftRoom = "You have left the room. Waiting for a new chat..."
     PartnerLeftRoom = "Your partner has left the room! Waiting for a new chat..."
-    WaitingTimeExpired = "Sorry, no other users appear to be active at the moment."
+    WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"
     ChatCompleted = "Great, you've completed the chat!"
 
 
@@ -217,7 +217,7 @@ class BackendConnection(object):
         def _create_row(chat_id,event):
             data = event.data
             if event.action == 'select':
-                data = KB.ordered_item_to_string(event.data)
+                data = KB.ordered_item_to_dict(event.data)
             return chat_id, event.action, event.agent, event.time, data
         try:
             with self.conn:

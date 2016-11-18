@@ -23,6 +23,7 @@
     "end_survey": 1,
     "instructions": "/afs/cs.stanford.edu/u/hehe/game-dialogue/data/web/mutual-friends-instructions.html",
     "task_title": "Who's Our Mutual Friend?",
+    "icon": "handshake.jpg",
     "models": {
         "neural_test": {
             "active": true,
