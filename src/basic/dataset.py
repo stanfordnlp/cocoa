@@ -31,7 +31,8 @@ class Example(object):
         return {
             'scenario_uuid': self.scenario.uuid,
             'events': [e.to_dict() for e in self.events],
-            'outcome': self.outcome
+            'outcome': self.outcome,
+            'scenario': self.scenario
         }
 
 class Dataset(object):
