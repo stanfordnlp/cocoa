@@ -31,7 +31,7 @@ class HeuristicSession(SimpleSession):
 
         # Control difficulty
         self.joint_facts = joint_facts
-        self.ask = ask
+        self.ask_action = ask
 
     def count_attrs(self, items):
         state = defaultdict(lambda : defaultdict(int))
@@ -89,6 +89,10 @@ class HeuristicSession(SimpleSession):
         # Talk about a single attribute
         # Select the attribute with the minimum number of values
         attrs = self.get_majority_attrs(attr_counts, checked_attrs)
+        # TODO: if agents list all values in each column, even if all attrs are checked,
+        # there can still be no deterministic answer. need to check joint attributes in this case.
+        if len(attrs) == 0:
+            return None
         attr_name = random.choice(attrs)
         fact = self.attr_facts(attr_counts, attr_name)
         # Talk about a single value
@@ -351,14 +355,15 @@ class HeuristicSession(SimpleSession):
         if self.state and self.state[0] == 'ask' and (not self.received_state or self.received_state[0] != 'answer'):
             return None
 
-        # Inform when the partner's constraint results in an empty set
         if len(self.possible_set['items']) == 0:
             self.reset_possible_set()
-            # Negate received positive facts
-            fact = [(f[0], 0) for f in self.received_state[1] if f[1] > 0]
-            fact = self.filter_fact(fact)
-            if len(fact) > 0:
-                return self.inform(fact, self.prev_possible_set)
+            # Inform when the partner's constraint results in an empty set
+            if self.received_state[0] == 'inform':
+                # Negate received positive facts
+                fact = [(f[0], 0) for f in self.received_state[1] if f[1] > 0]
+                fact = self.filter_fact(fact)
+                if len(fact) > 0:
+                    return self.inform(fact, self.prev_possible_set)
 
         subset = self.possible_set
         # Take a guess
@@ -370,7 +375,7 @@ class HeuristicSession(SimpleSession):
         # Run out of facts to inform
         if not fact:
             return self.select(random.choice(subset['items']))
-        if self.ask and random.random() < 0.5:
+        if self.ask_action and random.random() < 0.5:
             return self.ask(fact, subset)
         else:
             return self.inform(fact, subset)

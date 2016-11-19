@@ -13,7 +13,7 @@ import copy
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['surface', 'type', 'canonical'], default='canonical', help='Input entity form to the encoder')
-    parser.add_argument('--entity-decoding-form', choices=['canonical'], default='canonical', help='Input entity form to the decoder')
+    parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])

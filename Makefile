@@ -11,18 +11,19 @@ seed=1
 max_epochs=50
 batch_size=32
 entity_encoding_form=canonical
+data=friends
 
 scenario:
 	PYTHONPATH=. python src/scripts/generate_scenarios.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --num-items $(num_items) --num-scenarios 1500 --random-seed $(seed)
 
 dataset:
-	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/friends-train-examples.json --test-examples-paths output/friends-test-examples.json --train-max-examples 1000 --test-max-examples 500 --agents heuristic heuristic
+	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/$(data)-train-examples.json --test-examples-paths output/$(data)-test-examples.json --train-max-examples 1000 --test-max-examples 500 --agents heuristic heuristic --remove-fail --joint-facts
 
 real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths data/mutualfriends/transcripts-1.json data/mutualfriends/transcripts-2.json --train-frac 0.7 --test-frac 0.3 --dev-frac 0 --output-path data/mutualfriends/
 
 train:
-	PYTHONPATH=. python src/main.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/friends-train-examples.json --test-examples-paths output/friends-test-examples.json --max-epochs $(max_epochs) --checkpoint $(checkpoint) --rnn-type lstm --learning-rate $(lr) --optimizer adagrad --print-every $(print) --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --grad-clip 0 --num-items $(num_items) --batch-size $(batch_size) --stats-file $(stats_file).train --verbose #--train-max-examples 100 --test-max-examples 100 
+	PYTHONPATH=. python src/main.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/$(data)-train-examples.json --test-examples-paths output/$(data)-test-examples.json --max-epochs $(max_epochs) --checkpoint $(checkpoint) --rnn-type lstm --learning-rate $(lr) --optimizer adagrad --print-every $(print) --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --grad-clip 0 --num-items $(num_items) --batch-size $(batch_size) --stats-file $(stats_file).train --verbose #--train-max-examples 100 --test-max-examples 100 
 
 train-real:
 	PYTHONPATH=. python src/main.py --schema-path data/friends-schema-large.json --scenarios-path output/friends-scenarios-large.json output/friends-scenarios-large-peaky.json output/friends-scenarios-large-peaky-04-002.json --train-examples-paths data/mutualfriends/train.json --test-examples-paths data/mutualfriends/test.json --max-epochs $(max_epochs) --checkpoint $(checkpoint) --rnn-type lstm --learning-rate $(lr) --optimizer adagrad --print-every $(print) --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --grad-clip 0 --num-items $(num_items) --batch-size $(batch_size) --domain MutualFriends --stats-file $(stats_file).train --entity-encoding-form $(entity_encoding_form) #--verbose #--train-max-examples 10 --test-max-examples 10

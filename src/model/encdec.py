@@ -88,7 +88,7 @@ class BasicEncoder(object):
                 if len(state.get_shape()) == 4:
                     last_state = state[:, -1, :, :]
                 else:
-                    last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(self.last_inds, [-1, 1])), 1)
+                    last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(self.last_inds, [-1, 1])), [1])
                 flat_last_states.append(last_state)
             last_states = nest.pack_sequence_as(states, flat_last_states)
         return last_states

@@ -50,7 +50,7 @@ class NeuralSystem(System):
         ckpt = tf.train.get_checkpoint_state(model_path+'-best')
         assert ckpt, 'No checkpoint found'
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
-        saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
+        saver = tf.train.Saver()
         saver.restore(tf_session, ckpt.model_checkpoint_path)
 
         if args.model == 'attn-copy-encdec':

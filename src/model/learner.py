@@ -103,6 +103,7 @@ class Learner(object):
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
             print 'LOSS:', loss[i]
+            break
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
         '''
@@ -193,9 +194,9 @@ class Learner(object):
         train_data = self.data.generator(split, self.batch_size)
         num_per_epoch = train_data.next()
         step = 0
-        saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
+        saver = tf.train.Saver()
         save_path = os.path.join(args.checkpoint, 'tf_model.ckpt')
-        best_saver = tf.train.Saver(max_to_keep=1, write_version=tf.train.SaverDef.V2)
+        best_saver = tf.train.Saver(max_to_keep=1)
         best_checkpoint = args.checkpoint+'-best'
         if not os.path.isdir(best_checkpoint):
             os.mkdir(best_checkpoint)
@@ -242,3 +243,4 @@ class Learner(object):
                         print 'New best model'
                         best_loss = loss
                         best_saver.save(sess, best_save_path)
+                        logstats.add('best model', {'bleu': bleu, 'entity_recall': ent_recall, 'loss': loss})

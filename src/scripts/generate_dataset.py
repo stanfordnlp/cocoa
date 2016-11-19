@@ -20,6 +20,7 @@ parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use {heuristic}', nargs='*')
 parser.add_argument('--model-path', help='Path to model (used for neural agents)')
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
+parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 add_heuristic_system_arguments(parser)
@@ -47,20 +48,25 @@ if not args.agents:
 agents = [get_system(name) for name in args.agents]
 num_examples = args.scenario_offset
 
-def generate_examples(description, examples_path, max_examples):
+def generate_examples(description, examples_path, max_examples, remove_fail):
     global num_examples
     examples = []
+    num_failed = 0
     for i in range(max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
         controller = Controller(scenario, sessions)
         ex = controller.simulate()
+        if remove_fail and ex.outcome['reward'] == 0:
+            num_failed += 1
+            continue
         examples.append(ex)
         num_examples += 1
     with open(examples_path, 'w') as out:
         print >>out, json.dumps([e.to_dict() for e in examples])
+    print 'number of failed dialogues:', num_failed
 
 if args.train_max_examples:
-    generate_examples('train', args.train_examples_paths[0], args.train_max_examples)
+    generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)
 if args.test_max_examples:
-    generate_examples('test', args.test_examples_paths[0], args.test_max_examples)
+    generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.remove_fail)

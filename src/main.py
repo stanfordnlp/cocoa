@@ -102,6 +102,7 @@ if __name__ == '__main__':
         logstats.add('mappings', name, 'size', m.size)
 
     # Build the model
+    logstats.add_args('model_args', args)
     model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
@@ -120,7 +121,7 @@ if __name__ == '__main__':
             tf.initialize_all_variables().run()
             print 'Load TF model'
             start = time.time()
-            saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
+            saver = tf.train.Saver()
             saver.restore(sess, ckpt.model_checkpoint_path)
             print 'Done [%fs]' % (time.time() - start)
 
@@ -134,6 +135,7 @@ if __name__ == '__main__':
                 start_time = time.time()
                 loss = learner.test_loss(sess, test_data, num_batches)
                 print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
+                logstats.add(split, {'bleu': bleu, 'entity_recall': ent_recall, 'loss': loss})
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
