@@ -3,10 +3,13 @@ import collections
 import json
 import os
 import re
+import sys
 import time
 
-from lexicon import Lexicon
-from schema import Schema
+# Hack to be able to import modules one directory up
+sys.path.append("..")
+from basic.lexicon import Lexicon
+from basic.schema import Schema
 
 """
 Runs lexicon on transcripts of MTurk conversations and entity annotated dataset
@@ -85,20 +88,32 @@ def entity_link_examples_file(lexicon, examples_infile, processed_outfile, re_pa
     outfile.close()
 
 
-def eval_lexicon(lexicon, examples, re_pattern):
+def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
     """
     Evaluate lexicon given list of examples
     :param lexicon:
     :param examples:
+    :param re_pattern:
+    :param uuid_to_scenarios:
     :return:
     """
     total_num_annotations = 0
     total_num_sentences = 0
     total_tp, total_fp, total_fn = 0., 0., 0.
+    fout = open("recall_measure.txt", "w")
     for ex in examples:
+        scenario_uuid = ex["scenario_uuid"]
+        kb_dicts = uuid_to_scenarios[scenario_uuid]
+        agent0_kb = set([e[1] for e in kb_dicts[0]])
+        agent1_kb = set([e[1] for e in kb_dicts[1]])
+
+
         for e in ex["events"]:
             msg_data = e["data"]
             action = e["action"]
+            agent = e["agent"]
+            kb_entities = agent1_kb if agent else agent0_kb
+
             if action == "message":
                 total_num_sentences += 1
 
@@ -110,7 +125,23 @@ def eval_lexicon(lexicon, examples, re_pattern):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True)
+                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, kb_entities=kb_entities)
+
+                # Calculate recall for lexicon
+
+                for span, entity in gold_annotation:
+                    raw_tokens = re.findall(re_pattern, span.lower())
+                    lower_raw_tokens = [r.lower() for r in raw_tokens]
+                    linked, _ = lexicon.link_entity(lower_raw_tokens, return_entities=True, kb_entities=kb_entities)
+                    found = False
+                    for l in linked:
+                        if isinstance(l, list):
+                            for cand in l:
+                                if cand[0] == entity:
+                                    found = True
+                                    break
+                    if not found:
+                        fout.write("SPAN: " + span + ", GOLD: " + entity + " --- " + str(linked) + "\n")
 
                 total_num_annotations += len(gold_annotation)
                 metrics = get_tp_fp_fn(gold_annotation, candidate_annotation)
@@ -128,7 +159,7 @@ def eval_lexicon(lexicon, examples, re_pattern):
                     print "candidate: ", candidate_annotation
                     print "TP: {0}, FP: {1}, FN: {2}".format(tp, fp, fn)
                     print "-"*10
-
+    fout.close()
     avg_f1, avg_precision, avg_recall = compute_f1(total_tp, total_fp, total_fn)
     print "Avg f1 over {0} annotations: {1}, {2}, {3}".format(total_num_annotations,
                                                               avg_f1, avg_precision, avg_recall)
@@ -139,19 +170,32 @@ def eval_lexicon(lexicon, examples, re_pattern):
 if __name__ == "__main__":
     # Regex to remove all punctuation in utterances
     # TODO: Use easier regex
-    re_pattern = r"<|>|[(\w*)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\&|\$|\%|\@|\{|\}|\:"
+    re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
     schema = Schema(args.schema_path)
 
     start = time.time()
     with open(args.scenarios_json, "r") as f:
         scenarios_info = json.load(f)
 
+    # Map from uuid to KBs
+    uuid_to_kbs = collections.defaultdict(dict)
+    for scenario in scenarios_info:
+        uuid = scenario["uuid"]
+        agent_kbs = {0: set(), 1: set()}
+        for agent_idx, kb in enumerate(scenario["kbs"]):
+            for item in kb:
+                row_entities = item.items()
+                row_entities = [(e[0], e[1].lower()) for e in row_entities]
+                agent_kbs[agent_idx].update(row_entities)
+        uuid_to_kbs[uuid] = agent_kbs
+
+
     with open(args.annotated_examples_path, "r") as f:
         examples = json.load(f)
 
 
     output_dir = os.path.dirname(os.path.dirname(os.getcwd())) + "/output"
-    lexicon = Lexicon(schema)
+    lexicon = Lexicon(schema, learned_lex=True)
 
-    eval_lexicon(lexicon, examples, re_pattern)
+    eval_lexicon(lexicon, examples, re_pattern, uuid_to_kbs)
     print "Total time: ", time.time() - start

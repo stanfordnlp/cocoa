@@ -6,19 +6,23 @@ from fuzzywuzzy import fuzz
 
 ### Helper functions
 
-def get_prefixes(entity, min_length=3, max_length=5):
+def get_prefixes(entity, min_length=3, max_length=8):
     # computer science => ['comp sci', ...]
     words = entity.split()
     candidates = ['']
-    for word in words:
-        new_candidates = []
-        for c in candidates:
-            if len(word) < max_length:  # Keep word
-                new_candidates.append(c + ' ' + word)
-            else:
-                for i in range(min_length, max_length):
-                    new_candidates.append(c + '' + word[:i])
-        candidates = new_candidates
+    candidates = []
+    # TODO: Fix how prefixes is done
+    for i in range(min_length, max_length):
+        candidates.append(entity[:i])
+    # for word in words:
+    #     new_candidates = []
+    #     for c in candidates:
+    #         if len(word) < max_length:  # Keep word
+    #             new_candidates.append(c + ' ' + word)
+    #         else:
+    #             for i in range(min_length, max_length):
+    #                 new_candidates.append(c + '' + word[:i])
+    #     candidates = new_candidates
 
     stripped = [c.strip() for c in candidates if c != entity]
     return stripped
@@ -141,7 +145,7 @@ class Lexicon(BaseLexicon):
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
-                                   "start", "go", "school"])
+                                   "start", "go", "school", "do", "know", "no", "work"])
 
 
     def compute_synonyms(self):
@@ -185,11 +189,12 @@ class Lexicon(BaseLexicon):
                 self.lexicon[synonym].append((entity, type))
 
 
-    def score_and_match(self, span, candidates):
+    def score_and_match(self, span, candidates, kb_entities):
         """
         Score the given span with the list of candidate entities and returns best match
         :param span:
         :param candidates:
+        :param kb_entities: Set of entities mentioned in both agents KBs
         :return:
         """
         entity_scores = []
@@ -198,14 +203,30 @@ class Lexicon(BaseLexicon):
             c_s = re.sub("-", " ", c[0])
             span_tokens = span.split()
             entity_tokens = c_s.split()
-            # Ideally would do this for major/company as well but too many common words picked up
-            if span in entity_tokens and (c[1] == "school"):
-                score = 1
+
+            # all_tokens_in_entity = True
+            # for s in span_tokens:
+            #     if s not in entity_tokens:
+            #         all_tokens_in_entity = False
+
+
+            if kb_entities is None:
+                continue
+            ed = editdistance.eval(span, c[0])
+            if c[0] not in kb_entities:
+                # Prioritize exact match
+                if c[0] == span:
+                    score = 0
+                else:
+                    score = float("inf")
+            elif c[0] in kb_entities and span in entity_tokens:
+                score = 0
             # Prioritize multi phrase spans contained in entity
             elif len(span_tokens) > 1 and span in c_s:
                 score = 1
             else:
-                score = editdistance.eval(span, c[0])
+                score = ed
+
             entity_scores.append(c + (score,))
 
         # Sort entity scores
@@ -223,7 +244,7 @@ class Lexicon(BaseLexicon):
         return best_match
 
 
-    def link_entity(self, raw_tokens, return_entities=False):
+    def link_entity(self, raw_tokens, return_entities=False, kb_entities=None):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -256,17 +277,22 @@ class Lexicon(BaseLexicon):
 
                 # Found some match
                 if len(candidate_entities) > 0:
-                    entity = None
-                    best_match = self.score_and_match(phrase, candidate_entities)
-                    # If best_match is entity from KB add to list
-                    if best_match[1] is not None:
-                        entities.append((phrase, best_match))
-                        found_entities.append((phrase, best_match[0]))
-                        i += l
-                        break
+                    if self.learned_lex:
+                        entity = None
+                        best_match = self.score_and_match(phrase, candidate_entities, kb_entities)
+                        # If best_match is entity from KB add to list
+                        if best_match[1] is not None:
+                            entities.append((phrase, best_match))
+                            found_entities.append((phrase, best_match[0]))
+                            i += l
+                            break
+                        else:
+                            candidate_entities = None
+                            continue
                     else:
-                        candidate_entities = None
-                        continue
+                        i += l
+                        entities.append(candidate_entities)
+                        break
 
             if not candidate_entities or single_char:
                 entities.append(raw_tokens[i])
@@ -281,12 +307,13 @@ class Lexicon(BaseLexicon):
 
     def test(self):
         sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
-        sentence3 = "Dylan at Fenway"
+        sentence3 = "afro studies"#"from Cal State Chico"
         sentence3 = [t.lower() for t in sentence3.split()]
 
-        sentence2 = ["connecticut"]
-        print self.link_entity(sentence3, True)
-        print self.link_entity(sentence2, True)
+        sentence2 = ["zach"]
+        #print self.link_entity(sentence3, True)
+        #print self.link_entity(sentence2, True)
+        print get_prefixes("biology")
 
 
 if __name__ == "__main__":
@@ -300,12 +327,14 @@ if __name__ == "__main__":
 
     path = args.schema
     start_build = time.time()
-    schema = Schema(path)
-    lex = Lexicon(schema, learned_lex=True)
-    print "Building complete: ", time.time() - start_build
-    start_test = time.time()
-    lex.test()
-    print "Testing Complete: ", time.time() - start_test
+    # schema = Schema(path)
+    # lex = Lexicon(schema)
+    # print "Building complete: ", time.time() - start_build
+    # start_test = time.time()
+    # lex.test()
+    # print "Testing Complete: ", time.time() - start_test
+
+    print get_prefixes("biology")
 
 
 
