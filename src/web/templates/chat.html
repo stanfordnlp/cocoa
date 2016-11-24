@@ -20,17 +20,13 @@
 				color:#004d00;
 			}
 			
-			div#preferences {
-				float:left;
-			}
 
 			div#icon {
-				float:right;
+				padding: 10px 100px 10px 20px;
 			}
 
 			textarea#chat {
 				width: 100%;
-				rows: 10;
 				cols: 100;
 				height: 25%;
 				color:#004d00;
@@ -285,12 +281,10 @@
     </div>
 
     <div id="info_container">
-        <div id="preferences">
-			<div id="icon">
-				<img height="120" width="120" src="{{ url_for('static', filename='img/handshake.jpg') }}"/>
-			</div>
+	    <div id="icon">
+			<img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
 		</div>
-		<div id="friends" style="float:left">
+		<div id="friends">
             <h3>Your friends</h3>
 			<table class="sortable">
 			<thead>
