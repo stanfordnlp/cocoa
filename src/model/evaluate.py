@@ -62,7 +62,7 @@ class Evaluator(object):
             utterances = None
             for batch in dialogue_batch['batch_seq']:
                 max_len = batch['targets'].shape[1] + 10
-                preds, _, true_final_state, utterances = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
+                preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
                 if graphs:
                     encoder_init_state = true_final_state[0]
                 else:
@@ -76,7 +76,7 @@ class Evaluator(object):
                 self.update_summary(summary_map, bleu_scores, entity_recalls)
 
                 if self.verbose:
-                    self._print_batch(batch, pred_tokens, bleu_scores, graphs)
+                    self._print_batch(batch, pred_tokens, bleu_scores, graphs, attn_scores)
         # This means no entity is detected in the test data. Probably something wrong.
         if 'recall' not in summary_map:
             return summary_map['bleu']['mean'], -1
@@ -89,7 +89,7 @@ class Evaluator(object):
         '''
         return [token[1] if is_entity(token) else token for token in tokens]
 
-    def _print_batch(self, batch, preds, bleu_scores, graphs):
+    def _print_batch(self, batch, preds, bleu_scores, graphs, attn_scores):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
@@ -112,6 +112,12 @@ class Evaluator(object):
             print 'TARGET:', self._process_target_tokens(target)
             print 'PRED:', pred
             print 'BLEU:', bleu
+            print 'ATTENTION:'
+            for j, w in enumerate(pred):
+                print 'TOKEN', j, w
+                sorted_scores = sorted([(node_id, score) for node_id, score in enumerate(attn_scores[j][i])], key=lambda x: x[1], reverse=True)
+                for node_id, score in sorted_scores:
+                    print node_id, graphs.graphs[i].nodes.to_word(node_id), score
 
     def update_summary(self, summary_map, bleu_scores, entity_recalls):
         for bleu_score, entity_recall in izip(bleu_scores, entity_recalls):

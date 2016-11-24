@@ -310,8 +310,11 @@ class GraphDecoder(GraphEncoder):
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
+        attn_scores = []
         for i in xrange(max_len):
-            logits, final_state, final_output = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output']], feed_dict=feed_dict)
+            logits, final_state, final_output, attn_score = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['attn_scores']], feed_dict=feed_dict)
+            # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
+            attn_scores.append(attn_score[0])
             step_preds = get_prediction(logits)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
@@ -319,7 +322,7 @@ class GraphDecoder(GraphEncoder):
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state)
-        return {'preds': preds, 'final_state': final_state, 'final_output': final_output}
+        return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores}
 
     def update_utterances(self, sess, entities, final_output, utterances, graph_data):
         feed_dict = {self.entities: entities,
@@ -465,7 +468,7 @@ class BasicEncoderDecoder(object):
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run((self.decoder.output_dict['final_state']), feed_dict=feed_dict)
 
-        return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances
+        return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores']
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
     def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, scope=None):
