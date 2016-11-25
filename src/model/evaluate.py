@@ -117,7 +117,10 @@ class Evaluator(object):
                 print 'TOKEN', j, w
                 sorted_scores = sorted([(node_id, score) for node_id, score in enumerate(attn_scores[j][i])], key=lambda x: x[1], reverse=True)
                 for node_id, score in sorted_scores:
-                    print node_id, graphs.graphs[i].nodes.to_word(node_id), score
+                    try:
+                        print node_id, graphs.graphs[i].nodes.to_word(node_id), score
+                    except KeyError:
+                        print node_id, 'pad', score
 
     def update_summary(self, summary_map, bleu_scores, entity_recalls):
         for bleu_score, entity_recall in izip(bleu_scores, entity_recalls):
