@@ -116,7 +116,7 @@ class TextIntMap(object):
         use_entity_map = self.setting[stage]
         tokens = self.preprocessor.process_utterance(utterance, stage)
         if not use_entity_map:
-            return [self.vocab.to_ind(token) if not is_entity(token) else self.vocab.to_ind(token) for token in tokens]
+            return [self.vocab.to_ind(token) for token in tokens]
         else:
             offset = self.vocab.size
             return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token) + offset for token in tokens]
