@@ -2,7 +2,8 @@ import pytest
 from model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from model.graph import Graph, GraphMetadata, GraphBatch
 from basic.schema import Schema
-from model.preprocess import build_schema_mappings
+from basic.lexicon import Lexicon
+from model.preprocess import Preprocessor, build_schema_mappings
 from basic.kb import KB
 
 max_degree = 5
@@ -30,6 +31,10 @@ def tokens():
 @pytest.fixture(scope='session')
 def schema():
     return Schema('data/friends-schema.json')
+
+@pytest.fixture(scope='session')
+def lexicon(schema):
+    return Lexicon(schema, False)
 
 @pytest.fixture(scope='session')
 def metadata(schema):

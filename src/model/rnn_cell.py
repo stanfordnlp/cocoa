@@ -49,14 +49,15 @@ class AttnRNNCell(object):
         else:
             raise ValueError('Unknown output model')
 
-    def init_state(self, rnn_state, rnn_output, context):
-        attn, scores = self.compute_attention(rnn_output, context)
+    def init_state(self, rnn_state, rnn_output, context, checklist):
+        attn, scores = self.compute_attention(rnn_output, context, checklist)
         return (rnn_state, attn, context)
 
     def zero_state(self, batch_size, init_context, dtype=tf.float32):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
-        zero_attn, scores = self.compute_attention(zero_h, init_context)
+        zero_checklist = tf.zeros_like(init_context)[:, :, 1]
+        zero_attn, scores = self.compute_attention(zero_h, init_context, zero_checklist)
         return (zero_rnn_state, zero_attn, init_context)
 
     def score_context(self, h, context):
@@ -118,14 +119,17 @@ class AttnRNNCell(object):
             new_output = tanh(linear([output, attn], project_size, False))
         return new_output
 
-    def compute_attention(self, h, context):
+    def compute_attention(self, h, context, checklist):
         '''
         context_mask filteres padded context cell, i.e., their attn_score is -inf.
         context: (batch_size, context_len, context_size)
         context_mask: (batch_size, context_len)
+        checklist: (batch_size, context_size)
         '''
         with tf.variable_scope('Attention'):
             context, context_mask = context
+            checklist = tf.expand_dims(checklist, 2)
+            context = tf.concat(2, [context, checklist])
             attn_scores = self.score_context(h, context)  # (batch_size, context_len)
             attns = tf.nn.softmax(attn_scores)
             zero_attns = tf.zeros_like(attns)
@@ -140,11 +144,12 @@ class AttnRNNCell(object):
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             prev_rnn_state, prev_attn, prev_context = state
+            inputs, checklist = inputs
             # RNN step
             new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
-            attn, attn_scores = self.compute_attention(output, prev_context)
+            attn, attn_scores = self.compute_attention(output, prev_context, checklist)
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context)

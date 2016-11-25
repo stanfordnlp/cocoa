@@ -22,7 +22,6 @@ class GraphMetadata(object):
         self.attribute_types = schema.get_attributes()
 
         # Entity to id
-        # TODO: add attribute node
         self.entity_map = entity_map
 
         # Relation to id. Add inverse relations.
@@ -45,6 +44,7 @@ class GraphMetadata(object):
         degree_size = max_degree + 1
         node_types = Vocabulary(unk=False)
         node_types.add_words(self.attribute_types.values())
+        # TODO: use attr_name as node tyep instead of just 'attr'
         node_types.add_words(['item', 'attr'])
         self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
@@ -154,7 +154,7 @@ class GraphBatch(object):
                     try:
                         entity = graph.nodes.to_word(t - vocab_size)
                     except KeyError:
-                        new_preds[i][j] = 0
+                        new_preds[i][j] = 0  # <unk>
                         continue
                     new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
         return new_preds
@@ -191,7 +191,57 @@ class GraphBatch(object):
                 new_utterances[i][:old_num_rows] = utterances[i]
             return new_utterances
 
-    def get_batch_data(self, encoder_tokens, decoder_tokens, utterances=None):
+    def get_zero_checklists(self, seq_len):
+        max_num_nodes = self._max_num_nodes()
+        return np.zeros([self.batch_size, seq_len, max_num_nodes])
+
+    def get_checklists(self, targets, vocab, init_cl=None):
+        '''
+        Return checklists for a batch of sequences. (batch_size, seq_len, num_nodes)
+        targets: (batch_size, seq_len)
+        init_cl: the initial checklist from previous sequences
+        (batch_size, num_nodes)
+        '''
+        batch_size, seq_len = targets.shape
+        assert batch_size == self.batch_size
+        cl = self.get_zero_checklists(seq_len)
+        if init_cl is not None:
+            init_num_nodes = init_cl.shape[2]
+            # We might have more nodes now
+            cl[:, 0, :init_num_nodes] = init_cl
+        for i in xrange(1, seq_len):
+            cl[:, i, :] = cl[:, i-1, :]
+            self.update_checklist(targets[:, [i-1]], cl[:, i, :], vocab)
+        return cl
+
+    def update_checklist(self, outputs, cl, vocab):
+        '''
+        Mark mentioned entities in outputs in a checklist.
+        outputs: integers. words are mapped by vocab and entities are mapped by entity_map
+        offset by vocab.size.
+        (batch_size, 1)
+        cl: checklist to be updated in place.
+        (batch_size, num_nodes)
+        '''
+        for i in xrange(self.batch_size):
+            output = outputs[i][0]
+            entity = None
+            if output >= vocab.size:
+                entity = Graph.metadata.entity_map.to_word(output - vocab.size)
+            else:
+                word = vocab.to_word(output)
+                if is_entity(word):
+                    entity = word
+            if entity is not None:
+                try:
+                    entity_id = self.graphs[i].nodes.to_ind(entity)
+                    cl[i][entity_id] = 1
+                except KeyError:
+                    # If the entity is from vocab, it may not be in the nodes of the graph
+                    continue
+        return
+
+    def get_batch_data(self, encoder_tokens, decoder_tokens, utterances):
         '''
         Construct batched inputs for GraphEmbedder. (These could be precomputed as well but
         can take lots of memory.)

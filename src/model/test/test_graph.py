@@ -5,7 +5,21 @@ from basic.kb import KB
 import numpy as np
 from numpy.testing import assert_array_equal, assert_equal
 from model.vocab import Vocabulary
-from model.preprocess import TextIntMap
+from model.preprocess import TextIntMap, Preprocessor
+
+@pytest.fixture(scope='session')
+def preprocessor(schema, lexicon):
+    return Preprocessor(schema, lexicon, 'canonical', 'canonical', 'graph')
+
+@pytest.fixture(scope='session')
+def vocab():
+    vocab = Vocabulary(unk=False)
+    vocab.add_words(['work', 'like', ('alice', 'person'), ('hiking', 'hobby')])
+    return vocab
+
+@pytest.fixture(scope='session')
+def textint_map(vocab, metadata, preprocessor):
+    return TextIntMap(vocab, metadata.entity_map, preprocessor)
 
 class TestGraph(object):
     def test_mappings(self, graph, capsys):
@@ -89,7 +103,7 @@ class TestGraph(object):
         u2 = [('ian', ('ian', 'person')), 'likes', ('hiking', ('hiking', 'hobby'))]
         decoder_tokens = [u1, u2]
         with capsys.disabled():
-            batch = graph_batch.get_batch_data(encoder_tokens, decoder_tokens)
+            batch = graph_batch.get_batch_data(encoder_tokens, decoder_tokens, None)
 
         max_num_nodes = graph_batch._max_num_nodes()
         assert max_num_nodes == 12
@@ -100,19 +114,38 @@ class TestGraph(object):
                 print k
                 print v
 
-    def test_copy(self, graph_batch, metadata, capsys):
-        vocab = Vocabulary(unk=False, pad=False)
-        vocab.add_words(['work', 'like', ('alice', 'person'), ('hiking', 'hobby')])
+    def test_copy(self, graph_batch, metadata, preprocessor, vocab, textint_map):
         alice = metadata.entity_map.to_ind(('alice', 'person')) + vocab.size
         hiking = metadata.entity_map.to_ind(('hiking', 'hobby')) + vocab.size
         targets = np.array([[0, alice, hiking],
                             [1, alice, hiking]])
-        textint_map = TextIntMap(vocab, metadata.entity_map, True)
-
         new_targets = graph_batch.copy_targets(targets, vocab.size)
         assert graph_batch.graphs[0].nodes.to_word(new_targets[0][1]-vocab.size) == ('alice', 'person')
         assert graph_batch.graphs[0].nodes.to_word(new_targets[0][2]-vocab.size) == ('hiking', 'hobby')
         preds = graph_batch.copy_preds(new_targets, vocab.size)
-        tokens = textint_map.int_to_text(preds[0])
+        tokens = textint_map.int_to_text(preds[0], 'target')
         expected = ['work', ('alice', 'person'), ('hiking', 'hobby')]
         assert_equal(tokens, expected)
+
+    @pytest.mark.only
+    def test_checklist(self, graph_batch, vocab, metadata):
+        alice = metadata.entity_map.to_ind(('alice', 'person')) + vocab.size
+        hiking = metadata.entity_map.to_ind(('hiking', 'hobby')) + vocab.size
+        preds = np.array([[alice],
+                          [hiking]])
+        cl = graph_batch.get_zero_checklists(1)[:, 0, :]
+        graph_batch.update_checklist(preds, cl, vocab)
+        alice_node_id = graph_batch.graphs[0].nodes.to_ind(('alice', 'person'))
+        hiking_node_id = graph_batch.graphs[1].nodes.to_ind(('hiking', 'hobby'))
+        assert cl[0][alice_node_id] == 1 and sum(cl[0]) == 1
+        assert cl[1][hiking_node_id] == 1 and sum(cl[0]) == 1
+
+        targets = np.array([[0, alice, 0, 0],
+                            [1, hiking, hiking, 0]])
+        cl = graph_batch.get_checklists(targets, vocab)
+        assert cl.shape[:2] == (2, 4)
+        assert np.sum(cl[:, 0, :]) == 0  # Initial cl is zero
+        assert np.sum(cl[:, 1, :]) == 0  # When generating at time=2
+        for t in (2, 3):
+            assert cl[0, t, alice_node_id] == 1
+            assert cl[1, t, hiking_node_id] == 1
