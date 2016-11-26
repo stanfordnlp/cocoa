@@ -341,6 +341,7 @@ class GraphDecoder(GraphEncoder):
         last_inds = np.zeros([batch_size], dtype=np.int32)
         attn_scores = []
         for i in xrange(max_len):
+            #self._print_cl(cl)
             logits, final_state, final_output, attn_score = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['attn_scores']], feed_dict=feed_dict)
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -354,6 +355,12 @@ class GraphDecoder(GraphEncoder):
                     init_state=final_state,
                     checklists=cl)
         return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores}
+
+    def _print_cl(self, cl):
+        cl = cl[0, 0, :]
+        for i, c in enumerate(cl):
+            if c != 0:
+                print i, c
 
     def update_utterances(self, sess, entities, final_output, utterances, graph_data):
         feed_dict = {self.entities: entities,

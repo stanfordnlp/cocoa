@@ -4,7 +4,7 @@ import os
 import argparse
 import tensorflow as tf
 from src.basic.systems.system import System
-from src.basic.sessions.neural_session import NeuralSession
+from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession
 from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
@@ -53,7 +53,8 @@ class NeuralSystem(System):
         saver = tf.train.Saver()
         saver.restore(tf_session, ckpt.model_checkpoint_path)
 
-        if args.model == 'attn-copy-encdec':
+        self.model_name = args.model
+        if self.model_name == 'attn-copy-encdec':
             args.entity_target_form = 'graph'
             copy = True
         else:
@@ -73,4 +74,7 @@ class NeuralSystem(System):
         return 'neural'
 
     def new_session(self, agent, kb):
-        return NeuralSession(agent, kb, self.env)
+        if self.model_name == 'encdec':
+            return RNNNeuralSession(agent , kb, self.env)
+        else:
+            return GraphNeuralSession(agent, kb, self.env)
