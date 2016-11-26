@@ -20,6 +20,7 @@ def add_model_arguments(parser):
     parser.add_argument('--num-layers', type=int, default=1, help='Number of RNN layers')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
+    parser.add_argument('--encoder-zero-init-state', default=False, action='store_true', help='The encoder state starts from zero for an utterance, instead of continuing from the previous state.')
     add_attention_arguments(parser)
 
 def build_model(schema, mappings, args):
@@ -30,7 +31,7 @@ def build_model(schema, mappings, args):
     pad = vocab.to_ind(markers.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
-        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
+        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.encoder_zero_init_state)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
@@ -39,7 +40,7 @@ def build_model(schema, mappings, args):
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, zero_init_state=args.encoder_zero_init_state)
         if args.model == 'attn-encdec':
             decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
         elif args.model == 'attn-copy-encdec':
@@ -64,10 +65,11 @@ class BasicEncoder(object):
     '''
     A basic RNN encoder.
     '''
-    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1):
+    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1, zero_init_state=False):
         self.rnn_size = rnn_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
+        self.zero_init_state = zero_init_state
 
     def _build_init_output(self, cell):
         '''
@@ -140,7 +142,8 @@ class BasicEncoder(object):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
         feed_dict[self.last_inds] = kwargs.pop('last_inds')
-        optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
+        if not self.zero_init_state:
+            optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
         return feed_dict
 
     def run(self, sess, fetches, feed_dict):
@@ -155,8 +158,8 @@ class GraphEncoder(BasicEncoder):
     '''
     RNN encoder that update knowledge graph at the end.
     '''
-    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1):
-        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers)
+    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, zero_init_state=False):
+        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, zero_init_state)
         self.graph_embedder = graph_embedder
 
     def _build_inputs(self, input_dict):
@@ -190,8 +193,8 @@ class GraphEncoder(BasicEncoder):
         return self.run(sess, ('final_state', 'final_output', 'utterances', 'context'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1):
-        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers)
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, zero_init_state=False):
+        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, zero_init_state)
         self.num_symbols = num_symbols
 
     def _build_output(self, output_dict):
@@ -239,8 +242,8 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, scoring='linear', output='project'):
-        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers)
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, zero_init_state=False, scoring='linear', output='project'):
+        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, zero_init_state)
         self.num_symbols = num_symbols
         # Config for the attention cell
         self.context_size = self.graph_embedder.config.context_size
