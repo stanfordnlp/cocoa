@@ -60,19 +60,20 @@ class AttnRNNCell(object):
         zero_attn, scores = self.compute_attention(zero_h, init_context, zero_checklist)
         return (zero_rnn_state, zero_attn, init_context)
 
-    def score_context(self, h, context):
+    def score_context(self, h, context, checklist):
         # Repeat h for each cell in context
         context_len = tf.shape(context)[1]
         h = tf.tile(tf.expand_dims(h, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
 
         if self.scorer == 'linear':
-            return self._score_context_linear(h, context)
+            return self._score_context_linear(h, context, checklist)
         elif self.scorer == 'bilinear':
+            # TODO: checklist for bilinear
             return self._score_context_bilinear(h, context)
         else:
             raise ValueError('Unknown scoring model')
 
-    def _score_context_linear(self, h, context):
+    def _score_context_linear(self, h, context, checklist):
         '''
         Concatenate state h and context, combine them to a vector, then project to a scalar.
         h: (batch_size, context_len, rnn_size)
@@ -82,7 +83,7 @@ class AttnRNNCell(object):
         attn_size = self.rnn_size
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
-                attns = tanh(batch_linear([h, context], attn_size, False))  # (batch_size, context_len, attn_size)
+                attns = tanh(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -124,13 +125,12 @@ class AttnRNNCell(object):
         context_mask filteres padded context cell, i.e., their attn_score is -inf.
         context: (batch_size, context_len, context_size)
         context_mask: (batch_size, context_len)
-        checklist: (batch_size, context_size)
+        checklist: (batch_size, context_len)
         '''
         with tf.variable_scope('Attention'):
             context, context_mask = context
-            checklist = tf.expand_dims(checklist, 2)
-            context = tf.concat(2, [context, checklist])
-            attn_scores = self.score_context(h, context)  # (batch_size, context_len)
+            checklist = tf.expand_dims(checklist, 2)  # (batch_size, context_len, 1)
+            attn_scores = self.score_context(h, context, checklist)  # (batch_size, context_len)
             attns = tf.nn.softmax(attn_scores)
             zero_attns = tf.zeros_like(attns)
             attns = tf.select(context_mask, attns, zero_attns)
