@@ -177,6 +177,10 @@ class GraphBatch(object):
         return np.zeros([self.batch_size, num_rows, Graph.metadata.utterance_size], dtype=np.float32)
 
     def update_utterances(self, utterances, max_num_nodes):
+        return (self._update_utterances(utterances[0], max_num_nodes),
+                self._update_utterances(utterances[1], max_num_nodes))
+
+    def _update_utterances(self, utterances, max_num_nodes):
         '''
         Resize utterance matrix if there are more nodes (expensive).
         '''
@@ -255,7 +259,9 @@ class GraphBatch(object):
 
         max_num_nodes = self._max_num_nodes()
         if utterances is None:
-            utterances = self._batch_zero_utterances(max_num_nodes)
+            # Encoder utterances and decoder utterances
+            utterances = (self._batch_zero_utterances(max_num_nodes),
+                          self._batch_zero_utterances(max_num_nodes))
         else:
             utterances = self.update_utterances(utterances, max_num_nodes)
 

@@ -161,11 +161,14 @@ class GraphEncoder(BasicEncoder):
     def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, zero_init_state=False):
         super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, zero_init_state)
         self.graph_embedder = graph_embedder
+        # Id of the utterance matrix to be updated: 0 is encoder utterances, 1 is decoder utterances
+        self.utterance_id = 0
 
     def _build_inputs(self, input_dict):
         super(GraphEncoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
-            self.utterances = tf.placeholder(tf.float32, shape=[None, None, self.graph_embedder.config.utterance_size], name='utterances')
+            self.utterances = (tf.placeholder(tf.float32, shape=[None, None, self.graph_embedder.config.utterance_size], name='encoder_utterances'),
+                    tf.placeholder(tf.float32, shape=[None, None, self.graph_embedder.config.utterance_size], name='decoder_utterances'))
             self.entities = tf.placeholder(tf.int32, shape=[None, self.graph_embedder.config.entity_cache_size], name='entities')
 
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
@@ -173,7 +176,7 @@ class GraphEncoder(BasicEncoder):
 
         # Use the final encoder state as the utterance embedding
         final_output = self._get_final_state(self.output_dict['outputs'])
-        new_utterances = self.graph_embedder.update_utterance(self.entities, final_output, self.utterances)
+        new_utterances = self.graph_embedder.update_utterance(self.entities, final_output, self.utterances, self.utterance_id)
         with tf.variable_scope(tf.get_variable_scope(), reuse=self.graph_embedder.context_initialized):
             context = self.graph_embedder.get_context(new_utterances)
 
@@ -245,6 +248,7 @@ class GraphDecoder(GraphEncoder):
     def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, zero_init_state=False, scoring='linear', output='project'):
         super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, zero_init_state)
         self.num_symbols = num_symbols
+        self.utterance_id = 1
         # Config for the attention cell
         self.context_size = self.graph_embedder.config.context_size
         self.scorer = scoring
@@ -276,7 +280,8 @@ class GraphDecoder(GraphEncoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
+            #return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context)
         else:
             return cell.zero_state(self.batch_size, self.context)
 
@@ -305,7 +310,8 @@ class GraphDecoder(GraphEncoder):
         if not time_major:
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
             checklists = transpose_first_two_dims(self.checklists)  # (seq_len, batch_size, num_nodes)
-        return (inputs, checklists)
+        #return (inputs, checklists)
+        return inputs
 
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
         super(GraphDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)

@@ -115,9 +115,16 @@ class GraphEmbedder(object):
                     # It saves some reshapes to do batch_linear and batch_embedding_lookup
                     # together, but this way is clearer.
                     if self.config.use_entity_embedding:
-                        initial_node_embed = tf.concat(2, [tf.nn.embedding_lookup(self.entity_embedding, entity_ids), batch_embedding_lookup(utterances, node_ids), node_feats])
+                        initial_node_embed = tf.concat(2,
+                                [tf.nn.embedding_lookup(self.entity_embedding, entity_ids),
+                                 batch_embedding_lookup(utterances[0], node_ids),
+                                 batch_embedding_lookup(utterances[1], node_ids),
+                                 node_feats])
                     else:
-                        initial_node_embed = tf.concat(2, [batch_embedding_lookup(utterances, node_ids), node_feats])
+                        initial_node_embed = tf.concat(2,
+                                [batch_embedding_lookup(utterances[0], node_ids),
+                                 batch_embedding_lookup(utterances[1], node_ids),
+                                 node_feats])
                     scope.reuse_variables()
 
                 # Message passing
@@ -187,7 +194,16 @@ class GraphEmbedder(object):
 
         return new_node_embeds
 
-    def update_utterance(self, entity_indices, utterance, curr_utterances):
+    def update_utterance(self, entity_indices, utterance, curr_utterances, utterance_id):
+        new_utterances = []
+        for i, u in enumerate(curr_utterances):
+            if i == utterance_id:
+                new_utterances.append(self._update_utterance(entity_indices, utterance, u))
+            else:
+                new_utterances.append(u)
+        return tuple(new_utterances)
+
+    def _update_utterance(self, entity_indices, utterance, curr_utterances):
         '''
         We first transform utterance into a dense matrix of the same size as curr_utterances,
         then return their sum.
