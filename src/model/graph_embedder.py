@@ -10,9 +10,10 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
+    parser.add_argument('--utterance-decay', type=float, default=1, help='Decay of old utterance embedding over time')
 
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -20,6 +21,7 @@ class GraphEmbedderConfig(object):
 
         # RNN output size
         self.utterance_size = graph_metadata.utterance_size
+        self.decay = decay
         # Maximum number of nodes/entities to update embeddings for
         self.entity_cache_size = graph_metadata.entity_cache_size
 
@@ -229,4 +231,4 @@ class GraphEmbedder(object):
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
         new_utterance = tf.sparse_to_dense(inds, tf.shape(curr_utterances), utterance, validate_indices=False)
-        return curr_utterances + new_utterance
+        return curr_utterances * self.decay + new_utterance
