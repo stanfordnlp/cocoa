@@ -388,7 +388,7 @@ class CopyGraphDecoder(GraphDecoder):
         Take RNN outputs and produce logits over the vocab and the attentions.
         '''
         logits = super(CopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
-        attn_scores = transpose_first_two_dims(output_dict['attn_scores'])
+        attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
         return tf.concat(2, [logits, attn_scores])
 
     def update_checklist(self, pred, cl, graphs, vocab):
@@ -402,6 +402,23 @@ class CopyGraphDecoder(GraphDecoder):
         preds = graphs.copy_preds(preds, vocab.size)
         preds = textint_map.pred_to_input(preds)
         return preds
+
+class GatedCopyGraphDecoder(GraphDecoder):
+    '''
+    Decoder with copy mechanism over the attention context, where there is an additional gating
+    function deciding whether to generate from the vocab or to copy from the graph.
+    '''
+    def _build_output(self, output_dict):
+        vocab_logits = super(GatedCopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
+        attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
+        rnn_outputs = transpose_first_two_dims(output_dict['outputs'])  # (batch_size, seq_len, output_size)
+        with tf.variable_scope('Gating'):
+            prob_vocab = tf.sigmoid(batch_linear(rnn_outputs, 1, True))  # (batch_size, seq_len, 1)
+            prob_copy = 1 - prob_vocab
+        # Reweight the vocab and attn distribution and convert them to logits
+        vocab_logits = tf.log(prob_vocab) + vocab_logits - tf.reduce_logsumexp(vocab_logits, 2)
+        attn_scores = tf.log(prob_copy) + attn_scores - tf.reduce_logsumexp(attn_scores, 2)
+        return tf.concat(2, [vocab_logits, attn_scores])
 
 class BasicEncoderDecoder(object):
     '''
