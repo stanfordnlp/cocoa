@@ -280,8 +280,8 @@ class GraphDecoder(GraphEncoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            #return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context)
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
+            #return cell.init_state(self.init_rnn_state, self.init_output, self.context)
         else:
             return cell.zero_state(self.batch_size, self.context)
 
@@ -310,8 +310,8 @@ class GraphDecoder(GraphEncoder):
         if not time_major:
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
             checklists = transpose_first_two_dims(self.checklists)  # (seq_len, batch_size, num_nodes)
-        #return (inputs, checklists)
-        return inputs
+        return (inputs, checklists)
+        #return inputs
 
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
         super(GraphDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
