@@ -65,15 +65,6 @@ class Schema(object):
                     self.alphas[i] = 2
                     break
 
-    # NOTE: this function will be removed in the new model because a) we don't need all
-    # entities for embedding and b) all entities in the schema may not be used in some
-    # scenarios due to sampling.
-    def get_entities(self):
-        '''
-        Return a dict {value: type} of all entities.
-        '''
-        return {value: type_ for type_, values in self.values.iteritems() for value in values}
-
     def get_attributes(self):
         '''
         Return a dict {name: value_type} of all attributes.
