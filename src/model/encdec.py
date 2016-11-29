@@ -21,6 +21,8 @@ def add_model_arguments(parser):
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     parser.add_argument('--encoder-zero-init-state', default=False, action='store_true', help='The encoder state starts from zero for an utterance, instead of continuing from the previous state.')
+    parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
+    parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
     add_attention_arguments(parser)
 
 def build_model(schema, mappings, args):
@@ -44,8 +46,13 @@ def build_model(schema, mappings, args):
         if args.model == 'attn-encdec':
             decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
         elif args.model == 'attn-copy-encdec':
-            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
-        model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad)
+            if args.gated_copy:
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+                sup_gate = args.sup_gate
+            else:
+                decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers)
+                sup_gate = False
+        model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad, sup_gate)
     else:
         raise ValueError('Unknown model')
     return model
@@ -60,6 +67,8 @@ def get_prediction(logits):
 def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
+
+EPS = 1e-12
 
 class BasicEncoder(object):
     '''
@@ -408,6 +417,12 @@ class GatedCopyGraphDecoder(GraphDecoder):
     Decoder with copy mechanism over the attention context, where there is an additional gating
     function deciding whether to generate from the vocab or to copy from the graph.
     '''
+    def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
+        super(GatedCopyGraphDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
+        logits, gate_logits = self.output_dict['logits']
+        self.output_dict['logits'] = logits
+        self.output_dict['gate_logits'] = gate_logits
+
     def _build_output(self, output_dict):
         vocab_logits = super(GatedCopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
         attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
@@ -415,10 +430,12 @@ class GatedCopyGraphDecoder(GraphDecoder):
         with tf.variable_scope('Gating'):
             prob_vocab = tf.sigmoid(batch_linear(rnn_outputs, 1, True))  # (batch_size, seq_len, 1)
             prob_copy = 1 - prob_vocab
+            log_prob_vocab = tf.log(prob_vocab + EPS)
+            log_prob_copy = tf.log(prob_copy + EPS)
         # Reweight the vocab and attn distribution and convert them to logits
-        vocab_logits = tf.log(prob_vocab) + vocab_logits - tf.reduce_logsumexp(vocab_logits, 2)
-        attn_scores = tf.log(prob_copy) + attn_scores - tf.reduce_logsumexp(attn_scores, 2)
-        return tf.concat(2, [vocab_logits, attn_scores])
+        vocab_logits = log_prob_vocab + vocab_logits - tf.reduce_logsumexp(vocab_logits, 2, keep_dims=True)
+        attn_scores = log_prob_copy + attn_scores - tf.reduce_logsumexp(attn_scores, 2, keep_dims=True)
+        return tf.concat(2, [vocab_logits, attn_scores]), tf.concat(2, [log_prob_vocab, log_prob_copy])
 
 class BasicEncoderDecoder(object):
     '''
@@ -430,7 +447,10 @@ class BasicEncoderDecoder(object):
         self.decoder = decoder
         self.build_model(word_embedder, encoder, decoder, scope)
 
-    def compute_loss(self, logits, targets):
+    def compute_loss(self, output_dict, targets):
+        return self._compute_loss(output_dict['logits'], targets)
+
+    def _compute_loss(self, logits, targets):
         '''
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
@@ -444,7 +464,7 @@ class BasicEncoderDecoder(object):
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(self.PAD)), tf.float32)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
-        token_weights = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + 1e-12
+        token_weights = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         # Average over words in each sequence
         loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights
         seq_loss = loss
@@ -477,7 +497,7 @@ class BasicEncoderDecoder(object):
             self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Loss
-            self.loss, self.seq_loss = self.compute_loss(decoder.output_dict['logits'], self.targets)
+            self.loss, self.seq_loss = self.compute_loss(decoder.output_dict, self.targets)
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
@@ -546,8 +566,9 @@ class BasicEncoderDecoder(object):
         return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores']
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
-    def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, scope=None):
+    def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, sup_gate=None, scope=None):
         self.graph_embedder = graph_embedder
+        self.sup_gate = sup_gate
         super(GraphEncoderDecoder, self).__init__(word_embedder, encoder, decoder, pad, scope)
 
     def _decoder_input_dict(self, encoder_output_dict):
@@ -562,3 +583,15 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
         feed_dict = super(GraphEncoderDecoder, self).get_feed_dict(**kwargs)
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs['graph_embedder'])
         return feed_dict
+
+    def compute_loss(self, output_dict, targets):
+        loss, seq_loss = super(GraphEncoderDecoder, self).compute_loss(output_dict, targets)
+        if self.sup_gate:
+            vocab_size = self.decoder.num_symbols
+            # 0: vocab 1: copy
+            targets = tf.cast(tf.greater_equal(targets, vocab_size), tf.int32)
+            gate_loss, gate_seq_loss = self._compute_loss(output_dict['gate_logits'], targets)
+            loss += gate_loss
+            seq_loss += gate_seq_loss
+        return loss, seq_loss
+
