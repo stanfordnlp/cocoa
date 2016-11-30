@@ -177,6 +177,7 @@ class GraphNeuralSession(RNNNeuralSession):
     def _decoder_args(self, init_state, inputs):
         decoder_args = super(GraphNeuralSession, self)._decoder_args(init_state, inputs)
         decoder_args['checklists'] = self.checklists
+        decoder_args['copied_nodes'] = self.graph.get_zero_copied_nodes(1)
         decoder_args['graphs'] = self.graph
         decoder_args['vocab'] = self.env.vocab
         return decoder_args
