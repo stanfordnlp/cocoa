@@ -35,20 +35,20 @@ def generate_scenario(schema):
     if random_attributes:
         # sample random number and set of attributes
         num_attributes = min(np.random.choice(xrange(3, 5)), len(schema.attributes))
-        scenario_attributes = np.random.choice(schema.attributes, num_attributes)
+        scenario_attributes = np.random.choice(schema.attributes, num_attributes, replace=False)
         scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
         alphas = dict((attr, schema.alphas[attr]) for attr in scenario_attributes)
 
     # Generate the profile of the two agents
     agents = (0, 1)
-    distribs = ([], [])
+    distribs = ({}, {})
     values = {}  # {attr_name: possible values}
     num_values = num_items * 2
     for attr, alpha in alphas.iteritems():
         n = min(len(schema.values[attr.value_type]), num_values)
         values[attr.name] = random.sample(schema.values[attr.value_type], n)
         for agent in agents:
-            distribs[agent].append(get_multinomial(alpha, n))
+            distribs[agent][attr.name] = get_multinomial(alpha, n)
 
     # Generate items for each agent until we get a match
     agent_item_hashes = ({}, {})
@@ -62,7 +62,8 @@ def generate_scenario(schema):
             # Create the item (and its hash)
             item = {}
             item_hash = []
-            for attr, distrib in zip(scenario_attributes, distribs[agent]):
+            for attr in scenario_attributes:
+                distrib = distribs[agent][attr.name]
                 index = random_multinomial(distrib)
                 # print attr.name, index, len(values[attr.name])
                 value = values[attr.name][index]
@@ -120,14 +121,14 @@ def generate_scenario(schema):
         raise Exception('Internal error: expected at least one match, but got: %s' % matches)
 
     # Create the scenario
-    kbs = [KB(schema, items) for items in agent_items]
-    scenario = Scenario(generate_uuid('S'), kbs)
+    kbs = [KB(scenario_attributes, items) for items in agent_items]
+    scenario = Scenario(generate_uuid('S'), scenario_attributes, kbs)
     return scenario
 
 # Generate scenarios
 schema = Schema(args.schema_path, args.domain)
 scenario_db = ScenarioDB([generate_scenario(schema) for i in range(args.num_scenarios)])
-write_json(scenario_db.to_dict(), args.scenarios_path)
+write_json(scenario_db.to_dict(), args.scenarios_path[0])
 
 # Output a sample of what we've generated
 for i in range(min(100, len(scenario_db.scenarios_list))):

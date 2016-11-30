@@ -10,15 +10,22 @@ class Scenario(object):
     '''
     A scenario represents a situation to be played out where each agent has a private KB.
     '''
-    def __init__(self, uuid, kbs):
+    def __init__(self, uuid, attributes, kbs):
         self.uuid = uuid
+        self.attributes = attributes
         self.kbs = kbs
 
     @staticmethod
     def from_dict(schema, raw):
-        return Scenario(raw['uuid'], [KB.from_dict(schema, kb) for kb in raw['kbs']])
+        attributes = schema.attributes  # compatibility with older data format
+        if 'attributes' in raw.keys():
+            attributes = raw['attributes']
+        return Scenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']])
+
     def to_dict(self):
-        return {'uuid': self.uuid, 'kbs': [kb.to_dict() for kb in self.kbs]}
+        return {'uuid': self.uuid,
+                'attributes': [attr.to_json() for attr in self.attributes],
+                'kbs': [kb.to_dict() for kb in self.kbs]}
 
     def get_kb(self, agent):
         return self.kbs[agent]
@@ -43,6 +50,6 @@ class ScenarioDB(object):
 
     @staticmethod
     def from_dict(schema, raw_list):
-        return ScenarioDB([Scenario.from_dict(schema, s) for raw in raw_list for s in raw])
+        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw_list])
     def to_dict(self):
         return [s.to_dict() for s in self.scenarios_list]
