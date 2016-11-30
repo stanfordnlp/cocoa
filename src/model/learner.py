@@ -55,7 +55,7 @@ class Learner(object):
         return summary_map['loss']['mean']
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, copied_nodes=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
@@ -81,6 +81,7 @@ class Learner(object):
             encoder_args['utterances'] = graph_data['utterances']
             kwargs['graph_embedder'] = graph_data
             decoder_args['checklists'] = checklists
+            decoder_args['copied_nodes'] = copied_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
@@ -117,7 +118,8 @@ class Learner(object):
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
             checklists = graphs.get_checklists(batch['targets'], self.vocab)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists)
+            copied_nodes = graphs.get_copied_nodes(batch['targets'], self.vocab)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, copied_nodes)
             if test:
                 logits, final_state, utterances, loss, seq_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],

@@ -30,9 +30,10 @@ class GraphEmbedderConfig(object):
 
         # Number of message passing iterations
         self.mp_iters = mp_iters
-        #self.context_size = self.node_embed_size * (mp_iters + 1)
+
         self.context_size = self.node_embed_size * mp_iters
-        self.context_size += (self.utterance_size + self.feat_size)
+        # x2 because we encoder and decoder utterances are concatenated
+        self.context_size += (self.utterance_size * 2 + self.feat_size)
         if use_entity_embedding:
             self.context_size += entity_embed_size
 

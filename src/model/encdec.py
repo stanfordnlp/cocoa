@@ -313,13 +313,16 @@ class GraphDecoder(GraphEncoder):
             # Inputs
             self.entities = tf.placeholder(tf.int32, shape=[None, self.graph_embedder.config.entity_cache_size], name='entities')
             self.checklists = tf.placeholder(tf.float32, shape=[None, None, None], name='checklists')
+            self.copied_nodes = (tf.placeholder(tf.int32, shape=[None, None], name='copied_nodes'), tf.placeholder(tf.bool, shape=[None, None], name='copied_nodes_mask'))
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = word_embedder.embed(self.inputs)
         if not time_major:
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
             checklists = transpose_first_two_dims(self.checklists)  # (seq_len, batch_size, num_nodes)
-        return (inputs, checklists)
+            copied_nodes = (transpose_first_two_dims(self.copied_nodes[0]),
+                    transpose_first_two_dims(self.copied_nodes[1]))  # (seq_len, batch_size)
+        return (inputs, checklists, copied_nodes)
         #return inputs
 
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
@@ -336,6 +339,7 @@ class GraphDecoder(GraphEncoder):
     def get_feed_dict(self, **kwargs):
         feed_dict = super(GraphDecoder, self).get_feed_dict(**kwargs)
         feed_dict[self.checklists] = kwargs.pop('checklists')
+        feed_dict[self.copied_nodes] = kwargs.pop('copied_nodes')
         return feed_dict
 
     def pred_to_input(self, preds, **kwargs):
@@ -349,17 +353,24 @@ class GraphDecoder(GraphEncoder):
     def update_checklist(self, pred, cl, graphs, vocab):
         graphs.update_checklist(pred, cl, vocab)
 
+    def get_copied_nodes(self, pred, graphs, vocab):
+        return graphs.get_copied_nodes(pred, vocab)
+
     def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['checklists']
+        copied_nodes = kwargs['copied_nodes']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
         attn_scores = []
+        graphs = kwargs['graphs']
+        vocab = kwargs['vocab']
         for i in xrange(max_len):
             #self._print_cl(cl)
+            #self._print_copied_nodes(copied_nodes)
             logits, final_state, final_output, attn_score = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['attn_scores']], feed_dict=feed_dict)
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -367,17 +378,30 @@ class GraphDecoder(GraphEncoder):
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
-            self.update_checklist(step_preds, cl[:, 0, :], kwargs['graphs'], kwargs['vocab'])
+            self.update_checklist(step_preds, cl[:, 0, :], graphs, vocab)
+            copied_nodes = self.get_copied_nodes(step_preds, graphs, vocab)
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state,
-                    checklists=cl)
+                    checklists=cl,
+                    copied_nodes=copied_nodes)
         return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores}
 
     def _print_cl(self, cl):
-        cl = cl[0, 0, :]
-        for i, c in enumerate(cl):
-            if c != 0:
+        print 'checklists:'
+        for i in xrange(cl.shape[0]):
+            nodes = []
+            for j, c in enumerate(cl[i][0]):
+                if c != 0:
+                    nodes.append(j)
+            if len(nodes) > 0:
+                print i, nodes
+
+    def _print_copied_nodes(self, cn):
+        print 'copied_nodes:'
+        cn, mask = cn
+        for i, (c, m) in enumerate(zip(cn, mask)):
+            if m:
                 print i, c
 
     def update_utterances(self, sess, entities, final_output, utterances, graph_data):
@@ -401,8 +425,20 @@ class CopyGraphDecoder(GraphDecoder):
         return tf.concat(2, [logits, attn_scores])
 
     def update_checklist(self, pred, cl, graphs, vocab):
+        '''
+        Update checklist for a single time step.
+        '''
         pred = graphs.copy_preds(pred, vocab.size)
         graphs.update_checklist(pred, cl, vocab)
+
+    def get_copied_nodes(self, pred, graphs, vocab):
+        '''
+        Return copied nodes for a single time step.
+        '''
+        pred = graphs.copy_preds(pred, vocab.size)
+        copied_nodes, mask = graphs.get_zero_copied_nodes(1)
+        graphs.update_copied_nodes(pred[:, 0], copied_nodes, mask, vocab)
+        return copied_nodes, mask
 
     def pred_to_input(self, preds, **kwargs):
         graphs = kwargs.pop('graphs')
@@ -537,6 +573,7 @@ class BasicEncoderDecoder(object):
                     encoder_output_dict['context'],
                     checklists)
             decoder_args['checklists'] = checklists
+            decoder_args['copied_nodes'] = graphs.get_zero_copied_nodes(1)
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
@@ -551,6 +588,9 @@ class BasicEncoderDecoder(object):
             # Add checklists
             checklists = graphs.get_checklists(batch['targets'], vocab)
             decoder_args['checklists'] = checklists
+            # Add copied nodes
+            copied_nodes = graphs.get_copied_nodes(batch['targets'], vocab)
+            decoder_args['copied_nodes'] = copied_nodes
             # Update utterance matrix size and decoder entities given the true decoding sequence
             encoder_args['utterances'] = new_graph_data['utterances']
             decoder_args['entities'] = new_graph_data['decoder_entities']

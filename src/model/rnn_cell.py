@@ -5,7 +5,7 @@ RNN cell with attention over an input context.
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from src.model.util import batch_linear
+from src.model.util import batch_linear, batch_embedding_lookup
 
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
@@ -144,12 +144,30 @@ class AttnRNNCell(object):
             masked_attn_scores = tf.select(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
+    def get_node_embedding(self, context, node_ids):
+        '''
+        Lookup embeddings of nodes from context.
+        node_ids: (batch_size,)
+        context: (batch_size, num_nodes, context_size)
+        Return node_embeds (batch_size, context_size)
+        '''
+        batch_size = tf.shape(context)[0]
+        # Mask words that are not copied from context but predicted from vocab
+        node_ids, mask = node_ids
+        # Need expand_dims here because the shape assumption of batch_embedding_lookup
+        node_ids = tf.expand_dims(node_ids, 1)
+        node_embeds = tf.select(mask,
+                tf.squeeze(batch_embedding_lookup(context, node_ids), [1]),
+                tf.zeros([batch_size, self.context_size], dtype=tf.float32))
+        return node_embeds
+
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             prev_rnn_state, prev_attn, prev_context = state
-            inputs, checklist = inputs
+            inputs, checklist, prev_nodes = inputs
+            prev_node_embeds = self.get_node_embedding(prev_context[0], prev_nodes)
             # RNN step
-            new_inputs = tf.concat(1, [inputs, prev_attn])
+            new_inputs = tf.concat(1, [inputs, prev_attn, prev_node_embeds])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
             attn, attn_scores = self.compute_attention(output, prev_context, checklist)
