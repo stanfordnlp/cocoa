@@ -102,7 +102,7 @@ if __name__ == '__main__':
         logstats.add('mappings', name, 'size', m.size)
 
     # Build the model
-    logstats.add_args('model_args', args)
+    logstats.add_args('model_args', model_args)
     model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
