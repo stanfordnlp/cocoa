@@ -133,7 +133,7 @@ class Evaluator(object):
     def bleu_score(self, batch_preds, batch_targets):
         scores = []
         for preds, targets in izip(batch_preds, batch_targets):
-            if targets is not None:
+            if len(targets) > 0:
                 scores.append(compute_bleu(preds, self._process_target_tokens(targets)))
             else:
                 scores.append(None)
