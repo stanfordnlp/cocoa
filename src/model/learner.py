@@ -106,7 +106,6 @@ class Learner(object):
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
             print 'LOSS:', loss[i]
-            break
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
         '''
