@@ -497,15 +497,20 @@ class BasicEncoderDecoder(object):
         # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
         logits = tf.reshape(logits, [-1, num_symbols])
         targets = tf.reshape(targets, [-1])
+
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(self.PAD)), tf.float32)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
-        token_weights = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
+        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         # Average over words in each sequence
-        loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights
-        seq_loss = loss
+        loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
+
+        # Mask padded turns
+        seq_weights = tf.cast(tf.not_equal(tf.reshape(targets, [batch_size, -1])[:, 0], tf.constant(self.PAD)), tf.float32)
+        seq_loss = loss * seq_weights
+        seq_weights_sum = tf.reduce_sum(seq_weights) + EPS
         # Average over sequences in the batch
-        loss = tf.reduce_sum(loss, 0) / tf.to_float(batch_size)
+        loss = tf.reduce_sum(seq_loss, 0) / seq_weights_sum
         return loss, seq_loss
 
     def _encoder_input_dict(self):
