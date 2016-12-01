@@ -1,7 +1,9 @@
-from itertools import izip, izip_longest
+from itertools import izip
 from src.model.preprocess import markers
 from src.model.graph import Graph
 from src.lib.bleu import compute_bleu
+from src.lib.bleu import bleu_stats as get_bleu_stats
+from src.lib.bleu import bleu as get_bleu
 from src.model.vocab import is_entity
 from src.lib import logstats
 
@@ -51,6 +53,7 @@ class Evaluator(object):
         Return the average BLEU score across messages.
         '''
         summary_map = {}
+        bleu_stats = [0 for i in xrange(10)]
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
             encoder_init_state = None
@@ -70,17 +73,20 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
-                bleu_scores = self.bleu_score(pred_tokens, batch['decoder_tokens'])
-                #entity_recalls = self.entity_recall(pred_tokens, batch['decoder_tokens'])
+
+                # Compute BLEU
+                references = [self._process_target_tokens(targets) for targets in batch['decoder_tokens']]
+                # Sentence bleu: only for verbose print
+                bleu_scores = self.sentence_bleu_score(pred_tokens, references)
+                bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
                 self.update_entity_stats(summary_map, pred_tokens, batch['decoder_tokens'])
 
-                self.update_summary(summary_map, bleu_scores)
-
                 if self.verbose:
-                    self._print_batch(batch, pred_tokens, bleu_scores, graphs, attn_scores)
+                    self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores)
 
         precision, recall, f1 = self.entity_f1(summary_map)
-        return summary_map['bleu']['mean'], precision, recall, f1
+        bleu = get_bleu(bleu_stats)
+        return bleu, precision, recall, f1
 
     def entity_f1(self, summary_map):
         tp, target_size, pred_size = float(summary_map['tp']['sum']), float(summary_map['target_size']['sum']), float(summary_map['pred_size']['sum'])
@@ -102,14 +108,13 @@ class Evaluator(object):
         '''
         return [token[1] if is_entity(token) else token for token in tokens]
 
-    def _print_batch(self, batch, preds, bleu_scores, graphs, attn_scores):
+    def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
         encoder_tokens = batch['encoder_tokens']
         inputs = batch['encoder_inputs']
         decoder_tokens = batch['decoder_tokens']
-        targets = decoder_tokens
         print '-------------- batch ----------------'
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
             # Skip padded turns
@@ -122,7 +127,7 @@ class Evaluator(object):
             print 'RAW TARGET:', target
             print '----------'
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
-            print 'TARGET:', self._process_target_tokens(target)
+            print 'TARGET:', target
             print 'PRED:', pred
             print 'BLEU:', bleu
             print 'ATTENTION:'
@@ -141,16 +146,21 @@ class Evaluator(object):
             if bleu_score is not None:
                 logstats.update_summary_map(summary_map, {'bleu': bleu_score})
 
-    def bleu_score(self, batch_preds, batch_targets):
+    def update_bleu_stats(self, stats, batch_preds, batch_targets):
+        for preds, targets in izip(batch_preds, batch_targets):
+            if len(targets) > 0:
+                stats = [sum(scores) for scores in izip(stats, get_bleu_stats(preds, targets))]
+        return stats
+
+    def sentence_bleu_score(self, batch_preds, batch_targets):
         scores = []
         for preds, targets in izip(batch_preds, batch_targets):
             if len(targets) > 0:
-                scores.append(compute_bleu(preds, self._process_target_tokens(targets)))
+                scores.append(compute_bleu(preds, targets))
             else:
                 scores.append(None)
         return scores
 
-    #def entity_recall(self, batch_preds, batch_targets):
     def update_entity_stats(self, summary_map, batch_preds, batch_targets):
         def get_entity(x):
             return [e[0] for e in x if is_entity(e)]
