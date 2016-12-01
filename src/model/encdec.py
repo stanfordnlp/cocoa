@@ -10,7 +10,7 @@ from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_c
 from src.model.graph import Graph, GraphMetadata
 from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
-from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup
+from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 from src.model.preprocess import markers
 
 def add_model_arguments(parser):
@@ -67,8 +67,6 @@ def get_prediction(logits):
 def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
-
-EPS = 1e-12
 
 class BasicEncoder(object):
     '''
@@ -501,16 +499,19 @@ class BasicEncoderDecoder(object):
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(self.PAD)), tf.float32)
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        total_loss = tf.reduce_sum(loss)
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         # Average over words in each sequence
-        loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
+        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
 
         # Mask padded turns
-        seq_weights = tf.cast(tf.not_equal(tf.reshape(targets, [batch_size, -1])[:, 0], tf.constant(self.PAD)), tf.float32)
-        seq_loss = loss * seq_weights
-        seq_weights_sum = tf.reduce_sum(seq_weights) + EPS
-        # Average over sequences in the batch
-        loss = tf.reduce_sum(seq_loss, 0) / seq_weights_sum
+        #seq_weights = tf.cast(tf.not_equal(tf.reshape(targets, [batch_size, -1])[:, 0], tf.constant(self.PAD)), tf.float32)
+        #seq_loss = loss * seq_weights
+        #seq_weights_sum = tf.reduce_sum(seq_weights) + EPS
+        ## Average over sequences in the batch
+        #loss = tf.reduce_sum(seq_loss, 0) / seq_weights_sum
+
+        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
         return loss, seq_loss
 
     def _encoder_input_dict(self):

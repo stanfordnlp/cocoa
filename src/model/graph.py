@@ -49,10 +49,10 @@ class GraphMetadata(object):
         # Entity types, e.g. major, school
         node_types.add_words(self.attribute_types.values())
         # Attribute names, e.g. Name, Company
-        #node_types.add_words([x.lower() for x in self.attribute_types.keys()])
+        node_types.add_words([x.lower() for x in self.attribute_types.keys()])
         # Item names/ids
-        #node_types.add_words([item_to_str(i) for i in xrange(num_items)])
-        node_types.add_words(['item', 'attr'])
+        node_types.add_words([item_to_str(i) for i in xrange(num_items)])
+        #node_types.add_words(['item', 'attr'])
         self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
@@ -458,8 +458,8 @@ class Graph(object):
     def _node_type(self, node):
         # Use fine categorty for item and attr nodes
         name, type_ = node
-        #return name if type_ == 'item' or type_ == 'attr' else type_
-        return type_
+        return name if type_ == 'item' or type_ == 'attr' else type_
+        #return type_
 
     def get_features(self):
         feats = [[0, self._node_type(self.nodes.to_word(i))] for i in xrange(self.nodes.size)]

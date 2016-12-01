@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from src.model.util import batch_embedding_lookup, batch_linear
+from src.model.util import batch_embedding_lookup, batch_linear, EPS
 
 def add_graph_embed_arguments(parser):
     parser.add_argument('--node-embed-size', type=int, default=10, help='Knowledge graph node/subgraph embedding size')
@@ -11,6 +11,8 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
     parser.add_argument('--utterance-decay', type=float, default=1, help='Decay of old utterance embedding over time')
+
+activation = tf.tanh
 
 class GraphEmbedderConfig(object):
     def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1):
@@ -163,7 +165,7 @@ class GraphEmbedder(object):
         edge_embeds = tf.nn.embedding_lookup(edge_embedding, paths[:, :, 1])
         node_embeds = batch_embedding_lookup(node_embedding, paths[:, :, 2])
         path_embed_size = self.config.node_embed_size
-        path_embeds = tanh(batch_linear([edge_embeds, node_embeds], path_embed_size, True))
+        path_embeds = activation(batch_linear([edge_embeds, node_embeds], path_embed_size, True))
         return path_embeds
 
     def pass_message(self, path_embeds, neighbors, padded_path=0):
@@ -179,6 +181,7 @@ class GraphEmbedder(object):
         # for entities not in the KB but mentioned by the partner. These are dangling nodes
         # and should not have messages passed in.
         mask = tf.to_float(tf.not_equal(neighbors, tf.constant(padded_path)))  # (batch_size, num_nodes, num_neighbors)
+        num_neighbors = tf.reduce_sum(tf.cast(mask, tf.float32), 2, keep_dims=True) + EPS
 
         # Use static shape when possible
         shape = tf.shape(neighbors)
@@ -193,7 +196,9 @@ class GraphEmbedder(object):
         embeds = tf.reshape(embeds, [batch_size, num_nodes, -1, path_embed_size])
         mask = tf.expand_dims(mask, 3)  # (batch_size, num_nodes, num_neighbors, 1)
         embeds = embeds * mask
-        new_node_embeds = tf.reduce_sum(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
+        #new_node_embeds = tf.reduce_sum(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
+        new_node_embeds = tf.reduce_sum(embeds, 2) / num_neighbors  # (batch_size, num_nodes, path_embed_size)
+        #new_node_embeds = tf.reduce_max(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
 
         return new_node_embeds
 

@@ -16,6 +16,8 @@ recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
                   'lstm': tf.nn.rnn_cell.LSTMCell,
                  }
 
+activation = tf.tanh
+
 def build_rnn_cell(rnn_type, rnn_size, num_layers):
     '''
     Create the internal multi-layer recurrent cell.
@@ -77,12 +79,13 @@ class AttnRNNCell(object):
         Concatenate state h and context, combine them to a vector, then project to a scalar.
         h: (batch_size, context_len, rnn_size)
         context: (batch_size, context_len, context_size)
+        checklist: (batch_size, context_len, 1)
         Return context_scores (batch_size, context_len)
         '''
         attn_size = self.rnn_size
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
-                attns = tanh(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
+                attns = activation(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -116,7 +119,7 @@ class AttnRNNCell(object):
 
     def _output_project(self, output, attn, project_size):
         with tf.variable_scope("AttnOutputProjection"):
-            new_output = tanh(linear([output, attn], project_size, False))
+            new_output = activation(linear([output, attn], project_size, False))
         return new_output
 
     def compute_attention(self, h, context, checklist):
@@ -168,6 +171,7 @@ class AttnRNNCell(object):
             prev_node_embeds = self.get_node_embedding(prev_context[0], prev_nodes)
             # RNN step
             new_inputs = tf.concat(1, [inputs, prev_attn, prev_node_embeds])
+            #new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
             attn, attn_scores = self.compute_attention(output, prev_context, checklist)
