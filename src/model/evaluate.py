@@ -71,16 +71,29 @@ class Evaluator(object):
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
                 bleu_scores = self.bleu_score(pred_tokens, batch['decoder_tokens'])
-                entity_recalls = self.entity_recall(pred_tokens, batch['decoder_tokens'])
+                #entity_recalls = self.entity_recall(pred_tokens, batch['decoder_tokens'])
+                self.update_entity_stats(summary_map, pred_tokens, batch['decoder_tokens'])
 
-                self.update_summary(summary_map, bleu_scores, entity_recalls)
+                self.update_summary(summary_map, bleu_scores)
 
                 if self.verbose:
                     self._print_batch(batch, pred_tokens, bleu_scores, graphs, attn_scores)
+
+        precision, recall, f1 = self.entity_f1(summary_map)
+        return summary_map['bleu']['mean'], precision, recall, f1
+
+    def entity_f1(self, summary_map):
+        tp, target_size, pred_size = float(summary_map['tp']['sum']), float(summary_map['target_size']['sum']), float(summary_map['pred_size']['sum'])
         # This means no entity is detected in the test data. Probably something wrong.
-        if 'recall' not in summary_map:
-            return summary_map['bleu']['mean'], -1
-        return summary_map['bleu']['mean'], summary_map['recall']['mean']
+        if target_size == 0 or pred_size == 0:
+            return -1, -1 , -1
+        recall = tp / target_size
+        precision = tp / pred_size
+        if recall + precision == 0:
+            f1 = -1
+        else:
+            f1 = 2 * recall * precision / (recall + precision)
+        return precision, recall, f1
 
     def _process_target_tokens(self, tokens):
         '''
@@ -122,11 +135,9 @@ class Evaluator(object):
                     except KeyError:
                         print node_id, 'pad', score
 
-    def update_summary(self, summary_map, bleu_scores, entity_recalls):
-        for bleu_score, entity_recall in izip(bleu_scores, entity_recalls):
+    def update_summary(self, summary_map, bleu_scores):
+        for bleu_score in bleu_scores:
             # None means no entity in this utterance
-            if entity_recall is not None:
-                logstats.update_summary_map(summary_map, {'recall': entity_recall})
             if bleu_score is not None:
                 logstats.update_summary_map(summary_map, {'bleu': bleu_score})
 
@@ -139,10 +150,10 @@ class Evaluator(object):
                 scores.append(None)
         return scores
 
-    def entity_recall(self, batch_preds, batch_targets):
+    #def entity_recall(self, batch_preds, batch_targets):
+    def update_entity_stats(self, summary_map, batch_preds, batch_targets):
         def get_entity(x):
             return [e[0] for e in x if is_entity(e)]
-        recalls = []
         for preds, targets in izip (batch_preds, batch_targets):
             # None targets means that this is a padded turn
             if targets is None:
@@ -151,10 +162,7 @@ class Evaluator(object):
                 preds = set(get_entity(preds))
                 targets = set(get_entity(targets))
                 # Don't record cases where no entity is presented
-                if len(targets) == 0:
-                    recalls.append(None)
-                else:
-                    recall = sum([1 if e in preds else 0 for e in targets]) / float(len(targets))
-                    recalls.append(recall)
-        return recalls
+                if len(targets) > 0:
+                    logstats.update_summary_map(summary_map, {'target_size': len(targets), 'pred_size': len(preds)})
+                    logstats.update_summary_map(summary_map, {'tp': sum([1 if e in preds else 0 for e in targets])})
 
