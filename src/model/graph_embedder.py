@@ -11,11 +11,12 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
     parser.add_argument('--utterance-decay', type=float, default=1, help='Decay of old utterance embedding over time')
+    parser.add_argument('--msg-aggregation', default='sum', choices=['sum', 'max', 'avg'], help='How to aggregate messages from neighbors')
 
 activation = tf.tanh
 
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1, msg_agg='sum'):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -32,6 +33,7 @@ class GraphEmbedderConfig(object):
 
         # Number of message passing iterations
         self.mp_iters = mp_iters
+        self.msg_agg = msg_agg
 
         self.context_size = self.node_embed_size * mp_iters
         # x2 because we encoder and decoder utterances are concatenated
@@ -196,9 +198,16 @@ class GraphEmbedder(object):
         embeds = tf.reshape(embeds, [batch_size, num_nodes, -1, path_embed_size])
         mask = tf.expand_dims(mask, 3)  # (batch_size, num_nodes, num_neighbors, 1)
         embeds = embeds * mask
-        #new_node_embeds = tf.reduce_sum(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
-        new_node_embeds = tf.reduce_sum(embeds, 2) / num_neighbors  # (batch_size, num_nodes, path_embed_size)
-        #new_node_embeds = tf.reduce_max(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
+
+        # (batch_size, num_nodes, path_embed_size)
+        if self.config.msg_agg == 'sum':
+            new_node_embeds = tf.reduce_sum(embeds, 2)
+        elif self.config.msg_agg == 'avg':
+            new_node_embeds = tf.reduce_sum(embeds, 2) / num_neighbors
+        elif self.config.msg_agg == 'max':
+            new_node_embeds = tf.reduce_max(embeds, 2)
+        else:
+            raise ValueError('Unknown message aggregation method')
 
         return new_node_embeds
 
