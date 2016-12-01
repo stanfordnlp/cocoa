@@ -190,7 +190,7 @@ class GraphNeuralSession(RNNNeuralSession):
 
         # Update graph and utterances
         graph_data = self.graph.get_batch_data(None, entity_tokens, self.utterances)
-        self.utterances = self.model.decoder.update_utterances(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], graph_data['utterances'], graph_data)
+        self.utterances = self.model.decoder.update_utterances(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], decoder_output_dict['utterance_embedding'], graph_data['utterances'], graph_data)
 
     def _pred_to_token(self, preds):
         if self.env.copy:

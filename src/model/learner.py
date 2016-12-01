@@ -10,6 +10,7 @@ from vocab import is_entity
 import resource
 import numpy as np
 from encdec import get_prediction
+from model.util import EPS
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -52,7 +53,7 @@ class Learner(object):
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
             self._run_batch(dialogue_batch, sess, summary_map, test=True)
-        return summary_map['loss']['mean']
+        return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
     def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, copied_nodes=None):
@@ -120,11 +121,12 @@ class Learner(object):
             copied_nodes = graphs.get_copied_nodes(batch['targets'], self.vocab)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, copied_nodes)
             if test:
-                logits, final_state, utterances, loss, seq_loss = sess.run(
+                logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
-                         self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
+                         self.model.loss, self.model.seq_loss, self.model.total_loss],
+                        feed_dict=feed_dict)
             else:
                 _, logits, final_state, utterances, loss, seq_loss, gn = sess.run(
                         [self.train_op,
@@ -139,11 +141,14 @@ class Learner(object):
 
             if self.verbose:
                 preds = get_prediction(logits)
-                preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
+                if self.data.copy:
+                    preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
                 self._print_batch(batch, preds, seq_loss)
 
-            logstats.update_summary_map(summary_map, {'loss': loss})
-            if not test:
+            if test:
+                logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
+            else:
+                logstats.update_summary_map(summary_map, {'loss': loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
@@ -154,10 +159,11 @@ class Learner(object):
         for batch in dialogue_batch['batch_seq']:
             feed_dict = self._get_feed_dict(batch, encoder_init_state)
             if test:
-                logits, final_state, loss, seq_loss = sess.run([
+                logits, final_state, loss, seq_loss, total_loss = sess.run([
                     self.model.decoder.output_dict['logits'],
                     self.model.decoder.output_dict['final_state'],
-                    self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
+                    self.model.loss, self.model.seq_loss, self.model.total_loss],
+                    feed_dict=feed_dict)
             else:
                 _, logits, final_state, loss, seq_loss, gn = sess.run([
                     self.train_op,
@@ -170,8 +176,10 @@ class Learner(object):
                 preds = get_prediction(logits)
                 self._print_batch(batch, preds, seq_loss)
 
-            logstats.update_summary_map(summary_map, {'loss': loss})
-            if not test:
+            if test:
+                logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
+            else:
+                logstats.update_summary_map(summary_map, {'loss': loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def learn(self, args, config, ckpt=None, split='train'):
