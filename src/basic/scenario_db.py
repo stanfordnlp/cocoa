@@ -1,5 +1,6 @@
 from kb import KB
 import numpy as np
+from schema import Attribute
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
@@ -21,7 +22,7 @@ class Scenario(object):
         alphas = []
         attributes = schema.attributes  # compatibility with older data format
         if 'attributes' in raw.keys():
-            attributes = raw['attributes']
+            attributes = [Attribute.from_json(raw_attr) for raw_attr in raw['attributes']]
         if 'alphas' in raw.keys():
             alphas = raw['alphas']
         return Scenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']], alphas)

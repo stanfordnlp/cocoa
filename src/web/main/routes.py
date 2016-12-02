@@ -209,11 +209,10 @@ def index():
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         chat_info = backend.get_chat_info(userid())
-        schema = backend.get_schema()
         return render_template('chat.html',
                                uid=userid(),
                                kb=chat_info.kb.to_dict(),
-                               attributes=[attr.name for attr in schema.attributes],
+                               attributes=[attr.name for attr in chat_info.attributes],
                                num_seconds=chat_info.num_seconds,
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
