@@ -32,7 +32,7 @@ test-real:
 	PYTHONPATH=. python src/main.py --schema-path data/friends-schema-large.json --scenarios-path output/friends-scenarios-large.json output/friends-scenarios-large-peaky.json output/friends-scenarios-large-peaky-04-002.json --test-examples-paths data/mutualfriends/test.json --init-from $(checkpoint) --print-every $(print) --model $(model) --gpu $(gpu) --batch-size $(batch_size) --domain MutualFriends --test --best --stats-file $(stats_file).test --verbose #--test-max-examples 10
 
 test:
-	PYTHONPATH=. python src/main.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --init-from $(checkpoint) --rnn-type lstm --test-examples-paths output/friends-test-examples.json --test --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --num-items $(num_items) --batch-size $(batch_size) --best --stats-file $(stats_file).test --test-max-examples 100 --entity-encoding-form type --entity-decoding-form type --verbose
+	PYTHONPATH=. python src/main.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --init-from $(checkpoint) --rnn-type lstm --test-examples-paths output/friends-test-examples.json --test --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --num-items $(num_items) --batch-size $(batch_size) --best --stats-file $(stats_file).test --test-max-examples 100 --entity-encoding-form type --entity-decoding-form type
 
 bot-chat:
 	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --test-examples-paths output/friends-bot-chat-$(model)-$(exp).json --train-max-examples 0 --test-max-examples 1 --agents neural neural --model-path $(checkpoint) --scenario-offset 1000 

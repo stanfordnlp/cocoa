@@ -293,17 +293,19 @@ class GraphDecoder(GraphEncoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
+            # TODO
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :], (self.copied_nodes[0][:, 0], self.copied_nodes[1][:, 0]))
             #return cell.init_state(self.init_rnn_state, self.init_output, self.context)
         else:
             return cell.zero_state(self.batch_size, self.context)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, checklists):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, checklists, copied_nodes):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
                     self.context: context,
-                    self.checklists: checklists}
+                    self.checklists: checklists,
+                    self.copied_nodes: copied_nodes,}
                 )
         return init_state
 
@@ -589,13 +591,15 @@ class BasicEncoderDecoder(object):
                 }
         if graphs:
             checklists = graphs.get_zero_checklists(1)
+            copied_nodes = graphs.get_zero_copied_nodes(1)
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
-                    checklists)
+                    checklists,
+                    copied_nodes)
             decoder_args['checklists'] = checklists
-            decoder_args['copied_nodes'] = graphs.get_zero_copied_nodes(1)
+            decoder_args['copied_nodes'] = copied_nodes
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
