@@ -9,6 +9,7 @@ from fuzzywuzzy import fuzz
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from stop_words import get_stop_words
 
 
 class EntityRanker(object):
@@ -24,9 +25,12 @@ class EntityRanker(object):
         :return:
         """
         self._get_uuid_to_kbs(scenarios)
+        # Rudimentary python stop word list
+        self.stop_words = get_stop_words("en")
         self._train_tfidf_vectorizer(transcripts_infile)
         inputs, labels = self._process_train_data(train_data)
         self.classifier = self._train(inputs, labels)
+
 
 
     def _train_tfidf_vectorizer(self, data_infile):
@@ -120,11 +124,12 @@ class EntityRanker(object):
             features["SUBSTRING"] = 1.0
 
         ed = editdistance.eval(span, entity)
-        # Bin edit distance?
-        if ed < 3:
-            features["EDIT_DISTANCE"] = 1
-        else:
-            features["EDIT_DISTANCE"] = 2
+        if ed == 1:
+            features["EDIT_DISTANCE=1"] = 1.0
+        elif ed == 2:
+            features["EDIT_DISTANCE=2"] = 1.0
+        elif ed > 2:
+            features["EDIT_DISTANCE>2"] = 1.0
 
         all_in = True
         for s in span_tokens:
@@ -141,17 +146,19 @@ class EntityRanker(object):
         for idx, st in enumerate(span_tokens):
             features["SPAN_TFIDF_{0}".format(str(idx))] = self.token_to_tfidf[span]
 
-
         # KB context - upweight if entity is in current agent's KB
         if kb_entities is not None and entity in kb_entities:
             features["IN_KB"] = 1.0
 
         # TODO: Use type features?
 
+        # Feature if both span and entity are stop word
+        if span in self.stop_words and entity in self.stop_words:
+            features["SPAN_AND_ENTITY_STOP"] = 1.0
+
 
         return features
 
-    # TODO: also consider original span as candidate
 
     def _train_featurize(self, inputs):
         """
