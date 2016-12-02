@@ -4,6 +4,7 @@ import editdistance
 import json
 import numpy as np
 import re
+import sklearn
 
 from fuzzywuzzy import fuzz
 from sklearn.feature_extraction import DictVectorizer
@@ -26,7 +27,7 @@ class EntityRanker(object):
         """
         self._get_uuid_to_kbs(scenarios)
         # Rudimentary python stop word list
-        self.stop_words = get_stop_words("en")
+        self.stop_words = set(get_stop_words("en"))
         self._train_tfidf_vectorizer(transcripts_infile)
         inputs, labels = self._process_train_data(train_data)
         self.classifier = self._train(inputs, labels)
@@ -95,13 +96,6 @@ class EntityRanker(object):
         :param uuid: uuid of scenario to with available KBs
         :return:
         """
-        # Features:
-        #   1) Exact match indicator
-        #   2) Whether span substring of entity
-        #   3) Whether entity contained in KB (need context per training example)
-        #   4) Edit distance
-        #   5) Whether span is token of entity
-
         entity_clean = re.sub("-", " ", entity)
         entity_clean_tokens = entity_clean.split()
         span_tokens = span.split()
@@ -140,11 +134,20 @@ class EntityRanker(object):
             features["SUBSET_TOKENS"] = 1.0
 
         # Edit distance of largest common substring (scaled)
-        features["PARTIAL_RATIO"] = fuzz.partial_ratio(span, entity) / 100.
+        partial = fuzz.partial_ratio(span, entity)
+        if partial >= 90:
+            features["PARTIAL_RATIO_>90"] = 1.0
+        elif partial >= 50:
+            features["PARTIAL_RATIO_>50"] = 1.0
+        else:
+            features["PARTIAL_RATIO_<50"] = 1.0
 
         # TF-IDF scores
-        for idx, st in enumerate(span_tokens):
-            features["SPAN_TFIDF_{0}".format(str(idx))] = self.token_to_tfidf[span]
+        span_tfidf = self.token_to_tfidf[span]
+        entity_tfidf = self.token_to_tfidf[entity]
+        # TODO: Good way to incorporate TF-IDF scores?
+        #features["TFIDF_DIFF"] = -1*entity_tfidf + span_tfidf
+
 
         # KB context - upweight if entity is in current agent's KB
         if kb_entities is not None and entity in kb_entities:
@@ -201,7 +204,6 @@ class EntityRanker(object):
                 inputs.append({"span": span, "e1": entity1, "e2": entity2, "agent": int(agent), "uuid": uuid})
                 labels.append(float(label))
 
-        # TODO: Split into train/test data
 
         return inputs, labels
 

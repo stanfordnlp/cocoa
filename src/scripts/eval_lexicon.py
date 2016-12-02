@@ -106,7 +106,7 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
     fout = open("recall_measure.txt", "w")
     for ex in examples:
         scenario_uuid = ex["scenario_uuid"]
-        kb_dicts = uuid_to_scenarios[scenario_uuid]
+        # kb_dicts = uuid_to_scenarios[scenario_uuid]
         # agent0_kb = set([e[1] for e in kb_dicts[0]])
         # agent1_kb = set([e[1] for e in kb_dicts[1]])
 
@@ -174,7 +174,7 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
 if __name__ == "__main__":
     # Regex to remove all punctuation in utterances
     # TODO: Use easier regex
-    re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
+    re_pattern = r"[\w*\']+|[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
     schema = Schema(args.schema)
 
     start = time.time()
