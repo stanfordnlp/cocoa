@@ -135,6 +135,7 @@ class AttnRNNCell(object):
             context, context_mask = context
             checklist = tf.expand_dims(checklist, 2)  # (batch_size, context_len, 1)
             prev_node_embeds = self.get_node_embedding(context, copied_nodes)
+            #prev_node_embeds = tf.reduce_sum(context * checklist, 1)
             with tf.variable_scope("ScoreAttention"):
                 attn_scores = self.score_context(h, context, checklist, prev_node_embeds)  # (batch_size, context_len)
             #with tf.variable_scope("ScoreChecklist"):

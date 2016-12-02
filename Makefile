@@ -17,7 +17,8 @@ scenario:
 	PYTHONPATH=. python src/scripts/generate_scenarios.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --num-items $(num_items) --num-scenarios 1500 --random-seed $(seed)
 
 dataset:
-	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/$(data)-train-examples.json --test-examples-paths output/$(data)-test-examples.json --train-max-examples 1000 --test-max-examples 500 --agents heuristic heuristic --remove-fail --joint-facts
+	#PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/$(data)-train-examples.json --test-examples-paths output/$(data)-test-examples.json --train-max-examples 1000 --test-max-examples 500 --agents heuristic heuristic --remove-fail --joint-facts
+	PYTHONPATH=. python src/scripts/generate_dataset.py --schema-path data/friends-schema-large.json --scenarios-path /scr/hehe/friends-scenarios-randomized.json --train-examples-paths output/$(data)-train-examples.json --test-examples-paths output/$(data)-test-examples.json --train-max-examples 1000 --test-max-examples 500 --agents heuristic heuristic --remove-fail --joint-facts
 
 real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths data/mutualfriends/transcripts-1.json data/mutualfriends/transcripts-2.json --train-frac 0.7 --test-frac 0.3 --dev-frac 0 --output-path data/mutualfriends/
