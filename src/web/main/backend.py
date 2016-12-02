@@ -382,7 +382,7 @@ class BackendConnection(object):
                                          u.status_timestamp) - current_timestamp_in_seconds()
                 scenario = self.scenario_db.get(u.scenario_id)
                 return UserChatState(u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index),
-                                     num_seconds_remaining)
+                                     scenario.attributes, num_seconds_remaining)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
