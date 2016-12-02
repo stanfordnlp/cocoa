@@ -20,10 +20,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--schema-path", help="Path to schema file governs scenarios",
                     type=str)
 parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)
+parser.add_argument("--scenarios-json", help="Json of scenarios", type=str)
+
 args = parser.parse_args()
 
 
-fout = open("entity_ranker_data.txt", "w")
+fout = open("../../output/entity_ranker_data.txt", "w")
 
 re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
 schema = Schema(args.schema_path)
@@ -36,9 +38,11 @@ with open(args.annotated_examples_path, "r") as f:
 # TODO: May want to consider adding more examples by finding candidates over all spans of utterances
 idx = 0
 for ex in annotated_examples:
+    uuid = ex["scenario_uuid"]
     for e in ex["events"]:
         msg_data = e["data"]
         action = e["action"]
+        agent = e["agent"]
         if action == "message":
             for a in e["entityAnnotation"]:
                 span = re.sub("-|\.", " ", a["span"].lower()).strip()
@@ -51,9 +55,10 @@ for ex in annotated_examples:
                     if isinstance(l, list):
                         for candidate_entity in l:
                             if candidate_entity[0] != gold_entity:
-                                fout.write(str(idx) + "\t" + span + "\t" + gold_entity + "\t" + candidate_entity[0] + "\t" + "1" + "\n")
+                                # Record scenario UUID + agent idx
+                                fout.write(str(idx) + "\t" + uuid + "\t" + str(agent) + "\t" + span + "\t" + gold_entity + "\t" + candidate_entity[0] + "\t" + "1" + "\n")
                                 idx += 1
-                                fout.write(str(idx) + "\t" + span + "\t" + candidate_entity[0] + "\t" + gold_entity + "\t" + "0" + "\n")
+                                fout.write(str(idx) + "\t" + uuid + "\t" + str(agent) + "\t" + span + "\t" + candidate_entity[0] + "\t" + gold_entity + "\t" + "0" + "\n")
                                 idx += 1
 
 

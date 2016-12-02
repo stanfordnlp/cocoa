@@ -8,6 +8,7 @@ import time
 
 # Hack to be able to import modules one directory up
 sys.path.append("..")
+from basic.entity_ranker import EntityRanker
 from basic.lexicon import Lexicon
 from basic.schema import Schema
 
@@ -16,11 +17,13 @@ Runs lexicon on transcripts of MTurk conversations and entity annotated dataset
 """
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--schema-path", help="Path to schema file governs scenarios",
+parser.add_argument("--schema", help="Path to schema file governs scenarios",
                     type=str)
-parser.add_argument("--transcripts-path", help="Json of all examples", type=str)
+parser.add_argument("--transcripts", help="Json of all examples", type=str)
 parser.add_argument("--scenarios-json", help="Json of scenario information", type=str)
 parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)
+parser.add_argument("--ranker-data", type=str, help="path to train data")
+
 args = parser.parse_args()
 
 
@@ -125,14 +128,14 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, kb_entities=kb_entities)
+                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
 
                 # Calculate recall for lexicon
 
                 for span, entity in gold_annotation:
                     raw_tokens = re.findall(re_pattern, span.lower())
                     lower_raw_tokens = [r.lower() for r in raw_tokens]
-                    linked, _ = lexicon.link_entity(lower_raw_tokens, return_entities=True, kb_entities=kb_entities)
+                    linked, _ = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
                     found = False
                     for l in linked:
                         if isinstance(l, list):
@@ -171,11 +174,13 @@ if __name__ == "__main__":
     # Regex to remove all punctuation in utterances
     # TODO: Use easier regex
     re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
-    schema = Schema(args.schema_path)
+    schema = Schema(args.schema)
 
     start = time.time()
     with open(args.scenarios_json, "r") as f:
         scenarios_info = json.load(f)
+
+    ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
 
     # Map from uuid to KBs
     uuid_to_kbs = collections.defaultdict(dict)
@@ -195,7 +200,7 @@ if __name__ == "__main__":
 
 
     output_dir = os.path.dirname(os.path.dirname(os.getcwd())) + "/output"
-    lexicon = Lexicon(schema, learned_lex=True)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
 
     eval_lexicon(lexicon, examples, re_pattern, uuid_to_kbs)
     print "Total time: ", time.time() - start

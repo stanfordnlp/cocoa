@@ -5,7 +5,9 @@ import json
 import numpy as np
 import re
 
+from fuzzywuzzy import fuzz
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
 
@@ -13,16 +15,48 @@ class EntityRanker(object):
     """
     Learned ranker for ranking candidates of a span of text for the lexicon
     """
-    def __init__(self, entity_annotations, scenarios, train_data):
+    def __init__(self, entity_annotations, scenarios, train_data, transcripts_infile):
         """
         :param entity_annotations:  Path to JSON of entity annotations
         :param scenarios: Path to scenarios file for generating training instance and feature vectorizing
         :param train_data: Path to file with train data
+        :param transcripts_infile:
         :return:
         """
         self._get_uuid_to_kbs(scenarios)
+        self._train_tfidf_vectorizer(transcripts_infile)
         inputs, labels = self._process_train_data(train_data)
         self.classifier = self._train(inputs, labels)
+
+
+    def _train_tfidf_vectorizer(self, data_infile):
+        """
+        Train a tfidf vectorizer and generate token to tfidf score using provided
+        infile
+        :param data_infile:
+        :return:
+        """
+        tfidf_vectorizer = TfidfVectorizer()
+        transcripts_text = []
+        with open(data_infile, "r") as f:
+            transcripts = json.load(f)
+
+        for t in transcripts:
+            for e in t["events"]:
+                if e["action"] == "message":
+                    if e["data"] is not None:
+                        transcripts_text.append(e["data"])
+        # Fit tfidf vectorizer
+        tfidf_vectorizer.fit(transcripts_text)
+        token_to_tfidf = collections.defaultdict(float)
+
+        # Mapping from token to tf-idf score
+        vocab = tfidf_vectorizer.vocabulary_
+        weights = tfidf_vectorizer.idf_
+        for token, idx in vocab.iteritems():
+            token_to_tfidf[token] = weights[idx]
+
+        self.token_to_tfidf = token_to_tfidf
 
 
     def _get_uuid_to_kbs(self, scenarios):
@@ -47,12 +81,14 @@ class EntityRanker(object):
 
         self.uuid_to_kbs = uuid_to_kbs
 
-    # TODO: Include KB context
-    def _feature_func(self, span, entity):
+
+    def _feature_func(self, span, entity, agent, uuid):
         """
         Get a series of features between a span of text and a candidate entity
         :param span:
         :param entity:
+        :param agent: Id of agent so we know which set of entities to use from scenario
+        :param uuid: uuid of scenario to with available KBs
         :return:
         """
         # Features:
@@ -66,6 +102,16 @@ class EntityRanker(object):
         entity_clean_tokens = entity_clean.split()
         span_tokens = span.split()
 
+        try:
+            # Set of entities for given agent
+            kb_entities = self.uuid_to_kbs[uuid][agent]
+            # Only consider entity surface form and not type
+            kb_entities = set([e[1] for e in kb_entities])
+        except:
+            kb_entities = None
+            print "No entities found for scenario: {0} and agent: {1}".format(uuid, str(agent))
+
+
         features = collections.defaultdict(float)
         if span == entity:
             features["EXACT_MATCH"] = 1.0
@@ -74,15 +120,34 @@ class EntityRanker(object):
             features["SUBSTRING"] = 1.0
 
         ed = editdistance.eval(span, entity)
-        features["EDIT_DISTANCE"] = float(ed)
+        # Bin edit distance?
+        if ed < 3:
+            features["EDIT_DISTANCE"] = 1
+        else:
+            features["EDIT_DISTANCE"] = 2
 
         all_in = True
         for s in span_tokens:
             if s not in entity_clean_tokens:
                 all_in = False
-
+        # All tokens of span our a token of the entity
         if all_in:
             features["SUBSET_TOKENS"] = 1.0
+
+        # Edit distance of largest common substring (scaled)
+        features["PARTIAL_RATIO"] = fuzz.partial_ratio(span, entity) / 100.
+
+        # TF-IDF scores
+        for idx, st in enumerate(span_tokens):
+            features["SPAN_TFIDF_{0}".format(str(idx))] = self.token_to_tfidf[span]
+
+
+        # KB context - upweight if entity is in current agent's KB
+        if kb_entities is not None and entity in kb_entities:
+            features["IN_KB"] = 1.0
+
+        # TODO: Use type features?
+
 
         return features
 
@@ -100,8 +165,10 @@ class EntityRanker(object):
             span = input["span"]
             e1 = input["e1"]
             e2 = input["e2"]
-            features_e1 = self._feature_func(span, e1)
-            features_e2 = self._feature_func(span, e2)
+            agent = input["agent"]
+            uuid = input["uuid"]
+            features_e1 = self._feature_func(span, e1, agent, uuid)
+            features_e2 = self._feature_func(span, e2, agent, uuid)
 
             # Calculate diff between features, represented as dict
             # (Also may want to consider feature concatenation repr.)
@@ -123,8 +190,8 @@ class EntityRanker(object):
         inputs, labels = [], []
         with open(train_data, "r") as f:
             for line in f:
-                _, span, entity1, entity2, label = line.split("\t")
-                inputs.append({"span": span, "e1": entity1, "e2": entity2})
+                _, uuid, agent, span, entity1, entity2, label = line.split("\t")
+                inputs.append({"span": span, "e1": entity1, "e2": entity2, "agent": int(agent), "uuid": uuid})
                 labels.append(float(label))
 
         # TODO: Split into train/test data
@@ -152,29 +219,35 @@ class EntityRanker(object):
         return classifier
 
 
-    def score(self, span, entity):
+    def score(self, span, entity, agent, uuid):
         """
         Score a span and entity once model is trained
         :param span:
         :param entity:
+        :param agent:
+        :param uuid:
         :return:
         """
-        features = self._feature_func(span, entity)
+        features = self._feature_func(span, entity, agent, uuid)
         features_transformed = self.vectorizer.transform(features)
 
+        #print "Score: ", self.classifier.predict(features_transformed)
         return self.classifier.predict_proba(features_transformed)
 
 
 if __name__ == "__main__":
+    # TODO: Handle keeping terms like "m.d." intact rather than removing punctuation
     re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--ranker-data", type=str, help="path to train data")
     parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)
     parser.add_argument("--scenarios-json", help="Json of scenario information", type=str)
+    parser.add_argument("--transcripts", help="transcripts of data collected")
 
     args = parser.parse_args()
 
-    ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data)
 
-    print ranker.score("penn", "university of pennsylvania")
+    ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
+
+    print ranker.score("bible", "bible", 1, "S_cxqu6PM56ACAiDLi").squeeze()

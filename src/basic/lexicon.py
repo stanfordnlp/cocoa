@@ -2,6 +2,7 @@ import editdistance
 import re
 
 from collections import defaultdict
+from entity_ranker import EntityRanker
 from fuzzywuzzy import fuzz
 
 ### Helper functions
@@ -140,12 +141,16 @@ class Lexicon(BaseLexicon):
     """
     Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
-    def __init__(self, schema, learned_lex=False):
+    def __init__(self, schema, learned_lex=False, entity_ranker=None):
         super(Lexicon, self).__init__(schema, learned_lex)
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
                                    "start", "go", "school", "do", "know", "no", "work"])
+        # Ensure an entity ranker is provided for scoring (span, entity) pairs
+        if learned_lex:
+            assert entity_ranker is not None
+            self.entity_ranker = entity_ranker
 
 
     def compute_synonyms(self):
@@ -189,62 +194,75 @@ class Lexicon(BaseLexicon):
                 self.lexicon[synonym].append((entity, type))
 
 
-    def score_and_match(self, span, candidates, kb_entities):
+    def score_and_match(self, span, candidates, agent, uuid, kb_entities):
         """
         Score the given span with the list of candidate entities and returns best match
         :param span:
         :param candidates:
         :param kb_entities: Set of entities mentioned in both agents KBs
+        :param agent: Agent id whose span is being entity linked
+        :param uuid: uuid of scenario containing KB for given agent
         :return:
         """
+        # entity_scores = []
+        # for c in candidates:
+        #     # Clean up punctuation
+        #     c_s = re.sub("-", " ", c[0])
+        #     span_tokens = span.split()
+        #     entity_tokens = c_s.split()
+        #
+        #     if kb_entities is None:
+        #         continue
+        #     ed = editdistance.eval(span, c[0])
+        #     if c[0] not in kb_entities:
+        #         # Prioritize exact match
+        #         if c[0] == span:
+        #             score = 0
+        #         else:
+        #             score = float("inf")
+        #     elif c[0] in kb_entities and span in entity_tokens:
+        #         score = 0
+        #     # Prioritize multi phrase spans contained in entity
+        #     elif len(span_tokens) > 1 and span in c_s:
+        #         score = 1
+        #     else:
+        #         score = ed
+        #
+        #     entity_scores.append(c + (score,))
+
+
+
+        # If exact match or substring match with an entity
+        # if entity_scores[0][2] <= 1:
+        #     if span not in self.common_phrases:
+        #         best_match = entity_scores[0][:2]
+        #     else:
+        #         best_match = (span, None)
+        # else:
+        #     best_match = (span, None)
+
+        # Use learned ranker
         entity_scores = []
         for c in candidates:
-            # Clean up punctuation
-            c_s = re.sub("-", " ", c[0])
-            span_tokens = span.split()
-            entity_tokens = c_s.split()
+            score = self.entity_ranker.score(span, c[0], agent, uuid).squeeze()
+            entity_scores.append(c + (score[0] - score[1],))
 
-            # all_tokens_in_entity = True
-            # for s in span_tokens:
-            #     if s not in entity_tokens:
-            #         all_tokens_in_entity = False
-
-
-            if kb_entities is None:
-                continue
-            ed = editdistance.eval(span, c[0])
-            if c[0] not in kb_entities:
-                # Prioritize exact match
-                if c[0] == span:
-                    score = 0
-                else:
-                    score = float("inf")
-            elif c[0] in kb_entities and span in entity_tokens:
-                score = 0
-            # Prioritize multi phrase spans contained in entity
-            elif len(span_tokens) > 1 and span in c_s:
-                score = 1
-            else:
-                score = ed
-
-            entity_scores.append(c + (score,))
+        # Where does original span fit into all this? If smaller than some threshold
+        span_score = self.entity_ranker.score(span, span, agent, uuid).squeeze()
 
         # Sort entity scores
         entity_scores = sorted(entity_scores, key=lambda x: x[2])
+        best_entity = entity_scores[0][:3]
 
-        # If exact match or substring match with an entity
-        if entity_scores[0][2] <= 1:
-            if span not in self.common_phrases:
-                best_match = entity_scores[0][:2]
-            else:
-                best_match = (span, None)
-        else:
+        if (span_score[0] - span_score[1]) < best_entity[2]:
             best_match = (span, None)
+        else:
+            best_match = best_entity[:2]
 
         return best_match
 
 
-    def link_entity(self, raw_tokens, return_entities=False, kb_entities=None):
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb_entities=None):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -279,7 +297,7 @@ class Lexicon(BaseLexicon):
                 if len(candidate_entities) > 0:
                     if self.learned_lex:
                         entity = None
-                        best_match = self.score_and_match(phrase, candidate_entities, kb_entities)
+                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
                         # If best_match is entity from KB add to list
                         if best_match[1] is not None:
                             entities.append((phrase, best_match))
@@ -307,13 +325,13 @@ class Lexicon(BaseLexicon):
 
     def test(self):
         sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
-        sentence3 = "afro studies"#"from Cal State Chico"
+        sentence3 = "cal"#"from Cal State Chico"
         sentence3 = [t.lower() for t in sentence3.split()]
 
         sentence2 = ["zach"]
-        #print self.link_entity(sentence3, True)
+        print self.link_entity(sentence3, True, 1, "S_cxqu6PM56ACAiDLi")
         #print self.link_entity(sentence2, True)
-        print get_prefixes("biology")
+        #print get_prefixes("biology")
 
 
 if __name__ == "__main__":
@@ -323,18 +341,23 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("arguments for basic testing lexicon")
     parser.add_argument("--schema", type=str, help="path to schema to use")
+    parser.add_argument("--ranker-data", type=str, help="path to train data")
+    parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)
+    parser.add_argument("--scenarios-json", help="Json of scenario information", type=str)
+    parser.add_argument("--transcripts", help="Json file of all transcripts collected")
+
     args = parser.parse_args()
 
     path = args.schema
     start_build = time.time()
-    # schema = Schema(path)
-    # lex = Lexicon(schema)
-    # print "Building complete: ", time.time() - start_build
-    # start_test = time.time()
-    # lex.test()
-    # print "Testing Complete: ", time.time() - start_test
 
-    print get_prefixes("biology")
+    ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
+    schema = Schema(path)
+    lex = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
+    print "Building complete: ", time.time() - start_build
+    start_test = time.time()
+    lex.test()
+    print "Testing Complete: ", time.time() - start_test
 
 
 
