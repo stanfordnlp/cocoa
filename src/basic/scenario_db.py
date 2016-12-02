@@ -37,8 +37,13 @@ class ScenarioDB(object):
     def get(self, uuid):
         return self.scenarios_map[uuid]
 
-    def select_random(self):
-        uuid = np.random.choice(self.scenarios_map.keys())
+    def select_random(self, exclude_set=None):
+        scenarios = set(self.scenarios_map.keys())
+        if exclude_set:
+            scenarios = scenarios - exclude_set
+            if len(scenarios) == 0:
+                scenarios = set(self.scenarios_map.keys())
+        uuid = np.random.choice(scenarios)
         return self.scenarios_map[uuid]
 
     @staticmethod
