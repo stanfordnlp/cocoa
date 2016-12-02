@@ -56,7 +56,7 @@ class ScenarioDB(object):
             scenarios = scenarios - exclude_set
             if len(scenarios) == 0:
                 scenarios = set(self.scenarios_map.keys())
-        uuid = np.random.choice(scenarios)
+        uuid = np.random.choice(list(scenarios))
         return self.scenarios_map[uuid]
 
     @staticmethod
