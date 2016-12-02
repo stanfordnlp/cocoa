@@ -14,6 +14,7 @@ from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
+from src.lib import logstats
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
@@ -21,10 +22,12 @@ parser.add_argument('--agents', help='What kind of agent to use {heuristic}', na
 parser.add_argument('--model-path', help='Path to model (used for neural agents)')
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
+parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 add_heuristic_system_arguments(parser)
 args = parser.parse_args()
+logstats.init(args.stats_file)
 if args.random_seed:
     random.seed(args.random_seed)
 
@@ -48,6 +51,7 @@ if not args.agents:
 agents = [get_system(name) for name in args.agents]
 num_examples = args.scenario_offset
 
+summary_map = {}
 def generate_examples(description, examples_path, max_examples, remove_fail):
     global num_examples
     examples = []
@@ -62,9 +66,18 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
             continue
         examples.append(ex)
         num_examples += 1
+        logstats.update_summary_map(summary_map, {'length': len(ex.events)})
     with open(examples_path, 'w') as out:
         print >>out, json.dumps([e.to_dict() for e in examples])
     print 'number of failed dialogues:', num_failed
+
+    logstats.add('length', summary_map['length']['mean'])
+    # TODO: only work for neural agents trained on simulated data
+    if args.agents[0] == args.agents[1] and hasattr(agents[0], 'env'):
+        results0 = agents[0].env.evaluator.report()
+        results1 = agents[1].env.evaluator.report()
+        results = {k: (results0[k] + results1[k]) / 2. for k in results0}
+        logstats.add('bot_chat', results)
 
 if args.train_max_examples:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)

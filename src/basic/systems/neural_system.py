@@ -9,6 +9,8 @@ from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
 from collections import namedtuple
+from src.model.evaluate import FactEvaluator
+from src.lib import logstats
 
 class NeuralSystem(System):
     """
@@ -32,6 +34,8 @@ class NeuralSystem(System):
         vocab = mappings['vocab']
 
         # TODO: check that schema and domain are the same as the loaded model
+        # TODO: different models have the same key now
+        logstats.add_args('model_args', args)
         model = build_model(schema, mappings, args)
 
         # Tensorflow config
@@ -62,8 +66,8 @@ class NeuralSystem(System):
         preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20)
+        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator())
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:

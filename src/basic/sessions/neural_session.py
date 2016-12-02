@@ -131,6 +131,7 @@ class RNNNeuralSession(NeuralSession):
 
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])
         self._update_states(sess, decoder_output_dict, entity_tokens)
+        self.env.evaluator.eval(self.kb, entity_tokens[0])
 
         # Text message
         return [x if not is_entity(x) else x[0] for x in entity_tokens[0]]
