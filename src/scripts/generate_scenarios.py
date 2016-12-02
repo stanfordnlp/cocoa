@@ -4,6 +4,7 @@ import argparse
 import random
 import numpy as np
 from itertools import izip
+import sys
 from src.basic.util import random_multinomial, generate_uuid, write_json
 from src.basic.schema import Schema
 from src.basic.scenario_db import Scenario, ScenarioDB, add_scenario_arguments
@@ -108,9 +109,9 @@ def generate_scenario(schema):
             agent_item_hashes[agent][item_hash] = len(agent_items[agent])
             agent_items[agent].append(item)
 
-
     if not match:
-        raise Exception('Failed to match')
+        print >> sys.stderr,  'Failed to match'
+        return None
 
     # Move the matching item to the top
     def swap(l, i, j):
@@ -148,7 +149,13 @@ def generate_scenario(schema):
 
 # Generate scenarios
 schema = Schema(args.schema_path, args.domain)
-scenario_db = ScenarioDB([generate_scenario(schema) for i in range(args.num_scenarios)])
+scenario_list = []
+while len(scenario_list) < args.num_scenarios:
+    s = generate_scenario(schema)
+    if s is not None:
+        scenario_list.append(s)
+
+scenario_db = ScenarioDB(scenario_list)
 write_json(scenario_db.to_dict(), args.scenarios_path[0])
 
 # Output a sample of what we've generated
