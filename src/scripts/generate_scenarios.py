@@ -14,9 +14,23 @@ parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=1)
 parser.add_argument('--num-items', help='Number of items to generate per scenario', type=int, default=10)
 parser.add_argument('--domain', help='{MutualFriends, Matchmaking}', default=None)
-parser.add_argument('--random-attributes', action='store_true',
-                    help='If specified, uses a random number and subset of attributes for each scenario')
+
+
+def add_randomization_arguments(parser):
+    parser.add_argument('--random-attributes', action='store_true',
+                        help='If specified, uses a random number, distribution, and subset of attributes for each '
+                             'scenario')
+    parser.add_argument('--random-items', action='store_true',
+                        help='If specified, selects a random number of items in the range [5,10] for each scenario.')
+    parser.add_argument('--min-items', type=int, default=5,
+                        help='Minimum number of items per scenario')
+    parser.add_argument('--max-items', type=int, default=10,
+                        help='Minimum number of items per scenario')
+    parser.add_argument('--alphas', nargs='*', type=float, default=[0.3, 0.6, 0.9],
+                        help='Alpha values to select from for each attribute.')
+
 add_scenario_arguments(parser)
+add_randomization_arguments(parser)
 args = parser.parse_args()
 if args.random_seed:
     random.seed(args.random_seed)
@@ -27,17 +41,24 @@ def get_multinomial(alpha, n):
     return np.random.dirichlet([alpha] * n)
 
 
+def select_alphas(attributes):
+    alphas = np.random.choice(args.alphas, size=len(attributes))
+    return dict(zip(attributes, alphas))
+
+
 def generate_scenario(schema):
     num_items = args.num_items
+    if args.random_items:
+        num_items = np.random.choice(xrange(args.min_items, args.max_items+1))
     alphas = schema.alphas
     random_attributes = args.random_attributes
     scenario_attributes = schema.attributes
     if random_attributes:
-        # sample random number and set of attributes
+        # sample random number and set of attributes, and choose alphas for each attribute
         num_attributes = min(np.random.choice(xrange(3, 5)), len(schema.attributes))
         scenario_attributes = np.random.choice(schema.attributes, num_attributes, replace=False)
         scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
-        alphas = dict((attr, schema.alphas[attr]) for attr in scenario_attributes)
+        alphas = select_alphas(scenario_attributes)
 
     # Generate the profile of the two agents
     agents = (0, 1)
@@ -122,7 +143,7 @@ def generate_scenario(schema):
 
     # Create the scenario
     kbs = [KB(scenario_attributes, items) for items in agent_items]
-    scenario = Scenario(generate_uuid('S'), scenario_attributes, kbs)
+    scenario = Scenario(generate_uuid('S'), scenario_attributes, kbs, [alphas[attr] for attr in scenario_attributes])
     return scenario
 
 # Generate scenarios
@@ -132,7 +153,12 @@ write_json(scenario_db.to_dict(), args.scenarios_path[0])
 
 # Output a sample of what we've generated
 for i in range(min(100, len(scenario_db.scenarios_list))):
-    print ''
+    print '---------------------------------------------------------------------------------------------'
+    print '---------------------------------------------------------------------------------------------'
+    scenario = scenario_db.scenarios_list[i]
+    print "Scenario id: %s" % scenario.uuid
+    print "Alphas: [%s]" % ", ".join(["%2.1f" % alpha for alpha in scenario.alphas])
     for agent in (0, 1):
-        kb = scenario_db.scenarios_list[i].kbs[agent]
+
+        kb = scenario.kbs[agent]
         kb.dump()

@@ -54,7 +54,7 @@ class Schema(object):
 
         # Dirichlet alphas for scenario generation
         if domain == 'Matchmaking':
-            self.alphas = [1.] * len(self.attributes)
+            alphas = [1.] * len(self.attributes)
         else:
             alphas = list(np.linspace(1, 0.1, len(self.attributes)))
         self.alphas = dict((attr, alpha) for (attr, alpha) in izip(self.attributes, alphas))
