@@ -168,7 +168,7 @@ class GraphNeuralSession(RNNNeuralSession):
 
     def _decoder_init_state(self, sess):
         self.checklists = self.graph.get_zero_checklists(1)
-        copied_nodes = graphs.get_zero_copied_nodes(1)
+        copied_nodes = self.graph.get_zero_copied_nodes(1)
         init_state = self.model.decoder.compute_init_state(sess,
                 self.encoder_state,
                 self.encoder_output_dict['final_output'],
