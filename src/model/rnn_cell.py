@@ -51,32 +51,30 @@ class AttnRNNCell(object):
         else:
             raise ValueError('Unknown output model')
 
-    def init_state(self, rnn_state, rnn_output, context, checklist, copied_nodes):
-        attn, scores = self.compute_attention(rnn_output, context, checklist, copied_nodes)
+    def init_state(self, rnn_state, rnn_output, context, checklist):
+        attn, scores = self.compute_attention(rnn_output, context, checklist)
         return (rnn_state, attn, context)
 
     def zero_state(self, batch_size, init_context, dtype=tf.float32):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
         zero_checklist = tf.zeros_like(init_context)[:, :, 0]
-        zero_copied_nodes = (tf.zeros([batch_size, 1], dtype=tf.int32), tf.zeros([batch_size, 1], dtype=tf.bool))
-        zero_attn, scores = self.compute_attention(zero_h, init_context, zero_checklist, zero_copied_nodes)
+        zero_attn, scores = self.compute_attention(zero_h, init_context, zero_checklist)
         return (zero_rnn_state, zero_attn, init_context)
 
-    def score_context(self, h, context, checklist, copied_nodes):
+    def score_context(self, h, context, checklist):
         # Repeat h for each cell in context
         context_len = tf.shape(context)[1]
         h = tf.tile(tf.expand_dims(h, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
-        copied_nodes = tf.tile(tf.expand_dims(copied_nodes, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
 
         if self.scorer == 'linear':
-            return self._score_context_linear(h, context, checklist, copied_nodes)
+            return self._score_context_linear(h, context, checklist)
         elif self.scorer == 'bilinear':
             return self._score_context_bilinear(h, context)
         else:
             raise ValueError('Unknown scoring model')
 
-    def _score_context_linear(self, h, context, checklist, copied_nodes):
+    def _score_context_linear(self, h, context, checklist):
         '''
         Concatenate state h and context, combine them to a vector, then project to a scalar.
         h: (batch_size, context_len, rnn_size)
@@ -88,6 +86,7 @@ class AttnRNNCell(object):
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
                 attns = activation(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
+                #attns = activation(batch_linear([h, context], attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -124,7 +123,7 @@ class AttnRNNCell(object):
             new_output = activation(linear([output, attn], project_size, False))
         return new_output
 
-    def compute_attention(self, h, context, checklist, copied_nodes):
+    def compute_attention(self, h, context, checklist):
         '''
         context_mask filteres padded context cell, i.e., their attn_score is -inf.
         context: (batch_size, context_len, context_size)
@@ -134,10 +133,8 @@ class AttnRNNCell(object):
         with tf.variable_scope('Attention'):
             context, context_mask = context
             checklist = tf.expand_dims(checklist, 2)  # (batch_size, context_len, 1)
-            prev_node_embeds = self.get_node_embedding(context, copied_nodes)
-            #prev_node_embeds = tf.reduce_sum(context * checklist, 1)
             with tf.variable_scope("ScoreAttention"):
-                attn_scores = self.score_context(h, context, checklist, prev_node_embeds)  # (batch_size, context_len)
+                attn_scores = self.score_context(h, context, checklist)  # (batch_size, context_len)
             #with tf.variable_scope("ScoreChecklist"):
             #    cl_scores = self.score_context(h, checklist)  # (batch_size, context_len)
             #attns = tf.nn.softmax(attn_scores + cl_scores)
@@ -174,11 +171,11 @@ class AttnRNNCell(object):
             inputs, checklist, prev_nodes = inputs
             prev_node_embeds = self.get_node_embedding(prev_context[0], prev_nodes)
             # RNN step
-            #new_inputs = tf.concat(1, [inputs, prev_attn, prev_node_embeds])
-            new_inputs = tf.concat(1, [inputs, prev_attn])
+            new_inputs = tf.concat(1, [inputs, prev_attn, prev_node_embeds])
+            #new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
-            attn, attn_scores = self.compute_attention(output, prev_context, checklist, prev_nodes)
+            attn, attn_scores = self.compute_attention(output, prev_context, checklist)
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context)
