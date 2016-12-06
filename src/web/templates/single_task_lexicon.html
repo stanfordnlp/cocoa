@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="../static/single_task_lexicon.css">
+    <title>Single Task Lexicon</title>
+</head>
+
+<!-- JS for maneuvering text -->
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script>
+    spanToEntity = {};
+
+    pToSpans = {};
+    highlighted =  "";
+    currSpanText = [];
+
+    // Try with a simple thing
+    $(document).ready(function() {
+        $("#submit").click(function() {
+            $.ajax({
+                url: "/submit",
+                type: "POST",
+                data: JSON.stringify(pToSpans),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log("SHIT");
+                }
+            })
+
+        });
+    });
+
+
+    // Add dropdown on load
+    window.onload = function(){
+        var entities = document.getElementById("entities");
+
+        // Submit button for entity
+        var submit = document.createElement("INPUT");
+        submit.setAttribute("class", "submitButton")
+        submit.setAttribute("type", "button");
+        submit.setAttribute("value", "Select Item");
+        submit.onclick = function(){
+            getSelected(highlighted)
+        };
+        entities.appendChild(submit);
+    }
+
+
+    // Highlight text and give option for selecting matching entity
+    function highlightText(){
+        if (window.getSelection){
+            //entities.innerHTML = "";
+            var selection = window.getSelection();
+            var selectionStr = selection.toString();
+            var pID = selection.anchorNode.parentNode.id;
+            parentText = $("#" + pID).text();
+            // Initialize if not already existent
+            if (!(pID in pToSpans)){
+                pToSpans[pID] = [];
+            }
+            //console.log(pToSpans);
+            spanStart = parentText.search(selectionStr);
+            spanEnd = spanStart + selectionStr.length;
+
+            // highlighted span will be represented as:
+            // [pID, start of span, end of span, selected string, entity matched]
+            currSpanText = [pID, spanStart, spanEnd, selectionStr];
+
+            console.log("Substring: " + parentText.substring(spanStart, spanEnd));
+            // Highlight span of text
+            for(var i = 0; i < selection.rangeCount; i++) {
+                highlightRange(selection.getRangeAt(i));
+            }
+
+            highlighted = selectionStr;
+        }
+    }
+
+    // Get element from dropdown that has been selected
+    function getSelected(span){
+        if (highlighted == ""){
+            window.alert("You have not highlighted any span of text!");
+        }else{
+            // Get element selected
+            var e = document.getElementById("entitiesSelect");
+            var entityPicked = e.options[e.selectedIndex].value;
+            spanToEntity[span] = entityPicked;
+            pID = currSpanText[0];
+            currSpanText.push(entityPicked);
+            pToSpans[pID].push(currSpanText);
+            currSpanText = [];
+
+            // Add to table of span: entity
+            selectedEntitiesTable = document.getElementById("selectedentities");
+            var newRow = selectedEntitiesTable.insertRow(selectedEntitiesTable.rows.length);
+
+            // Add span
+            var newSpan  = newRow.insertCell(0);
+            // Append a text node to the cell
+            var newText  = document.createTextNode(span);
+            newSpan.appendChild(newText);
+
+            // Add entity
+            var newEntity = newRow.insertCell(1);
+            // Append a text node to the cell
+            var newText  = document.createTextNode(entityPicked);
+            newEntity.appendChild(newText);
+        }
+
+    }
+
+
+    // Highlight the range of text in yellow
+    function highlightRange(range) {
+        var newNode = document.createElement("span");
+        newNode.setAttribute(
+            "style",
+            "background-color: yellow; display: inline;"
+        );
+        range.surroundContents(newNode);
+    }
+
+
+    // Clear all highlighting from span of text
+    function clearSpans(){
+        var spans = $(".text").find("span").contents().unwrap();
+        // Reset span to entity mapping
+        pToSpans = {};
+        currSpanText = [];
+        highlighted = "";
+
+        // Clear rows in table
+        selectedEntitiesTable = document.getElementById("selectedentities");
+        numRows = selectedEntitiesTable.rows.length;
+        for (var n = 1; n < numRows; n++){
+            selectedEntitiesTable.deleteRow(1);
+        }
+    }
+
+</script>
+
+
+<body >
+    <div class="wrapper" >
+        <header>
+            <h1><b>Instructions</b></h1> <br>
+               <span style="text-align:center;"> Below you will be presented with a dialogue between two individuals
+               discussing their friends. Their friends have a number of different attributes, including occcupation and
+               schools where they studied. All of these attributes are listed in the table below. Your task is as follows:</span> <br> <br>
+
+                <ul style="margin-left: 30px;">
+                <li>Highlight each span of text in every line in the dialogue that may refer to an item in the table</li>
+                appear below the dialogue.</li>
+                <li> Once you highlight the appropriate span of text, select the item from the dropdown that corresponds to the span of text you have identified. For example,
+                the dialogue may use <span style="color:red">UPenn</span> to refer to the item <span style="color:green">University of Pennsylvania</span>.</li>
+                <li> Once you have selected the correct entity, click the <span style="color:blue"> Select Item </span> button. The span of text and the entity you
+                selected will appear as a row in the table below the dropdown.</li>
+                <li>Highlight <b>EVERY</b> span of text in the dialogue that refers to an entity in the table, or
+                <b>your work will be rejected</b>.</li>
+                <li>If you have made a mistake, you can clear the entities you have highlighted by clicking the <span style="color: purple">Clear Highlighting</span>
+                    button at the bottom of the page.</li>
+                <li> Once you are done highlighting <strong> ALL </strong> spans of text, click the <span style="color:red"> Submit HIT</span> button.</li>
+                <li> NOTE: Please only highlight one span of text at a time!</li> <br>
+                </ul>
+        </header>
+        <br>
+        <br>
+        <div class="kb">
+        <table align="middle" border="1">
+        <tr>
+            {% for name in column_names %}
+            <th>{{name}}</th>
+            {% endfor %}
+        </tr>
+        {% for row in kb1 %}
+        <tr>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+
+        {% for row in kb2 %}
+        <tr>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+
+
+        </table>
+
+        </div>
+        <br> <br>
+
+        <!-- Fill in a dialogue here -->
+        <div class="text" onmouseup="highlightText()">
+            {% for idx, turn in dialogue.items() %}
+                <p id="{{idx}}"> <strong>{{turn.agent}}:   </strong> {{turn.data}}</p>
+
+            {% endfor %}
+
+        </div>
+        <br>
+
+        <!-- Will be filled in with dropdown to be used for selecting entities-->
+        <div id="entities">
+            <select id="entitiesSelect">
+                {% for entity in entities %}
+                    <option value="{{entity}}"> {{entity}}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <br>
+
+        <table id="selectedentities" align="middle" border="1" width="700">
+        <tr>
+            <th>Span</th>
+            <th>Entity</th>
+        </tr>
+
+
+        </table>
+
+        <br>
+
+        <div class="buttons" style="text-align:center;">
+         <button type="button" onclick="clearSpans()">Clear Highlighting!</button>
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
+
+    </div>
+
+
+</body>
+</html>
