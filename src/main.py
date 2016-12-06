@@ -5,17 +5,22 @@ Load data, learn model and evaluate
 import argparse
 import random
 import os
+import time
 import tensorflow as tf
-from basic.util import read_json, write_json, read_pickle, write_pickle
-from basic.dataset import add_dataset_arguments, read_dataset
-from basic.schema import Schema
-from basic.scenario_db import ScenarioDB, add_scenario_arguments
-from basic.lexicon import Lexicon
-from model.preprocess import DataGenerator
-from model.encdec import add_model_arguments, EncoderDecoder, AttnEncoderDecoder, AttnCopyEncoderDecoder
-from model.learner import add_learner_arguments, Learner
-from model.kg_embed import add_kg_arguments, CBOWGraph
-from lib import logstats
+from itertools import chain
+from src.basic.util import read_json, write_json, read_pickle, write_pickle
+from src.basic.dataset import add_dataset_arguments, read_dataset
+from src.basic.schema import Schema
+from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
+from src.basic.lexicon import Lexicon
+from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
+from src.model.entity import Entity
+from src.model.encdec import add_model_arguments, build_model
+from src.model.learner import add_learner_arguments, Learner
+from src.model.evaluate import Evaluator
+from src.model.graph import Graph, GraphMetadata, add_graph_arguments
+from src.model.graph_embedder import add_graph_embed_arguments
+from src.lib import logstats
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -25,10 +30,13 @@ if __name__ == '__main__':
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
+    parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     add_scenario_arguments(parser)
     add_dataset_arguments(parser)
+    add_preprocess_arguments(parser)
     add_model_arguments(parser)
-    add_kg_arguments(parser)
+    add_graph_arguments(parser)
+    add_graph_embed_arguments(parser)
     add_learner_arguments(parser)
     args = parser.parse_args()
 
@@ -36,23 +44,14 @@ if __name__ == '__main__':
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
 
-    schema = Schema(args.schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    lexicon = Lexicon(schema, args.learned_lex)
-
-    dataset = read_dataset(scenario_db, args)
-
     # Save or load models
     if args.init_from:
-        print 'Load model (config, vocab, checkpoing) from', args.init_from
+        start = time.time()
+        print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
         vocab_path = os.path.join(args.init_from, 'vocab.pkl')
-        # Check config compatibility
         saved_config = read_json(config_path)
-        curr_config = vars(args)
-        assert_keys = ['model', 'rnn_size', 'rnn_type', 'num_layers']
-        for k in assert_keys:
-            assert saved_config[k] == curr_config[k], 'Command line arguments and saved arguments disagree on %s' % k
+        model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
         if args.test and args.best:
@@ -63,67 +62,81 @@ if __name__ == '__main__':
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
 
         # Load vocab
-        vocab = read_pickle(vocab_path)
+        mappings = read_pickle(vocab_path)
+        print 'Done [%fs]' % (time.time() - start)
     else:
         # Save config
         if not os.path.isdir(args.checkpoint):
             os.makedirs(args.checkpoint)
         config_path = os.path.join(args.checkpoint, 'config.json')
         write_json(vars(args), config_path)
-        vocab = None
+        model_args = args
+        mappings = None
         ckpt = None
 
+    schema = Schema(model_args.schema_path, model_args.domain)
+    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
+    dataset = read_dataset(scenario_db, args)
+    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
+    lexicon = Lexicon(schema, args.learned_lex, word_counts=None)
+
     # Dataset
-    data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, dataset.test_examples, lexicon, vocab)
-    for d in data_generator.examples:
-        logstats.add('data', d, 'num_examples', data_generator.num_examples
-[d])
-    logstats.add('vocab_size', data_generator.vocab.size)
-
-    # Save vocab
-    if not vocab:
-        vocab = data_generator.vocab
-        vocab_path = os.path.join(args.checkpoint, 'vocab.pkl')
-        write_pickle(data_generator.vocab, vocab_path)
-
-    # Build the graph
-    tf.reset_default_graph()
-    tf.set_random_seed(args.random_seed)
-    kg = None
-    if args.model == 'encdec':
-        model = EncoderDecoder(vocab.size, args.rnn_size, args.rnn_type, args.num_layers)
-    elif args.model.startswith('attn'):
-        if args.kg_model == 'cbow':
-            kg = CBOWGraph(schema, lexicon, args.kg_embed_size, args.rnn_size, args.entity_cache_size, args.entity_hist_len, train_utterance=args.train_utterance)
-        else:
-            raise ValueError('Unknown KG model')
-        data_generator.set_kg(kg)
-
-        if args.model == 'attn-encdec':
-            model = AttnEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
-        elif args.model == 'attn-copy-encdec':
-            model = AttnCopyEncoderDecoder(vocab, args.rnn_size, kg, args.rnn_type, args.num_layers, args.attn_scoring, args.attn_output)
-        else:
-            raise ValueError('Unknown model')
+    use_kb = False if model_args.model == 'encdec' else True
+    copy = True if model_args.model == 'attn-copy-encdec' else False
+    if model_args.model == 'attn-copy-encdec':
+        model_args.entity_target_form = 'graph'
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    if args.test:
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     else:
-        raise ValueError('Unknown model')
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
+    for d, n in data_generator.num_examples.iteritems():
+        logstats.add('data', d, 'num_dialogues', n)
+
+    # Save mappings
+    if not mappings:
+        mappings = data_generator.mappings
+        vocab_path = os.path.join(args.checkpoint, 'vocab.pkl')
+        write_pickle(mappings, vocab_path)
+    for name, m in mappings.iteritems():
+        logstats.add('mappings', name, 'size', m.size)
+
+    # Build the model
+    logstats.add_args('model_args', model_args)
+    model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
     if args.gpu == 0:
         print 'GPU is disabled'
         config = tf.ConfigProto(device_count = {'GPU': 0})
     else:
-        config = tf.ConfigProto()
-        #config.gpu_options.per_process_gpu_memory_fraction = 0.5
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
+        config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
 
-    learner = Learner(data_generator, model, args.verbose)
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
+        evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
+        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         with tf.Session(config=config) as sess:
             tf.initialize_all_variables().run()
+            print 'Load TF model'
+            start = time.time()
             saver = tf.train.Saver()
             saver.restore(sess, ckpt.model_checkpoint_path)
-            bleu, ent_recall = learner.test_bleu(sess, 'test')
-            print 'bleu=%.4f ent_recall=%.4f' % (bleu, ent_recall)
+            print 'Done [%fs]' % (time.time() - start)
+
+            for split, test_data, num_batches in evaluator.dataset():
+                print '================== Eval %s ==================' % split
+                print '================== Sampling =================='
+                start_time = time.time()
+                bleu, ent_prec, ent_recall, ent_f1 = evaluator.test_bleu(sess, test_data, num_batches)
+                print 'bleu=%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu, ent_prec, ent_recall, ent_f1, time.time() - start_time)
+                print '================== Perplexity =================='
+                start_time = time.time()
+                loss = learner.test_loss(sess, test_data, num_batches)
+                print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
+                logstats.add(split, {'bleu': bleu, 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
     else:
+        evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
+        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         learner.learn(args, config, ckpt)

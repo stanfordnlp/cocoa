@@ -1,0 +1,35 @@
+{
+    "status_params": {
+	    "waiting": {
+	        "num_seconds": 180
+	    },
+
+	    "chat": {
+	        "num_seconds": 300
+	    },
+
+	    "finished": {
+	        "num_seconds": 15
+	    },
+
+        "survey": {
+	        "num_seconds": -1
+	    }
+    },
+
+    "scenarios_json_file": "/afs/cs.stanford.edu/u/hehe/game-dialogue/output/friends-scenarios.json",
+    "connection_timeout_num_seconds": 3,
+    "templates_dir": "/afs/cs.stanford.edu/u/hehe/game-dialogue/src/web/templates",
+    "end_survey": 1,
+    "instructions": "/afs/cs.stanford.edu/u/hehe/game-dialogue/data/web/mutual-friends-instructions.html",
+    "task_title": "Who's Our Mutual Friend?",
+    "icon": "handshake.jpg",
+    "models": {
+        "neural_test": {
+            "active": true,
+            "type": "neural",
+            "path": "/scr/hehe/game-dialogue/checkpoint/attn-copy-encdec"
+        }
+    }
+}
+
