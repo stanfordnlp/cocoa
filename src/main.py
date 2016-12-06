@@ -75,7 +75,7 @@ if __name__ == '__main__':
         ckpt = None
 
     schema = Schema(model_args.schema_path, model_args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
     word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
     lexicon = Lexicon(schema, args.learned_lex, word_counts=None)

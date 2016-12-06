@@ -33,7 +33,7 @@ if args.random_seed:
     random.seed(args.random_seed)
 
 schema = Schema(args.schema_path)
-scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
+scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
 lexicon = Lexicon(schema, learned_lex=False)
 
 def get_system(name):

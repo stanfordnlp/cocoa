@@ -4,7 +4,7 @@ from schema import Attribute
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', nargs='*', default=[], help='Output path for the scenarios generated', required=True)
+    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
 
 
 class Scenario(object):
@@ -55,7 +55,7 @@ class ScenarioDB(object):
         return self.scenarios_map[uuid]
 
     @staticmethod
-    def from_dict(schema, raw_list):
-        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw_list])
+    def from_dict(schema, raw):
+        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw])
     def to_dict(self):
         return [s.to_dict() for s in self.scenarios_list]
