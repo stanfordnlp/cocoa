@@ -425,7 +425,7 @@ class Preprocessor(object):
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.entitylink(tokenize(e.data))
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data))
             if entity_tokens:
                 return (entity_tokens, entity_tokens)
             else:
