@@ -25,13 +25,16 @@ class Example(object):
         uuid = raw['scenario_uuid']
         events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
+        user_ids = []
+        if 'user_ids' in raw:
+            user_ids = raw['user_ids']
         return Example(scenario, uuid, events, outcome)
 
     def to_dict(self):
         return {
             'scenario_uuid': self.scenario.uuid,
             'events': [e.to_dict() for e in self.events],
-            'outcome': self.outcome
+            'outcome': self.outcome,
         }
 
 class Dataset(object):
