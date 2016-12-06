@@ -1,51 +1,51 @@
+import editdistance
+import re
+
 from collections import defaultdict
-import datetime
+from entity_ranker import EntityRanker
+from fuzzywuzzy import fuzz
+
 ### Helper functions
 
-# TODO: hack for dubious synonyms (went, friends) before we have a better lexicon
-# TODO: common words in this corpus
-#with open('data/common_words.txt') as fin:
-#    common_words = set([w.strip() for w in fin.read().split()[:2000] if len(w.strip()) > 1])
-
-def get_prefixes(entity, min_length=3, max_length=5, common_words=[]):
+def get_prefixes(entity, min_length=3, max_length=8):
     # computer science => ['comp sci', ...]
     words = entity.split()
     candidates = ['']
-    for word in words:
-        new_candidates = []
-        for c in candidates:
-            if len(word) < max_length:  # Keep word
-                new_candidates.append(c + ' ' + word)
-            else:  # Shorten
-                for i in range(min_length, max_length):
-                    new_candidates.append(c + ' ' + word[:i])
-        candidates = new_candidates
-    # TODO: hack for false positives
-    return [c[1:] for c in candidates if c[1:] != entity and c[1:] not in common_words]
+    candidates = []
+    # TODO: Fix how prefixes is done
+    for i in range(min_length, max_length):
+        candidates.append(entity[:i])
+    # for word in words:
+    #     new_candidates = []
+    #     for c in candidates:
+    #         if len(word) < max_length:  # Keep word
+    #             new_candidates.append(c + ' ' + word)
+    #         else:
+    #             for i in range(min_length, max_length):
+    #                 new_candidates.append(c + '' + word[:i])
+    #     candidates = new_candidates
 
-def get_acronyms(entity, common_words):
+    stripped = [c.strip() for c in candidates if c != entity]
+    return stripped
+
+def get_acronyms(entity):
+    """
+    Computes acronyms of entity, assuming entity has more than one token
+    :param entity:
+    :return:
+    """
     words = entity.split()
-    if len(words) < 2:
-        return []
-    acronyms = [''.join([w[0] for w in words])]
-    if 'of' in words:
-        # handle 'u of p'
-        acronym = ''
-        for w in words:
-            acronym += w[0] if w != 'of' else ' '+w+' '
-        acronyms.append(acronym)
-        # handle 'upenn'
-        acronym = ''
-        for w in words[:-1]:
-            acronym += w[0] if w != 'of' else ''
-        acronym += words[-1][:4]
-        acronyms.append(acronym)
+    first_letters = ''.join([w[0] for w in words])
+    acronyms = [first_letters]
 
-    # TODO: hack for false positives
-    acronyms = [w for w in acronyms if w not in common_words]
+    # Add acronyms using smaller number of first letters in phrase ('ucb' -> 'uc')
+    for split in range(2, len(first_letters)):
+        acronyms.append(first_letters[:split])
+
     return acronyms
 
-alphabet = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z', ' ']
+
+alphabet = "abcdefghijklmnopqrstuvwxyz "
 def get_edits(entity):
     if len(entity) < 3:
         return []
@@ -73,7 +73,7 @@ def get_edits(entity):
                 new_word = prefix + c + suffix
                 edits.append(new_word)
 
-        # Transposition
+        # Transposition - swapping two letters
         for j in range(i+1, len(entity)):
             mid = entity[i+1:j]
             suffix = entity[j+1:]
@@ -85,12 +85,18 @@ def get_edits(entity):
 
 
 def get_morphological_variants(entity):
-    # cooking => cook, cooker
+    """
+    Computes stem of entity and creates morphological variants
+    :param entity:
+    :return:
+    """
     results = []
     for suffix in ['ing']:
         if entity.endswith(suffix):
             base = entity[:-len(suffix)]
             results.append(base)
+            # TODO: Can we get away with not hard-coding these variants?
+            results.append(base + 'e')
             results.append(base + 's')
             results.append(base + 'er')
             results.append(base + 'ers')
@@ -98,36 +104,21 @@ def get_morphological_variants(entity):
 
 ############################################################
 
-class Lexicon(object):
-    '''
-    A lexicon maps freeform phrases to canonicalized entity.
-    The current lexicon just uses several heuristics to do the matching.
-    '''
-    def __init__(self, schema, learned_lex, word_counts=None):
-        start_time = datetime.datetime.now()
+class BaseLexicon(object):
+    """
+    Base lexicon class defining general purpose functions for any lexicon
+    """
+    def __init__(self, schema, learned_lex):
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
-        if word_counts:
-            self.common_words = [x for x in word_counts if word_counts[x] > 20]
-        else:
-            self.common_words = []
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         self.load_entities()
         self.compute_synonyms()
-        # TODO: the model cannot handle number entities now
-        #self.add_numbers()
-        #print 'Ambiguous entities:'
-        #for phrase, entities in self.lexicon.items():
-        #    if len(entities) > 1:
-        #        print phrase, entities
+        print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
 
-        end_time = datetime.datetime.now()
-        print 'Created lexicon in %d seconds: %d phrases mapping to %d entities, %f entities per phrase' % \
-              ((end_time - start_time).seconds, len(self.lexicon), len(self.entities),
-               sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
 
     def load_entities(self):
         for type_, values in self.schema.values.iteritems():
@@ -144,129 +135,229 @@ class Lexicon(object):
     def lookup(self, phrase):
         return self.lexicon.get(phrase, [])
 
-    def compute_synonyms(self):
-        # Special cases
-        for entity, type in self.entities.items():
-            #print entity
-            phrases = [entity]  # Representations of the canonical entity
-            # Consider any word in the entity that's unique
-            # Example: entity = 'university of california', 'university' would not be unique, but 'california' would be
-            if ' ' in entity:
-                for word in entity.split(' '):
-                    if len(word) >= 3 and self.word_counts[word] == 1 and not word.lower() in self.common_words:
-                        phrases.append(word)
-            # Consider removing stop words
-            mod_entity = entity
-            for s in [' of ', ' - ']:
-                mod_entity = mod_entity.replace(s, ' ')
-            if entity != mod_entity:
-                phrases.append(mod_entity)
 
-            # Expand!
+
+class Lexicon(BaseLexicon):
+    """
+    Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
+    """
+    def __init__(self, schema, learned_lex=False, entity_ranker=None):
+        super(Lexicon, self).__init__(schema, learned_lex)
+        # TODO: Remove hard-coding (use list of common words/phrases/stop words)
+        self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
+                                   "friends", "at", "for", "in", "many", "partner", "all", "we",
+                                   "start", "go", "school", "do", "know", "no", "work"])
+        # Ensure an entity ranker is provided for scoring (span, entity) pairs
+        if learned_lex:
+            assert entity_ranker is not None
+            self.entity_ranker = entity_ranker
+
+
+    def compute_synonyms(self):
+        """
+        Computes all variants (synonyms) for each token of every canonical entity
+        :return:
+        """
+        # Keep track of tokens we have seen to handle repeats
+        for entity, type in self.entities.items():
+            phrases = []
+            mod_entity = entity
+            for s in [' of ', ' - ', '-']:
+                mod_entity = mod_entity.replace(s, ' ')
+
+            # Add all tokens in entity -- we only compute token-level edits (except for acronyms/prefixes...)
+            entity_tokens = mod_entity.split(' ')
+            phrases.extend([t for t in entity_tokens])
+
             synonyms = []
-            # Special case
             if entity == 'facebook':
                 synonyms.append('fb')
-            if type == 'person':
-                first_name = entity.split(' ')[0]
-                if len(first_name) >= 3 and first_name not in synonyms:
-                    synonyms.append(first_name)
+
             # General
-            n = len(entity.split())
             for phrase in phrases:
                 synonyms.append(phrase)
                 if type != 'person':
-                    #synonyms.extend(get_edits(phrase))
+                    synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
-                    synonyms.extend(get_prefixes(phrase, common_words=self.common_words))
-                    synonyms.extend(get_acronyms(phrase, self.common_words))
+                    synonyms.extend(get_prefixes(phrase, min_length=1))
+
+            # Multi-token level variants: UPenn, uc berkeley
+            if len(mod_entity.split(" ")) > 1:
+                phrase_level_prefixes = get_prefixes(mod_entity, min_length=1, max_length=5)
+                phrase_level_acronyms = get_acronyms(mod_entity)
+                synonyms.extend(phrase_level_acronyms)
+                synonyms.extend(phrase_level_prefixes)
+
 
             # Add to lexicon
             for synonym in set(synonyms):
-                #print synonym, '=>', entity
                 self.lexicon[synonym].append((entity, type))
 
-    def add_numbers(self):
-        numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
-        for i, n in enumerate(numbers):
-            for phrase in [str(i), n]:
-                self.lexicon[phrase].append((str(i), 'number'))
 
-    def entitylink(self, raw_tokens):
-        '''
+    def score_and_match(self, span, candidates, agent, uuid, kb_entities):
+        """
+        Score the given span with the list of candidate entities and returns best match
+        :param span:
+        :param candidates:
+        :param kb_entities: Set of entities mentioned in both agents KBs
+        :param agent: Agent id whose span is being entity linked
+        :param uuid: uuid of scenario containing KB for given agent
+        :return:
+        """
+        # entity_scores = []
+        # for c in candidates:
+        #     # Clean up punctuation
+        #     c_s = re.sub("-", " ", c[0])
+        #     span_tokens = span.split()
+        #     entity_tokens = c_s.split()
+        #
+        #     if kb_entities is None:
+        #         continue
+        #     ed = editdistance.eval(span, c[0])
+        #     if c[0] not in kb_entities:
+        #         # Prioritize exact match
+        #         if c[0] == span:
+        #             score = 0
+        #         else:
+        #             score = float("inf")
+        #     elif c[0] in kb_entities and span in entity_tokens:
+        #         score = 0
+        #     # Prioritize multi phrase spans contained in entity
+        #     elif len(span_tokens) > 1 and span in c_s:
+        #         score = 1
+        #     else:
+        #         score = ed
+        #
+        #     entity_scores.append(c + (score,))
+
+
+
+        # If exact match or substring match with an entity
+        # if entity_scores[0][2] <= 1:
+        #     if span not in self.common_phrases:
+        #         best_match = entity_scores[0][:2]
+        #     else:
+        #         best_match = (span, None)
+        # else:
+        #     best_match = (span, None)
+
+        # Use learned ranker
+        entity_scores = []
+        for c in candidates:
+            score = self.entity_ranker.score(span, c[0], agent, uuid).squeeze()
+            entity_scores.append(c + (score[0] - score[1],))
+
+        # Where does original span fit into all this? If smaller than some threshold
+        span_score = self.entity_ranker.score(span, span, agent, uuid).squeeze()
+
+        # Sort entity scores
+        entity_scores = sorted(entity_scores, key=lambda x: x[2])
+        best_entity = entity_scores[0][:3]
+
+        if (span_score[0] - span_score[1]) < best_entity[2]:
+            best_match = (span, None)
+        else:
+            best_match = best_entity[:2]
+
+        return best_match
+
+
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb_entities=None):
+        """
         Add detected entities to each token
-        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple', 'company'))]
-        '''
+        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
+        Note: Linking works differently here because we are considering intersection of lists across
+        token spans so that "univ of penn" will lookup in our lexicon table for "univ" and "penn"
+        (disregarding stop words and special tokens) and find their intersection
+        """
         i = 0
+        found_entities = []
         entities = []
+        stop_words = set(['of'])
         while i < len(raw_tokens):
+            candidate_entities = None
+            single_char = False
             # Find longest phrase (if any) that matches an entity
-            for l in range(5, 0, -1):
+            for l in range(6, 0, -1):
                 phrase = ' '.join(raw_tokens[i:i+l])
-                results = self.lookup(phrase)
-                if len(results) > 0:
-                    entity = None
-                    if self.learned_lex:
-                        # Will later use learned system -- returns full candidate set for now
-                        entity = results
-                    else:
-                        # NOTE: if more than one match, use the first one.
-                        # TODO: disambiguate
-                        # prioritize exact match (e.g. hiking, biking)
-                        for result in results:
-                            if result[0] == phrase:
-                                entity = result
-                                break
-                        if not entity:
-                            entity = results[0]
-                    entities.append((phrase, entity))
-                    i += l
+                raw = raw_tokens[i:i+l]
+
+                for idx, token in enumerate(raw):
+                    results = self.lookup(token)
+                    if idx == 0: candidate_entities = results
+                    if token not in stop_words:
+                        candidate_entities = list(set(candidate_entities).intersection(set(results)))
+
+                # Single character token so disregard candidate entities
+                if l == 1 and len(phrase) == 1:
+                    single_char = True
                     break
-            if not results:
+
+                # Found some match
+                if len(candidate_entities) > 0:
+                    if self.learned_lex:
+                        entity = None
+                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
+                        # If best_match is entity from KB add to list
+                        if best_match[1] is not None:
+                            entities.append((phrase, best_match))
+                            found_entities.append((phrase, best_match[0]))
+                            i += l
+                            break
+                        else:
+                            candidate_entities = None
+                            continue
+                    else:
+                        i += l
+                        entities.append(candidate_entities)
+                        break
+
+            if not candidate_entities or single_char:
                 entities.append(raw_tokens[i])
                 i += 1
+
+        # For computing per dialogue entities found
+        if return_entities:
+            return entities, found_entities
+
         return entities
 
+
     def test(self):
-        phrases = ['i', 'physics', 'comp sci', 'econ', 'penn', 'cs', 'upenn', 'u penn', 'u of p', 'ucb', 'berekely', 'jessica']
-        phrases = ['foodie', 'evening', 'evenings', 'food']
-        for x in phrases:
-            print x, '=>', self.lookup(x)
-        sentence = 'hiking biking'.split()
-        print self.entitylink(sentence)
+        sentence3 = "I went to University of Pensylvania and most my friends are from there".split(" ")
+        sentence3 = "cal"#"from Cal State Chico"
+        sentence3 = [t.lower() for t in sentence3.split()]
+
+        sentence2 = ["zach"]
+        print self.link_entity(sentence3, True, 1, "S_cxqu6PM56ACAiDLi")
+        #print self.link_entity(sentence2, True)
+        #print get_prefixes("biology")
 
 
 if __name__ == "__main__":
     from schema import Schema
-    from src.model.preprocess import Preprocessor
-    from dataset import read_dataset
-    from scenario_db import ScenarioDB
-    from itertools import chain
-    from util import read_json
     import argparse
+    import time
 
-    #path = 'data/friends-schema-large.json'
-    #schema = Schema(path, 'MutualFriends')
-    path = 'data/friends-schema.json'
+    parser = argparse.ArgumentParser("arguments for basic testing lexicon")
+    parser.add_argument("--schema", type=str, help="path to schema to use")
+    parser.add_argument("--ranker-data", type=str, help="path to train data")
+    parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)
+    parser.add_argument("--scenarios-json", help="Json of scenario information", type=str)
+    parser.add_argument("--transcripts", help="Json file of all transcripts collected")
+
+    args = parser.parse_args()
+
+    path = args.schema
+    start_build = time.time()
+
+    ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
     schema = Schema(path)
-
-    #paths = ['output/friends-scenarios-large.json', 'output/friends-scenarios-large-peaky.json', 'output/friends-scenarios-large-peaky-04-002.json']
-    paths = ['output/friends-scenarios.json']
-    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in paths))
-
-    #args = {'train_examples_paths': ['data/mutualfriends/train.json'],
-    #        'test_examples_paths': ['data/mutualfriends/test.json'],
-    #        'train_max_examples': None,
-    #        'test_max_examples': None,
-    #        }
-    args = {'train_examples_paths': ['output/friends-train-examples.json'],
-            'test_examples_paths': ['output/friends-test-examples.json'],
-            'train_max_examples': None,
-            'test_max_examples': None,
-            }
-    args = argparse.Namespace(**args)
-    dataset = read_dataset(scenario_db, args)
-
-    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
-    lex = Lexicon(schema, False, word_counts)
+    lex = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
+    print "Building complete: ", time.time() - start_build
+    start_test = time.time()
     lex.test()
+    print "Testing Complete: ", time.time() - start_test
+
+
+
