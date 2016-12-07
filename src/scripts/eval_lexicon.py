@@ -106,17 +106,16 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
     fout = open("recall_measure.txt", "w")
     for ex in examples:
         scenario_uuid = ex["scenario_uuid"]
-        # kb_dicts = uuid_to_scenarios[scenario_uuid]
-        # agent0_kb = set([e[1] for e in kb_dicts[0]])
-        # agent1_kb = set([e[1] for e in kb_dicts[1]])
+        kb_dicts = uuid_to_scenarios[scenario_uuid]
+        agent0_kb = set([e[1] for e in kb_dicts[0]])
+        agent1_kb = set([e[1] for e in kb_dicts[1]])
 
 
         for e in ex["events"]:
             msg_data = e["data"]
             action = e["action"]
             agent = e["agent"]
-            # kb_entities = agent1_kb if agent else agent0_kb
-            kb_entities = None
+            kb_entities = agent1_kb if agent else agent0_kb
 
             if action == "message":
                 total_num_sentences += 1
@@ -129,22 +128,10 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
+                _, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
 
-                # Calculate recall for lexicon
-                # for span, entity in gold_annotation:
-                #     raw_tokens = re.findall(re_pattern, span.lower())
-                #     lower_raw_tokens = [r.lower() for r in raw_tokens]
-                #     linked, _ = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
-                #     found = False
-                #     for l in linked:
-                #         if isinstance(l, list):
-                #             for cand in l:
-                #                 if cand[0] == entity:
-                #                     found = True
-                #                     break
-                #     if not found:
-                #         fout.write("SPAN: " + span + ", GOLD: " + entity + " --- " + str(linked) + "\n")
+                # Modify each candidate from (surface form, (canonical, type)) -> (surface form, canonical) for comparison
+                candidate_annotation = [(c[0], c[1][0]) for c in candidate_annotation]
 
                 total_num_annotations += len(gold_annotation)
                 metrics = get_tp_fp_fn(gold_annotation, candidate_annotation)

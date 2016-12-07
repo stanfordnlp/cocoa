@@ -150,7 +150,10 @@ class Lexicon(BaseLexicon):
         # Ensure an entity ranker is provided for scoring (span, entity) pairs
         if learned_lex:
             assert entity_ranker is not None
+            print "Using learned lexicon..."
             self.entity_ranker = entity_ranker
+        else:
+            print "Using rule-based lexicon..."
 
 
     def compute_synonyms(self):
@@ -204,60 +207,63 @@ class Lexicon(BaseLexicon):
         :param uuid: uuid of scenario containing KB for given agent
         :return:
         """
-        # entity_scores = []
-        # for c in candidates:
-        #     # Clean up punctuation
-        #     c_s = re.sub("-", " ", c[0])
-        #     span_tokens = span.split()
-        #     entity_tokens = c_s.split()
-        #
-        #     if kb_entities is None:
-        #         continue
-        #     ed = editdistance.eval(span, c[0])
-        #     if c[0] not in kb_entities:
-        #         # Prioritize exact match
-        #         if c[0] == span:
-        #             score = 0
-        #         else:
-        #             score = float("inf")
-        #     elif c[0] in kb_entities and span in entity_tokens:
-        #         score = 0
-        #     # Prioritize multi phrase spans contained in entity
-        #     elif len(span_tokens) > 1 and span in c_s:
-        #         score = 1
-        #     else:
-        #         score = ed
-        #
-        #     entity_scores.append(c + (score,))
+        # Use heuristic scoring system
+        if not self.learned_lex:
+            entity_scores = []
+            for c in candidates:
+                # Clean up punctuation
+                c_s = re.sub("-", " ", c[0])
+                span_tokens = span.split()
+                entity_tokens = c_s.split()
 
+                if kb_entities is None:
+                    continue
+                ed = editdistance.eval(span, c[0])
+                if c[0] not in kb_entities:
+                    # Prioritize exact match
+                    if c[0] == span:
+                        score = 0
+                    else:
+                        score = float("inf")
+                elif c[0] in kb_entities and span in entity_tokens:
+                    score = 0
+                # Prioritize multi phrase spans contained in entity
+                elif len(span_tokens) > 1 and span in c_s:
+                    score = 1
+                else:
+                    score = ed
 
+                entity_scores.append(c + (score,))
 
-        # If exact match or substring match with an entity
-        # if entity_scores[0][2] <= 1:
-        #     if span not in self.common_phrases:
-        #         best_match = entity_scores[0][:2]
-        #     else:
-        #         best_match = (span, None)
-        # else:
-        #     best_match = (span, None)
+            # Sort entity scores
+            entity_scores = sorted(entity_scores, key=lambda x: x[2])
 
-        # Use learned ranker
-        entity_scores = []
-        for c in candidates:
-            score = self.entity_ranker.score(span, c[0], agent, uuid).squeeze()
-            entity_scores.append(c + (score[0] - score[1],))
-
-        # Where does original span fit into all this? If smaller than some threshold
-        span_score = self.entity_ranker.score(span, span, agent, uuid).squeeze()
-
-        # Sort entity scores
-        entity_scores = sorted(entity_scores, key=lambda x: x[2])
-        best_entity = entity_scores[0][:3]
-
-        if (span_score[0] - span_score[1]) < best_entity[2]:
-            best_match = (span, None)
+            #If exact match or substring match with an entity
+            if entity_scores[0][2] <= 1:
+                if span not in self.common_phrases:
+                    best_match = entity_scores[0][:2]
+                else:
+                    best_match = (span, None)
+            else:
+                best_match = (span, None)
         else:
-            best_match = best_entity[:2]
+            # Use learned ranker
+            entity_scores = []
+            for c in candidates:
+                score = self.entity_ranker.score(span, c[0], agent, uuid).squeeze()
+                entity_scores.append(c + (score[0] - score[1],))
+
+            # Where does original span fit into all this? If smaller than some threshold
+            span_score = self.entity_ranker.score(span, span, agent, uuid).squeeze()
+
+            # Sort entity scores
+            entity_scores = sorted(entity_scores, key=lambda x: x[2])
+            best_entity = entity_scores[0][:3]
+
+            if (span_score[0] - span_score[1]) < best_entity[2]:
+                best_match = (span, None)
+            else:
+                best_match = best_entity[:2]
 
         return best_match
 
@@ -269,10 +275,14 @@ class Lexicon(BaseLexicon):
         Note: Linking works differently here because we are considering intersection of lists across
         token spans so that "univ of penn" will lookup in our lexicon table for "univ" and "penn"
         (disregarding stop words and special tokens) and find their intersection
+        :param return_entities: Whether to return entities found in utterance
+        :param agent: Agent (0,1) whose utterance is being linked
+        :param uuid: uuid of scenario being used for testing whether candidate entity is in KB
+        :param kb_entities: Kb entities of agent represented as set
         """
         i = 0
         found_entities = []
-        entities = []
+        linked = []
         stop_words = set(['of'])
         while i < len(raw_tokens):
             candidate_entities = None
@@ -295,32 +305,32 @@ class Lexicon(BaseLexicon):
 
                 # Found some match
                 if len(candidate_entities) > 0:
-                    if self.learned_lex:
-                        entity = None
-                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
-                        # If best_match is entity from KB add to list
-                        if best_match[1] is not None:
-                            entities.append((phrase, best_match))
-                            found_entities.append((phrase, best_match[0]))
-                            i += l
-                            break
-                        else:
-                            candidate_entities = None
-                            continue
-                    else:
+                    #if self.learned_lex:
+                    best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
+                    # If best_match is entity from KB add to list
+                    if best_match[1] is not None:
+                        # Return as (surface form, (canonical, type))
+                        linked.append((phrase, best_match))
+                        found_entities.append((phrase, best_match))
                         i += l
-                        entities.append(candidate_entities)
                         break
+                    else:
+                        candidate_entities = None
+                        continue
+                    # else:
+                    #     i += l
+                    #     entities.append(candidate_entities)
+                    #     break
 
             if not candidate_entities or single_char:
-                entities.append(raw_tokens[i])
+                linked.append(raw_tokens[i])
                 i += 1
 
         # For computing per dialogue entities found
         if return_entities:
-            return entities, found_entities
+            return linked, found_entities
 
-        return entities
+        return linked
 
 
     def test(self):
