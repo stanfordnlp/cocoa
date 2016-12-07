@@ -1,228 +1,209 @@
 import random
 import re
 from collections import defaultdict
-from src.basic.sample_utils import sorted_candidates
+from src.basic.sample_utils import sample_candidates
 from session import Session
+from src.model.preprocess import tokenize
+from src.model.vocab import is_entity
+from src.basic.lexicon import Lexicon
+import numpy as np
 
 class SimpleSession(Session):
     '''
     The simple system implements a bot that
     - greets
-    - ask about a single attribute in order of decreasing degree
+    - asks or informs about a fact in its KB
     - replies 'no' or 'yes' to partner's repsonse
-    - selects the friend
-    NOTE: this system assumes that names are unique and consistent.
+    - selects and item
     '''
-    def __init__(self, agent, kb):
+
+    greetings = ['hi', 'hello', 'hey', 'hiya']
+
+    def __init__(self, agent, kb, lexicon):
         super(SimpleSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
-        self.sorted_attr = kb.sorted_attr()
-        self.curr_attr = 0
-        # Dict of attribute value and type (e.g., Google: company)
-        self.entities = self.kb.schema.get_entities()
+        self.lexicon = lexicon
+        self.num_items = len(kb.items)
+        self.entity_coords = self.get_entity_coords()
+        self.entity_weights = self.weight_entity()
+        self.item_weights = [1.] * self.num_items
 
-        # Attribute names and their weights (start from 1)
-        self.attributes = {attr.name: 1. for attr in self.kb.schema.attributes}
-        self.num_attributes = len(self.attributes)
-
-        # Attribute values and their weights (start from 1)
-        self.values = defaultdict(lambda : defaultdict(int))
-        for item in self.kb.items:
-            for attr_name, attr_value in item.iteritems():
-                self.values[attr_name][attr_value] = 1.
-
+        # Dialogue state
+        self.asked_entities = None
         self.answered = False
-        self.got_answer = False
         self.said_hi = False
-        self.last_received_attr = None
-        self.last_sent_attr = None
-
-        # All items start with weight 1 and get decreased
-        self.weights = [1] * len(self.kb.items)
-
-        # Set when partner mentions the name of a friend (note: assume name only shows up once)
         self.matched_item = None
         self.selected = False
 
-    def choose_attr(self):
+    def get_entity_coords(self):
         '''
-        Ask about an attribute in the order of sorted_attr.
+        Return a dict of {entity: [row]}
         '''
-        while True:
-            attr_name, attr_value = self.sorted_attr[self.curr_attr][0]
-            if self.values[attr_name][attr_value] > 0:
-                break
-            self.curr_attr += 1
-        return (attr_name, attr_value)
+        entity_coords = defaultdict(list)
+        for row, item in enumerate(self.kb.items):
+            for col, attr in enumerate(self.kb.attributes):
+                entity = item[attr.name]
+                entity_coords[entity.lower()].append(row)
+        return entity_coords
 
-    def choose_attr_item_order(self):
+    def count_entity(self):
         '''
-        Ask about an attribute from the top ranked item.
+        Return a dict of {entity: count}.
         '''
-        # Choose the highest weight item
-        index = sorted(range(len(self.weights)), key=lambda i : -self.weights[i])[0]
-        #print 'highest index:', index
-        # Choose an attribute and a value to ask
-        for attr_name, weight in sorted_candidates(self.attributes.items()):
-            value = self.kb.items[index][attr_name]
-            #print 'checking %s=%f, %s=%f' % (attr_name, weight, value, self.values[attr_name][value])
-            if weight > 0 and self.values[attr_name][value] > 0:
-                return (attr_name, value)
-        raise Exception('No available attribute.')
-
-    def ask(self, attr):
-        name, value = attr
-        return 'Do you know %s %s?' % (name, value)
-
-    def answer(self, attr):
-        attr_name, attr_value = attr
+        entity_counts = defaultdict(int)
         for item in self.kb.items:
-            if item[attr_name] == attr_value:
-                return 'Yes.'
-        return 'No.'
+            for entity in item.values():
+                entity_counts[entity.lower()] += 1
+        return entity_counts
 
-    def get_entities(self, tokens):
+    def weight_entity(self):
         '''
-        Return the (single) entity in tokens.
+        Assign weights to each entity.
         '''
-        i = 3  # Skip "Do you know"
-        attr_value = None
-        attr_type = None
-        while i < len(tokens):
-            # Find longest phrase (if any) that matches an entity
-            for l in range(5, 0, -1):
-                phrase = ' '.join(tokens[i:i+l])
-                if phrase in self.entities:
-                    attr_value = phrase
-                    attr_type = self.entities[attr_value]
-                    break
-            # NOTE: this assumes that only one attribute is asked!
-            if attr_value:
-                break
-            i += 1
-        return attr_value, attr_type
+        entity_counts = self.count_entity()
+        N = float(self.num_items)
+        # Scale counts to [0, 1]
+        entity_weights = {entity.lower(): count / N for entity, count in entity_counts.iteritems()}
+        return entity_weights
 
-    def get_attr_name(self, s):
-        '''
-        Figure out which attributes this entity belongs to.
-        '''
-        for name in self.attributes:
-            if name in s:
-                return name
-        return None
+    def choose_fact(self):
+        num_entities = np.random.randint(1, 5)
+        entities = sample_candidates(self.entity_weights.items())
+        return self.entity_to_fact(entities), entities
 
-    def parse(self, utterance):
-        '''
-        Inverse function of ask().
-        '''
-        # Split on punctuation
-        tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
-        attr_value, attr_type = self.get_entities(tokens)
-        if not attr_value:
-            return None
+    def entity_to_fact(self, entities):
+        facts = []
+        while len(entities) > 0:
+            i = 0
+            entity = entities[i]
+            rowi = self.entity_coords[entity]
+            fact = [[entity], len(rowi)]
+            for j in xrange(i+1, len(entities)):
+                entity2 = entities[j]
+                rowj = self.entity_coords[entity2]
+                intersect = [r for r in rowi if r in rowj]
+                if len(intersect) > 0:
+                    fact[0].append(entity2)
+                    fact[1] = len(intersect)
+                    rowi = intersect
+            # Remove converted entities
+            entities = [entity for entity in entities if entity not in fact[0]]
+            facts.append(fact)
+        return facts
+
+    def fact_to_str(self, fact, num_items, include_count=True):
+        fact_str = []
+        total = num_items
+        for attrs, count in fact:
+            if include_count:
+                s = '%s %s' % (self.number_to_str(count, total), ' and '.join([a for a in attrs]))
+            else:
+                s = ' and '.join([a for a in attrs])
+            fact_str.append(s)
+        fact_str = ', '.join(fact_str)
+        return fact_str
+
+    def number_to_str(self, count, total):
+        if count == 0:
+            return 'no'
+        elif count == 1:
+            return 'one'
+        elif count == total:
+            return 'all'
+        elif count == 2:
+            return 'two'
+        elif count > 2./3. * total:
+            return 'most'
         else:
-            attr_name = self.get_attr_name(utterance)
-            return (attr_name, attr_value)
+            return str(count)
 
-    def sample(self, items):
-        '''
-        Return the highest weight one.
-        items: [(item, weight), ...]
-        '''
-        item = sorted_candidates(items)[0]
-        if item[1] == 0:
-            print items
-            print item
-        assert item[1] != 0
-        return item[0]
+    def inform(self, facts):
+        fact_str = self.fact_to_str(facts, self.num_items)
+        message = 'I have %s.' % fact_str
+        return self.message(message)
+
+    def ask(self, facts):
+        fact_str = self.fact_to_str(facts, self.num_items, include_count=False)
+        message = 'Do you have %s?' % fact_str
+        return self.message(message)
+
+    def answer(self, entities):
+        fact = self.entity_to_fact(entities)
+        return self.inform(fact)
+
+    def sample_item(self):
+        item_id = np.argmax(self.item_weights)
+        return item_id
+
+    def update_entity_weights(self, entities, delta):
+        for entity in entities:
+            if entity in self.entity_weights:
+                self.entity_weights[entity] += delta
+
+    def update_item_weights(self, entities, delta):
+        for i, item in enumerate(self.kb.items):
+            values = item.values()
+            self.item_weights[i] += delta * len([entity for entity in entities if entity in values])
 
     def send(self):
-        if random.random() < 0.5:  # Wait randomly
-            return None
+        if self.matched_item:
+            if not self.selected:
+                self.selected = True
+                return self.select(self.matched_item)
+            else:
+                return None
 
-        # We found a match (note that this doesn't always work)
-        if self.matched_item and not self.selected:
-            self.selected = True
-            return self.select(self.matched_item)
-
-        if sum(self.weights) == 0:
+        if random.random() < 0.2:  # Wait randomly
             return None
 
         # Say hi first
         if not self.said_hi:
             self.said_hi = True
-            #text = random.choice(['hi', 'hello'])
-            text = 'hi'
+            text = random.choice(self.greetings)
             return self.message(text)
 
         # Reply to questions
-        if not self.answered and self.last_received_attr:
-            self.answered = True
-            return self.message(self.answer(self.last_received_attr))
+        if self.asked_entities is not None:
+            response = self.answer(self.asked_entities)
+            self.asked_entities = None
+            return response
 
-        # Ask the highest weight attribute
-        # Don't udpate_mentioned here because it may not be answered
-        # Don't ask again before getting an answer of the previous question
-        if self.last_sent_attr and not self.got_answer:
-            return None
+        # Inform or Ask or Select
+        if np.random.random() < 0.7:
+            facts, entities = self.choose_fact()
+            # Decrease weights of entities mentioned
+            self.update_entity_weights(entities, -0.5)
+            if np.random.random() < 0.5:
+                return self.inform(facts)
+            else:
+                return self.ask(facts)
         else:
-            attr = self.choose_attr()
-            self.last_sent_attr = attr
-            self.got_answer = False
-            return self.message(self.ask(attr))
-
-    def update_weights(self, attr, yes):
-        '''
-        Increment weight if item should have (yes==True) attr_value,
-        set to zero otherwise.
-        '''
-        #print 'update:', attr, yes
-        attr_name, attr_value = attr
-        for i, item in enumerate(self.kb.items):
-            if item[attr_name] == attr_value:
-                if yes:
-                    self.weights[i] += 1
-                    # NOTE: this assumes that names are unique and consistent!
-                    if attr_name == 'Name':
-                        self.matched_item = item
-                else:
-                    self.weights[i] = 0
-
-    def update_mentioned(self, attr):
-        '''
-        Update already mentioned attributes so that they will not be asked again.
-        '''
-        attr_name, attr_value = attr
-        if attr_value in self.values[attr_name]:
-            self.values[attr_name][attr_value] = 0
-        if sum(self.values[attr_name].values()) == 0:
-            self.attributes[attr_name] = 0
+            item_id = self.sample_item()
+            # Don't repeatedly select one item
+            self.item_weights[item_id] = -100
+            return self.select(self.kb.items[item_id])
 
     def receive(self, event):
         if event.action == 'message':
-            attr = self.parse(event.data)
-            if attr:
-                self.last_received_attr = attr
-                self.update_weights(attr, True)
-                self.update_mentioned(attr)
-                self.answered = False
-            elif 'Yes' in event.data:
-                self.update_weights(self.last_sent_attr, True)
-                self.update_mentioned(self.last_sent_attr)
-                self.got_answer = True
-            elif 'No' in event.data:
-                self.update_weights(self.last_sent_attr, False)
-                self.update_mentioned(self.last_sent_attr)
-                self.got_answer = True
+            raw_utterance = event.data
+            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance))
+            entities = [word[1][0] for word in entity_tokens if is_entity(word)]
 
-            # Additional matching check
-            non_zero_items = []
-            for i, item in enumerate(self.kb.items):
-                if self.weights[i] > 0:
-                    non_zero_items.append(item)
-            if len(non_zero_items) == 1:
-                self.matched_item = non_zero_items[0]
+            if re.search(r'do you|\?', raw_utterance.lower()) is not None:
+                self.asked_entities = entities
+
+            # Update item weights
+            if len(entities) > 0:
+                if len([x for x in entity_tokens if x in ('no', 'none', "don't", 'zero')]) > 0:
+                    delta = -1
+                else:
+                    delta = 1
+                self.update_item_weights(entities, delta)
+
+            # Increase weights of entities mentioned by the partner
+            self.update_entity_weights(entities, 0.5)
+
         elif event.action == 'select':
             for item in self.kb.items:
                 if item == event.data:

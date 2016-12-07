@@ -38,7 +38,7 @@ lexicon = Lexicon(schema, learned_lex=False)
 
 def get_system(name):
     if name == 'simple':
-        return SimpleSystem()
+        return SimpleSystem(lexicon)
     elif name == 'heuristic':
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
