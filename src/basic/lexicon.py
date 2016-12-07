@@ -282,7 +282,7 @@ class Lexicon(BaseLexicon):
         """
         i = 0
         found_entities = []
-        entities = []
+        linked = []
         stop_words = set(['of'])
         while i < len(raw_tokens):
             candidate_entities = None
@@ -309,8 +309,9 @@ class Lexicon(BaseLexicon):
                     best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
                     # If best_match is entity from KB add to list
                     if best_match[1] is not None:
-                        entities.append((phrase, best_match))
-                        found_entities.append((phrase, best_match[0]))
+                        # Return as (surface form, (canonical, type))
+                        linked.append((phrase, best_match))
+                        found_entities.append((phrase, best_match))
                         i += l
                         break
                     else:
@@ -322,14 +323,14 @@ class Lexicon(BaseLexicon):
                     #     break
 
             if not candidate_entities or single_char:
-                entities.append(raw_tokens[i])
+                linked.append(raw_tokens[i])
                 i += 1
 
         # For computing per dialogue entities found
         if return_entities:
-            return entities, found_entities
+            return linked, found_entities
 
-        return entities
+        return linked
 
 
     def test(self):

@@ -128,7 +128,10 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                linked, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
+                _, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
+
+                # Modify each candidate from (surface form, (canonical, type)) -> (surface form, canonical) for comparison
+                candidate_annotation = [(c[0], c[1][0]) for c in candidate_annotation]
 
                 total_num_annotations += len(gold_annotation)
                 metrics = get_tp_fp_fn(gold_annotation, candidate_annotation)
@@ -185,7 +188,7 @@ if __name__ == "__main__":
 
 
     output_dir = os.path.dirname(os.path.dirname(os.getcwd())) + "/output"
-    lexicon = Lexicon(schema, learned_lex=False, entity_ranker=ranker)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
 
     eval_lexicon(lexicon, examples, re_pattern, uuid_to_kbs)
     print "Total time: ", time.time() - start
