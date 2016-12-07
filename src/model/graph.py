@@ -5,7 +5,7 @@ from src.model.vocab import is_entity, Vocabulary
 from src.model.graph_embedder import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
-    parser.add_argument('--num-items', type=int, default=10, help='Number of items in each KB')
+    parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')
     parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
     parser.add_argument('--max-num-entities', type=int, default=30, help='Estimate of maximum number of entities in a dialogue')
     parser.add_argument('--max-degree', type=int, default=10, help='Maximum degree of a node in the graph')
@@ -20,7 +20,7 @@ class GraphMetadata(object):
     '''
     Schema information and basic config of Graph.
     '''
-    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2, num_items=10):
+    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2, max_num_items=10):
         # {attribute_name: attribute_type}, e.g., 'Name': 'person'
         self.attribute_types = schema.get_attributes()
 
@@ -51,9 +51,10 @@ class GraphMetadata(object):
         # Attribute names, e.g. Name, Company
         node_types.add_words([x.lower() for x in self.attribute_types.keys()])
         # Item names/ids
-        node_types.add_words([item_to_str(i) for i in xrange(num_items)])
+        node_types.add_words([item_to_str(i) for i in xrange(max_num_items)])
         #node_types.add_words(['item', 'attr'])
-        self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
+        self.feat_inds = {'degree': (0, degree_size), 'degree/N': (degree_size, 1), 'node_type': (degree_size + 1, node_types.size)}
+        #self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
 
@@ -318,6 +319,7 @@ class Graph(object):
         # NOTE: The first path is always a padding path
         self.paths = [Graph.metadata.PATH_PAD]
         # Read information form KB to fill in nodes and paths
+        self.num_items = len(self.kb.items)
         self.load_kb(self.kb)
 
         # Input data to feed_dict
@@ -483,6 +485,7 @@ class Graph(object):
 
         for i, (degree, node_type) in enumerate(raw_feats):
             f[i][get_index('degree', degree)] = 1
+            f[i][get_index('degree/N', 0)] = degree / float(self.num_items)
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
