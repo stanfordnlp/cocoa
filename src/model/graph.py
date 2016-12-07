@@ -13,11 +13,14 @@ def add_graph_arguments(parser):
 def inv_rel(relation):
     return '*' + relation
 
+def item_to_str(id_):
+    return 'item-%d' % id_
+
 class GraphMetadata(object):
     '''
     Schema information and basic config of Graph.
     '''
-    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2):
+    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2, num_items=10):
         # {attribute_name: attribute_type}, e.g., 'Name': 'person'
         self.attribute_types = schema.get_attributes()
 
@@ -43,9 +46,13 @@ class GraphMetadata(object):
         # node_type: entity, item, attr
         degree_size = max_degree + 1
         node_types = Vocabulary(unk=False)
+        # Entity types, e.g. major, school
         node_types.add_words(self.attribute_types.values())
-        # TODO: use attr_name as node tyep instead of just 'attr'
-        node_types.add_words(['item', 'attr'])
+        # Attribute names, e.g. Name, Company
+        node_types.add_words([x.lower() for x in self.attribute_types.keys()])
+        # Item names/ids
+        node_types.add_words([item_to_str(i) for i in xrange(num_items)])
+        #node_types.add_words(['item', 'attr'])
         self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
@@ -199,6 +206,27 @@ class GraphBatch(object):
         max_num_nodes = self._max_num_nodes()
         return np.zeros([self.batch_size, seq_len, max_num_nodes])
 
+    def get_zero_copied_nodes(self, seq_len):
+        return np.zeros([self.batch_size, seq_len], dtype=np.int32), np.zeros([self.batch_size, seq_len], dtype=np.bool)
+
+    def update_copied_nodes(self, targets, entities, mask, vocab):
+        for i in xrange(self.batch_size):
+            entity_id = self.graphs[i].output_to_node_id(targets[i], vocab)
+            if entity_id is not None:
+                entities[i] = entity_id
+                mask[i] = True
+
+    def get_copied_nodes(self, targets, vocab):
+        '''
+        Return the node id of the predictions/targets if the output is copied from the context,
+        mask=False means the output is from the vocab.
+        '''
+        batch_size, seq_len = targets.shape
+        copied_nodes, mask = self.get_zero_copied_nodes(seq_len)
+        for i in xrange(1, seq_len):
+            self.update_copied_nodes(targets[:, i-1], copied_nodes[:, i], mask[:, i], vocab)
+        return copied_nodes, mask
+
     def get_checklists(self, targets, vocab, init_cl=None):
         '''
         Return checklists for a batch of sequences. (batch_size, seq_len, num_nodes)
@@ -229,21 +257,9 @@ class GraphBatch(object):
         '''
         for i in xrange(self.batch_size):
             output = outputs[i][0]
-            entity = None
-            if output >= vocab.size:
-                entity = Graph.metadata.entity_map.to_word(output - vocab.size)
-            else:
-                word = vocab.to_word(output)
-                if is_entity(word):
-                    entity = word
-            if entity is not None:
-                try:
-                    entity_id = self.graphs[i].nodes.to_ind(entity)
-                    cl[i][entity_id] = 1
-                except KeyError:
-                    # If the entity is from vocab, it may not be in the nodes of the graph
-                    continue
-        return
+            entity_id = self.graphs[i].output_to_node_id(output, vocab)
+            if entity_id is not None:
+                cl[i][entity_id] = 1
 
     def get_batch_data(self, encoder_tokens, decoder_tokens, utterances):
         '''
@@ -345,7 +361,9 @@ class Graph(object):
         attr_ents = defaultdict(set)  # Entities of each attribute
         for i, item in enumerate(kb.items):
             # Item nodes
-            item_node = ('item-%d' % i, 'item')
+            item_node = (item_to_str(i), 'item')
+            #item_name = item_to_str(i)
+            #item_node = (item_name, item_name)
             self.nodes.add_word(item_node)
             attrs = sorted(item.items(), key=lambda x: x[0])
             for attr_name, value in attrs:
@@ -354,6 +372,7 @@ class Graph(object):
                 value = value.lower()
                 # Attribute nodes
                 attr_node = (attr_name, 'attr')
+                #attr_node = (attr_name, attr_name)
                 self.nodes.add_word(attr_node)
                 # Entity nodes
                 entity_node = (value, type_)
@@ -374,7 +393,8 @@ class Graph(object):
         as (surface_form, (canonical_form, type)), i.e. output of entitylink.
         '''
         new_entities = set([x[1] for x in tokens if is_entity(x) and not self.nodes.has(x[1])])
-        self.add_entity_nodes(new_entities)
+        if len(new_entities) > 0:
+            self.add_entity_nodes(new_entities)
         node_ids = (self.nodes.to_ind(x[1]) if is_entity(x) else -1 for x in tokens)
         self.entities.extend(node_ids)
 
@@ -384,7 +404,7 @@ class Graph(object):
 
     def _update_feats(self, entities):
         # degree=0, node_type=entity type
-        feats = [[0, x[1]] for x in entities]
+        feats = [[0, self._node_type(x)] for x in entities]
         new_feat_vec = self.get_feat_vec(feats)
         self.feats = np.concatenate((self.feats, new_feat_vec), axis=0)
 
@@ -435,8 +455,14 @@ class Graph(object):
                 entity != -1 and not (entity in seen or seen.add(entity))]
         return entities
 
+    def _node_type(self, node):
+        # Use fine categorty for item and attr nodes
+        name, type_ = node
+        return name if type_ == 'item' or type_ == 'attr' else type_
+        #return type_
+
     def get_features(self):
-        feats = [[0, self.nodes.to_word(i)[1]] for i in xrange(self.nodes.size)]
+        feats = [[0, self._node_type(self.nodes.to_word(i))] for i in xrange(self.nodes.size)]
         # Compute degree of each node
         for path in self.paths:
             n1, r, n2 = path
@@ -457,13 +483,25 @@ class Graph(object):
 
         for i, (degree, node_type) in enumerate(raw_feats):
             f[i][get_index('degree', degree)] = 1
-
-            #if node_type == 'item':
-            #    node_type = 0
-            #elif node_type == 'attr':
-            #    node_type = 1
-            #else:
-            #    node_type = 2
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
+
+    def output_to_node_id(self, output, vocab):
+        '''
+        Map output prediction/target to local node ids.
+        '''
+        entity = None
+        if output >= vocab.size:
+            entity = Graph.metadata.entity_map.to_word(output - vocab.size)
+        else:
+            word = vocab.to_word(output)
+            if is_entity(word):
+                entity = word
+        if entity is not None:
+            try:
+                return self.nodes.to_ind(entity)
+            except KeyError:
+                # If the entity is from vocab, it may not be in the nodes of the graph
+                pass
+        return None

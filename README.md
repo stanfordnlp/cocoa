@@ -18,3 +18,8 @@ Generate dataset of dialogues:
 Train a model:
 
     TODO
+    
+Evaluate lexicon on annotated examples:
+
+    python src/scripts/eval_lexicon.py --schema <schema_path> --transcripts-path <transcripts_path> --scenarios-json <scenarios_path> --annotated-examples-path <annotated-examples-path>
+

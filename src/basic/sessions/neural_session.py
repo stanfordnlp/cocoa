@@ -131,6 +131,7 @@ class RNNNeuralSession(NeuralSession):
 
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])
         self._update_states(sess, decoder_output_dict, entity_tokens)
+        self.env.evaluator.eval(self.kb, entity_tokens[0])
 
         # Text message
         return [x if not is_entity(x) else x[0] for x in entity_tokens[0]]
@@ -177,6 +178,7 @@ class GraphNeuralSession(RNNNeuralSession):
     def _decoder_args(self, init_state, inputs):
         decoder_args = super(GraphNeuralSession, self)._decoder_args(init_state, inputs)
         decoder_args['checklists'] = self.checklists
+        decoder_args['copied_nodes'] = self.graph.get_zero_copied_nodes(1)
         decoder_args['graphs'] = self.graph
         decoder_args['vocab'] = self.env.vocab
         return decoder_args
@@ -189,7 +191,7 @@ class GraphNeuralSession(RNNNeuralSession):
 
         # Update graph and utterances
         graph_data = self.graph.get_batch_data(None, entity_tokens, self.utterances)
-        self.utterances = self.model.decoder.update_utterances(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], graph_data['utterances'], graph_data)
+        self.utterances = self.model.decoder.update_utterances(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], decoder_output_dict['utterance_embedding'], graph_data['utterances'], graph_data)
 
     def _pred_to_token(self, preds):
         if self.env.copy:

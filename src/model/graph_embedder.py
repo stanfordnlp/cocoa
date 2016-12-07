@@ -1,19 +1,22 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from src.model.util import batch_embedding_lookup, batch_linear
+from src.model.util import batch_embedding_lookup, batch_linear, EPS
 
 def add_graph_embed_arguments(parser):
-    parser.add_argument('--node-embed-size', default=10, help='Knowledge graph node/subgraph embedding size')
-    parser.add_argument('--edge-embed-size', default=10, help='Knowledge graph edge label embedding size')
-    parser.add_argument('--entity-embed-size', default=10, help='Knowledge graph entity embedding size')
+    parser.add_argument('--node-embed-size', type=int, default=10, help='Knowledge graph node/subgraph embedding size')
+    parser.add_argument('--edge-embed-size', type=int, default=10, help='Knowledge graph edge label embedding size')
+    parser.add_argument('--entity-embed-size', type=int, default=10, help='Knowledge graph entity embedding size')
     parser.add_argument('--entity-cache-size', type=int, default=2, help='Number of entities to remember (this is more of a performance concern; ideally we can remember all entities within the history)')
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
     parser.add_argument('--utterance-decay', type=float, default=1, help='Decay of old utterance embedding over time')
+    parser.add_argument('--msg-aggregation', default='sum', choices=['sum', 'max', 'avg'], help='How to aggregate messages from neighbors')
+
+activation = tf.tanh
 
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1, msg_agg='sum'):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -30,9 +33,11 @@ class GraphEmbedderConfig(object):
 
         # Number of message passing iterations
         self.mp_iters = mp_iters
-        #self.context_size = self.node_embed_size * (mp_iters + 1)
+        self.msg_agg = msg_agg
+
         self.context_size = self.node_embed_size * mp_iters
-        self.context_size += (self.utterance_size + self.feat_size)
+        # x2 because we encoder and decoder utterances are concatenated
+        self.context_size += (self.utterance_size * 2 + self.feat_size)
         if use_entity_embedding:
             self.context_size += entity_embed_size
 
@@ -162,7 +167,7 @@ class GraphEmbedder(object):
         edge_embeds = tf.nn.embedding_lookup(edge_embedding, paths[:, :, 1])
         node_embeds = batch_embedding_lookup(node_embedding, paths[:, :, 2])
         path_embed_size = self.config.node_embed_size
-        path_embeds = tanh(batch_linear([edge_embeds, node_embeds], path_embed_size, True))
+        path_embeds = activation(batch_linear([edge_embeds, node_embeds], path_embed_size, True))
         return path_embeds
 
     def pass_message(self, path_embeds, neighbors, padded_path=0):
@@ -178,6 +183,7 @@ class GraphEmbedder(object):
         # for entities not in the KB but mentioned by the partner. These are dangling nodes
         # and should not have messages passed in.
         mask = tf.to_float(tf.not_equal(neighbors, tf.constant(padded_path)))  # (batch_size, num_nodes, num_neighbors)
+        num_neighbors = tf.reduce_sum(tf.cast(mask, tf.float32), 2, keep_dims=True) + EPS
 
         # Use static shape when possible
         shape = tf.shape(neighbors)
@@ -192,7 +198,16 @@ class GraphEmbedder(object):
         embeds = tf.reshape(embeds, [batch_size, num_nodes, -1, path_embed_size])
         mask = tf.expand_dims(mask, 3)  # (batch_size, num_nodes, num_neighbors, 1)
         embeds = embeds * mask
-        new_node_embeds = tf.reduce_sum(embeds, 2)  # (batch_size, num_nodes, path_embed_size)
+
+        # (batch_size, num_nodes, path_embed_size)
+        if self.config.msg_agg == 'sum':
+            new_node_embeds = tf.reduce_sum(embeds, 2)
+        elif self.config.msg_agg == 'avg':
+            new_node_embeds = tf.reduce_sum(embeds, 2) / num_neighbors
+        elif self.config.msg_agg == 'max':
+            new_node_embeds = tf.reduce_max(embeds, 2)
+        else:
+            raise ValueError('Unknown message aggregation method')
 
         return new_node_embeds
 

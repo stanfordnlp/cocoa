@@ -10,6 +10,7 @@ from vocab import is_entity
 import resource
 import numpy as np
 from encdec import get_prediction
+from model.util import EPS
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -52,10 +53,10 @@ class Learner(object):
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
             self._run_batch(dialogue_batch, sess, summary_map, test=True)
-        return summary_map['loss']['mean']
+        return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, copied_nodes=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
@@ -81,6 +82,7 @@ class Learner(object):
             encoder_args['utterances'] = graph_data['utterances']
             kwargs['graph_embedder'] = graph_data
             decoder_args['checklists'] = checklists
+            decoder_args['copied_nodes'] = copied_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
@@ -105,7 +107,6 @@ class Learner(object):
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
             print 'LOSS:', loss[i]
-            break
 
     def _run_batch_graph(self, dialogue_batch, sess, summary_map, test=False):
         '''
@@ -117,13 +118,15 @@ class Learner(object):
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
             checklists = graphs.get_checklists(batch['targets'], self.vocab)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists)
+            copied_nodes = graphs.get_copied_nodes(batch['targets'], self.vocab)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, copied_nodes)
             if test:
-                logits, final_state, utterances, loss, seq_loss = sess.run(
+                logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
-                         self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
+                         self.model.loss, self.model.seq_loss, self.model.total_loss],
+                        feed_dict=feed_dict)
             else:
                 _, logits, final_state, utterances, loss, seq_loss, gn = sess.run(
                         [self.train_op,
@@ -138,11 +141,14 @@ class Learner(object):
 
             if self.verbose:
                 preds = get_prediction(logits)
-                preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
+                if self.data.copy:
+                    preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
                 self._print_batch(batch, preds, seq_loss)
 
-            logstats.update_summary_map(summary_map, {'loss': loss})
-            if not test:
+            if test:
+                logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
+            else:
+                logstats.update_summary_map(summary_map, {'loss': loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
@@ -153,10 +159,11 @@ class Learner(object):
         for batch in dialogue_batch['batch_seq']:
             feed_dict = self._get_feed_dict(batch, encoder_init_state)
             if test:
-                logits, final_state, loss, seq_loss = sess.run([
+                logits, final_state, loss, seq_loss, total_loss = sess.run([
                     self.model.decoder.output_dict['logits'],
                     self.model.decoder.output_dict['final_state'],
-                    self.model.loss, self.model.seq_loss], feed_dict=feed_dict)
+                    self.model.loss, self.model.seq_loss, self.model.total_loss],
+                    feed_dict=feed_dict)
             else:
                 _, logits, final_state, loss, seq_loss, gn = sess.run([
                     self.train_op,
@@ -169,8 +176,10 @@ class Learner(object):
                 preds = get_prediction(logits)
                 self._print_batch(batch, preds, seq_loss)
 
-            logstats.update_summary_map(summary_map, {'loss': loss})
-            if not test:
+            if test:
+                logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
+            else:
+                logstats.update_summary_map(summary_map, {'loss': loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def learn(self, args, config, ckpt=None, split='train'):
@@ -240,10 +249,10 @@ class Learner(object):
                     print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                     print '================== Sampling =================='
                     start_time = time.time()
-                    bleu, ent_recall = self.evaluator.test_bleu(sess, test_data, num_batches)
-                    print 'bleu=%.4f entity_recall=%.4f time(s)=%.4f' % (bleu, ent_recall, time.time() - start_time)
+                    bleu, ent_prec, ent_recall, ent_f1 = self.evaluator.test_bleu(sess, test_data, num_batches)
+                    print 'bleu=%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu, ent_prec, ent_recall, ent_f1, time.time() - start_time)
                     if split == 'dev' and loss < best_loss:
                         print 'New best model'
                         best_loss = loss
                         best_saver.save(sess, best_save_path)
-                        logstats.add('best model', {'bleu': bleu, 'entity_recall': ent_recall, 'loss': loss})
+                        logstats.add('best model', {'bleu': bleu, 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})

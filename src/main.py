@@ -102,7 +102,7 @@ if __name__ == '__main__':
         logstats.add('mappings', name, 'size', m.size)
 
     # Build the model
-    logstats.add_args('model_args', args)
+    logstats.add_args('model_args', model_args)
     model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
@@ -129,13 +129,13 @@ if __name__ == '__main__':
                 print '================== Eval %s ==================' % split
                 print '================== Sampling =================='
                 start_time = time.time()
-                bleu, ent_recall = evaluator.test_bleu(sess, test_data, num_batches)
-                print 'bleu=%.4f entity_recall=%.4f time(s)=%.4f' % (bleu, ent_recall, time.time() - start_time)
+                bleu, ent_prec, ent_recall, ent_f1 = evaluator.test_bleu(sess, test_data, num_batches)
+                print 'bleu=%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu, ent_prec, ent_recall, ent_f1, time.time() - start_time)
                 print '================== Perplexity =================='
                 start_time = time.time()
                 loss = learner.test_loss(sess, test_data, num_batches)
                 print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
-                logstats.add(split, {'bleu': bleu, 'entity_recall': ent_recall, 'loss': loss})
+                logstats.add(split, {'bleu': bleu, 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
