@@ -1,108 +1,14 @@
+import collections
 import editdistance
+import json
 import re
+import random
 
 from collections import defaultdict
 from entity_ranker import EntityRanker
 from fuzzywuzzy import fuzz
+from lexicon_utils import get_prefixes, get_acronyms, get_edits, get_morphological_variants
 
-### Helper functions
-
-def get_prefixes(entity, min_length=3, max_length=8):
-    # computer science => ['comp sci', ...]
-    words = entity.split()
-    candidates = ['']
-    candidates = []
-    # TODO: Fix how prefixes is done
-    for i in range(min_length, max_length):
-        candidates.append(entity[:i])
-    # for word in words:
-    #     new_candidates = []
-    #     for c in candidates:
-    #         if len(word) < max_length:  # Keep word
-    #             new_candidates.append(c + ' ' + word)
-    #         else:
-    #             for i in range(min_length, max_length):
-    #                 new_candidates.append(c + '' + word[:i])
-    #     candidates = new_candidates
-
-    stripped = [c.strip() for c in candidates if c != entity]
-    return stripped
-
-def get_acronyms(entity):
-    """
-    Computes acronyms of entity, assuming entity has more than one token
-    :param entity:
-    :return:
-    """
-    words = entity.split()
-    first_letters = ''.join([w[0] for w in words])
-    acronyms = [first_letters]
-
-    # Add acronyms using smaller number of first letters in phrase ('ucb' -> 'uc')
-    for split in range(2, len(first_letters)):
-        acronyms.append(first_letters[:split])
-
-    return acronyms
-
-
-alphabet = "abcdefghijklmnopqrstuvwxyz "
-def get_edits(entity):
-    if len(entity) < 3:
-        return []
-    edits = []
-    for i in range(len(entity) + 1):
-        prefix = entity[:i]
-        # Insert
-        suffix = entity[i:]
-        for c in alphabet:
-            new_word = prefix + c + suffix
-            edits.append(new_word)
-
-        if i == len(entity):
-            continue
-
-        # Delete
-        suffix = entity[i+1:]
-        new_word = prefix + suffix
-        edits.append(new_word)
-
-        # Substitute
-        suffix = entity[i+1:]
-        for c in alphabet:
-            if c != entity[i]:
-                new_word = prefix + c + suffix
-                edits.append(new_word)
-
-        # Transposition - swapping two letters
-        for j in range(i+1, len(entity)):
-            mid = entity[i+1:j]
-            suffix = entity[j+1:]
-            new_word = prefix + entity[j] + mid + entity[i] + suffix
-            new_word = new_word.strip()
-            if new_word != entity:
-                edits.append(new_word)
-    return edits
-
-
-def get_morphological_variants(entity):
-    """
-    Computes stem of entity and creates morphological variants
-    :param entity:
-    :return:
-    """
-    results = []
-    for suffix in ['ing']:
-        if entity.endswith(suffix):
-            base = entity[:-len(suffix)]
-            results.append(base)
-            # TODO: Can we get away with not hard-coding these variants?
-            results.append(base + 'e')
-            results.append(base + 's')
-            results.append(base + 'er')
-            results.append(base + 'ers')
-    return results
-
-############################################################
 
 class BaseLexicon(object):
     """
@@ -141,12 +47,18 @@ class Lexicon(BaseLexicon):
     """
     Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
-    def __init__(self, schema, learned_lex=False, entity_ranker=None):
+    def __init__(self, schema, learned_lex=False, entity_ranker=None, scenarios_json=None):
         super(Lexicon, self).__init__(schema, learned_lex)
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
                                    "start", "go", "school", "do", "know", "no", "work"])
+
+        if scenarios_json is not None:
+            self._process_kbs(scenarios_json)
+        else:
+            raise Warning("No scenarios json provided!")
+
         # Ensure an entity ranker is provided for scoring (span, entity) pairs
         if learned_lex:
             assert entity_ranker is not None
@@ -154,6 +66,40 @@ class Lexicon(BaseLexicon):
             self.entity_ranker = entity_ranker
         else:
             print "Using rule-based lexicon..."
+
+
+    def _process_kbs(self, scenarios_json):
+        """
+        Process kb scenarios
+        :param scenarios_json: Path to scenarios json file
+        :return:
+        """
+        with open(scenarios_json, "r") as f:
+            scenarios_info = json.load(f)
+
+        # Map from uuid to KBs
+        uuid_to_kbs_with_types = collections.defaultdict(dict)
+        uuid_to_kbs = collections.defaultdict(dict)
+        for scenario in scenarios_info:
+            uuid = scenario["uuid"]
+            # Keep track of separate mappings to entities with types and entities without types
+            agent_kbs = {0: set(), 1: set()}
+            agent_kbs_with_types = {0: set(), 1: set()}
+
+            for agent_idx, kb in enumerate(scenario["kbs"]):
+                for item in kb:
+                    row_entities = item.items()
+                    row_entities_with_types = [(e[0], e[1].lower()) for e in row_entities]
+                    row_entities = [e[1].lower() for e in row_entities]
+                    agent_kbs_with_types[agent_idx].update(row_entities_with_types)
+                    agent_kbs[agent_idx].update(row_entities)
+
+            uuid_to_kbs_with_types[uuid] = agent_kbs_with_types
+            uuid_to_kbs[uuid] = agent_kbs
+
+
+        self.uuid_to_kbs = uuid_to_kbs
+        self.uuid_to_kbs_with_types = uuid_to_kbs_with_types
 
 
     def compute_synonyms(self):
@@ -238,7 +184,7 @@ class Lexicon(BaseLexicon):
             # Sort entity scores
             entity_scores = sorted(entity_scores, key=lambda x: x[2])
 
-            #If exact match or substring match with an entity
+            # If exact match or substring match with an entity
             if entity_scores[0][2] <= 1:
                 if span not in self.common_phrases:
                     best_match = entity_scores[0][:2]
@@ -268,18 +214,24 @@ class Lexicon(BaseLexicon):
         return best_match
 
 
-    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb_entities=None):
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE"):
         """
         Add detected entities to each token
-        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
+        Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple','company'))]
         Note: Linking works differently here because we are considering intersection of lists across
         token spans so that "univ of penn" will lookup in our lexicon table for "univ" and "penn"
         (disregarding stop words and special tokens) and find their intersection
         :param return_entities: Whether to return entities found in utterance
         :param agent: Agent (0,1) whose utterance is being linked
         :param uuid: uuid of scenario being used for testing whether candidate entity is in KB
-        :param kb_entities: Kb entities of agent represented as set
         """
+        # Stores KB of agent as set of entities
+        try:
+            kb_entities = self.uuid_to_kbs[uuid][agent]
+        except Exception as e:
+            print "No scenario provided so agent entities and entity scoring not well-defined..."
+            kb_entities = None
+
         i = 0
         found_entities = []
         linked = []
@@ -305,8 +257,11 @@ class Lexicon(BaseLexicon):
 
                 # Found some match
                 if len(candidate_entities) > 0:
-                    #if self.learned_lex:
-                    best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
+                    if kb_entities is not None:
+                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
+                    else:
+                        # TODO: Fix default system, if no kb_entities provided -- only returns random candidate now
+                        best_match = random.sample(candidate_entities, 1)[0]
                     # If best_match is entity from KB add to list
                     if best_match[1] is not None:
                         # Return as (surface form, (canonical, type))
@@ -363,7 +318,7 @@ if __name__ == "__main__":
 
     ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
     schema = Schema(path)
-    lex = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
+    lex = Lexicon(schema, learned_lex=True, entity_ranker=ranker, scenarios_json=args.scenarios_json)
     print "Building complete: ", time.time() - start_build
     start_test = time.time()
     lex.test()

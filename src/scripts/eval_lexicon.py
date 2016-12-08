@@ -91,13 +91,12 @@ def entity_link_examples_file(lexicon, examples_infile, processed_outfile, re_pa
     outfile.close()
 
 
-def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
+def eval_lexicon(lexicon, examples, re_pattern):
     """
     Evaluate lexicon given list of examples
     :param lexicon:
     :param examples:
     :param re_pattern:
-    :param uuid_to_scenarios:
     :return:
     """
     total_num_annotations = 0
@@ -106,16 +105,11 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
     fout = open("recall_measure.txt", "w")
     for ex in examples:
         scenario_uuid = ex["scenario_uuid"]
-        kb_dicts = uuid_to_scenarios[scenario_uuid]
-        agent0_kb = set([e[1] for e in kb_dicts[0]])
-        agent1_kb = set([e[1] for e in kb_dicts[1]])
-
 
         for e in ex["events"]:
             msg_data = e["data"]
             action = e["action"]
             agent = e["agent"]
-            kb_entities = agent1_kb if agent else agent0_kb
 
             if action == "message":
                 total_num_sentences += 1
@@ -128,7 +122,7 @@ def eval_lexicon(lexicon, examples, re_pattern, uuid_to_scenarios):
 
                 raw_tokens = re.findall(re_pattern, msg_data)
                 lower_raw_tokens = [r.lower() for r in raw_tokens]
-                _, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid, kb_entities=kb_entities)
+                _, candidate_annotation = lexicon.link_entity(lower_raw_tokens, return_entities=True, agent=agent, uuid=scenario_uuid)
 
                 # Modify each candidate from (surface form, (canonical, type)) -> (surface form, canonical) for comparison
                 candidate_annotation = [(c[0], c[1][0]) for c in candidate_annotation]
@@ -165,30 +159,15 @@ if __name__ == "__main__":
     schema = Schema(args.schema)
 
     start = time.time()
-    with open(args.scenarios_json, "r") as f:
-        scenarios_info = json.load(f)
 
     ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
-
-    # Map from uuid to KBs
-    uuid_to_kbs = collections.defaultdict(dict)
-    for scenario in scenarios_info:
-        uuid = scenario["uuid"]
-        agent_kbs = {0: set(), 1: set()}
-        for agent_idx, kb in enumerate(scenario["kbs"]):
-            for item in kb:
-                row_entities = item.items()
-                row_entities = [(e[0], e[1].lower()) for e in row_entities]
-                agent_kbs[agent_idx].update(row_entities)
-        uuid_to_kbs[uuid] = agent_kbs
-
 
     with open(args.annotated_examples_path, "r") as f:
         examples = json.load(f)
 
 
     output_dir = os.path.dirname(os.path.dirname(os.getcwd())) + "/output"
-    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=ranker)
+    lexicon = Lexicon(schema, learned_lex=False, entity_ranker=ranker, scenarios_json=args.scenarios_json)
 
-    eval_lexicon(lexicon, examples, re_pattern, uuid_to_kbs)
+    eval_lexicon(lexicon, examples, re_pattern)
     print "Total time: ", time.time() - start
