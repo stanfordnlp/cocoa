@@ -33,7 +33,7 @@ def build_model(schema, mappings, args):
     pad = vocab.to_ind(markers.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
-        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.bow_utterance)
+        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
@@ -621,11 +621,11 @@ class BasicEncoderDecoder(object):
             kwargs = {'encoder': encoder_args, 'decoder': decoder_args, 'graph_embedder': new_graph_data}
             feed_dict = self.get_feed_dict(**kwargs)
             true_final_state, utterances = sess.run((self.decoder.output_dict['final_state'], self.decoder.output_dict['utterances']), feed_dict=feed_dict)
+            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores']
         else:
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run((self.decoder.output_dict['final_state']), feed_dict=feed_dict)
-
-        return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores']
+            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, None, None
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
     def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, sup_gate=None, scope=None):

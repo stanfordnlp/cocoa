@@ -131,15 +131,16 @@ class Evaluator(object):
             print 'TARGET:', target
             print 'PRED:', pred
             print 'BLEU:', bleu
-            print 'ATTENTION:'
-            for j, w in enumerate(pred):
-                print 'TOKEN', j, w
-                sorted_scores = sorted([(node_id, score) for node_id, score in enumerate(attn_scores[j][i])], key=lambda x: x[1], reverse=True)
-                for node_id, score in sorted_scores:
-                    try:
-                        print node_id, graphs.graphs[i].nodes.to_word(node_id), score
-                    except KeyError:
-                        print node_id, 'pad', score
+            if attn_scores is not None:
+                print 'ATTENTION:'
+                for j, w in enumerate(pred):
+                    print 'TOKEN', j, w
+                    sorted_scores = sorted([(node_id, score) for node_id, score in enumerate(attn_scores[j][i])], key=lambda x: x[1], reverse=True)
+                    for node_id, score in sorted_scores:
+                        try:
+                            print node_id, graphs.graphs[i].nodes.to_word(node_id), score
+                        except KeyError:
+                            print node_id, 'pad', score
 
     def update_summary(self, summary_map, bleu_scores):
         for bleu_score in bleu_scores:
