@@ -53,8 +53,7 @@ class GraphMetadata(object):
         # Item names/ids
         node_types.add_words([item_to_str(i) for i in xrange(max_num_items)])
         #node_types.add_words(['item', 'attr'])
-        self.feat_inds = {'degree': (0, degree_size), 'degree/N': (degree_size, 1), 'node_type': (degree_size + 1, node_types.size)}
-        #self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
+        self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
 
@@ -485,7 +484,6 @@ class Graph(object):
 
         for i, (degree, node_type) in enumerate(raw_feats):
             f[i][get_index('degree', degree)] = 1
-            f[i][get_index('degree/N', 0)] = degree / float(self.num_items)
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
