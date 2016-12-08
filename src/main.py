@@ -78,7 +78,10 @@ if __name__ == '__main__':
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
     word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
+    print 'Building lexicon...'
+    start = time.time()
     lexicon = Lexicon(schema, args.learned_lex)
+    print '%.2f s'% (time.time() - start)
 
     # Dataset
     use_kb = False if model_args.model == 'encdec' else True
