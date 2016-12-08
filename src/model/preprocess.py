@@ -394,13 +394,13 @@ class Preprocessor(object):
                 dialogue.add_utterance(e.agent, utterances)
         return dialogue
 
-    def item_to_entities(self, item):
+    def item_to_entities(self, item, attrs):
         '''
         Convert an item to a list of entities representing that item.
         '''
         entities = [(value, (value, type_)) for value, type_ in
             ((item[attr.name].lower(), self.attribute_types[attr.name])
-                for attr in self.attributes)]
+                for attr in attrs)]
         return entities
 
     @classmethod
@@ -435,7 +435,7 @@ class Preprocessor(object):
             item_id = self.get_item_id(kb, e.data)
             item_str = 'item-%d' % item_id
             # We use the entities to represent the item during encoding and item-id during decoding
-            return ([markers.SELECT] + self.item_to_entities(e.data),
+            return ([markers.SELECT] + self.item_to_entities(e.data, kb.attributes),
                     [markers.SELECT, (item_str, (item_str, 'item'))])
         else:
             raise ValueError('Unknown event action.')
