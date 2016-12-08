@@ -86,7 +86,7 @@ class Evaluator(object):
                     self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores)
 
         precision, recall, f1 = self.entity_f1(summary_map)
-        bleu = get_bleu(bleu_stats)
+        bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
         return bleu, precision, recall, f1
 
     def entity_f1(self, summary_map):
