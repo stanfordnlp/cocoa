@@ -20,7 +20,8 @@ def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
-    parser.add_argument('--max-epochs', type=int, default=10, help='Number of training epochs')
+    parser.add_argument('--min-epochs', type=int, default=10, help='Number of training epochs to run before checking for early stop')
+    parser.add_argument('--max-epochs', type=int, default=50, help='Maximum number of training epochs')
     parser.add_argument('--num-per-epoch', type=int, default=None, help='Number of examples per epoch')
     parser.add_argument('--print-every', type=int, default=1, help='Number of examples between printing training loss')
     parser.add_argument('--init-from', help='Initial parameters')
@@ -214,6 +215,8 @@ class Learner(object):
             os.mkdir(best_checkpoint)
         best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
         best_loss = float('inf')
+        # Number of iterations without any improvement
+        num_epoch_no_impr = 0
 
         # Testing
         with tf.Session(config=config) as sess:
@@ -221,8 +224,10 @@ class Learner(object):
             if args.init_from:
                 saver.restore(sess, ckpt.model_checkpoint_path)
             summary_map = {}
-            for epoch in xrange(args.max_epochs):
-                print '================== Epoch %d ==================' % (epoch+1)
+            #for epoch in xrange(args.max_epochs):
+            epoch = 1
+            while True:
+                print '================== Epoch %d ==================' % (epoch)
                 for i in xrange(num_per_epoch):
                     start_time = time.time()
                     self._run_batch(train_data.next(), sess, summary_map, test=False)
@@ -232,7 +237,7 @@ class Learner(object):
                              'memory(MB)': memory()})
                     step += 1
                     if step % args.print_every == 0 or step % num_per_epoch == 0:
-                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))
+                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch, logstats.summary_map_to_str(summary_map))
                         summary_map = {}  # Reset
                 step = 0
 
@@ -251,8 +256,21 @@ class Learner(object):
                     start_time = time.time()
                     bleu, ent_prec, ent_recall, ent_f1 = self.evaluator.test_bleu(sess, test_data, num_batches)
                     print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, time.time() - start_time)
+
+                    # Start to record no improvement epochs
+                    if split == 'dev' and epoch > args.min_epochs:
+                        if loss < best_loss * 0.995:
+                            num_epoch_no_impr = 0
+                        else:
+                            num_epoch_no_impr += 1
+
                     if split == 'dev' and loss < best_loss:
                         print 'New best model'
                         best_loss = loss
                         best_saver.save(sess, best_save_path)
-                        logstats.add('best model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
+                        logstats.add('best model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss, 'epoch': epoch})
+
+                # Early stop when no improvement
+                if (epoch > args.min_epochs and num_epoch_no_impr >= 5) or epoch > args.max_epochs:
+                    break
+                epoch += 1
