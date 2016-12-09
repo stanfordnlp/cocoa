@@ -71,6 +71,7 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
 
     # Add special symbols
     vocab.add_words(special_symbols)
+    print 'Vocabulary size:', vocab.size
     return vocab
 
 def create_mappings(dialogues, schema, num_items, entity_forms):
