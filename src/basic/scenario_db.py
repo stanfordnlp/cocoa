@@ -20,10 +20,14 @@ class Scenario(object):
     @staticmethod
     def from_dict(schema, raw):
         alphas = []
-        attributes = schema.attributes  # compatibility with older data format
-        if 'attributes' in raw.keys():
+        # compatibility with older data format
+        if schema is not None:
+            attributes = schema.attributes
+        else:
+            assert 'attributes' in raw
+        if 'attributes' in raw:
             attributes = [Attribute.from_json(raw_attr) for raw_attr in raw['attributes']]
-        if 'alphas' in raw.keys():
+        if 'alphas' in raw:
             alphas = raw['alphas']
         return Scenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']], alphas)
 
