@@ -31,7 +31,7 @@ def build_model(schema, mappings, args):
 
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
-    word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad=pad)
+    word_embedder = WordEmbedder(vocab.size, args.word_embed_size)
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
