@@ -57,7 +57,7 @@ class Learner(object):
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, copied_nodes=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, encoder_nodes=None, decoder_nodes=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
@@ -78,12 +78,13 @@ class Learner(object):
                 }
 
         if graph_data is not None:
-            encoder_args['entities'] = graph_data['encoder_entities']
-            decoder_args['entities'] = graph_data['decoder_entities']
+            encoder_args['update_entities'] = graph_data['encoder_entities']
+            decoder_args['update_entities'] = graph_data['decoder_entities']
             encoder_args['utterances'] = graph_data['utterances']
             kwargs['graph_embedder'] = graph_data
             decoder_args['checklists'] = checklists
-            decoder_args['copied_nodes'] = copied_nodes
+            encoder_args['entities'] = encoder_nodes
+            decoder_args['entities'] = decoder_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
@@ -117,10 +118,9 @@ class Learner(object):
         utterances = None
         graphs = dialogue_batch['graph']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
-            graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
+            graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, self.vocab)
             checklists = graphs.get_checklists(batch['targets'], self.vocab)
-            copied_nodes = graphs.get_copied_nodes(batch['targets'], self.vocab)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, copied_nodes)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
             if test:
                 logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],

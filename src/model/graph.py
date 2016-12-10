@@ -1,6 +1,6 @@
 from collections import defaultdict
 import numpy as np
-from itertools import izip, islice
+from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
 from src.model.graph_embedder import GraphEmbedderConfig
 
@@ -206,26 +206,8 @@ class GraphBatch(object):
         max_num_nodes = self._max_num_nodes()
         return np.zeros([self.batch_size, seq_len, max_num_nodes])
 
-    def get_zero_copied_nodes(self, seq_len):
+    def get_zero_entities(self, seq_len):
         return np.zeros([self.batch_size, seq_len], dtype=np.int32), np.zeros([self.batch_size, seq_len], dtype=np.bool)
-
-    def update_copied_nodes(self, targets, entities, mask, vocab):
-        for i in xrange(self.batch_size):
-            entity_id = self.graphs[i].output_to_node_id(targets[i], vocab)
-            if entity_id is not None:
-                entities[i] = entity_id
-                mask[i] = True
-
-    def get_copied_nodes(self, targets, vocab):
-        '''
-        Return the node id of the predictions/targets if the output is copied from the context,
-        mask=False means the output is from the vocab.
-        '''
-        batch_size, seq_len = targets.shape
-        copied_nodes, mask = self.get_zero_copied_nodes(seq_len)
-        for i in xrange(1, seq_len):
-            self.update_copied_nodes(targets[:, i-1], copied_nodes[:, i], mask[:, i], vocab)
-        return copied_nodes, mask
 
     def get_checklists(self, targets, vocab, init_cl=None):
         '''
@@ -255,13 +237,38 @@ class GraphBatch(object):
         cl: checklist to be updated in place.
         (batch_size, num_nodes)
         '''
-        for i in xrange(self.batch_size):
-            output = outputs[i][0]
-            entity_id = self.graphs[i].output_to_node_id(output, vocab)
-            if entity_id is not None:
-                cl[i][entity_id] = 1
+        node_ids, mask = self._pred_to_node_id(outputs, vocab.size)
+        for i, (m, node_id) in enumerate(izip(np.nditer(mask), np.nditer(node_ids))):
+            if m:
+                cl[i][node_id[()]] = 1
 
-    def get_batch_data(self, encoder_tokens, decoder_tokens, utterances):
+    def _entity_to_node_id(self, entities):
+        '''
+        Convert entity ids from entity_map to node ids in graph.
+        entities: array of same size as inputs, -1 means non-entity words.
+        Return entity_mask and node_ids.
+        '''
+        mask = entities != -1
+        node_ids = np.full(entities.shape, 0, dtype=np.int32)
+        graph_iter = chain.from_iterable((repeat(graph, entities.shape[1]) for graph in self.graphs))
+        for m, entity_id, node_id, graph in izip(np.nditer(mask), np.nditer(entities), np.nditer(node_ids, op_flags=['readwrite']), graph_iter):
+            # NOTE: m is a 0-dim ndarray, should not say 'if m is True'
+            if m:
+                try:
+                    # [()]: entity_id is a 0-dim ndarray
+                    node_id[...] = graph.nodes.to_ind(Graph.metadata.entity_map.to_word(entity_id[()]))
+                except KeyError:
+                    # A padded node is predicted and the entity is <unk>
+                    pass
+        return node_ids, mask
+
+    def _pred_to_node_id(self, preds, offset):
+        entities = preds - offset
+        entities[entities < 0] = -1
+        return self._entity_to_node_id(entities)
+
+    # TODO: given entities, can get rid of tokens
+    def get_batch_data(self, encoder_tokens, decoder_tokens, encoder_entities, decoder_entities, utterances, vocab):
         '''
         Construct batched inputs for GraphEmbedder. (These could be precomputed as well but
         can take lots of memory.)
@@ -283,6 +290,7 @@ class GraphBatch(object):
 
         max_num_paths = self._max_num_paths()
         max_num_paths_per_node = self._max_num_paths_per_node()
+        # TODO: entities -> update_entities
         batch = {
                  'node_ids': self._batch_node_ids(max_num_nodes),
                  'mask': self._batch_mask(max_num_nodes),
@@ -292,7 +300,9 @@ class GraphBatch(object):
                  'node_feats': self._batch_node_feats(max_num_nodes),
                  'utterances': utterances,
                  'encoder_entities': self._batch_entity_lists(encoder_entity_lists, self.pad_utterance_id),
-                 'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id)
+                 'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id),
+                 'encoder_nodes': None if encoder_entities is None else self._entity_to_node_id(encoder_entities),
+                 'decoder_nodes': None if decoder_entities is None else self._entity_to_node_id(decoder_entities),
                 }
         return batch
 
@@ -488,14 +498,15 @@ class Graph(object):
 
         return f
 
-    def output_to_node_id(self, output, vocab):
+    def entity_to_node_id(self, output, vocab):
         '''
         Map output prediction/target to local node ids.
         '''
         entity = None
         if output >= vocab.size:
             entity = Graph.metadata.entity_map.to_word(output - vocab.size)
-        else:
+        # -1 is used to mask non-entity words
+        elif output >= 0:
             word = vocab.to_word(output)
             if is_entity(word):
                 entity = word

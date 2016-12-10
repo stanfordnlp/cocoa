@@ -138,9 +138,6 @@ class GraphEmbedder(object):
                 def mp(curr_node_embedding):
                     messages = self.embed_path(curr_node_embedding, self.edge_embedding, paths)
                     return self.pass_message(messages, node_paths, self.config.pad_path_id)
-                #node_embeds = tf.scan(lambda curr_embed, _: mp(curr_embed), \
-                #        tf.range(0, self.config.mp_iters), \
-                #        initial_node_embed)  # (mp_iters, batch_size, num_nodes, embed_size)
 
                 node_embeds = [initial_node_embed]
                 # NOTE: initial MP uses different parameters because the node_embed_size is different

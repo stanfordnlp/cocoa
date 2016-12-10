@@ -168,11 +168,9 @@ class AttnRNNCell(object):
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             prev_rnn_state, prev_attn, prev_context = state
-            inputs, checklist, prev_nodes = inputs
-            prev_node_embeds = self.get_node_embedding(prev_context[0], prev_nodes)
+            inputs, checklist = inputs
             # RNN step
-            new_inputs = tf.concat(1, [inputs, prev_attn, prev_node_embeds])
-            #new_inputs = tf.concat(1, [inputs, prev_attn])
+            new_inputs = tf.concat(1, [inputs, prev_attn])
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
             attn, attn_scores = self.compute_attention(output, prev_context, checklist)
