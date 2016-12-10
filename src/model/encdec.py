@@ -136,9 +136,9 @@ class BasicEncoder(object):
             self.init_state = self._build_init_state(cell, input_dict)
             self.output_size = cell.output_size
 
-        inputs = self._build_rnn_inputs(word_embedder, time_major)
-        rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
-        self.output_dict = self._build_output_dict(rnn_outputs, states)
+            inputs = self._build_rnn_inputs(word_embedder, time_major)
+            rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
+            self.output_dict = self._build_output_dict(rnn_outputs, states)
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
