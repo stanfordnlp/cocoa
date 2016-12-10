@@ -266,15 +266,7 @@ class Lexicon(BaseLexicon):
 
         return best_match
 
-    # HACK. TODO: pass in kb in link_entity
-    def _kb_to_entities(self, kb):
-        entities = set()
-        for item in kb.items:
-            for name, value in item.iteritems():
-                entities.add(value.lower())
-        return entities
-
-    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb_entities=None):
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', 'company')]
@@ -287,8 +279,8 @@ class Lexicon(BaseLexicon):
         :param kb_entities: Kb entities of agent represented as set
         """
         # HACK
-        assert kb_entities is not None
-        kb_entities = self._kb_to_entities(kb_entities)
+        assert kb is not None
+        kb_entities = kb.entity_set
 
         i = 0
         found_entities = []
