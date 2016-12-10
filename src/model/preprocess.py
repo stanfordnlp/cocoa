@@ -330,9 +330,10 @@ class DialogueBatch(object):
         decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
-        # Process entities
+        # Process entities. NOTE: change turns in place!
         encoder_inputs, encoder_entities = Dialogue.textint_map.process_entity(encoder_inputs, 'encoding')
         decoder_inputs, decoder_entities = Dialogue.textint_map.process_entity(decoder_inputs, 'decoding')
+        decoder_targets, _ = Dialogue.textint_map.process_entity(decoder_inputs, 'target')
 
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
@@ -470,7 +471,7 @@ class Preprocessor(object):
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb_entities=kb)
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
             if entity_tokens:
                 return (entity_tokens, entity_tokens)
             else:
