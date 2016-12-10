@@ -161,7 +161,8 @@ class GraphNeuralSession(RNNNeuralSession):
     def _encoder_args(self, entity_tokens):
         encoder_args = super(GraphNeuralSession, self)._encoder_args(entity_tokens)
         graph_data = self.graph.get_batch_data([entity_tokens], None, self.utterances)
-        encoder_args['entities'] = graph_data['encoder_entities']
+        encoder_args['update_entities'] = graph_data['encoder_entities']
+        encoder_args['entities'] = graph_data['encoder_nodes']
         encoder_args['utterances'] = graph_data['utterances']
         encoder_args['graph_data'] = graph_data
         return encoder_args
@@ -178,7 +179,7 @@ class GraphNeuralSession(RNNNeuralSession):
     def _decoder_args(self, init_state, inputs):
         decoder_args = super(GraphNeuralSession, self)._decoder_args(init_state, inputs)
         decoder_args['checklists'] = self.checklists
-        decoder_args['copied_nodes'] = self.graph.get_zero_copied_nodes(1)
+        decoder_args['entities'] = self.graph.get_zero_entities(1)
         decoder_args['graphs'] = self.graph
         decoder_args['vocab'] = self.env.vocab
         return decoder_args
