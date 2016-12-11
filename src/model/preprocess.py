@@ -333,7 +333,7 @@ class DialogueBatch(object):
         # Process entities. NOTE: change turns in place!
         encoder_inputs, encoder_entities = Dialogue.textint_map.process_entity(encoder_inputs, 'encoding')
         decoder_inputs, decoder_entities = Dialogue.textint_map.process_entity(decoder_inputs, 'decoding')
-        decoder_targets, _ = Dialogue.textint_map.process_entity(decoder_inputs, 'target')
+        decoder_targets, _ = Dialogue.textint_map.process_entity(decoder_targets, 'target')
 
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
