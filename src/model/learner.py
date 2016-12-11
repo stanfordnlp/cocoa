@@ -184,6 +184,8 @@ class Learner(object):
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def learn(self, args, config, ckpt=None, split='train'):
+        assert args.min_epochs <= args.max_epochs
+
         assert args.optimizer in optim.keys()
         optimizer = optim[args.optimizer](args.learning_rate)
 
