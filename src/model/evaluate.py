@@ -1,4 +1,5 @@
 from itertools import izip, izip_longest
+import numpy as np
 from src.model.preprocess import markers
 from src.model.graph import Graph
 from src.lib.bleu import compute_bleu
@@ -8,19 +9,22 @@ from src.model.vocab import is_entity
 from src.lib import logstats
 from src.model.util import EPS
 
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map):
+def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=1):
     '''
     Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
     '''
-    def find_stop(array):
+    def find_stop(array, n):
+        count = 0
         for i, a in enumerate(array):
             if a == stop_symbol:
-                return i
+                count += 1
+                if count == n:
+                    return i
         return None
     tokens = []
-    for pred in preds:
-        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred)] if not x in remove_symbols], 'target'))
+    for pred, n in izip(preds, num_sents):
+        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
     return tokens
 
 class Evaluator(object):
@@ -65,7 +69,8 @@ class Evaluator(object):
                 graphs = None
             utterances = None
             for batch in dialogue_batch['batch_seq']:
-                max_len = batch['targets'].shape[1] + 10
+                targets = batch['targets']
+                max_len = targets.shape[1] + 10
                 preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
                 if graphs:
                     encoder_init_state = true_final_state[0]
@@ -73,10 +78,11 @@ class Evaluator(object):
                     encoder_init_state = true_final_state
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
-                pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
+                num_sents = np.sum(targets == self.stop_symbol, axis=1)
+                pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents)
 
                 # Compute BLEU
-                references = [self._process_target_tokens(targets) for targets in batch['decoder_tokens']]
+                references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
                 # Sentence bleu: only for verbose print
                 bleu_scores = self.sentence_bleu_score(pred_tokens, references)
                 bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
