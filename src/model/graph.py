@@ -44,7 +44,8 @@ class GraphMetadata(object):
         # Node features {feat_name: (offset, feat_size)}
         # degree: 0-max_degree
         # node_type: entity, item, attr
-        degree_size = max_degree + 1
+        #degree_size = max_degree + 1
+        degree_size = Graph.degree_feat_size()
         node_types = Vocabulary(unk=False)
         # Entity types, e.g. major, school
         node_types.add_words(self.attribute_types.values())
@@ -473,12 +474,35 @@ class Graph(object):
         #return type_
 
     def get_features(self):
-        feats = [[0, self._node_type(self.nodes.to_word(i))] for i in xrange(self.nodes.size)]
+        nodes = [self.nodes.to_word(i) for i in xrange(self.nodes.size)]
+        # For entity node, fix degree so that it excludes the edge incident to the attr node
+        feats = [[0, self._node_type(node)] if node[1] == 'item' or node[1] == 'attr'
+                else [-1, self._node_type(node)] for node in nodes]
         # Compute degree of each node
         for path in self.paths:
             n1, r, n2 = path
             feats[n1][0] += 1
         return self.get_feat_vec(feats)
+
+    @classmethod
+    def degree_feat_size(cls):
+        return 8
+
+    def _bin_degree(self, degree):
+        if degree < 4:
+            return degree
+        # NOTE: we consider degree only for attr and entity nodes (only count edges connected
+        # to item nodes).
+        assert degree <= self.num_items
+        p = degree / float(self.num_items)
+        if p >= 0.25 and p < 0.5:
+            return 4
+        elif p >= 0.5 and p < 0.75:
+            return 5
+        elif p >= 0.75 and p < 1:
+            return 6
+        elif p == 1:
+            return 7
 
     def get_feat_vec(self, raw_feats):
         '''
@@ -493,7 +517,9 @@ class Graph(object):
             return offset + feat_value
 
         for i, (degree, node_type) in enumerate(raw_feats):
-            f[i][get_index('degree', degree)] = 1
+            # Don't consider degree of item nodes (number of attrs, same for all items)
+            if not node_type.startswith('item'):
+                f[i][get_index('degree', self._bin_degree(degree))] = 1
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
