@@ -25,8 +25,6 @@ class GraphEmbedderConfig(object):
         # RNN output size
         self.utterance_size = graph_metadata.utterance_size
         self.decay = decay
-        # Maximum number of nodes/entities to update embeddings for
-        self.entity_cache_size = graph_metadata.entity_cache_size
 
         # Size of input features from Graph
         self.feat_size = graph_metadata.feat_size
@@ -229,8 +227,9 @@ class GraphEmbedder(object):
         Padded entities in entity_indices corresponds to the padded utterance. This is handled
         by GraphBatch during construnction of the input data.
         '''
-        B = tf.shape(entity_indices)[0]  # batch_size is a variable
-        E = self.config.entity_cache_size
+        entity_inds_shape = tf.shape(entity_indices)
+        B = entity_inds_shape[0]  # batch_size is a variable
+        E = entity_inds_shape[1]  # number of entities to be updated
         U = self.config.utterance_size
         # Construct indices corresponding to each entry to be updated in self.utterances
         # self.utterance has shape (batch_size, num_nodes, utterance_size)

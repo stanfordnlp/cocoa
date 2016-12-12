@@ -6,7 +6,7 @@ from src.model.graph_embedder import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')
-    parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
+    parser.add_argument('--entity-hist-len', type=int, default=2, help='Number of most recent utterances to consider when updating entity node embeddings')
     parser.add_argument('--max-num-entities', type=int, default=30, help='Estimate of maximum number of entities in a dialogue')
     parser.add_argument('--max-degree', type=int, default=10, help='Maximum degree of a node in the graph')
 
@@ -20,7 +20,7 @@ class GraphMetadata(object):
     '''
     Schema information and basic config of Graph.
     '''
-    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2, max_num_items=10):
+    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=2, max_num_items=10):
         # {attribute_name: attribute_type}, e.g., 'Name': 'person'
         self.attribute_types = schema.get_attributes()
 
@@ -30,12 +30,8 @@ class GraphMetadata(object):
         # Relation to id. Add inverse relations.
         self.relation_map = relation_map
 
-        # An utterance udpate all entities within entity_hist_len (counting backward
-        # from the current position)
+        # An utterance udpate all entities in the last entity_hist_len utterances
         self.entity_hist_len = entity_hist_len
-        # Maximum number of nodes/entities to update embeddings for. NOTE: this should be
-        # the same as what in GraphEmbedderConfig.
-        self.entity_cache_size = entity_cache_size
 
         # Maximum number of entites that may appear in one dialogue. This affects the
         # initial utterance matrix size.
@@ -125,17 +121,11 @@ class GraphBatch(object):
                 graph.read_utterance(toks)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
-        max_len = Graph.metadata.entity_cache_size
+        max_len = max([len(entity_list) for entity_list in entity_lists])
         batch_entity_lists = np.full([self.batch_size, max_len], pad_utterance_id, dtype=np.int32)
         for i, entity_list in enumerate(entity_lists):
             n = len(entity_list)
-            if n == 0:
-                continue
-            elif n > max_len:
-                # Take the most recent ones
-                batch_entity_lists[i] = entity_list[-1*max_len:]
-            else:
-                batch_entity_lists[i][:n] = entity_list
+            batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
     def copy_targets(self, targets, vocab_size):
@@ -175,7 +165,7 @@ class GraphBatch(object):
         '''
         if tokens is not None:
             self.update_entities(tokens)
-        entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
+        entity_lists = [graph.get_entity_list() for graph in self.graphs]
         return entity_lists
 
     def _batch_zero_utterances(self, max_num_nodes):
@@ -407,8 +397,8 @@ class Graph(object):
         new_entities = set([x[1] for x in tokens if is_entity(x) and not self.nodes.has(x[1])])
         if len(new_entities) > 0:
             self.add_entity_nodes(new_entities)
-        node_ids = (self.nodes.to_ind(x[1]) if is_entity(x) else -1 for x in tokens)
-        self.entities.extend(node_ids)
+        node_ids = [self.nodes.to_ind(x[1]) for x in tokens if is_entity(x)]
+        self.entities.append(node_ids)
 
     def _update_nodes(self, entities):
         self.nodes.add_words(entities)
@@ -438,34 +428,12 @@ class Graph(object):
         self._update_feats(entities)
         self._update_node_paths(entities)
 
-    def get_entity_list(self, last_n=None):
+    def get_entity_list(self):
         '''
-        Input: return entity_list for the n most recent tokens received
-        Output: a list of entity list at each position of received entities
-        - E.g. I went to Stanford and MIT . => [[], [], [], [Stanford], [Stanford], [Stanford, MIT]]
+        Return a list of unique entities in these utterances for the last n utterances
         '''
-        N = len(self.entities)
-        if N == 0:
-            if not last_n:
-                return [[]]
-            return [[] for _ in xrange(last_n)]
-        if not last_n:
-            position = xrange(N)
-        else:
-            assert last_n <= N
-            position = (N - i for i in xrange(last_n, 0, -1))
-        entity_list = [self.get_entities(max(0, i-Graph.metadata.entity_hist_len), i+1) for i in position]
-        return entity_list
-
-    def get_entities(self, start, end):
-        '''
-        Return all entity ids (from self.nodes) in [start, end).
-        '''
-        # Filter tokens and remove duplicated entities
-        seen = set()
-        entities = [entity for entity in islice(self.entities, start, end) if \
-                entity != -1 and not (entity in seen or seen.add(entity))]
-        return entities
+        last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
+        return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
 
     def _node_type(self, node):
         # Use fine categorty for item and attr nodes

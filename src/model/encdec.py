@@ -39,7 +39,7 @@ def build_model(schema, mappings, args):
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
         utterance_size = args.word_embed_size if args.bow_utterance else args.rnn_size
-        graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], utterance_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, entity_cache_size=args.entity_cache_size, max_num_items=args.num_items)
+        graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], utterance_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, max_num_items=args.num_items)
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
@@ -188,7 +188,7 @@ class GraphEncoder(BasicEncoder):
         super(GraphEncoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
             # Entities whose embedding are to be updated
-            self.update_entities = tf.placeholder(tf.int32, shape=[None, self.graph_embedder.config.entity_cache_size], name='update_entities')
+            self.update_entities = tf.placeholder(tf.int32, shape=[None, None], name='update_entities')
             # Entities in the current utterance. Non-entity words are masked.
             self.entities = (tf.placeholder(tf.int32, shape=[None, None], name='entities'), tf.placeholder(tf.bool, shape=[None, None], name='entity_mask'))
 
