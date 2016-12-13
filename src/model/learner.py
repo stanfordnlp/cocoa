@@ -85,6 +85,7 @@ class Learner(object):
             decoder_args['init_checklists'] = init_checklists
             encoder_args['entities'] = encoder_nodes
             decoder_args['entities'] = decoder_nodes
+            decoder_args['cheat_selection'] = decoder_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict

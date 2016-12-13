@@ -160,21 +160,21 @@ class PreselectAttnRNNCell(AttnRNNCell):
     '''
     Attention RNN cell that pre-selects a set of items from the context.
     '''
-    def select(self, init_output, context):
+    def select(self, init_output, context, cheat_selection):
         context_len = tf.shape(context)[1]
         init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
         with tf.variable_scope('SelectEntity'):
             selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
             selection_scores = tf.squeeze(selection, [2])
             selection = tf.sigmoid(selection)
-            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
+            selected_context = tf.reduce_sum(tf.mul(cheat_selection, context), 1)  # (batch_size, context_size)
             # Normalize
             selected_context = tf.div(selected_context, (tf.reduce_sum(selection, 1) + EPS))
         return selected_context, selection_scores
 
-    def init_state(self, rnn_state, rnn_output, context, checklist):
+    def init_state(self, rnn_state, rnn_output, context, checklist, cheat_selection):
         attn, scores = self.compute_attention(rnn_output, context, checklist)
-        selected_context, selection_scores = self.select(rnn_output, context[0])
+        selected_context, selection_scores = self.select(rnn_output, context[0], cheat_selection)
         return (rnn_state, attn, context, selected_context, selection_scores)
 
     def __call__(self, inputs, state, scope=None):
@@ -189,4 +189,10 @@ class PreselectAttnRNNCell(AttnRNNCell):
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context, selected_context, selection_scores)
+
+    def zero_state(self, batch_size, init_context, cheat_selection, dtype=tf.float32):
+        zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
+        zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
+        zero_checklist = tf.zeros_like(init_context)[:, :, 0]
+        return self.init_state(zero_rnn_state, zero_h, init_context, zero_checklist, cheat_selection)
 

@@ -189,6 +189,7 @@ class GraphEncoder(BasicEncoder):
         else:
             with tf.variable_scope(tf.get_variable_scope(), reuse=self.graph_embedder.context_initialized):
                 self.context = self.graph_embedder.get_context(self.utterances)
+        self.num_nodes = tf.to_int32(tf.shape(self.context[0])[1])
 
     def _build_inputs(self, input_dict):
         super(GraphEncoder, self)._build_inputs(input_dict)
@@ -359,7 +360,6 @@ class GraphDecoder(GraphEncoder):
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
 
-        self.num_nodes = tf.to_int32(tf.shape(self.context[0])[1])
         checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
         # cumsum can cause >1 indicator
         checklists = tf.cast(tf.greater(checklists, 0), tf.float32)
@@ -400,6 +400,7 @@ class GraphDecoder(GraphEncoder):
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
+        cheat_selection = kwargs['cheat_selection']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -424,7 +425,9 @@ class GraphDecoder(GraphEncoder):
                     last_inds=last_inds,
                     init_state=final_state,
                     init_checklists=cl,
-                    entities=entities)
+                    entities=entities,
+                    cheat_selection=cheat_selection,
+                    )
         # NOTE: the final_output may not be at the stop symbol when the function is running
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
@@ -520,6 +523,42 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     '''
     def _build_rnn_cell(self):
         return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers)
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(PreselectCopyGraphDecoder, self).get_feed_dict(**kwargs)
+        feed_dict[self.cheat_selection] = kwargs.pop('cheat_selection')
+        return feed_dict
+
+    def _build_init_state(self, cell, input_dict):
+        self.init_output = input_dict['init_output']
+        self.init_rnn_state = input_dict['init_state']
+        cheat_selection = tf.cumsum(tf.one_hot(self.cheat_selection, self.num_nodes, on_value=1, off_value=0), axis=1)
+        cheat_selection = tf.cast(tf.greater(cheat_selection, 0), tf.float32)
+        cheat_selection = tf.expand_dims(cheat_selection[:, -1, :], 2)
+        if self.init_rnn_state is not None:
+            # NOTE: we assume that the initial state comes from the encoder and is just
+            # the rnn state. We need to compute attention and get context for the attention
+            # cell's initial state.
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection)
+        else:
+            return cell.zero_state(self.batch_size, self.context, cheat_selection)
+
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection):
+        init_state = sess.run(self.init_state,
+                feed_dict={self.init_output: init_output,
+                    self.init_rnn_state: init_rnn_state,
+                    self.context: context,
+                    self.init_checklists: init_checklists,
+                    self.cheat_selection: cheat_selection,
+                    }
+                )
+        return init_state
+
+    def _build_inputs(self, input_dict):
+        super(PreselectCopyGraphDecoder, self)._build_inputs(input_dict)
+        with tf.name_scope(type(self).__name__+'/inputs'):
+            # entities
+            self.cheat_selection = tf.placeholder(tf.int32, shape=[None, None], name='cheat_selection')
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
@@ -649,15 +688,19 @@ class BasicEncoderDecoder(object):
         if graphs:
             init_checklists = graphs.get_zero_checklists(1)
             entities = graphs.get_zero_entities(1)
+            cheat_selection = graphs._entity_to_node_id(batch['decoder_entities'])
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
-                    init_checklists,)
+                    init_checklists,
+                    cheat_selection,
+                    )
             decoder_args['init_checklists'] = init_checklists
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
+            decoder_args['cheat_selection'] = cheat_selection
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
@@ -667,6 +710,7 @@ class BasicEncoderDecoder(object):
             # TODO: why do we need to do encoding again
             # Read decoder tokens and update graph
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], None, batch['decoder_entities'], utterances, vocab)
+            decoder_args['cheat_selection'] = new_graph_data['decoder_nodes']
             # Add checklists
             decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
             # Add copied nodes
@@ -679,11 +723,11 @@ class BasicEncoderDecoder(object):
             kwargs = {'encoder': encoder_args, 'decoder': decoder_args, 'graph_embedder': new_graph_data}
             feed_dict = self.get_feed_dict(**kwargs)
             true_final_state, utterances = sess.run((self.decoder.output_dict['final_state'], self.decoder.output_dict['utterances']), feed_dict=feed_dict)
-            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores']
+            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores'], decoder_output_dict['selection_socre'], decoder_output_dict['checklists']
         else:
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run((self.decoder.output_dict['final_state']), feed_dict=feed_dict)
-            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, None, None
+            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, None, None, None
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
     def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, sup_gate=None, scope=None):
