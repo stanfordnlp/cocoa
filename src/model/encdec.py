@@ -189,8 +189,8 @@ class GraphEncoder(BasicEncoder):
         with tf.name_scope(type(self).__name__+'/inputs'):
             # Entities whose embedding are to be updated
             self.update_entities = tf.placeholder(tf.int32, shape=[None, None], name='update_entities')
-            # Entities in the current utterance. Non-entity words are masked.
-            self.entities = (tf.placeholder(tf.int32, shape=[None, None], name='entities'), tf.placeholder(tf.bool, shape=[None, None], name='entity_mask'))
+            # Entities in the current utterance. Non-entity words are -1.
+            self.entities = tf.placeholder(tf.int32, shape=[None, None], name='entities')
 
     def _get_node_embedding(self, context, node_ids):
         '''
@@ -199,21 +199,12 @@ class GraphEncoder(BasicEncoder):
         context: (batch_size, num_nodes, context_size)
         Return node_embeds (batch_size, seq_len, context_size)
         '''
-        # Mask words that are not copied from context but predicted from vocab
-        node_ids, mask = node_ids
-
         context_shape = tf.shape(context)
         batch_size = context_shape[0]
         context_size = self.context_size
 
-        node_embeddings = batch_embedding_lookup(context, node_ids)  # (batch_size, seq_len, context_size)
-        zero_embeddings = tf.zeros_like(node_embeddings)
-        masked_embeddings = tf.select(tf.reshape(mask, [-1]),
-                tf.reshape(node_embeddings, [-1, context_size]),
-                tf.reshape(zero_embeddings, [-1, context_size]))
-        masked_embeddings = tf.reshape(masked_embeddings, [batch_size, -1, context_size])
-
-        return masked_embeddings
+        node_embeddings = batch_embedding_lookup(context, node_ids, zero_ind=-1)  # (batch_size, seq_len, context_size)
+        return node_embeddings
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         '''
@@ -363,6 +354,8 @@ class GraphDecoder(GraphEncoder):
         super(GraphDecoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
             self.checklists = tf.placeholder(tf.float32, shape=[None, None, None], name='checklists')
+            #self.num_nodes = tf.placeholder(tf.float32, shape=[], name='num_nodes')  # Scalar
+            #self.checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=2)
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
@@ -405,7 +398,6 @@ class GraphDecoder(GraphEncoder):
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['checklists']
-        #entities = kwargs['entities']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -489,8 +481,8 @@ class CopyGraphDecoder(GraphDecoder):
         '''
         offset = vocab.size
         pred = graphs.copy_preds(pred, offset)
-        copied_nodes, mask = graphs._pred_to_node_id(pred, offset)
-        return copied_nodes, mask
+        node_ids = graphs._pred_to_node_id(pred, offset)
+        return node_ids
 
     def pred_to_input(self, preds, **kwargs):
         graphs = kwargs.pop('graphs')
@@ -499,6 +491,11 @@ class CopyGraphDecoder(GraphDecoder):
         preds = graphs.copy_preds(preds, vocab.size)
         preds = textint_map.pred_to_input(preds)
         return preds
+
+class PreselectCopyGraphDecoder(CopyGraphDecoder):
+    '''
+    Decoder that pre-selects a set of entities before generation.
+    '''
 
 class GatedCopyGraphDecoder(GraphDecoder):
     '''

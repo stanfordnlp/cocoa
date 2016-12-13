@@ -86,7 +86,6 @@ class AttnRNNCell(object):
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
                 attns = activation(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
-                #attns = activation(batch_linear([h, context], attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -135,9 +134,6 @@ class AttnRNNCell(object):
             checklist = tf.expand_dims(checklist, 2)  # (batch_size, context_len, 1)
             with tf.variable_scope("ScoreAttention"):
                 attn_scores = self.score_context(h, context, checklist)  # (batch_size, context_len)
-            #with tf.variable_scope("ScoreChecklist"):
-            #    cl_scores = self.score_context(h, checklist)  # (batch_size, context_len)
-            #attns = tf.nn.softmax(attn_scores + cl_scores)
             attns = tf.nn.softmax(attn_scores)
             zero_attns = tf.zeros_like(attns)
             attns = tf.select(context_mask, attns, zero_attns)
@@ -148,22 +144,22 @@ class AttnRNNCell(object):
             masked_attn_scores = tf.select(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
-    def get_node_embedding(self, context, node_ids):
-        '''
-        Lookup embeddings of nodes from context.
-        node_ids: (batch_size,)
-        context: (batch_size, num_nodes, context_size)
-        Return node_embeds (batch_size, context_size)
-        '''
-        batch_size = tf.shape(context)[0]
-        # Mask words that are not copied from context but predicted from vocab
-        node_ids, mask = node_ids
-        # Need expand_dims here because the shape assumption of batch_embedding_lookup
-        node_ids = tf.expand_dims(node_ids, 1)
-        node_embeds = tf.select(mask,
-                tf.squeeze(batch_embedding_lookup(context, node_ids), [1]),
-                tf.zeros([batch_size, self.context_size], dtype=tf.float32))
-        return node_embeds
+    #def get_node_embedding(self, context, node_ids):
+    #    '''
+    #    Lookup embeddings of nodes from context.
+    #    node_ids: (batch_size,)
+    #    context: (batch_size, num_nodes, context_size)
+    #    Return node_embeds (batch_size, context_size)
+    #    '''
+    #    batch_size = tf.shape(context)[0]
+    #    # Mask words that are not copied from context but predicted from vocab
+    #    node_ids, mask = node_ids
+    #    # Need expand_dims here because the shape assumption of batch_embedding_lookup
+    #    node_ids = tf.expand_dims(node_ids, 1)
+    #    node_embeds = tf.select(mask,
+    #            tf.squeeze(batch_embedding_lookup(context, node_ids), [1]),
+    #            tf.zeros([batch_size, self.context_size], dtype=tf.float32))
+    #    return node_embeds
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):

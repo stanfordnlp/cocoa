@@ -198,7 +198,7 @@ class GraphBatch(object):
         return np.zeros([self.batch_size, seq_len, max_num_nodes])
 
     def get_zero_entities(self, seq_len):
-        return np.zeros([self.batch_size, seq_len], dtype=np.int32), np.zeros([self.batch_size, seq_len], dtype=np.bool)
+        return np.zeros([self.batch_size, seq_len], dtype=np.int32)
 
     def get_checklists(self, targets, vocab, init_cl=None):
         '''
@@ -228,10 +228,11 @@ class GraphBatch(object):
         cl: checklist to be updated in place.
         (batch_size, num_nodes)
         '''
-        node_ids, mask = self._pred_to_node_id(outputs, vocab.size)
-        for i, (m, node_id) in enumerate(izip(np.nditer(mask), np.nditer(node_ids))):
-            if m:
-                cl[i][node_id[()]] = 1
+        node_ids = self._pred_to_node_id(outputs, vocab.size)
+        for i, node_id in enumerate(np.nditer(node_ids)):
+            node_id = node_id[()]
+            if node_id != -1:
+                cl[i][node_id] = 1
 
     def _entity_to_node_id(self, entities):
         '''
@@ -239,19 +240,18 @@ class GraphBatch(object):
         entities: array of same size as inputs, -1 means non-entity words.
         Return entity_mask and node_ids.
         '''
-        mask = entities != -1
-        node_ids = np.full(entities.shape, 0, dtype=np.int32)
+        node_ids = np.full(entities.shape, -1, dtype=np.int32)
         graph_iter = chain.from_iterable((repeat(graph, entities.shape[1]) for graph in self.graphs))
-        for m, entity_id, node_id, graph in izip(np.nditer(mask), np.nditer(entities), np.nditer(node_ids, op_flags=['readwrite']), graph_iter):
-            # NOTE: m is a 0-dim ndarray, should not say 'if m is True'
-            if m:
+        for entity_id, node_id, graph in izip(np.nditer(entities), np.nditer(node_ids, op_flags=['readwrite']), graph_iter):
+            entity_id = entity_id[()]
+            if entity_id != -1:
                 try:
                     # [()]: entity_id is a 0-dim ndarray
-                    node_id[...] = graph.nodes.to_ind(Graph.metadata.entity_map.to_word(entity_id[()]))
+                    node_id[...] = graph.nodes.to_ind(Graph.metadata.entity_map.to_word(entity_id))
                 except KeyError:
                     # A padded node is predicted and the entity is <unk>
                     pass
-        return node_ids, mask
+        return node_ids
 
     def _pred_to_node_id(self, preds, offset):
         entities = preds - offset
@@ -294,6 +294,7 @@ class GraphBatch(object):
                  'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id),
                  'encoder_nodes': None if encoder_entities is None else self._entity_to_node_id(encoder_entities),
                  'decoder_nodes': None if decoder_entities is None else self._entity_to_node_id(decoder_entities),
+                 'num_nodes': max_num_nodes,
                 }
         return batch
 
