@@ -6,7 +6,7 @@ Encode when action is read and decode when action is write.
 import tensorflow as tf
 import numpy as np
 from tensorflow.python.util import nest
-from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell
+from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell, PreselectAttnRNNCell
 from src.model.graph import Graph, GraphMetadata
 from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
@@ -359,8 +359,8 @@ class GraphDecoder(GraphEncoder):
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
 
-        num_nodes = tf.to_int32(tf.shape(self.context[0])[1])
-        checklists = tf.cumsum(tf.one_hot(self.entities, num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
+        self.num_nodes = tf.to_int32(tf.shape(self.context[0])[1])
+        checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
         # cumsum can cause >1 indicator
         checklists = tf.cast(tf.greater(checklists, 0), tf.float32)
         self.output_dict['checklists'] = checklists
@@ -457,6 +457,34 @@ class GraphDecoder(GraphEncoder):
         new_utterances = sess.run(self.output_dict['utterances'], feed_dict=feed_dict)
         return new_utterances
 
+    def compute_loss(self, targets, pad):
+        logits = self.output_dict['logits']
+        return self._compute_loss(logits, targets, pad)
+
+    def _compute_loss(self, logits, targets, pad):
+        '''
+        logits: (batch_size, seq_len, vocab_size)
+        targets: (batch_size, seq_len)
+        '''
+        batch_size = self.batch_size
+        num_symbols = tf.shape(logits)[2]
+        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
+        logits = tf.reshape(logits, [-1, num_symbols])
+        targets = tf.reshape(targets, [-1])
+
+        # Mask padded tokens
+        token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        total_loss = tf.reduce_sum(loss)
+        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
+        # Average over words in each sequence
+        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
+
+        # Average over sequences
+        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
+        # total_loss is used to compute perplexity
+        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+
 class CopyGraphDecoder(GraphDecoder):
     '''
     Decoder with copy mechanism over the attention context.
@@ -490,22 +518,24 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     '''
     Decoder that pre-selects a set of entities before generation.
     '''
-    def _build_rnn_inputs(self, word_embedder, time_major):
-        inputs, checklists = super(PreselectCopyGraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
-        init_state = tf.tile(tf.expand_dims(self.init_output, 1), [1, self.num_nodes, 1])  # (batch_size, context_len, rnn_size)
-        _, _, context = self.init_state
-        context, _ = context
-        with tf.variable_scope('SelectEntity'):
-            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
-            self.output_dict['selection'] = tf.squeeze(selection, [2])
-            selection = tf.sigmoid(selection)
-            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
-            # Normalize
-            selected_context = tf.div(selected_context, tf.reduce_sum(selection, 1))
+    def _build_rnn_cell(self):
+        return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers)
 
-        # Repeat for all time steps. NOTE: inputs is time major
-        selected_context = tf.tile(tf.expand_dims(selected_context, 0), [self.seq_len, 1, 1])  # (seq_len, batch_size, context_size)
-        return tf.concat(2, [inputs, selected_context]), checklists
+    def _build_output_dict(self, rnn_outputs, rnn_states):
+        final_state = self._get_final_state(rnn_states)
+        selection_scores = final_state[-1]
+        outputs, attn_scores = rnn_outputs
+        self.output_dict.update({'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state, 'selection_scores': selection_scores})
+
+    def compute_loss(self, targets, pad):
+        loss, seq_loss, total_loss = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad)
+
+        entity_targets = self.output_dict['checklists'][:, -1, :]
+        entity_logits = self.output_dict['selection_scores']
+        entity_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets)) / tf.to_float(self.batch_size) / tf.to_float(self.num_nodes)
+        loss += entity_loss
+
+        return loss, seq_loss, total_loss
 
 class GatedCopyGraphDecoder(GraphDecoder):
     '''
@@ -532,6 +562,19 @@ class GatedCopyGraphDecoder(GraphDecoder):
         attn_logits = log_prob_copy + attn_scores - tf.reduce_logsumexp(attn_scores, 2, keep_dims=True)
         return tf.concat(2, [vocab_logits, attn_logits]), tf.concat(2, [log_prob_vocab, log_prob_copy])
 
+    def compute_loss(self, targets, pad):
+        loss, seq_loss, total_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad)
+
+        vocab_size = self.num_symbols
+        # 0: vocab 1: copy
+        targets = tf.cast(tf.greater_equal(targets, vocab_size), tf.int32)
+        gate_loss, gate_seq_loss, gate_total_loss  = self._compute_loss(output_dict['gate_logits'], targets)
+        loss += gate_loss
+        seq_loss += gate_seq_loss
+        total_loss += gate_total_loss
+
+        return loss, seq_loss, total_loss
+
 class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
@@ -543,38 +586,7 @@ class BasicEncoderDecoder(object):
         self.build_model(word_embedder, encoder, decoder, scope)
 
     def compute_loss(self, output_dict, targets):
-        return self._compute_loss(output_dict['logits'], targets)
-
-    def _compute_loss(self, logits, targets):
-        '''
-        logits: (batch_size, seq_len, vocab_size)
-        targets: (batch_size, seq_len)
-        '''
-        batch_size = self.decoder.batch_size
-        num_symbols = tf.shape(logits)[2]
-        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
-        logits = tf.reshape(logits, [-1, num_symbols])
-        targets = tf.reshape(targets, [-1])
-
-        # Mask padded tokens
-        token_weights = tf.cast(tf.not_equal(targets, tf.constant(self.PAD)), tf.float32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
-        total_loss = tf.reduce_sum(loss)
-        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
-        # Average over words in each sequence
-        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
-
-        # Mask padded turns
-        #seq_weights = tf.cast(tf.not_equal(tf.reshape(targets, [batch_size, -1])[:, 0], tf.constant(self.PAD)), tf.float32)
-        #seq_loss = loss * seq_weights
-        #seq_weights_sum = tf.reduce_sum(seq_weights) + EPS
-        ## Average over sequences in the batch
-        #loss = tf.reduce_sum(seq_loss, 0) / seq_weights_sum
-
-        # Average over sequences
-        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
-        # total_loss is used to compute perplexity
-        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+        return self.decoder.compute_loss(targets, self.PAD)
 
     def _encoder_input_dict(self):
         return {
@@ -692,22 +704,4 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
         feed_dict = super(GraphEncoderDecoder, self).get_feed_dict(**kwargs)
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs['graph_embedder'])
         return feed_dict
-
-    def compute_loss(self, output_dict, targets):
-        loss, seq_loss, total_loss = super(GraphEncoderDecoder, self).compute_loss(output_dict, targets)
-        if self.preselect:
-            entity_targets = self.decoder.checklists[:, -1, :]
-            entity_logits = output_dict['selection']
-            entity_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets), 1) / tf.to_float(self.seq_len)
-            entity_loss = tf.reduce_sum(entity_loss) / tf.to_float(self.batch_size)
-            loss += entity_loss
-        if self.sup_gate:
-            vocab_size = self.decoder.num_symbols
-            # 0: vocab 1: copy
-            targets = tf.cast(tf.greater_equal(targets, vocab_size), tf.int32)
-            gate_loss, gate_seq_loss, gate_total_loss  = self._compute_loss(output_dict['gate_logits'], targets)
-            loss += gate_loss
-            seq_loss += gate_seq_loss
-            total_loss += gate_total_loss
-        return loss, seq_loss, total_loss
 

@@ -5,7 +5,7 @@ RNN cell with attention over an input context.
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
 from tensorflow.python.ops.rnn_cell import _linear as linear
-from src.model.util import batch_linear, batch_embedding_lookup
+from src.model.util import batch_linear, batch_embedding_lookup, EPS
 
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
@@ -32,8 +32,7 @@ def build_rnn_cell(rnn_type, rnn_size, num_layers):
 
 class AttnRNNCell(object):
     '''
-    Abstract class for a rnn cell with attention mechanism.
-    Derived class should follow signatures in RNNCell.
+    RNN cell with attention mechanism over an input context.
     '''
 
     def __init__(self, rnn_size, context_size, rnn_type='lstm', scoring='linear', output='project', num_layers=1):
@@ -59,8 +58,7 @@ class AttnRNNCell(object):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
         zero_checklist = tf.zeros_like(init_context)[:, :, 0]
-        zero_attn, scores = self.compute_attention(zero_h, init_context, zero_checklist)
-        return (zero_rnn_state, zero_attn, init_context)
+        return self.init_state(zero_rnn_state, zero_h, init_context, zero_checklist)
 
     def score_context(self, h, context, checklist):
         # Repeat h for each cell in context
@@ -140,8 +138,9 @@ class AttnRNNCell(object):
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
             weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
-            neginf = float('-inf') * tf.ones_like(context_mask, dtype=tf.float32)
-            masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
+            # Setting it to -inf seems to cause learning problems
+            #neginf = float('-inf') * tf.ones_like(context_mask, dtype=tf.float32)
+            #masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
     def __call__(self, inputs, state, scope=None):
@@ -156,3 +155,38 @@ class AttnRNNCell(object):
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context)
+
+class PreselectAttnRNNCell(AttnRNNCell):
+    '''
+    Attention RNN cell that pre-selects a set of items from the context.
+    '''
+    def select(self, init_output, context):
+        context_len = tf.shape(context)[1]
+        init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
+        with tf.variable_scope('SelectEntity'):
+            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
+            selection_scores = tf.squeeze(selection, [2])
+            selection = tf.sigmoid(selection)
+            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
+            # Normalize
+            selected_context = tf.div(selected_context, (tf.reduce_sum(selection, 1) + EPS))
+        return selected_context, selection_scores
+
+    def init_state(self, rnn_state, rnn_output, context, checklist):
+        attn, scores = self.compute_attention(rnn_output, context, checklist)
+        selected_context, selection_scores = self.select(rnn_output, context[0])
+        return (rnn_state, attn, context, selected_context, selection_scores)
+
+    def __call__(self, inputs, state, scope=None):
+        with tf.variable_scope(scope or type(self).__name__):
+            prev_rnn_state, prev_attn, prev_context, selected_context, selection_scores = state
+            inputs, checklist = inputs
+            # RNN step
+            new_inputs = tf.concat(1, [inputs, prev_attn, selected_context])
+            output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
+            # No update in context inside an utterance
+            attn, attn_scores = self.compute_attention(output, prev_context, checklist)
+            # Output
+            new_output = self.output_with_attention(output, attn)
+            return (new_output, attn_scores), (rnn_state, attn, prev_context, selected_context, selection_scores)
+
