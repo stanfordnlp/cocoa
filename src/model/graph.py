@@ -198,7 +198,8 @@ class GraphBatch(object):
         return np.zeros([self.batch_size, seq_len, max_num_nodes])
 
     def get_zero_entities(self, seq_len):
-        return np.zeros([self.batch_size, seq_len], dtype=np.int32)
+        # -1 denotes non-entity words
+        return np.full([self.batch_size, seq_len], -1, dtype=np.int32)
 
     def get_checklists(self, targets, vocab, init_cl=None):
         '''

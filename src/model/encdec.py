@@ -357,8 +357,9 @@ class GraphDecoder(GraphEncoder):
         with tf.name_scope(type(self).__name__+'/inputs'):
             self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='checklists')
             self.num_nodes = tf.placeholder(tf.int32, shape=[], name='num_nodes')  # Scalar
-            checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=2) + self.init_checklists
-            self.checklists = tf.cast(checklists, tf.float32)
+            checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
+            # cumsum can cause >1 indicator
+            self.checklists = tf.cast(tf.greater(checklists, 0), tf.float32)
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
@@ -422,7 +423,6 @@ class GraphDecoder(GraphEncoder):
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
-            #self.update_checklist(step_preds, cl[:, 0, :], graphs, vocab)
             entities = self.pred_to_entity(step_preds, graphs, vocab)
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,

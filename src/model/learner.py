@@ -120,7 +120,6 @@ class Learner(object):
         graphs = dialogue_batch['graph']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, self.vocab)
-            #checklists = graphs.get_checklists(batch['targets'], self.vocab)
             checklists = graphs.get_zero_checklists(1)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
             if test:
