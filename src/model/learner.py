@@ -57,7 +57,7 @@ class Learner(object):
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, encoder_nodes=None, decoder_nodes=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, init_checklists=None, encoder_nodes=None, decoder_nodes=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
@@ -82,7 +82,7 @@ class Learner(object):
             decoder_args['update_entities'] = graph_data['decoder_entities']
             encoder_args['utterances'] = graph_data['utterances']
             kwargs['graph_embedder'] = graph_data
-            decoder_args['init_checklists'] = checklists
+            decoder_args['init_checklists'] = init_checklists
             encoder_args['entities'] = encoder_nodes
             decoder_args['entities'] = decoder_nodes
             decoder_args['num_nodes'] = graph_data['num_nodes']
@@ -120,8 +120,8 @@ class Learner(object):
         graphs = dialogue_batch['graph']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, self.vocab)
-            checklists = graphs.get_zero_checklists(1)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
+            init_checklists = graphs.get_zero_checklists(1)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, init_checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
             if test:
                 logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],

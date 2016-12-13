@@ -225,7 +225,6 @@ class GraphBatch(object):
         entities[entities < 0] = -1
         return self._entity_to_node_id(entities)
 
-    # TODO: given entities, can get rid of tokens
     def get_batch_data(self, encoder_tokens, decoder_tokens, encoder_entities, decoder_entities, utterances, vocab):
         '''
         Construct batched inputs for GraphEmbedder. (These could be precomputed as well but

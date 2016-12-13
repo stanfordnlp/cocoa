@@ -336,26 +336,23 @@ class GraphDecoder(GraphEncoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, self.checklists[:, 0, :])
-            #return cell.init_state(self.init_rnn_state, self.init_output, self.context)
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32))
         else:
             return cell.zero_state(self.batch_size, self.context)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, num_nodes, entities):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
                     self.context: context,
-                    self.init_checklists: init_checklists,
-                    self.num_nodes: num_nodes,
-                    self.entities: entities}
+                    self.init_checklists: init_checklists,}
                 )
         return init_state
 
     def _build_inputs(self, input_dict):
         super(GraphDecoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
-            self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='checklists')
+            self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='init_checklists')
             self.num_nodes = tf.placeholder(tf.int32, shape=[], name='num_nodes')  # Scalar
             checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
             # cumsum can cause >1 indicator
@@ -628,9 +625,7 @@ class BasicEncoderDecoder(object):
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
-                    init_checklists,
-                    num_nodes,
-                    entities)
+                    init_checklists,)
             decoder_args['init_checklists'] = init_checklists
             decoder_args['num_nodes'] = num_nodes
             decoder_args['entities'] = entities
