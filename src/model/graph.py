@@ -201,40 +201,6 @@ class GraphBatch(object):
         # -1 denotes non-entity words
         return np.full([self.batch_size, seq_len], -1, dtype=np.int32)
 
-    def get_checklists(self, targets, vocab, init_cl=None):
-        '''
-        Return checklists for a batch of sequences. (batch_size, seq_len, num_nodes)
-        targets: (batch_size, seq_len)
-        init_cl: the initial checklist from previous sequences
-        (batch_size, num_nodes)
-        '''
-        batch_size, seq_len = targets.shape
-        assert batch_size == self.batch_size
-        cl = self.get_zero_checklists(seq_len)
-        if init_cl is not None:
-            init_num_nodes = init_cl.shape[2]
-            # We might have more nodes now
-            cl[:, 0, :init_num_nodes] = init_cl
-        for i in xrange(1, seq_len):
-            cl[:, i, :] = cl[:, i-1, :]
-            self.update_checklist(targets[:, [i-1]], cl[:, i, :], vocab)
-        return cl
-
-    def update_checklist(self, outputs, cl, vocab):
-        '''
-        Mark mentioned entities in outputs in a checklist.
-        outputs: integers. words are mapped by vocab and entities are mapped by entity_map
-        offset by vocab.size.
-        (batch_size, 1)
-        cl: checklist to be updated in place.
-        (batch_size, num_nodes)
-        '''
-        node_ids = self._pred_to_node_id(outputs, vocab.size)
-        for i, node_id in enumerate(np.nditer(node_ids)):
-            node_id = node_id[()]
-            if node_id != -1:
-                cl[i][node_id] = 1
-
     def _entity_to_node_id(self, entities):
         '''
         Convert entity ids from entity_map to node ids in graph.
@@ -493,23 +459,3 @@ class Graph(object):
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
-
-    def entity_to_node_id(self, output, vocab):
-        '''
-        Map output prediction/target to local node ids.
-        '''
-        entity = None
-        if output >= vocab.size:
-            entity = Graph.metadata.entity_map.to_word(output - vocab.size)
-        # -1 is used to mask non-entity words
-        elif output >= 0:
-            word = vocab.to_word(output)
-            if is_entity(word):
-                entity = word
-        if entity is not None:
-            try:
-                return self.nodes.to_ind(entity)
-            except KeyError:
-                # If the entity is from vocab, it may not be in the nodes of the graph
-                pass
-        return None

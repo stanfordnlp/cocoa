@@ -144,23 +144,6 @@ class AttnRNNCell(object):
             masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
-    #def get_node_embedding(self, context, node_ids):
-    #    '''
-    #    Lookup embeddings of nodes from context.
-    #    node_ids: (batch_size,)
-    #    context: (batch_size, num_nodes, context_size)
-    #    Return node_embeds (batch_size, context_size)
-    #    '''
-    #    batch_size = tf.shape(context)[0]
-    #    # Mask words that are not copied from context but predicted from vocab
-    #    node_ids, mask = node_ids
-    #    # Need expand_dims here because the shape assumption of batch_embedding_lookup
-    #    node_ids = tf.expand_dims(node_ids, 1)
-    #    node_embeds = tf.where(mask,
-    #            tf.squeeze(batch_embedding_lookup(context, node_ids), [1]),
-    #            tf.zeros([batch_size, self.context_size], dtype=tf.float32))
-    #    return node_embeds
-
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
             prev_rnn_state, prev_attn, prev_context = state

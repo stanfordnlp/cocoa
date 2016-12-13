@@ -392,9 +392,6 @@ class GraphDecoder(GraphEncoder):
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
-    def update_checklist(self, pred, cl, graphs, vocab):
-        graphs.update_checklist(pred, cl, vocab)
-
     def pred_to_entity(self, pred, graphs, vocab):
         return graphs.pred_to_entity(pred, vocab.size)
 
@@ -473,13 +470,6 @@ class CopyGraphDecoder(GraphDecoder):
         logits = super(CopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
         attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
         return tf.concat(2, [logits, attn_scores])
-
-    def update_checklist(self, pred, cl, graphs, vocab):
-        '''
-        Update checklist for a single time step.
-        '''
-        pred = graphs.copy_preds(pred, vocab.size)
-        graphs.update_checklist(pred, cl, vocab)
 
     def pred_to_entity(self, pred, graphs, vocab):
         '''
@@ -656,7 +646,6 @@ class BasicEncoderDecoder(object):
             # Read decoder tokens and update graph
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], None, batch['decoder_entities'], utterances, vocab)
             # Add checklists
-            #checklists = graphs.get_checklists(batch['targets'], vocab)
             decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
             decoder_args['num_nodes'] = new_graph_data['num_nodes']
             # Add copied nodes
