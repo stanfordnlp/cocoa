@@ -341,21 +341,24 @@ class GraphDecoder(GraphEncoder):
         else:
             return cell.zero_state(self.batch_size, self.context)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, checklists):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, num_nodes, entities):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
                     self.context: context,
-                    self.checklists: checklists}
+                    self.init_checklists: init_checklists,
+                    self.num_nodes: num_nodes,
+                    self.entities: entities}
                 )
         return init_state
 
     def _build_inputs(self, input_dict):
         super(GraphDecoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
-            self.checklists = tf.placeholder(tf.float32, shape=[None, None, None], name='checklists')
-            #self.num_nodes = tf.placeholder(tf.float32, shape=[], name='num_nodes')  # Scalar
-            #self.checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=2)
+            self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='checklists')
+            self.num_nodes = tf.placeholder(tf.int32, shape=[], name='num_nodes')  # Scalar
+            checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=2) + self.init_checklists
+            self.checklists = tf.cast(checklists, tf.float32)
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
@@ -376,7 +379,8 @@ class GraphDecoder(GraphEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(GraphDecoder, self).get_feed_dict(**kwargs)
-        feed_dict[self.checklists] = kwargs.pop('checklists')
+        feed_dict[self.init_checklists] = kwargs.pop('init_checklists')
+        feed_dict[self.num_nodes] = kwargs.pop('num_nodes')
         return feed_dict
 
     def pred_to_input(self, preds, **kwargs):
@@ -397,7 +401,8 @@ class GraphDecoder(GraphEncoder):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
-        cl = kwargs['checklists']
+        cl = kwargs['init_checklists']
+        num_nodes = kwargs['num_nodes']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -409,7 +414,7 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            logits, final_state, final_output, utterance_embedding, attn_score = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores']], feed_dict=feed_dict)
+            logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.checklists], feed_dict=feed_dict)
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -417,13 +422,14 @@ class GraphDecoder(GraphEncoder):
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
-            self.update_checklist(step_preds, cl[:, 0, :], graphs, vocab)
+            #self.update_checklist(step_preds, cl[:, 0, :], graphs, vocab)
             entities = self.pred_to_entity(step_preds, graphs, vocab)
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
                     last_inds=last_inds,
                     init_state=final_state,
-                    checklists=cl,
-                    entities=entities)
+                    init_checklists=cl,
+                    entities=entities,
+                    num_nodes=num_nodes)
         # NOTE: the final_output may not be at the stop symbol when the function is running
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
@@ -625,14 +631,19 @@ class BasicEncoderDecoder(object):
                 'textint_map': textint_map
                 }
         if graphs:
-            checklists = graphs.get_zero_checklists(1)
+            init_checklists = graphs.get_zero_checklists(1)
+            num_nodes = encoder_args['graph_data']['num_nodes']
+            entities = graphs.get_zero_entities(1)
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
-                    checklists)
-            decoder_args['checklists'] = checklists
-            decoder_args['entities'] = graphs.get_zero_entities(1)
+                    init_checklists,
+                    num_nodes,
+                    entities)
+            decoder_args['init_checklists'] = init_checklists
+            decoder_args['num_nodes'] = num_nodes
+            decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
@@ -645,8 +656,9 @@ class BasicEncoderDecoder(object):
             # Read decoder tokens and update graph
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], None, batch['decoder_entities'], utterances, vocab)
             # Add checklists
-            checklists = graphs.get_checklists(batch['targets'], vocab)
-            decoder_args['checklists'] = checklists
+            #checklists = graphs.get_checklists(batch['targets'], vocab)
+            decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
+            decoder_args['num_nodes'] = new_graph_data['num_nodes']
             # Add copied nodes
             decoder_args['entities'] = new_graph_data['decoder_nodes']
             # Update utterance matrix size and decoder entities given the true decoding sequence
