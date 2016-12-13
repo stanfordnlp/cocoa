@@ -136,12 +136,12 @@ class AttnRNNCell(object):
                 attn_scores = self.score_context(h, context, checklist)  # (batch_size, context_len)
             attns = tf.nn.softmax(attn_scores)
             zero_attns = tf.zeros_like(attns)
-            attns = tf.select(context_mask, attns, zero_attns)
+            attns = tf.where(context_mask, attns, zero_attns)
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
             weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
             neginf = float('-inf') * tf.ones_like(context_mask, dtype=tf.float32)
-            masked_attn_scores = tf.select(context_mask, attn_scores, neginf)
+            masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
             return weighted_context, attn_scores
 
     #def get_node_embedding(self, context, node_ids):
@@ -156,7 +156,7 @@ class AttnRNNCell(object):
     #    node_ids, mask = node_ids
     #    # Need expand_dims here because the shape assumption of batch_embedding_lookup
     #    node_ids = tf.expand_dims(node_ids, 1)
-    #    node_embeds = tf.select(mask,
+    #    node_embeds = tf.where(mask,
     #            tf.squeeze(batch_embedding_lookup(context, node_ids), [1]),
     #            tf.zeros([batch_size, self.context_size], dtype=tf.float32))
     #    return node_embeds

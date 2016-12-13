@@ -15,9 +15,9 @@ def embedding_lookup(embeddings, indices, zero_ind=None):
     else:
         mask = tf.equal(indices, zero_ind)
         # Set zero_ind to 0 as it may be out of range of embeddings shape
-        indices = tf.select(mask, tf.zeros_like(indices), indices)
+        indices = tf.where(mask, tf.zeros_like(indices), indices)
         result = tf.nn.embedding_lookup(embeddings, indices)
-        result = tf.select(mask, tf.zeros_like(result), result)
+        result = tf.where(mask, tf.zeros_like(result), result)
         return result
 
 def batch_embedding_lookup(embeddings, indices, zero_ind=None):

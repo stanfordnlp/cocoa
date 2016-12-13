@@ -14,5 +14,5 @@ class WordEmbedder(object):
     def embed(self, inputs, zero_pad=False):
         embeddings = tf.nn.embedding_lookup(self.embedding, inputs)
         if self.pad is not None and zero_pad:
-            embeddings = tf.select(inputs == self.pad, tf.zeros_like(embeddings), embeddings)
+            embeddings = tf.where(inputs == self.pad, tf.zeros_like(embeddings), embeddings)
         return embeddings
