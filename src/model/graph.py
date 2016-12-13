@@ -260,7 +260,6 @@ class GraphBatch(object):
                  'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id),
                  'encoder_nodes': None if encoder_entities is None else self._entity_to_node_id(encoder_entities),
                  'decoder_nodes': None if decoder_entities is None else self._entity_to_node_id(decoder_entities),
-                 'num_nodes': max_num_nodes,
                 }
         return batch
 

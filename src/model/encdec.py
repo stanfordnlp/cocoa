@@ -23,6 +23,7 @@ def add_model_arguments(parser):
     parser.add_argument('--bow-utterance', default=False, action='store_true', help='Use sum of word embeddings as utterance embedding')
     parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
     parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
+    parser.add_argument('--preselect', default=False, action='store_true', help='Pre-select entities before decoding')
     add_attention_arguments(parser)
 
 def build_model(schema, mappings, args):
@@ -51,7 +52,10 @@ def build_model(schema, mappings, args):
                 decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance)
                 sup_gate = args.sup_gate
             else:
-                decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance)
+                if args.preselect:
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance)
+                else:
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance)
                 sup_gate = False
         model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad, sup_gate)
     else:
@@ -77,6 +81,7 @@ class BasicEncoder(object):
         self.rnn_size = rnn_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
+        self.output_dict = {}
 
     def _build_init_output(self, cell):
         '''
@@ -131,6 +136,7 @@ class BasicEncoder(object):
         with tf.variable_scope(scope or type(self).__name__):
             self._build_inputs(input_dict)
             self.batch_size = tf.shape(self.inputs)[0]
+            self.seq_len = tf.shape(self.inputs)[1]
 
             cell = self._build_rnn_cell()
             self.init_state = self._build_init_state(cell, input_dict)
@@ -138,11 +144,11 @@ class BasicEncoder(object):
 
             inputs = self._build_rnn_inputs(word_embedder, time_major)
             rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
-            self.output_dict = self._build_output_dict(rnn_outputs, states)
+            self._build_output_dict(rnn_outputs, states)
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
-        return {'outputs': rnn_outputs, 'final_state': final_state}
+        self.output_dict.update({'outputs': rnn_outputs, 'final_state': final_state})
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
@@ -195,14 +201,10 @@ class GraphEncoder(BasicEncoder):
     def _get_node_embedding(self, context, node_ids):
         '''
         Lookup embeddings of nodes from context.
-        node_ids/mask: (batch_size, seq_len)
+        node_ids: (batch_size, seq_len)
         context: (batch_size, num_nodes, context_size)
         Return node_embeds (batch_size, seq_len, context_size)
         '''
-        context_shape = tf.shape(context)
-        batch_size = context_shape[0]
-        context_size = self.context_size
-
         node_embeddings = batch_embedding_lookup(context, node_ids, zero_ind=-1)  # (batch_size, seq_len, context_size)
         return node_embeddings
 
@@ -353,16 +355,18 @@ class GraphDecoder(GraphEncoder):
         super(GraphDecoder, self)._build_inputs(input_dict)
         with tf.name_scope(type(self).__name__+'/inputs'):
             self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='init_checklists')
-            self.num_nodes = tf.placeholder(tf.int32, shape=[], name='num_nodes')  # Scalar
-            checklists = tf.cumsum(tf.one_hot(self.entities, self.num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
-            # cumsum can cause >1 indicator
-            self.checklists = tf.cast(tf.greater(checklists, 0), tf.float32)
 
     def _build_rnn_inputs(self, word_embedder, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
-        if not time_major:
-            checklists = transpose_first_two_dims(self.checklists)  # (seq_len, batch_size, num_nodes)
-        return (inputs, checklists)
+
+        num_nodes = tf.to_int32(tf.shape(self.context[0])[1])
+        checklists = tf.cumsum(tf.one_hot(self.entities, num_nodes, on_value=1, off_value=0), axis=1) + self.init_checklists
+        # cumsum can cause >1 indicator
+        checklists = tf.cast(tf.greater(checklists, 0), tf.float32)
+        self.output_dict['checklists'] = checklists
+
+        checklists = transpose_first_two_dims(checklists)  # (seq_len, batch_size, num_nodes)
+        return inputs, checklists
 
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
         super(GraphDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
@@ -373,12 +377,11 @@ class GraphDecoder(GraphEncoder):
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
         outputs, attn_scores = rnn_outputs
-        return {'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state}
+        self.output_dict.update({'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state})
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(GraphDecoder, self).get_feed_dict(**kwargs)
         feed_dict[self.init_checklists] = kwargs.pop('init_checklists')
-        feed_dict[self.num_nodes] = kwargs.pop('num_nodes')
         return feed_dict
 
     def pred_to_input(self, preds, **kwargs):
@@ -397,7 +400,6 @@ class GraphDecoder(GraphEncoder):
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
-        num_nodes = kwargs['num_nodes']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -409,7 +411,7 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.checklists], feed_dict=feed_dict)
+            logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']], feed_dict=feed_dict)
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -422,8 +424,7 @@ class GraphDecoder(GraphEncoder):
                     last_inds=last_inds,
                     init_state=final_state,
                     init_checklists=cl,
-                    entities=entities,
-                    num_nodes=num_nodes)
+                    entities=entities)
         # NOTE: the final_output may not be at the stop symbol when the function is running
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
@@ -489,6 +490,22 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     '''
     Decoder that pre-selects a set of entities before generation.
     '''
+    def _build_rnn_inputs(self, word_embedder, time_major):
+        inputs, checklists = super(PreselectCopyGraphDecoder, self)._build_rnn_inputs(word_embedder, time_major)
+        init_state = tf.tile(tf.expand_dims(self.init_output, 1), [1, self.num_nodes, 1])  # (batch_size, context_len, rnn_size)
+        _, _, context = self.init_state
+        context, _ = context
+        with tf.variable_scope('SelectEntity'):
+            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
+            self.output_dict['selection'] = tf.squeeze(selection, [2])
+            selection = tf.sigmoid(selection)
+            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
+            # Normalize
+            selected_context = tf.div(selected_context, tf.reduce_sum(selection, 1))
+
+        # Repeat for all time steps. NOTE: inputs is time major
+        selected_context = tf.tile(tf.expand_dims(selected_context, 0), [self.seq_len, 1, 1])  # (seq_len, batch_size, context_size)
+        return tf.concat(2, [inputs, selected_context]), checklists
 
 class GatedCopyGraphDecoder(GraphDecoder):
     '''
@@ -533,9 +550,8 @@ class BasicEncoderDecoder(object):
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
         '''
-        shape = tf.shape(logits)
-        batch_size = shape[0]
-        num_symbols = shape[2]
+        batch_size = self.decoder.batch_size
+        num_symbols = tf.shape(logits)[2]
         # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
         logits = tf.reshape(logits, [-1, num_symbols])
         targets = tf.reshape(targets, [-1])
@@ -557,6 +573,7 @@ class BasicEncoderDecoder(object):
 
         # Average over sequences
         loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
+        # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
     def _encoder_input_dict(self):
@@ -619,7 +636,6 @@ class BasicEncoderDecoder(object):
                 }
         if graphs:
             init_checklists = graphs.get_zero_checklists(1)
-            num_nodes = encoder_args['graph_data']['num_nodes']
             entities = graphs.get_zero_entities(1)
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
@@ -627,7 +643,6 @@ class BasicEncoderDecoder(object):
                     encoder_output_dict['context'],
                     init_checklists,)
             decoder_args['init_checklists'] = init_checklists
-            decoder_args['num_nodes'] = num_nodes
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
@@ -642,7 +657,6 @@ class BasicEncoderDecoder(object):
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], None, batch['decoder_entities'], utterances, vocab)
             # Add checklists
             decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
-            decoder_args['num_nodes'] = new_graph_data['num_nodes']
             # Add copied nodes
             decoder_args['entities'] = new_graph_data['decoder_nodes']
             # Update utterance matrix size and decoder entities given the true decoding sequence
@@ -663,6 +677,7 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
     def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, sup_gate=None, scope=None):
         self.graph_embedder = graph_embedder
         self.sup_gate = sup_gate
+        self.preselect = True if isinstance(decoder, PreselectCopyGraphDecoder) else False
         super(GraphEncoderDecoder, self).__init__(word_embedder, encoder, decoder, pad, scope)
 
     def _decoder_input_dict(self, encoder_output_dict):
@@ -680,6 +695,12 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
 
     def compute_loss(self, output_dict, targets):
         loss, seq_loss, total_loss = super(GraphEncoderDecoder, self).compute_loss(output_dict, targets)
+        if self.preselect:
+            entity_targets = self.decoder.checklists[:, -1, :]
+            entity_logits = output_dict['selection']
+            entity_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets), 1) / tf.to_float(self.seq_len)
+            entity_loss = tf.reduce_sum(entity_loss) / tf.to_float(self.batch_size)
+            loss += entity_loss
         if self.sup_gate:
             vocab_size = self.decoder.num_symbols
             # 0: vocab 1: copy
