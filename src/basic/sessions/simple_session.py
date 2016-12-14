@@ -187,7 +187,7 @@ class SimpleSession(Session):
     def receive(self, event):
         if event.action == 'message':
             raw_utterance = event.data
-            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance))
+            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb)
             entities = [word[1][0] for word in entity_tokens if is_entity(word)]
 
             if re.search(r'do you|\?', raw_utterance.lower()) is not None:
