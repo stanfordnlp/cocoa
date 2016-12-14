@@ -22,9 +22,12 @@ def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
                 or (alphas is None and num_items is None):
             if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
                 events = [Event.from_dict(e) for e in chat["events"]]
-                start_time = datetime.strptime(events[0].time, date_fmt)
-                end_time = datetime.strptime(events[-1].time, date_fmt)
-                total_time_taken += (end_time-start_time).seconds
+                if type(events[0].time) is int:
+                    total_time_taken = events[-1].time - events[0].time
+                else:
+                    start_time = datetime.strptime(events[0].time, date_fmt)
+                    end_time = datetime.strptime(events[-1].time, date_fmt)
+                    total_time_taken += (end_time-start_time).seconds
                 total_complete += 1
     if total_complete == 0:
         # no complete dialogues for this setting - should never happen with sufficient data
