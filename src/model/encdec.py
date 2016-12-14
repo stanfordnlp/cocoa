@@ -412,7 +412,7 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']], feed_dict=feed_dict)
+            logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists'], self.output_dict['selection_scores']], feed_dict=feed_dict)
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -432,7 +432,7 @@ class GraphDecoder(GraphEncoder):
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
-        return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings}
+        return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings, 'selection_scores': selection_scores}
 
     def _print_cl(self, cl):
         print 'checklists:'
@@ -722,12 +722,22 @@ class BasicEncoderDecoder(object):
             decoder_args.pop('init_state')
             kwargs = {'encoder': encoder_args, 'decoder': decoder_args, 'graph_embedder': new_graph_data}
             feed_dict = self.get_feed_dict(**kwargs)
-            true_final_state, utterances = sess.run((self.decoder.output_dict['final_state'], self.decoder.output_dict['utterances']), feed_dict=feed_dict)
-            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, utterances, decoder_output_dict['attn_scores'], decoder_output_dict['selection_socre'], decoder_output_dict['checklists']
+            true_final_state, utterances, true_checklists = sess.run((self.decoder.output_dict['final_state'], self.decoder.output_dict['utterances'], self.decoder.output_dict['checklists']), feed_dict=feed_dict)
+            return {'preds': decoder_output_dict['preds'],
+                    'final_state': decoder_output_dict['final_state'],
+                    'true_final_state': true_final_state,
+                    'utterances': utterances,
+                    'attn_scores': decoder_output_dict['attn_scores'],
+                    'selection_scores': decoder_output_dict['selection_scores'],
+                    'true_checklists': true_checklists,
+                    }
         else:
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run((self.decoder.output_dict['final_state']), feed_dict=feed_dict)
-            return decoder_output_dict['preds'], decoder_output_dict['final_state'], true_final_state, None, None, None
+            return {'preds': decoder_output_dict['preds'],
+                    'final_state': decoder_output_dict['final_state'],
+                    'true_final_state': true_final_state,
+                    }
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
     def __init__(self, word_embedder, graph_embedder, encoder, decoder, pad, sup_gate=None, scope=None):

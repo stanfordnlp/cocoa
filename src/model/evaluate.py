@@ -71,9 +71,13 @@ class Evaluator(object):
             for batch in dialogue_batch['batch_seq']:
                 targets = batch['targets']
                 max_len = targets.shape[1] + 10
-                preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
+                #preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
+                output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
+                preds = output_dict['preds']
+                true_final_state = output_dict['true_final_state']
                 if graphs:
                     encoder_init_state = true_final_state[0]
+                    utterances = output_dict['utterances']
                 else:
                     encoder_init_state = true_final_state
                 if self.copy:
@@ -87,13 +91,29 @@ class Evaluator(object):
                 bleu_scores = self.sentence_bleu_score(pred_tokens, references)
                 bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
                 self.update_entity_stats(summary_map, pred_tokens, batch['decoder_tokens'])
+                if 'selection_scores' in output_dict:
+                    self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :])
 
                 if self.verbose:
+                    attn_scores = output_dict.get('attn_scores', None)
                     self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores)
 
         precision, recall, f1 = self.entity_f1(summary_map)
         bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
-        return bleu, precision, recall, f1
+        selection_acc = self.selection_acc(summary_map)
+        return bleu, precision, recall, f1, selection_acc
+
+    def update_selection_stats(self, summary_map, scores, targets):
+        assert scores.shape == targets.shape
+        correct = np.sum(np.logical_and(scores > 0, targets == 1))
+        total = scores.size
+        logstats.update_summary_map(summary_map, {'correct_selection': correct, 'total_selection': total})
+
+    def selection_acc(self, summary_map):
+        if 'correct_selection' not in summary_map:
+            return -1
+        correct, total = float(summary_map['correct_selection']['sum']), float(summary_map['total_selection']['sum'])
+        return correct / total
 
     def entity_f1(self, summary_map):
         tp, target_size, pred_size = float(summary_map['tp']['sum']), float(summary_map['target_size']['sum']), float(summary_map['pred_size']['sum'])
