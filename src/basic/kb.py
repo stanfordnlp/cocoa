@@ -8,30 +8,31 @@ class KB(object):
     '''
     Represents an agent's knowledge.
     '''
-    def __init__(self, schema, items):
-        self.schema = schema
+    def __init__(self, attributes, items):
+        self.attributes = attributes
         self.items = items
 
     @staticmethod
-    def from_dict(schema, raw):
-        return KB(schema, raw)
+    def from_dict(attributes, raw):
+        return KB(attributes, raw)
+
     def to_dict(self):
         return self.items
 
     def dump(self):
-        header_item = dict((attr.name, attr.name) for attr in self.schema.attributes)
+        header_item = dict((attr.name, attr.name) for attr in self.attributes)
         rows = [header_item] + self.items
-        widths = [max(len(str(row[attr.name])) for row in rows) for attr in self.schema.attributes]
+        widths = [max(len(str(row[attr.name])) for row in rows) for attr in self.attributes]
         print '----------------'
         for row in rows:
-            print ' ', '  '.join(('%%-%ds' % widths[i]) % (row[attr.name],) for i, attr in enumerate(self.schema.attributes))
+            print ' ', '  '.join(('%%-%ds' % widths[i]) % (row[attr.name],) for i, attr in enumerate(self.attributes))
 
     def get_item(self, idx):
         return self.items[idx]
 
     def get_ordered_item(self, idx):
         item = self.items[idx]
-        ordered_item = [(attr.name, item[attr.name]) for attr in self.schema.attributes]
+        ordered_item = [(attr.name, item[attr.name]) for attr in self.attributes]
         return ordered_item
 
     @classmethod

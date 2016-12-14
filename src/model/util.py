@@ -3,6 +3,8 @@ from tensorflow.python.util import nest
 from tensorflow.python.ops.rnn_cell import _linear as linear
 from itertools import izip
 
+EPS = 1e-12
+
 def batch_embedding_lookup(embeddings, indices):
     '''
     Look up from a batch of embedding matrices.
