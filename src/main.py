@@ -88,7 +88,7 @@ if __name__ == '__main__':
     copy = True if model_args.model == 'attn-copy-encdec' else False
     if model_args.model == 'attn-copy-encdec':
         model_args.entity_target_form = 'graph'
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend)
     if args.test:
         data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     else:
@@ -132,8 +132,8 @@ if __name__ == '__main__':
                 print '================== Eval %s ==================' % split
                 print '================== Sampling =================='
                 start_time = time.time()
-                bleu, ent_prec, ent_recall, ent_f1, sel_acc = evaluator.test_bleu(sess, test_data, num_batches)
-                print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_acc=%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_acc, time.time() - start_time)
+                bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
+                print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, time.time() - start_time)
                 print '================== Perplexity =================='
                 start_time = time.time()
                 loss = learner.test_loss(sess, test_data, num_batches)

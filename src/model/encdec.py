@@ -343,7 +343,8 @@ class GraphDecoder(GraphEncoder):
         else:
             return cell.zero_state(self.batch_size, self.context)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists):
+    # TODO: hacky interface
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection=None, encoder_entities=None):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
@@ -401,6 +402,7 @@ class GraphDecoder(GraphEncoder):
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
         cheat_selection = kwargs['cheat_selection']
+        encoder_entities = kwargs['encoder_entities']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -412,7 +414,11 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists'], self.output_dict['selection_scores']], feed_dict=feed_dict)
+            if 'selection_scores' in self.output_dict:
+                logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists'], self.output_dict['selection_scores']], feed_dict=feed_dict)
+            else:
+                logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']], feed_dict=feed_dict)
+
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
@@ -421,18 +427,31 @@ class GraphDecoder(GraphEncoder):
             if step_preds[0][0] == stop_symbol:
                 break
             entities = self.pred_to_entity(step_preds, graphs, vocab)
-            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                    last_inds=last_inds,
-                    init_state=final_state,
-                    init_checklists=cl,
-                    entities=entities,
-                    cheat_selection=cheat_selection,
-                    )
+
+            if 'selection_scores' in self.output_dict:
+                feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
+                        last_inds=last_inds,
+                        init_state=final_state,
+                        init_checklists=cl,
+                        entities=entities,
+                        cheat_selection=cheat_selection,
+                        encoder_entities=encoder_entities,
+                        )
+            else:
+                feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
+                        last_inds=last_inds,
+                        init_state=final_state,
+                        init_checklists=cl,
+                        entities=entities,
+                        )
         # NOTE: the final_output may not be at the stop symbol when the function is running
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
-        return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings, 'selection_scores': selection_scores}
+        if 'selection_scores' in self.output_dict:
+            return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings, 'selection_scores': selection_scores}
+        else:
+            return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings}
 
     def _print_cl(self, cl):
         print 'checklists:'
@@ -462,7 +481,7 @@ class GraphDecoder(GraphEncoder):
 
     def compute_loss(self, targets, pad):
         logits = self.output_dict['logits']
-        return self._compute_loss(logits, targets, pad)
+        return self._compute_loss(logits, targets, pad) + (tf.constant(-1),)
 
     def _compute_loss(self, logits, targets, pad):
         '''
@@ -527,29 +546,38 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     def get_feed_dict(self, **kwargs):
         feed_dict = super(PreselectCopyGraphDecoder, self).get_feed_dict(**kwargs)
         feed_dict[self.cheat_selection] = kwargs.pop('cheat_selection')
+        feed_dict[self.encoder_entities] = kwargs.pop('encoder_entities')
         return feed_dict
+
+    def _get_all_entities(self, entities):
+        '''
+        entities: (batch_size, seq_len) node_id at each step in the sequence
+        Return indicator vector (batch_size, num_nodes) of all entities in the sequence
+        '''
+        all_entities = tf.cumsum(tf.one_hot(entities, self.num_nodes, on_value=1, off_value=0), axis=1)
+        return tf.greater(all_entities, 0)
 
     def _build_init_state(self, cell, input_dict):
         self.init_output = input_dict['init_output']
         self.init_rnn_state = input_dict['init_state']
-        cheat_selection = tf.cumsum(tf.one_hot(self.cheat_selection, self.num_nodes, on_value=1, off_value=0), axis=1)
-        cheat_selection = tf.cast(tf.greater(cheat_selection, 0), tf.float32)
+        cheat_selection = tf.cast(self._get_all_entities(self.cheat_selection), tf.float32)
         cheat_selection = tf.expand_dims(cheat_selection[:, -1, :], 2)
         if self.init_rnn_state is not None:
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection)
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection, self.encoder_entities)
         else:
-            return cell.zero_state(self.batch_size, self.context, cheat_selection)
+            return cell.zero_state(self.batch_size, self.context, cheat_selection, self.encoder_entities)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection, encoder_entities):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
                     self.context: context,
                     self.init_checklists: init_checklists,
                     self.cheat_selection: cheat_selection,
+                    self.encoder_entities: encoder_entities,
                     }
                 )
         return init_state
@@ -559,6 +587,7 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
         with tf.name_scope(type(self).__name__+'/inputs'):
             # entities
             self.cheat_selection = tf.placeholder(tf.int32, shape=[None, None], name='cheat_selection')
+            self.encoder_entities = tf.placeholder(tf.int32, shape=[None, None], name='encoder_entities')
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
@@ -567,14 +596,20 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
         self.output_dict.update({'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state, 'selection_scores': selection_scores})
 
     def compute_loss(self, targets, pad):
-        loss, seq_loss, total_loss = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad)
+        loss, seq_loss, total_loss, _ = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad)
 
         entity_targets = self.output_dict['checklists'][:, -1, :]
         entity_logits = self.output_dict['selection_scores']
-        entity_loss = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets)) / tf.to_float(self.batch_size) / tf.to_float(self.num_nodes)
+        mask = self.context[1]
+        entity_loss = tf.where(mask, tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets), tf.zeros_like(entity_logits))
+        #weights = tf.where(tf.equal(entity_targets, 1),
+        #        tf.ones_like(entity_targets) * 1.,
+        #        tf.ones_like(entity_targets) * 1.)
+        #entity_loss = entity_loss * weights
+        entity_loss = tf.reduce_sum(entity_loss) / tf.to_float(self.batch_size) / tf.to_float(self.num_nodes)
         loss += entity_loss
 
-        return loss, seq_loss, total_loss
+        return loss, seq_loss, total_loss, entity_loss
 
 class GatedCopyGraphDecoder(GraphDecoder):
     '''
@@ -602,7 +637,7 @@ class GatedCopyGraphDecoder(GraphDecoder):
         return tf.concat(2, [vocab_logits, attn_logits]), tf.concat(2, [log_prob_vocab, log_prob_copy])
 
     def compute_loss(self, targets, pad):
-        loss, seq_loss, total_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad)
+        loss, seq_loss, total_loss, select_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad)
 
         vocab_size = self.num_symbols
         # 0: vocab 1: copy
@@ -612,7 +647,7 @@ class GatedCopyGraphDecoder(GraphDecoder):
         seq_loss += gate_seq_loss
         total_loss += gate_total_loss
 
-        return loss, seq_loss, total_loss
+        return loss, seq_loss, total_loss, select_loss
 
 class BasicEncoderDecoder(object):
     '''
@@ -652,7 +687,7 @@ class BasicEncoderDecoder(object):
             self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Loss
-            self.loss, self.seq_loss, self.total_loss = self.compute_loss(decoder.output_dict, self.targets)
+            self.loss, self.seq_loss, self.total_loss, self.select_loss = self.compute_loss(decoder.output_dict, self.targets)
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
@@ -689,18 +724,21 @@ class BasicEncoderDecoder(object):
             init_checklists = graphs.get_zero_checklists(1)
             entities = graphs.get_zero_entities(1)
             cheat_selection = graphs._entity_to_node_id(batch['decoder_entities'])
+            encoder_entities = encoder_args['entities']
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
                     init_checklists,
                     cheat_selection,
+                    encoder_entities,
                     )
             decoder_args['init_checklists'] = init_checklists
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
             decoder_args['cheat_selection'] = cheat_selection
+            decoder_args['encoder_entities'] = encoder_entities
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
@@ -709,8 +747,9 @@ class BasicEncoderDecoder(object):
         if graphs is not None:
             # TODO: why do we need to do encoding again
             # Read decoder tokens and update graph
-            new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], None, batch['decoder_entities'], utterances, vocab)
+            new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, vocab)
             decoder_args['cheat_selection'] = new_graph_data['decoder_nodes']
+            decoder_args['encoder_entities'] = new_graph_data['encoder_nodes']
             # Add checklists
             decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
             # Add copied nodes
@@ -723,14 +762,17 @@ class BasicEncoderDecoder(object):
             kwargs = {'encoder': encoder_args, 'decoder': decoder_args, 'graph_embedder': new_graph_data}
             feed_dict = self.get_feed_dict(**kwargs)
             true_final_state, utterances, true_checklists = sess.run((self.decoder.output_dict['final_state'], self.decoder.output_dict['utterances'], self.decoder.output_dict['checklists']), feed_dict=feed_dict)
-            return {'preds': decoder_output_dict['preds'],
-                    'final_state': decoder_output_dict['final_state'],
-                    'true_final_state': true_final_state,
-                    'utterances': utterances,
-                    'attn_scores': decoder_output_dict['attn_scores'],
-                    'selection_scores': decoder_output_dict['selection_scores'],
-                    'true_checklists': true_checklists,
-                    }
+
+            result = {'preds': decoder_output_dict['preds'],
+                      'final_state': decoder_output_dict['final_state'],
+                      'true_final_state': true_final_state,
+                      'utterances': utterances,
+                      'attn_scores': decoder_output_dict['attn_scores'],
+                      }
+            if 'selection_scores' in decoder_output_dict:
+                result['selection_scores'] = decoder_output_dict['selection_scores']
+                result['true_checklists'] = true_checklists
+            return result
         else:
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run((self.decoder.output_dict['final_state']), feed_dict=feed_dict)

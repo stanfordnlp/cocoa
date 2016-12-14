@@ -15,9 +15,10 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--prepend', default=False, action='store_true', help='Prepend entities to decoder utterance')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD', 'EOE'])
+markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>', EOE='</e>')
 
 def tokenize(utterance):
     '''
@@ -191,7 +192,12 @@ class Dialogue(object):
         assert not hasattr(self, 'graphs')
         self.graphs = [Graph(kb) for kb in self.kbs]
 
-    def add_utterance(self, agent, utterances):
+    def add_utterance(self, agent, utterances, prepend):
+        # Prepend entities to decoder utterances
+        if prepend:
+            decoder_utterance = utterances[self.DEC]
+            decoder_entities = [x for x in decoder_utterance if is_entity(x)] + [markers.EOE]
+            utterances[self.DEC][:0] = decoder_entities
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             for i in xrange(2):
@@ -398,10 +404,11 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, prepend):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
+        self.prepend = prepend
         self.entity_forms = {'encoding': entity_encoding_form,
                 'decoding': entity_decoding_form,
                 'target': entity_target_form}
@@ -437,7 +444,7 @@ class Preprocessor(object):
         for e in ex.events:
             utterances = self.process_event(e, kbs[e.agent])
             if utterances:
-                dialogue.add_utterance(e.agent, utterances)
+                dialogue.add_utterance(e.agent, utterances, self.prepend)
         return dialogue
 
     def item_to_entities(self, item, attrs):
@@ -473,7 +480,8 @@ class Preprocessor(object):
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
             if entity_tokens:
-                return (entity_tokens, entity_tokens)
+                # NOTE: have two copies because we might change it given decoding/encoding
+                return (entity_tokens, copy.copy(entity_tokens))
             else:
                 return None
         elif e.action == 'select':
@@ -516,6 +524,7 @@ class DataGenerator(object):
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.use_kb = use_kb  # Whether to generate graph
         self.copy = copy
+        self.prepend = preprocessor.prepend
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
         for fold, dialogues in self.dialogues.iteritems():

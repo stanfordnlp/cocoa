@@ -139,9 +139,9 @@ class AttnRNNCell(object):
             attns = tf.expand_dims(attns, 2)
             weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
             # Setting it to -inf seems to cause learning problems
-            #neginf = float('-inf') * tf.ones_like(context_mask, dtype=tf.float32)
-            #masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
-            return weighted_context, attn_scores
+            neginf = -10. * tf.ones_like(context_mask, dtype=tf.float32)
+            masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
+            return weighted_context, masked_attn_scores
 
     def __call__(self, inputs, state, scope=None):
         with tf.variable_scope(scope or type(self).__name__):
@@ -160,21 +160,24 @@ class PreselectAttnRNNCell(AttnRNNCell):
     '''
     Attention RNN cell that pre-selects a set of items from the context.
     '''
-    def select(self, init_output, context, cheat_selection):
+    def select(self, init_output, context, cheat_selection, encoder_entities):
         context_len = tf.shape(context)[1]
         init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
+        encoder_entity_embeds = batch_embedding_lookup(context, encoder_entities, zero_ind=-1)  # (batch_size, seq_len, context_size)
+        encoder_entity_embeds = tf.reduce_sum(encoder_entity_embeds, 1)  # (batch_size, context_size)
+        encoder_entity_embeds = tf.tile(tf.expand_dims(encoder_entity_embeds, 1), [1, context_len, 1])
         with tf.variable_scope('SelectEntity'):
-            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
+            selection = batch_linear(tf.concat(2, [encoder_entity_embeds, context]), 1, True)  # (batch_size, context_len, 1)
             selection_scores = tf.squeeze(selection, [2])
             selection = tf.sigmoid(selection)
-            selected_context = tf.reduce_sum(tf.mul(cheat_selection, context), 1)  # (batch_size, context_size)
+            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
             # Normalize
             selected_context = tf.div(selected_context, (tf.reduce_sum(selection, 1) + EPS))
         return selected_context, selection_scores
 
-    def init_state(self, rnn_state, rnn_output, context, checklist, cheat_selection):
+    def init_state(self, rnn_state, rnn_output, context, checklist, cheat_selection, encoder_entities):
         attn, scores = self.compute_attention(rnn_output, context, checklist)
-        selected_context, selection_scores = self.select(rnn_output, context[0], cheat_selection)
+        selected_context, selection_scores = self.select(rnn_output, context[0], cheat_selection, encoder_entities)
         return (rnn_state, attn, context, selected_context, selection_scores)
 
     def __call__(self, inputs, state, scope=None):
@@ -190,9 +193,9 @@ class PreselectAttnRNNCell(AttnRNNCell):
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context, selected_context, selection_scores)
 
-    def zero_state(self, batch_size, init_context, cheat_selection, dtype=tf.float32):
+    def zero_state(self, batch_size, init_context, cheat_selection, encoder_entities, dtype=tf.float32):
         zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
         zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
         zero_checklist = tf.zeros_like(init_context)[:, :, 0]
-        return self.init_state(zero_rnn_state, zero_h, init_context, zero_checklist, cheat_selection)
+        return self.init_state(zero_rnn_state, zero_h, init_context, zero_checklist, cheat_selection, encoder_entities)
 
