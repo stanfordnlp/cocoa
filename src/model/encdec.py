@@ -274,12 +274,13 @@ class BasicDecoder(BasicEncoder):
         logits = self.output_dict['logits']
         return self._compute_loss(logits, targets, pad) + (tf.constant(-1),)
 
-    def _compute_loss(self, logits, targets, pad):
+    @classmethod
+    def _compute_loss(cls, logits, targets, pad):
         '''
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
         '''
-        batch_size = self.batch_size
+        batch_size = tf.shape(logits)[0]
         num_symbols = tf.shape(logits)[2]
         # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
         logits = tf.reshape(logits, [-1, num_symbols])
@@ -340,6 +341,10 @@ class GraphDecoder(GraphEncoder):
         self.utterance_id = 1
         self.scorer = scoring
         self.output_combiner = output
+
+    def compute_loss(self, targets, pad):
+        logits = self.output_dict['logits']
+        return BasicDecoder._compute_loss(logits, targets, pad) + (tf.constant(-1),)
 
     def _build_rnn_cell(self):
         return AttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers)
