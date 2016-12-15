@@ -150,6 +150,20 @@ class RNNNeuralSession(NeuralSession):
         self.encoder_state = self.encoder_output_dict['final_state']
         self.new_turn = True
 
+    def _pred_to_token(self, preds):
+        if self.env.copy:
+            preds = self.graph.copy_preds(preds, self.env.vocab.size)
+        entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map, self.env.prepend)
+        # TODO: The output does not have surface form yet. Add the canonical form as surface for now.
+        entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
+        return entity_tokens
+
+    def _match(self, item):
+        for it in self.kb.items:
+            if it == item:
+                return it
+        return None
+
 class GraphNeuralSession(RNNNeuralSession):
     def __init__(self, agent, kb, env):
         super(GraphNeuralSession, self).__init__(agent, kb, env)
@@ -163,12 +177,6 @@ class GraphNeuralSession(RNNNeuralSession):
     def encode(self, entity_tokens):
         super(GraphNeuralSession, self).encode(entity_tokens)
         self.context = self.encoder_output_dict['context']
-
-    def _match(self, item):
-        for it in self.kb.items:
-            if it == item:
-                return it
-        return None
 
     def _encoder_args(self, entity_tokens):
         encoder_args = super(GraphNeuralSession, self)._encoder_args(entity_tokens)
@@ -203,11 +211,3 @@ class GraphNeuralSession(RNNNeuralSession):
         # Update graph and utterances
         graph_data = self.graph.get_batch_data(None, [entity_tokens], None, None, self.utterances, self.env.vocab)
         self.utterances, self.context = self.model.decoder.update_context(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], decoder_output_dict['utterance_embedding'], graph_data['utterances'], graph_data)
-
-    def _pred_to_token(self, preds):
-        if self.env.copy:
-            preds = self.graph.copy_preds(preds, self.env.vocab.size)
-        entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map, self.env.prepend)
-        # TODO: The output does not have surface form yet. Add the canonical form as surface for now.
-        entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
-        return entity_tokens
