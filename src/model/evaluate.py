@@ -24,7 +24,7 @@ def remove_entities(entity_tokens):
         find_entities(eoe_ind)
     return [x for i, x in enumerate(entity_tokens) if i not in to_remove], [x for i, x in enumerate(entity_tokens) if i in to_remove]
 
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=1):
+def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None):
     '''
     Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
@@ -39,6 +39,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
         return None
     tokens = []
     entities = []
+    if num_sents is None:
+        num_sents = [1 for _ in preds]
     for pred, n in izip(preds, num_sents):
         # TODO: clean
         if remove_entity:
@@ -106,7 +108,7 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend==True, num_sents)
+                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents)
 
                 # Compute BLEU
                 references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
