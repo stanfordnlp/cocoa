@@ -10,7 +10,6 @@ from src.lib import logstats
 from src.model.util import EPS
 
 def remove_entities(entity_tokens):
-    #print 'before remove:', entity_tokens
     eoe_inds = [i for i, x in enumerate(entity_tokens) if x == markers.EOE]
     to_remove = set(eoe_inds)
     def find_entities(eoe_ind):
@@ -23,7 +22,7 @@ def remove_entities(entity_tokens):
             i -= 1
     for eoe_ind in eoe_inds:
         find_entities(eoe_ind)
-    return [x for i, x in enumerate(entity_tokens) if i not in to_remove]
+    return [x for i, x in enumerate(entity_tokens) if i not in to_remove], [x for i, x in enumerate(entity_tokens) if i in to_remove]
 
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=1):
     '''
@@ -39,15 +38,16 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
                     return i
         return None
     tokens = []
+    entities = []
     for pred, n in izip(preds, num_sents):
         # TODO: clean
         if remove_entity:
-            entity_tokens = remove_entities(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)]], 'target'))
-            #print 'after remove:', entity_tokens
+            entity_tokens, prepended_entities = remove_entities(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)]], 'target'))
             tokens.append([x for x in entity_tokens if not x in (markers.EOS, markers.PAD)])
+            entities.append(prepended_entities)
         else:
             tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
-    return tokens
+    return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(object):
     def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
@@ -106,27 +106,30 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                pred_tokens = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend==True, num_sents)
+                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend==True, num_sents)
 
                 # Compute BLEU
                 references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
                 # Sentence bleu: only for verbose print
                 bleu_scores = self.sentence_bleu_score(pred_tokens, references)
                 bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
-                self.update_entity_stats(summary_map, pred_tokens, batch['decoder_tokens'])
+                self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
                 if 'selection_scores' in output_dict:
-                    self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :])
+                    self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :], 'select_')
+                if pred_entities is not None:
+                    self.update_entity_stats(summary_map, pred_entities, references, 'prepend_')
 
                 if self.verbose:
                     attn_scores = output_dict.get('attn_scores', None)
                     self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores)
 
-        entity_f1 = self.entity_f1(summary_map)
+        entity_f1 = self.get_f1(summary_map, 'entity_')
         bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
-        selection_f1 = self.selection_f1(summary_map)
-        return bleu, entity_f1, selection_f1
+        selection_f1 = self.get_f1(summary_map, 'select_')
+        prepend_f1 = self.get_f1(summary_map, 'prepend_')
+        return bleu, entity_f1, selection_f1, prepend_f1
 
-    def update_selection_stats(self, summary_map, scores, targets):
+    def update_selection_stats(self, summary_map, scores, targets, prefix=''):
         # NOTE: targets are from ground truth response and many contain new entities.
         # Ideally this would not happen as a mentioned entity is either from the agent's
         # KB or from partner's mentions (which is added to the graph), so during decoding
@@ -137,16 +140,15 @@ class Evaluator(object):
         pos_pred = scores > 0
         pos_target = targets == 1
         tp = np.sum(np.logical_and(pos_pred, pos_target))
-        logstats.update_summary_map(summary_map, {'select_tp': tp, 'select_pos_pred': np.sum(pos_pred), 'select_pos_target': np.sum(pos_target)})
+        logstats.update_summary_map(summary_map, {prefix+'tp': tp, prefix+'pos_pred': np.sum(pos_pred), prefix+'pos_target': np.sum(pos_target)})
 
-    def selection_f1(self, summary_map):
-        if 'select_tp' not in summary_map:
+    def get_f1(self, summary_map, prefix):
+        pos_target = prefix + 'pos_target'
+        pos_pred = prefix + 'pos_pred'
+        tp = prefix + 'tp'
+        if tp not in summary_map:
             return -1, -1, -1
-        tp, target_size, pred_size = float(summary_map['select_tp']['sum']), float(summary_map['select_pos_pred']['sum']), float(summary_map['select_pos_target']['sum'])
-        return self._f1(tp, target_size, pred_size)
-
-    def entity_f1(self, summary_map):
-        tp, target_size, pred_size = float(summary_map['tp']['sum']), float(summary_map['target_size']['sum']), float(summary_map['pred_size']['sum'])
+        tp, target_size, pred_size = float(summary_map[tp]['sum']), float(summary_map[pos_target]['sum']), float(summary_map[pos_pred]['sum'])
         return self._f1(tp, target_size, pred_size)
 
     def _f1(self, tp, pred_size, target_size):
@@ -168,9 +170,9 @@ class Evaluator(object):
         '''
         targets = [token[1] if is_entity(token) else token for token in tokens]
         if self.prepend:
-            return remove_entities(targets)
-        else:
-            return targets
+            targets, _ = remove_entities(targets)
+        targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
+        return targets
 
     def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores):
         '''
@@ -226,9 +228,13 @@ class Evaluator(object):
                 scores.append(None)
         return scores
 
-    def update_entity_stats(self, summary_map, batch_preds, batch_targets):
+    # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
+    def update_entity_stats(self, summary_map, batch_preds, batch_targets, prefix=''):
         def get_entity(x):
-            return [e[0] for e in x if is_entity(e)]
+            return [e for e in x if is_entity(e)]
+        pos_target = prefix + 'pos_target'
+        pos_pred = prefix + 'pos_pred'
+        tp = prefix + 'tp'
         for preds, targets in izip (batch_preds, batch_targets):
             # None targets means that this is a padded turn
             if targets is None:
@@ -238,8 +244,8 @@ class Evaluator(object):
                 targets = set(get_entity(targets))
                 # Don't record cases where no entity is presented
                 if len(targets) > 0:
-                    logstats.update_summary_map(summary_map, {'target_size': len(targets), 'pred_size': len(preds)})
-                    logstats.update_summary_map(summary_map, {'tp': sum([1 if e in preds else 0 for e in targets])})
+                    logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
+                    logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
 
 class FactEvaluator(object):
     '''

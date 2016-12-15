@@ -261,8 +261,8 @@ class Learner(object):
                     print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                     print '================== Sampling =================='
                     start_time = time.time()
-                    bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
-                    print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, time.time() - start_time)
+                    bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1), (pre_prec, pre_recall, pre_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
+                    print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f prepend_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, pre_prec, pre_recall, pre_f1, time.time() - start_time)
 
                     # Start to record no improvement epochs
                     if split == 'dev' and epoch > args.min_epochs:

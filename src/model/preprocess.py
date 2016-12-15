@@ -243,6 +243,8 @@ class Dialogue(object):
         if hasattr(self, 'token_turns'):
             for i, turns in enumerate(self.token_turns):
                 for j, turn in enumerate(turns):
+                    for utterance in turn:
+                        utterance.append(markers.EOS)
                     self.token_turns[i][j] = [x for x in chain.from_iterable(turn)]
 
         self.flattened = True
