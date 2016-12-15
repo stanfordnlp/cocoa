@@ -344,7 +344,7 @@ class GraphDecoder(GraphEncoder):
             return cell.zero_state(self.batch_size, self.context)
 
     # TODO: hacky interface
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection=None, encoder_entities=None):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection=None):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
@@ -402,7 +402,6 @@ class GraphDecoder(GraphEncoder):
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
         cheat_selection = kwargs['cheat_selection']
-        encoder_entities = kwargs['encoder_entities']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -435,7 +434,6 @@ class GraphDecoder(GraphEncoder):
                         init_checklists=cl,
                         entities=entities,
                         cheat_selection=cheat_selection,
-                        encoder_entities=encoder_entities,
                         )
             else:
                 feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
@@ -546,7 +544,6 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     def get_feed_dict(self, **kwargs):
         feed_dict = super(PreselectCopyGraphDecoder, self).get_feed_dict(**kwargs)
         feed_dict[self.cheat_selection] = kwargs.pop('cheat_selection')
-        feed_dict[self.encoder_entities] = kwargs.pop('encoder_entities')
         return feed_dict
 
     def _get_all_entities(self, entities):
@@ -566,18 +563,17 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection, self.encoder_entities)
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection)
         else:
-            return cell.zero_state(self.batch_size, self.context, cheat_selection, self.encoder_entities)
+            return cell.zero_state(self.batch_size, self.context, cheat_selection)
 
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection, encoder_entities):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
                     self.context: context,
                     self.init_checklists: init_checklists,
                     self.cheat_selection: cheat_selection,
-                    self.encoder_entities: encoder_entities,
                     }
                 )
         return init_state
@@ -587,7 +583,6 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
         with tf.name_scope(type(self).__name__+'/inputs'):
             # entities
             self.cheat_selection = tf.placeholder(tf.int32, shape=[None, None], name='cheat_selection')
-            self.encoder_entities = tf.placeholder(tf.int32, shape=[None, None], name='encoder_entities')
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
@@ -724,21 +719,18 @@ class BasicEncoderDecoder(object):
             init_checklists = graphs.get_zero_checklists(1)
             entities = graphs.get_zero_entities(1)
             cheat_selection = graphs._entity_to_node_id(batch['decoder_entities'])
-            encoder_entities = encoder_args['entities']
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
                     init_checklists,
                     cheat_selection,
-                    encoder_entities,
                     )
             decoder_args['init_checklists'] = init_checklists
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
             decoder_args['cheat_selection'] = cheat_selection
-            decoder_args['encoder_entities'] = encoder_entities
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
