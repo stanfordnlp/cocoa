@@ -43,7 +43,7 @@ def get_system(name):
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path)
+        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check)
     else:
         raise ValueError('Unknown system %s' % name)
 
