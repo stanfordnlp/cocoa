@@ -160,7 +160,7 @@ class PreselectAttnRNNCell(AttnRNNCell):
     '''
     Attention RNN cell that pre-selects a set of items from the context.
     '''
-    def select(self, init_output, context, cheat_selection):
+    def select(self, init_output, context):
         context_len = tf.shape(context)[1]
         init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
         encoder_entity_embeds = batch_embedding_lookup(context, zero_ind=-1)  # (batch_size, seq_len, context_size)
@@ -175,9 +175,9 @@ class PreselectAttnRNNCell(AttnRNNCell):
             selected_context = tf.div(selected_context, (tf.reduce_sum(selection, 1) + EPS))
         return selected_context, selection_scores
 
-    def init_state(self, rnn_state, rnn_output, context, checklist, cheat_selection):
+    def init_state(self, rnn_state, rnn_output, context, checklist):
         attn, scores = self.compute_attention(rnn_output, context, checklist)
-        selected_context, selection_scores = self.select(rnn_output, context[0], cheat_selection)
+        selected_context, selection_scores = self.select(rnn_output, context[0])
         return (rnn_state, attn, context, selected_context, selection_scores)
 
     def __call__(self, inputs, state, scope=None):
@@ -192,10 +192,4 @@ class PreselectAttnRNNCell(AttnRNNCell):
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context, selected_context, selection_scores)
-
-    def zero_state(self, batch_size, init_context, cheat_selection, dtype=tf.float32):
-        zero_rnn_state = self.rnn_cell.zero_state(batch_size, dtype)
-        zero_h = tf.zeros([batch_size, self.rnn_cell.output_size], dtype=dtype)
-        zero_checklist = tf.zeros_like(init_context)[:, :, 0]
-        return self.init_state(zero_rnn_state, zero_h, init_context, zero_checklist, cheat_selection)
 

@@ -270,6 +270,34 @@ class BasicDecoder(BasicEncoder):
         logits = batch_linear(outputs, self.num_symbols, True)
         return logits
 
+    def compute_loss(self, targets, pad):
+        logits = self.output_dict['logits']
+        return self._compute_loss(logits, targets, pad) + (tf.constant(-1),)
+
+    def _compute_loss(self, logits, targets, pad):
+        '''
+        logits: (batch_size, seq_len, vocab_size)
+        targets: (batch_size, seq_len)
+        '''
+        batch_size = self.batch_size
+        num_symbols = tf.shape(logits)[2]
+        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
+        logits = tf.reshape(logits, [-1, num_symbols])
+        targets = tf.reshape(targets, [-1])
+
+        # Mask padded tokens
+        token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        total_loss = tf.reduce_sum(loss)
+        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
+        # Average over words in each sequence
+        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
+
+        # Average over sequences
+        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
+        # total_loss is used to compute perplexity
+        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+
     def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
         super(BasicDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(scope or type(self).__name__):
@@ -344,7 +372,7 @@ class GraphDecoder(GraphEncoder):
             return cell.zero_state(self.batch_size, self.context)
 
     # TODO: hacky interface
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection=None):
+    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists):
         init_state = sess.run(self.init_state,
                 feed_dict={self.init_output: init_output,
                     self.init_rnn_state: init_rnn_state,
@@ -401,7 +429,6 @@ class GraphDecoder(GraphEncoder):
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
-        cheat_selection = kwargs['cheat_selection']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
@@ -433,7 +460,6 @@ class GraphDecoder(GraphEncoder):
                         init_state=final_state,
                         init_checklists=cl,
                         entities=entities,
-                        cheat_selection=cheat_selection,
                         )
             else:
                 feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
@@ -468,42 +494,14 @@ class GraphDecoder(GraphEncoder):
             if m:
                 print i, c
 
-    def update_utterances(self, sess, entities, final_output, utterance_embedding, utterances, graph_data):
+    def update_context(self, sess, entities, final_output, utterance_embedding, utterances, graph_data):
         feed_dict = {self.update_entities: entities,
                 self.output_dict['final_output']: final_output,
                 self.output_dict['utterance_embedding']: utterance_embedding,
                 self.utterances: utterances}
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **graph_data)
-        new_utterances = sess.run(self.output_dict['utterances'], feed_dict=feed_dict)
-        return new_utterances
-
-    def compute_loss(self, targets, pad):
-        logits = self.output_dict['logits']
-        return self._compute_loss(logits, targets, pad) + (tf.constant(-1),)
-
-    def _compute_loss(self, logits, targets, pad):
-        '''
-        logits: (batch_size, seq_len, vocab_size)
-        targets: (batch_size, seq_len)
-        '''
-        batch_size = self.batch_size
-        num_symbols = tf.shape(logits)[2]
-        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
-        logits = tf.reshape(logits, [-1, num_symbols])
-        targets = tf.reshape(targets, [-1])
-
-        # Mask padded tokens
-        token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
-        total_loss = tf.reduce_sum(loss)
-        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
-        # Average over words in each sequence
-        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
-
-        # Average over sequences
-        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
-        # total_loss is used to compute perplexity
-        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+        new_utterances, new_context = sess.run([self.output_dict['utterances'], self.output_dict['context']], feed_dict=feed_dict)
+        return new_utterances, new_context
 
 class CopyGraphDecoder(GraphDecoder):
     '''
@@ -541,11 +539,6 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     def _build_rnn_cell(self):
         return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers)
 
-    def get_feed_dict(self, **kwargs):
-        feed_dict = super(PreselectCopyGraphDecoder, self).get_feed_dict(**kwargs)
-        feed_dict[self.cheat_selection] = kwargs.pop('cheat_selection')
-        return feed_dict
-
     def _get_all_entities(self, entities):
         '''
         entities: (batch_size, seq_len) node_id at each step in the sequence
@@ -553,36 +546,6 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
         '''
         all_entities = tf.cumsum(tf.one_hot(entities, self.num_nodes, on_value=1, off_value=0), axis=1)
         return tf.greater(all_entities, 0)
-
-    def _build_init_state(self, cell, input_dict):
-        self.init_output = input_dict['init_output']
-        self.init_rnn_state = input_dict['init_state']
-        cheat_selection = tf.cast(self._get_all_entities(self.cheat_selection), tf.float32)
-        cheat_selection = tf.expand_dims(cheat_selection[:, -1, :], 2)
-        if self.init_rnn_state is not None:
-            # NOTE: we assume that the initial state comes from the encoder and is just
-            # the rnn state. We need to compute attention and get context for the attention
-            # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32), cheat_selection)
-        else:
-            return cell.zero_state(self.batch_size, self.context, cheat_selection)
-
-    def compute_init_state(self, sess, init_rnn_state, init_output, context, init_checklists, cheat_selection):
-        init_state = sess.run(self.init_state,
-                feed_dict={self.init_output: init_output,
-                    self.init_rnn_state: init_rnn_state,
-                    self.context: context,
-                    self.init_checklists: init_checklists,
-                    self.cheat_selection: cheat_selection,
-                    }
-                )
-        return init_state
-
-    def _build_inputs(self, input_dict):
-        super(PreselectCopyGraphDecoder, self)._build_inputs(input_dict)
-        with tf.name_scope(type(self).__name__+'/inputs'):
-            # entities
-            self.cheat_selection = tf.placeholder(tf.int32, shape=[None, None], name='cheat_selection')
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
@@ -718,19 +681,16 @@ class BasicEncoderDecoder(object):
         if graphs:
             init_checklists = graphs.get_zero_checklists(1)
             entities = graphs.get_zero_entities(1)
-            cheat_selection = graphs._entity_to_node_id(batch['decoder_entities'])
             decoder_args['init_state'] = self.decoder.compute_init_state(sess,
                     encoder_output_dict['final_state'],
                     encoder_output_dict['final_output'],
                     encoder_output_dict['context'],
                     init_checklists,
-                    cheat_selection,
                     )
             decoder_args['init_checklists'] = init_checklists
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
-            decoder_args['cheat_selection'] = cheat_selection
         decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
@@ -740,7 +700,6 @@ class BasicEncoderDecoder(object):
             # TODO: why do we need to do encoding again
             # Read decoder tokens and update graph
             new_graph_data = graphs.get_batch_data(None, batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, vocab)
-            decoder_args['cheat_selection'] = new_graph_data['decoder_nodes']
             decoder_args['encoder_entities'] = new_graph_data['encoder_nodes']
             # Add checklists
             decoder_args['init_checklists'] = graphs.get_zero_checklists(1)
