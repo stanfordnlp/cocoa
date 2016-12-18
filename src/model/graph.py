@@ -40,6 +40,7 @@ class GraphMetadata(object):
         # Node features {feat_name: (offset, feat_size)}
         # degree: 0-max_degree
         # node_type: entity, item, attr
+        # TODO: remove max_degree
         #degree_size = max_degree + 1
         degree_size = Graph.degree_feat_size()
         node_types = Vocabulary(unk=False)

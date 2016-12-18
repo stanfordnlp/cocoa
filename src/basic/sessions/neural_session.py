@@ -55,8 +55,8 @@ class NeuralSession(Session):
     def send(self):
         if self.matched_item is not None:
             return self.select(self.matched_item)
-        if random.random() < 0.2:  # Wait randomly
-            return None
+        #if random.random() < 0.2:  # Wait randomly
+        #    return None
         tokens = self.decode()
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
             item = self.kb.items[int(tokens[1].split('-')[1])]

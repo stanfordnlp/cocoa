@@ -42,8 +42,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
     if num_sents is None:
         num_sents = [1 for _ in preds]
     for pred, n in izip(preds, num_sents):
-        # TODO: clean
         if remove_entity:
+            #print 'raw pred:', textint_map.int_to_text(pred, 'target')
             entity_tokens, prepended_entities = remove_entities(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)]], 'target'))
             tokens.append([x for x in entity_tokens if not x in (markers.EOS, markers.PAD)])
             entities.append(prepended_entities)
