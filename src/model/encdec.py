@@ -18,6 +18,7 @@ def add_model_arguments(parser):
     parser.add_argument('--rnn-size', type=int, default=20, help='Dimension of hidden units of RNN')
     parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
     parser.add_argument('--num-layers', type=int, default=1, help='Number of RNN layers')
+    parser.add_argument('--dropout', type=float, default=0, help='Dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     parser.add_argument('--bow-utterance', default=False, action='store_true', help='Use sum of word embeddings as utterance embedding')
@@ -34,8 +35,8 @@ def build_model(schema, mappings, args):
     pad = vocab.to_ind(markers.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
     if args.model == 'encdec':
-        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers)
+        encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
@@ -44,18 +45,18 @@ def build_model(schema, mappings, args):
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist))
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist))
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist))
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist))
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
                 sup_gate = False
         model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad, sup_gate)
     else:
@@ -77,10 +78,12 @@ class BasicEncoder(object):
     '''
     A basic RNN encoder.
     '''
-    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1):
+    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1, dropout=0):
         self.rnn_size = rnn_size
         self.rnn_type = rnn_type
         self.num_layers = num_layers
+        self.dropout = dropout
+        self.keep_prob = tf.placeholder(tf.float32)
         self.output_dict = {}
 
     def _build_init_output(self, cell):
@@ -108,7 +111,7 @@ class BasicEncoder(object):
         return last_states
 
     def _build_rnn_cell(self):
-        return build_rnn_cell(self.rnn_type, self.rnn_size, self.num_layers)
+        return build_rnn_cell(self.rnn_type, self.rnn_size, self.num_layers, self.keep_prob)
 
     def _build_init_state(self, cell, input_dict):
         initial_state = input_dict['init_state']
@@ -154,6 +157,7 @@ class BasicEncoder(object):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
         feed_dict[self.last_inds] = kwargs.pop('last_inds')
+        feed_dict[self.keep_prob] = 1. - self.dropout
         optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
         return feed_dict
 
@@ -169,8 +173,8 @@ class GraphEncoder(BasicEncoder):
     '''
     RNN encoder that update knowledge graph at the end.
     '''
-    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, bow_utterance=False):
-        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers)
+    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False):
+        super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.graph_embedder = graph_embedder
         self.context_size = self.graph_embedder.config.context_size
         # Id of the utterance matrix to be updated: 0 is encoder utterances, 1 is decoder utterances
@@ -257,8 +261,8 @@ class GraphEncoder(BasicEncoder):
         return self.run(sess, ('final_state', 'final_output', 'utterances', 'context'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1):
-        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers)
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0):
+        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.num_symbols = num_symbols
 
     def _build_output(self, output_dict):
@@ -335,8 +339,8 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, bow_utterance=False, scoring='linear', output='project', checklist=True):
-        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, bow_utterance)
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True):
+        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance)
         self.num_symbols = num_symbols
         self.utterance_id = 1
         self.scorer = scoring
@@ -348,7 +352,7 @@ class GraphDecoder(GraphEncoder):
         return BasicDecoder._compute_loss(logits, targets, pad) + (tf.constant(-1),)
 
     def _build_rnn_cell(self):
-        return AttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers, self.checklist)
+        return AttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.keep_prob, self.scorer, self.output_combiner, self.num_layers, self.checklist)
 
     def _build_init_output(self, cell):
         '''
@@ -543,7 +547,7 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
     Decoder that pre-selects a set of entities before generation.
     '''
     def _build_rnn_cell(self):
-        return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.scorer, self.output_combiner, self.num_layers, self.checklist)
+        return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.keep_prob, self.scorer, self.output_combiner, self.num_layers, self.checklist)
 
     def _get_all_entities(self, entities):
         '''

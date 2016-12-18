@@ -90,6 +90,7 @@ if __name__ == '__main__':
         model_args.entity_target_form = 'graph'
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend)
     if args.test:
+        model_args.dropout = 0
         data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     else:
         data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)

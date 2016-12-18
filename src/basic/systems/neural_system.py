@@ -33,8 +33,8 @@ class NeuralSystem(System):
         mappings = read_pickle(mappings_path)
         vocab = mappings['vocab']
 
-        # TODO: check that schema and domain are the same as the loaded model
         # TODO: different models have the same key now
+        args.dropout = 0
         logstats.add_args('model_args', args)
         model = build_model(schema, mappings, args)
 

@@ -19,7 +19,7 @@ recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
 
 activation = tf.tanh
 
-def build_rnn_cell(rnn_type, rnn_size, num_layers):
+def build_rnn_cell(rnn_type, rnn_size, num_layers, keep_prob):
     '''
     Create the internal multi-layer recurrent cell.
     '''
@@ -28,7 +28,11 @@ def build_rnn_cell(rnn_type, rnn_size, num_layers):
     else:
         cell = recurrent_cell[rnn_type](rnn_size)
     if num_layers > 1:
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob)
         cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+    else:
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
     return cell
 
 class AttnRNNCell(object):
@@ -36,8 +40,8 @@ class AttnRNNCell(object):
     RNN cell with attention mechanism over an input context.
     '''
 
-    def __init__(self, rnn_size, context_size, rnn_type='lstm', scoring='linear', output='project', num_layers=1, checklist=True):
-        self.rnn_cell = build_rnn_cell(rnn_type, rnn_size, num_layers)
+    def __init__(self, rnn_size, context_size, rnn_type='lstm', keep_prob=1, scoring='linear', output='project', num_layers=1, checklist=True):
+        self.rnn_cell = build_rnn_cell(rnn_type, rnn_size, num_layers, keep_prob)
         self.rnn_size = rnn_size
         self.context_size = context_size
         self.checklist = checklist
