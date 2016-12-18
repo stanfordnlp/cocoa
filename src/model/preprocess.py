@@ -14,7 +14,7 @@ import copy
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
-    parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--entity-target-form', choices=['canonical', 'type', 'graph'], default='canonical', help='Output entity form to the decoder')
     parser.add_argument('--prepend', default=False, action='store_true', help='Prepend entities to decoder utterance')
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD', 'EOE'])
