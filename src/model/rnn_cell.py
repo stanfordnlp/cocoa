@@ -10,6 +10,7 @@ from src.model.util import batch_linear, batch_embedding_lookup, EPS
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
     parser.add_argument('--attn-output', default='project', help='How to combine rnn output and attention {concat, project}')
+    parser.add_argument('--no-checklist', default=False, action='store_true', help='Whether to include checklist at each RNN step')
 
 recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
                   'gru': tf.nn.rnn_cell.GRUCell,
@@ -35,10 +36,11 @@ class AttnRNNCell(object):
     RNN cell with attention mechanism over an input context.
     '''
 
-    def __init__(self, rnn_size, context_size, rnn_type='lstm', scoring='linear', output='project', num_layers=1):
+    def __init__(self, rnn_size, context_size, rnn_type='lstm', scoring='linear', output='project', num_layers=1, checklist=True):
         self.rnn_cell = build_rnn_cell(rnn_type, rnn_size, num_layers)
         self.rnn_size = rnn_size
         self.context_size = context_size
+        self.checklist = checklist
 
         self.scorer = scoring
         self.output_combiner = output
@@ -83,7 +85,11 @@ class AttnRNNCell(object):
         attn_size = self.rnn_size
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
-                attns = activation(batch_linear([h, context, checklist], attn_size, False))  # (batch_size, context_len, attn_size)
+                if self.checklist:
+                    feature = [h, context, checklist]
+                else:
+                    feature = [h, context]
+                attns = activation(batch_linear(feature, attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
         return attns
@@ -163,11 +169,8 @@ class PreselectAttnRNNCell(AttnRNNCell):
     def select(self, init_output, context):
         context_len = tf.shape(context)[1]
         init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
-        encoder_entity_embeds = batch_embedding_lookup(context, zero_ind=-1)  # (batch_size, seq_len, context_size)
-        encoder_entity_embeds = tf.reduce_sum(encoder_entity_embeds, 1)  # (batch_size, context_size)
-        encoder_entity_embeds = tf.tile(tf.expand_dims(encoder_entity_embeds, 1), [1, context_len, 1])
         with tf.variable_scope('SelectEntity'):
-            selection = batch_linear(tf.concat(2, [encoder_entity_embeds, context]), 1, True)  # (batch_size, context_len, 1)
+            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
             selection_scores = tf.squeeze(selection, [2])
             selection = tf.sigmoid(selection)
             selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
