@@ -1,2 +1,6 @@
 output
 *.pyc
+*.log
+data/*
+log/*
+Makefile
