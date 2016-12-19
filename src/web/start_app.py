@@ -86,7 +86,7 @@ def add_systems(config_dict, schema, lexicon):
                 model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                model = NeuralSystem(schema, lexicon, path)
+                model = NeuralSystem(schema, lexicon, path, False)
             else:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
     lexicon = Lexicon(schema, learned_lex=False)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
@@ -195,6 +195,6 @@ if __name__ == "__main__":
         app.config['task_icon'] = params['icon']
     atexit.register(cleanup, flask_app=app)
     print "App setup complete"
-    
+
     server = WSGIServer(('', args.port), app)
     server.serve_forever()
