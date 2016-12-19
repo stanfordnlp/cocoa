@@ -272,10 +272,19 @@ class BasicDecoder(BasicEncoder):
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         logits = batch_linear(outputs, self.num_symbols, True)
+        logits = self.penalize_repetition(logits)
+        return logits
+
+    @classmethod
+    def penalize_repetition(cls, logits):
+        #return logits
+        exp_logits = tf.exp(tf.clip_by_value(logits, -100, 100))
+        logits = tf.log(tf.clip_by_value(exp_logits, 1e-10, 1e10)) - tf.log(tf.clip_by_value((tf.cumsum(exp_logits, axis=1) - exp_logits), 1e-10, 1e10))
         return logits
 
     def compute_loss(self, targets, pad):
         logits = self.output_dict['logits']
+        # -1 is selection loss
         return self._compute_loss(logits, targets, pad) + (tf.constant(-1),)
 
     @classmethod
@@ -368,6 +377,7 @@ class GraphDecoder(GraphEncoder):
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         logits = batch_linear(outputs, self.num_symbols, True)
+        logits = BasicDecoder.penalize_repetition(logits)
         return logits
 
     def _build_init_state(self, cell, input_dict):
@@ -450,10 +460,14 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
+            output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']]
             if 'selection_scores' in self.output_dict:
-                logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists'], self.output_dict['selection_scores']], feed_dict=feed_dict)
+                output_nodes.append(self.output_dict['selection_scores'])
+
+            if 'selection_scores' in self.output_dict:
+                logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run(output_nodes, feed_dict=feed_dict)
             else:
-                logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run([self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']], feed_dict=feed_dict)
+                logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run(output_nodes, feed_dict=feed_dict)
 
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
@@ -464,28 +478,20 @@ class GraphDecoder(GraphEncoder):
                 break
             entities = self.pred_to_entity(step_preds, graphs, vocab)
 
-            if 'selection_scores' in self.output_dict:
-                feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                        last_inds=last_inds,
-                        init_state=final_state,
-                        init_checklists=cl,
-                        entities=entities,
-                        )
-            else:
-                feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                        last_inds=last_inds,
-                        init_state=final_state,
-                        init_checklists=cl,
-                        entities=entities,
-                        )
+            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
+                    last_inds=last_inds,
+                    init_state=final_state,
+                    init_checklists=cl,
+                    entities=entities,
+                    )
         # NOTE: the final_output may not be at the stop symbol when the function is running
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
+        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings}
         if 'selection_scores' in self.output_dict:
-            return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings, 'selection_scores': selection_scores}
-        else:
-            return {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings}
+            output_dict['selection_scores'] = selection_scores
+        return output_dict
 
     def _print_cl(self, cl):
         print 'checklists:'

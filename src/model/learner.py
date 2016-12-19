@@ -9,7 +9,6 @@ from lib import logstats
 from vocab import is_entity
 import resource
 import numpy as np
-from encdec import get_prediction
 from model.util import EPS
 
 def memory():
@@ -144,7 +143,7 @@ class Learner(object):
             encoder_init_state = final_state[0]
 
             if self.verbose:
-                preds = get_prediction(logits)
+                preds = np.argmax(logits, axis=2)
                 if self.data.copy:
                     preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
                 self._print_batch(batch, preds, seq_loss)
@@ -179,7 +178,7 @@ class Learner(object):
             encoder_init_state = final_state
 
             if self.verbose:
-                preds = get_prediction(logits)
+                preds = np.argmax(logits, axis=2)
                 self._print_batch(batch, preds, seq_loss)
 
             if test:
