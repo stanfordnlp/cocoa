@@ -86,7 +86,8 @@ def add_systems(config_dict, schema, lexicon):
                 model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                model = NeuralSystem(schema, lexicon, path, False)
+                decoding = info["decoding"].items()[0]
+                model = NeuralSystem(schema, lexicon, path, False, decoding)
             else:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '

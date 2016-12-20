@@ -12,12 +12,15 @@ from collections import namedtuple
 from src.model.evaluate import FactEvaluator
 from src.lib import logstats
 
+def add_neural_system_arguments(parser):
+    parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
+
 class NeuralSystem(System):
     """
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, lexicon, model_path, fact_check):
+    def __init__(self, schema, lexicon, model_path, fact_check, decoding):
         super(NeuralSystem, self).__init__()
         self.schema = schema
         self.lexicon = lexicon
@@ -27,6 +30,7 @@ class NeuralSystem(System):
         config = read_json(args_path)
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
+        config['decoding'] = decoding
         args = argparse.Namespace(**config)
 
         mappings_path = os.path.join(model_path, 'vocab.pkl')

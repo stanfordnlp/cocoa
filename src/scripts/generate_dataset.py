@@ -11,7 +11,8 @@ from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
 from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.neural_system import NeuralSystem
+from src.basic.systems.cmd_system import CmdSystem
+from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
 from src.lib import logstats
@@ -26,6 +27,7 @@ parser.add_argument('--stats-file', default='stats.json', help='Path to save jso
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
+add_neural_system_arguments(parser)
 add_heuristic_system_arguments(parser)
 args = parser.parse_args()
 logstats.init(args.stats_file)
@@ -43,7 +45,9 @@ def get_system(name):
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check)
+        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
+    elif name == 'cmd':
+        return CmdSystem()
     else:
         raise ValueError('Unknown system %s' % name)
 
