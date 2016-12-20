@@ -288,6 +288,11 @@ class BackendConnection(object):
             userids = [r[0] for r in cursor.fetchall()]
             return userids
 
+        def _choose_new_scenario(cursor):
+            cursor.execute("SELECT scenario_id FROM chat")
+            prev_scenarios = set(r[0] for r in cursor.fetchall())
+            return self.scenario_db.select_random(prev_scenarios)
+
         try:
             with self.conn:
                 cursor = self.conn.cursor()
@@ -299,7 +304,7 @@ class BackendConnection(object):
                 partner_type = np.random.choice(partner_types, p=partner_probs)
 
                 my_index = np.random.choice([0, 1])
-                scenario = self.scenario_db.select_random()
+                scenario = _choose_new_scenario(cursor)
                 scenario_id = scenario.uuid
                 chat_id = self._generate_chat_id()
                 if partner_type == Partner.Human:
