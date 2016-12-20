@@ -83,6 +83,7 @@ class EntityRanker(object):
                     row_entities = [(e[0], e[1].lower()) for e in row_entities]
                     agent_kbs[agent_idx].update(row_entities)
             uuid_to_kbs[uuid] = agent_kbs
+            # print uuid
 
         self.uuid_to_kbs = uuid_to_kbs
 

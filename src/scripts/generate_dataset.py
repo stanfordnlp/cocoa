@@ -12,17 +12,21 @@ from src.basic.dataset import add_dataset_arguments
 from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.neural_system import NeuralSystem
+from src.basic.systems.ngram_system import NgramSystem
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
+from src.basic.entity_ranker import EntityRanker
 from src.lib import logstats
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use {heuristic}', nargs='*')
 parser.add_argument('--model-path', help='Path to model (used for neural agents)')
+parser.add_argument("--ranker-data", type=str, help="path to train data")
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
+parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 add_heuristic_system_arguments(parser)
@@ -32,8 +36,11 @@ if args.random_seed:
     random.seed(args.random_seed)
 
 schema = Schema(args.schema_path)
-scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
-lexicon = Lexicon(schema, learned_lex=False)
+scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+entity_ranker = EntityRanker(None, args.scenarios_path[0], args.ranker_data, args.transcripts)
+# lexicon = Lexicon(schema, learned_lex=False)
+lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker)
+
 
 def get_system(name):
     if name == 'simple':
@@ -43,6 +50,8 @@ def get_system(name):
     elif name == 'neural':
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path)
+    elif name == 'ngram':
+        return NgramSystem(args.transcripts, args.scenarios_path[0], lexicon, schema)
     else:
         raise ValueError('Unknown system %s' % name)
 
@@ -58,7 +67,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
     num_failed = 0
     for i in range(max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
-        sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
+        sessions = [agents[0].new_session(0, scenario.kbs[0], scenario.uuid), agents[1].new_session(1, scenario.kbs[1], scenario.uuid)]
         controller = Controller(scenario, sessions)
         ex = controller.simulate()
         if remove_fail and ex.outcome['reward'] == 0:
