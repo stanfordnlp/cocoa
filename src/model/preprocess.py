@@ -28,7 +28,7 @@ def tokenize(utterance):
     # Split on punctuation
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     # Remove punctuation
-    tokens = [x for x in tokens if x not in '.,!?;']
+    #tokens = [x for x in tokens if x not in '.,!?;']
     return tokens
 
 def build_schema_mappings(schema, num_items):
