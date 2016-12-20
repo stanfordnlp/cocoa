@@ -54,6 +54,6 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, required=True, help='File to write JSON examples to.')
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
 
     log_events_to_json(scenario_db, args.db, args.output)
