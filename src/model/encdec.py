@@ -25,6 +25,7 @@ def add_model_arguments(parser):
     parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
     parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
     parser.add_argument('--preselect', default=False, action='store_true', help='Pre-select entities before decoding')
+    parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
     add_attention_arguments(parser)
 
 def build_model(schema, mappings, args):
@@ -34,9 +35,15 @@ def build_model(schema, mappings, args):
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
     word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+
+    if args.decoding[0] == 'sample':
+        sample_t = float(args.decoding[1])
+    else:
+        raise('Unknown decoding method')
+
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
@@ -47,32 +54,54 @@ def build_model(schema, mappings, args):
         graph_embedder = GraphEmbedder(graph_embedder_config)
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t)
                 sup_gate = False
         model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad, sup_gate)
     else:
         raise ValueError('Unknown model')
     return model
 
-def get_prediction(logits):
-    '''
-    Return predicted vocab from output/logits (batch_size, seq_len, vocab_size).
-    '''
-    preds = np.argmax(logits, axis=2)  # (batch_size, seq_len)
-    return preds
-
 def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
+
+class Sampler(object):
+    '''
+    Return a symbol from output/logits (batch_size, seq_len, vocab_size).
+    '''
+    def __init__(self, t):
+        self.t = t  # Temperature
+
+    def sample(self, logits):
+        # Greedy
+        if self.t == 0:
+            return np.argmax(logits, axis=2)
+        # Multinomial sample
+        else:
+            p = self.softmax(logits, self.t)
+            batch_size, seq_len, num_symbols = logits.shape
+            preds = np.zeros([batch_size, seq_len])
+            for i in xrange(batch_size):
+                for j in xrange(seq_len):
+                    try:
+                        preds[i][j] = np.random.choice(num_symbols, 1, p=p[i][j])[0]
+                    # p[i][j] do not sum to 1
+                    except ValueError:
+                        preds[i][j] = np.argmax(p[i][j])
+            return preds
+
+    def softmax(self, logits, t=1):
+        exp_x = np.exp(logits / t)
+        return exp_x / np.sum(exp_x, axis=2, keepdims=True)
 
 class BasicEncoder(object):
     '''
@@ -261,9 +290,10 @@ class GraphEncoder(BasicEncoder):
         return self.run(sess, ('final_state', 'final_output', 'utterances', 'context'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0):
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sample_t=0):
         super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.num_symbols = num_symbols
+        self.sampler = Sampler(sample_t)
 
     def _build_output(self, output_dict):
         '''
@@ -272,7 +302,7 @@ class BasicDecoder(BasicEncoder):
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         logits = batch_linear(outputs, self.num_symbols, True)
-        logits = self.penalize_repetition(logits)
+        #logits = self.penalize_repetition(logits)
         return logits
 
     @classmethod
@@ -335,7 +365,7 @@ class BasicDecoder(BasicEncoder):
         last_inds = np.zeros([batch_size], dtype=np.int32)
         for i in xrange(max_len):
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
-            step_preds = get_prediction(logits)
+            step_preds = self.sampler.sample(logits)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
@@ -348,8 +378,9 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True):
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0):
         super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance)
+        self.sampler = Sampler(sample_t)
         self.num_symbols = num_symbols
         self.utterance_id = 1
         self.scorer = scoring
@@ -377,7 +408,7 @@ class GraphDecoder(GraphEncoder):
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         logits = batch_linear(outputs, self.num_symbols, True)
-        logits = BasicDecoder.penalize_repetition(logits)
+        #logits = BasicDecoder.penalize_repetition(logits)
         return logits
 
     def _build_init_state(self, cell, input_dict):
@@ -422,6 +453,7 @@ class GraphDecoder(GraphEncoder):
         with tf.variable_scope(scope or type(self).__name__):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
+        self.output_dict['probs'] = tf.nn.softmax(logits)
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
         final_state = self._get_final_state(rnn_states)
@@ -453,6 +485,7 @@ class GraphDecoder(GraphEncoder):
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
         attn_scores = []
+        probs = []
         graphs = kwargs['graphs']
         vocab = kwargs['vocab']
         word_embeddings = 0
@@ -460,19 +493,20 @@ class GraphDecoder(GraphEncoder):
             #self._print_cl(cl)
             #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['checklists']]
+            output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['probs'], self.output_dict['checklists']]
             if 'selection_scores' in self.output_dict:
                 output_nodes.append(self.output_dict['selection_scores'])
 
             if 'selection_scores' in self.output_dict:
-                logits, final_state, final_output, utterance_embedding, attn_score, cl, selection_scores = sess.run(output_nodes, feed_dict=feed_dict)
+                logits, final_state, final_output, utterance_embedding, attn_score, prob, cl, selection_scores = sess.run(output_nodes, feed_dict=feed_dict)
             else:
-                logits, final_state, final_output, utterance_embedding, attn_score, cl = sess.run(output_nodes, feed_dict=feed_dict)
+                logits, final_state, final_output, utterance_embedding, attn_score, prob, cl = sess.run(output_nodes, feed_dict=feed_dict)
 
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
-            step_preds = get_prediction(logits)
+            probs.append(prob[0])
+            step_preds = self.sampler.sample(logits)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
@@ -488,7 +522,7 @@ class GraphDecoder(GraphEncoder):
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
-        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'utterance_embedding': word_embeddings}
+        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'probs': probs, 'utterance_embedding': word_embeddings}
         if 'selection_scores' in self.output_dict:
             output_dict['selection_scores'] = selection_scores
         return output_dict

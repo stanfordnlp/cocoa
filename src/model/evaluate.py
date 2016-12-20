@@ -123,7 +123,8 @@ class Evaluator(object):
 
                 if self.verbose:
                     attn_scores = output_dict.get('attn_scores', None)
-                    self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores)
+                    probs = output_dict.get('probs', None)
+                    self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores, probs)
 
         entity_f1 = self.get_f1(summary_map, 'entity_')
         bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
@@ -176,7 +177,7 @@ class Evaluator(object):
         targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
         return targets
 
-    def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores):
+    def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores, probs):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
