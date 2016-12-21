@@ -47,6 +47,10 @@ header{
   table-layout:fixed;
 }
 
+.q{
+   border-style: solid;
+  border-color: lightgreen;
+}
 
 #entities{
   margin: 0 auto;
