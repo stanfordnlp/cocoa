@@ -102,7 +102,6 @@ def eval_lexicon(lexicon, examples, re_pattern):
     total_num_annotations = 0
     total_num_sentences = 0
     total_tp, total_fp, total_fn = 0., 0., 0.
-    fout = open("recall_measure.txt", "w")
     for ex in examples:
         scenario_uuid = ex["scenario_uuid"]
 
@@ -144,7 +143,6 @@ def eval_lexicon(lexicon, examples, re_pattern):
                     print "TP: {0}, FP: {1}, FN: {2}".format(tp, fp, fn)
                     print "-"*10
 
-    fout.close()
     avg_f1, avg_precision, avg_recall = compute_f1(total_tp, total_fp, total_fn)
     print "Avg f1 over {0} annotations: {1}, {2}, {3}".format(total_num_annotations,
                                                               avg_f1, avg_precision, avg_recall)
