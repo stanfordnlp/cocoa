@@ -2,16 +2,31 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <link rel="stylesheet" type="text/css" href="../static/single_task_lexicon.css">
+    <link rel="stylesheet" type="text/css" href="../static/third_party_eval.css">
     <title>Third Party Evaluation</title>
 </head>
 
 <!-- JS for maneuvering text -->
-<script type="text/javascript" src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script>
 
+    //window.onload = formatDialogue;
 
+    function formatDialogue(){
+        hiddenDialogue = $("#hiddendialogue").text();
+        console.log(hiddenDialogue);
+        statements = hiddenDialogue.split(";");
+        for(var idx = 0; idx < statements.length; idx++){
+            utterance = statements[idx];
+            colonIdx = utterance.indexOf(":");
+            agent = utterance.substring(0, colonIdx+1);
+            rest = utterance.substring(colonIdx+1);
+            //console.log(agent);
+            //console.log(rest);
 
+            $(".dialogue").append("<p>" + "<strong>" + agent + "</strong>" + rest + "</p>");
+        }
+    }
 
 </script>
 
@@ -20,32 +35,29 @@
     <div class="wrapper" >
         <header>
             <h1><b>Instructions</b></h1> <br>
-               <span style="text-align:center;"> Your task is as follows:</span> <br> <br>
+               <span style="text-align:center;"> Below you will be given a dialogue that happened between two agents, <strong>Agent 0</strong> and <strong>Agent 1 </strong>
+                   Your task is to answer the questions that follow with regards to the agents in the dialogue presented.</span> <br> <br>
 
                 <ul style="margin-left: 30px;">
-                <li>Answer the questions about the dialogue given below</li>
                 </ul>
         </header>
         <br>
         <br>
 
-        <br> <br>
 
         <!-- Fill in a dialogue here -->
-        <div class="text" onmouseup="highlightText()">
-                <p id="0"> <strong>Agent 0:   </strong> Hi</p>
-            <p id="1"> <strong>Agent 1:   </strong> Hey</p>
-            <p id="2"> <strong>Agent 0:   </strong> Hi</p>
-            <p id="3"> <strong>Agent 1:   </strong> More</p>
-            <p id="4"> <strong>Agent 0:   </strong> Mehr</p>
+        <div class="dialogue">
+            {% for idx, turn in dialogue.items() %}
+                <p id="{{idx}}"> <strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</p>
 
+            {% endfor %}
 
         </div>
         <br>
 
 
         <div class="q" id="q1">
-            How human-like is Agent 0?
+            How human-like is Agent 0? (5 is most human-like and 0 is least human-like)
             <form>
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
@@ -58,7 +70,7 @@
         <br>
 
         <div class="q" id="q2">
-            How effective is Agent 0?
+            How effective is Agent 0? (5 is most effective and 0 is least effective)
             <form>
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
@@ -71,7 +83,7 @@
         <br>
 
         <div class="q" id="q3">
-            How strategic is Agent 0?
+            How strategic is Agent 0? (5 is most strategie and 0 is least strategic)
             <form>
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
@@ -81,7 +93,11 @@
             </form>
         </div>
 
+        <br>
 
+        <div class="buttons" style="text-align:center;">
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
 
     </div>
 
