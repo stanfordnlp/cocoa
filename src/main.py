@@ -51,6 +51,7 @@ if __name__ == '__main__':
         config_path = os.path.join(args.init_from, 'config.json')
         vocab_path = os.path.join(args.init_from, 'vocab.pkl')
         saved_config = read_json(config_path)
+        saved_config['decoding'] = args.decoding
         model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint

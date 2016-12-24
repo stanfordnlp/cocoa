@@ -769,6 +769,7 @@ class BasicEncoderDecoder(object):
                       'true_final_state': true_final_state,
                       'utterances': utterances,
                       'attn_scores': decoder_output_dict['attn_scores'],
+                      'probs': decoder_output_dict['probs'],
                       }
             if 'selection_scores' in decoder_output_dict:
                 result['selection_scores'] = decoder_output_dict['selection_scores']
