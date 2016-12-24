@@ -10,8 +10,8 @@ import json
 from dataset_statistics import *
 
 
-def get_html_for_transcript(i, chat):
-    chat_html= ['<div><h4>Chat %d</h4>' % i, '<table>', '<tr>', '<td width=\"50%%\">']
+def get_html_for_transcript(chat):
+    chat_html= ['<table>', '<tr>', '<td width=\"50%%\">']
     events = [Event.from_dict(e) for e in chat["events"]]
 
     if len(events) == 0:
@@ -75,7 +75,6 @@ def render_scenario(scenario):
 
         html.append("</table></div>")
 
-    html.append("</div>")
     return html
 
 
@@ -88,12 +87,17 @@ def aggregate_chats(transcripts, scenario_db):
     total = 0
     num_completed = 0
     for (idx, chat) in enumerate(transcripts):
-        completed, chat_html = get_html_for_transcript(idx, chat)
+        completed, chat_html = get_html_for_transcript(chat)
         scenario_html = render_scenario(scenario_db.get(chat["scenario_uuid"]))
         if completed:
             num_completed += 1
-            completed_chats.extend(chat_html)
+            completed_chats.append('<div><h3>Chat %d</h3>' % idx)
+            completed_chats.append('<h4>Scenario</h4>')
             completed_chats.extend(scenario_html)
+            completed_chats.append('<h4>Dialogue</h4>')
+            completed_chats.extend(chat_html)
+            completed_chats.append('</div>')
+            completed_chats.append("<hr>")
         else:
             if chat_html is not None:
                 incomplete_chats.extend(chat_html)
@@ -101,7 +105,8 @@ def aggregate_chats(transcripts, scenario_db):
         total += 1
 
     html.extend(['<h3>Total number of chats: %d</h3>' % total,
-                 '<h3>Number of chats completed: %d</h3>' % num_completed])
+                 '<h3>Number of chats completed: %d</h3>' % num_completed,
+                 '<hr>'])
     html.extend(completed_chats)
     html.extend(incomplete_chats)
     html.append('</body></html>')
