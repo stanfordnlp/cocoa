@@ -137,6 +137,7 @@ def check_inbox():
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
             message = format_message("Your partner has left the room.", True)
+        # TODO: not rendered correctly because event.data is a dict instead of a list
         elif event.action == 'select':
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in event.data])), True)
         return jsonify(message=message, received=True)
