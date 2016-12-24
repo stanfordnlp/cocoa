@@ -2,6 +2,7 @@ __author__ = 'anushabala'
 from session import Session
 import datetime
 import random
+from collections import deque
 
 
 class TimedSessionWrapper(Session):
@@ -12,25 +13,27 @@ class TimedSessionWrapper(Session):
     """
     CHAR_RATE = 10
     EPSILON = 1500
-    SELECTION_DELAY = 1000
+    SELECTION_DELAY = 10000
 
     def __init__(self, agent, session):
         super(TimedSessionWrapper, self).__init__(agent)
         self.session = session
         self.last_message_timestamp = datetime.datetime.now()
-        self.queued_event = None
+        self.queued_event = deque()
 
     def receive(self, event):
         self.last_message_timestamp = datetime.datetime.now()
         self.session.receive(event)
+        self.queued_event.clear()
 
     def send(self):
-        if self.queued_event is None:
-            self.queued_event = self.session.send()
+	if len(self.queued_event) == 0:
+            self.queued_event.append(self.session.send())
 
-        if self.queued_event.action == 'message':
-            delay = float(len(self.queued_event.data)) / self.CHAR_RATE * 1000 + random.uniform(0, self.EPSILON)
-        elif self.queued_event.action == 'select':
+	event = self.queued_event[0]
+        if event.action == 'message':
+            delay = float(len(event.data)) / self.CHAR_RATE * 1000 + random.uniform(0, self.EPSILON)
+        elif event.action == 'select':
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
         else:
             # unsupported event action type?
@@ -40,4 +43,4 @@ class TimedSessionWrapper(Session):
             return None
         else:
             self.last_message_timestamp = datetime.datetime.now()
-            return self.queued_event
+            return self.queued_event.popleft()

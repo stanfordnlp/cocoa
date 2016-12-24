@@ -47,7 +47,9 @@ class NeuralSession(Session):
                 # Take the encoding version of sequence
                 entity_tokens = entity_tokens[0]
         else:
-            raise ValueError('Unknown event action %s.' % event.action)
+            # join and leave events
+	    return
+            #raise ValueError('Unknown event action %s.' % event.action)
         entity_tokens += [markers.EOS]
 
         self.encode(entity_tokens)

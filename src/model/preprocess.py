@@ -7,6 +7,7 @@ import re
 import numpy as np
 from src.model.vocab import Vocabulary, is_entity
 from src.model.graph import Graph, GraphBatch, inv_rel
+from src.basic.kb import KB
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy

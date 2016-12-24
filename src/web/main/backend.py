@@ -32,7 +32,7 @@ class Status(object):
     Chat = "chat"
     Finished = "finished"
     Survey = "survey"
-    
+
 
 class UnexpectedStatusException(Exception):
     def __init__(self, found_status, expected_status):
@@ -217,7 +217,7 @@ class BackendConnection(object):
         def _create_row(chat_id,event):
             data = event.data
             if event.action == 'select':
-                data = KB.ordered_item_to_dict(event.data)
+                data = json.dumps(event.data)
             return chat_id, event.action, event.agent, event.time, data
         try:
             with self.conn:
@@ -620,9 +620,10 @@ class BackendConnection(object):
                 u = self._get_user_info_unchecked(cursor, userid)
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
-                item = kb.get_ordered_item(idx)
+                dict_item = kb.items[idx]
+                item = kb.get_ordered_item(dict_item)
                 self.send(userid, Event.SelectionEvent(u.agent_index,
-                                                       item,
+                                                       dict_item,
                                                        datetime.datetime.now().strftime(date_fmt)))
                 return item
         except sqlite3.IntegrityError:
