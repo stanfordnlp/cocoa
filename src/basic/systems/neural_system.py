@@ -4,7 +4,8 @@ import os
 import argparse
 import tensorflow as tf
 from src.basic.systems.system import System
-from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession, TimedSessionWrapper
+from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession
+from src.basic.sessions.timed_session import TimedSessionWrapper
 from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
@@ -89,3 +90,4 @@ class NeuralSystem(System):
             session = GraphNeuralSession(agent, kb, self.env)
         if self.timed_session:
             session = TimedSessionWrapper(agent, session)
+	return session
