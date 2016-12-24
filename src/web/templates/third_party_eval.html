@@ -11,6 +11,42 @@
 <script>
 
     //window.onload = formatDialogue;
+    questionAnswers = {};
+
+    $(document).ready(function() {
+        $("#submit").click(function() {
+            human0Val = $('input[type=radio]:checked', '#humanlike0').val();
+            effective0Val = $('input[type=radio]:checked', '#effective0').val();
+            strategic0Val = $("input[type=radio]:checked", "#strategic0").val();
+
+            console.log("Human " + human0Val);
+            console.log("Effect " + effective0Val);
+            console.log("Strat " + strategic0Val);
+
+            questionAnswers["humanlike_0"] = human0Val;
+            questionAnswers["effective_0"] = effective0Val;
+            questionAnswers["strategic_0"] = strategic0Val;
+
+            console.log(questionAnswers);
+            $.ajax({
+                url: "/submit",
+                type: "POST",
+                data: JSON.stringify(questionAnswers),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log("SHIT");
+                }
+            })
+
+        });
+    });
+
 
     function formatDialogue(){
         hiddenDialogue = $("#hiddendialogue").text();
@@ -26,6 +62,10 @@
 
             $(".dialogue").append("<p>" + "<strong>" + agent + "</strong>" + rest + "</p>");
         }
+    }
+
+    window.onload = function(){
+        questionAnswers["name"] = {{ name|safe|tojson}};
     }
 
 </script>
@@ -56,9 +96,9 @@
         <br>
 
 
-        <div class="q" id="q1">
+        <div class="q">
             How human-like is Agent 0? (5 is most human-like and 0 is least human-like)
-            <form>
+            <form id="humanlike0">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -69,9 +109,9 @@
 
         <br>
 
-        <div class="q" id="q2">
+        <div class="q">
             How effective is Agent 0? (5 is most effective and 0 is least effective)
-            <form>
+            <form id="effective0">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -82,9 +122,9 @@
 
         <br>
 
-        <div class="q" id="q3">
-            How strategic is Agent 0? (5 is most strategie and 0 is least strategic)
-            <form>
+        <div class="q">
+            How strategic is Agent 0? (5 is most strategic and 0 is least strategic)
+            <form id="strategic0">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
