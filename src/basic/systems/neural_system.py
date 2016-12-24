@@ -4,7 +4,7 @@ import os
 import argparse
 import tensorflow as tf
 from src.basic.systems.system import System
-from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession
+from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession, TimedSessionWrapper
 from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
@@ -20,10 +20,11 @@ class NeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, lexicon, model_path, fact_check, decoding):
+    def __init__(self, schema, lexicon, model_path, fact_check, decoding, timed_session=False):
         super(NeuralSystem, self).__init__()
         self.schema = schema
         self.lexicon = lexicon
+        self.timed_session = timed_session
 
         # Load arguments
         args_path = os.path.join(model_path, 'config.json')
@@ -83,6 +84,8 @@ class NeuralSystem(System):
 
     def new_session(self, agent, kb):
         if self.model_name == 'encdec':
-            return RNNNeuralSession(agent , kb, self.env)
+            session = RNNNeuralSession(agent , kb, self.env)
         else:
-            return GraphNeuralSession(agent, kb, self.env)
+            session = GraphNeuralSession(agent, kb, self.env)
+        if self.timed_session:
+            session = TimedSessionWrapper(agent, session)
