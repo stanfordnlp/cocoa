@@ -1,12 +1,12 @@
 from collections import defaultdict
 import numpy as np
-from itertools import izip, islice
+from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
 from src.model.graph_embedder import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
-    parser.add_argument('--num-items', type=int, default=10, help='Number of items in each KB')
-    parser.add_argument('--entity-hist-len', type=int, default=10, help='Number of past words to search for entities')
+    parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')
+    parser.add_argument('--entity-hist-len', type=int, default=2, help='Number of most recent utterances to consider when updating entity node embeddings')
     parser.add_argument('--max-num-entities', type=int, default=30, help='Estimate of maximum number of entities in a dialogue')
     parser.add_argument('--max-degree', type=int, default=10, help='Maximum degree of a node in the graph')
 
@@ -20,7 +20,7 @@ class GraphMetadata(object):
     '''
     Schema information and basic config of Graph.
     '''
-    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=10, entity_cache_size=2, num_items=10):
+    def __init__(self, schema, entity_map, relation_map, utterance_size, max_num_entities, max_degree=10, entity_hist_len=2, max_num_items=10):
         # {attribute_name: attribute_type}, e.g., 'Name': 'person'
         self.attribute_types = schema.get_attributes()
 
@@ -30,12 +30,8 @@ class GraphMetadata(object):
         # Relation to id. Add inverse relations.
         self.relation_map = relation_map
 
-        # An utterance udpate all entities within entity_hist_len (counting backward
-        # from the current position)
+        # An utterance udpate all entities in the last entity_hist_len utterances
         self.entity_hist_len = entity_hist_len
-        # Maximum number of nodes/entities to update embeddings for. NOTE: this should be
-        # the same as what in GraphEmbedderConfig.
-        self.entity_cache_size = entity_cache_size
 
         # Maximum number of entites that may appear in one dialogue. This affects the
         # initial utterance matrix size.
@@ -44,14 +40,16 @@ class GraphMetadata(object):
         # Node features {feat_name: (offset, feat_size)}
         # degree: 0-max_degree
         # node_type: entity, item, attr
-        degree_size = max_degree + 1
+        # TODO: remove max_degree
+        #degree_size = max_degree + 1
+        degree_size = Graph.degree_feat_size()
         node_types = Vocabulary(unk=False)
         # Entity types, e.g. major, school
         node_types.add_words(self.attribute_types.values())
         # Attribute names, e.g. Name, Company
         node_types.add_words([x.lower() for x in self.attribute_types.keys()])
         # Item names/ids
-        node_types.add_words([item_to_str(i) for i in xrange(num_items)])
+        node_types.add_words([item_to_str(i) for i in xrange(max_num_items)])
         #node_types.add_words(['item', 'attr'])
         self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size)}
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
@@ -124,17 +122,11 @@ class GraphBatch(object):
                 graph.read_utterance(toks)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
-        max_len = Graph.metadata.entity_cache_size
+        max_len = max([len(entity_list) for entity_list in entity_lists])
         batch_entity_lists = np.full([self.batch_size, max_len], pad_utterance_id, dtype=np.int32)
         for i, entity_list in enumerate(entity_lists):
             n = len(entity_list)
-            if n == 0:
-                continue
-            elif n > max_len:
-                # Take the most recent ones
-                batch_entity_lists[i] = entity_list[-1*max_len:]
-            else:
-                batch_entity_lists[i][:n] = entity_list
+            batch_entity_lists[i][:n] = entity_list
         return batch_entity_lists
 
     def copy_targets(self, targets, vocab_size):
@@ -174,7 +166,7 @@ class GraphBatch(object):
         '''
         if tokens is not None:
             self.update_entities(tokens)
-        entity_lists = [graph.get_entity_list(1)[0] for graph in self.graphs]
+        entity_lists = [graph.get_entity_list() for graph in self.graphs]
         return entity_lists
 
     def _batch_zero_utterances(self, max_num_nodes):
@@ -206,62 +198,35 @@ class GraphBatch(object):
         max_num_nodes = self._max_num_nodes()
         return np.zeros([self.batch_size, seq_len, max_num_nodes])
 
-    def get_zero_copied_nodes(self, seq_len):
-        return np.zeros([self.batch_size, seq_len], dtype=np.int32), np.zeros([self.batch_size, seq_len], dtype=np.bool)
+    def get_zero_entities(self, seq_len):
+        # -1 denotes non-entity words
+        return np.full([self.batch_size, seq_len], -1, dtype=np.int32)
 
-    def update_copied_nodes(self, targets, entities, mask, vocab):
-        for i in xrange(self.batch_size):
-            entity_id = self.graphs[i].output_to_node_id(targets[i], vocab)
-            if entity_id is not None:
-                entities[i] = entity_id
-                mask[i] = True
+    def _entity_to_node_id(self, entities):
+        '''
+        Convert entity ids from entity_map to node ids in graph.
+        entities: array of same size as inputs, -1 means non-entity words.
+        Return entity_mask and node_ids.
+        '''
+        node_ids = np.full(entities.shape, -1, dtype=np.int32)
+        graph_iter = chain.from_iterable((repeat(graph, entities.shape[1]) for graph in self.graphs))
+        for entity_id, node_id, graph in izip(np.nditer(entities), np.nditer(node_ids, op_flags=['readwrite']), graph_iter):
+            entity_id = entity_id[()]
+            if entity_id != -1:
+                try:
+                    # [()]: entity_id is a 0-dim ndarray
+                    node_id[...] = graph.nodes.to_ind(Graph.metadata.entity_map.to_word(entity_id))
+                except KeyError:
+                    # A padded node is predicted and the entity is <unk>
+                    pass
+        return node_ids
 
-    def get_copied_nodes(self, targets, vocab):
-        '''
-        Return the node id of the predictions/targets if the output is copied from the context,
-        mask=False means the output is from the vocab.
-        '''
-        batch_size, seq_len = targets.shape
-        copied_nodes, mask = self.get_zero_copied_nodes(seq_len)
-        for i in xrange(1, seq_len):
-            self.update_copied_nodes(targets[:, i-1], copied_nodes[:, i], mask[:, i], vocab)
-        return copied_nodes, mask
+    def _pred_to_node_id(self, preds, offset):
+        entities = preds - offset
+        entities[entities < 0] = -1
+        return self._entity_to_node_id(entities)
 
-    def get_checklists(self, targets, vocab, init_cl=None):
-        '''
-        Return checklists for a batch of sequences. (batch_size, seq_len, num_nodes)
-        targets: (batch_size, seq_len)
-        init_cl: the initial checklist from previous sequences
-        (batch_size, num_nodes)
-        '''
-        batch_size, seq_len = targets.shape
-        assert batch_size == self.batch_size
-        cl = self.get_zero_checklists(seq_len)
-        if init_cl is not None:
-            init_num_nodes = init_cl.shape[2]
-            # We might have more nodes now
-            cl[:, 0, :init_num_nodes] = init_cl
-        for i in xrange(1, seq_len):
-            cl[:, i, :] = cl[:, i-1, :]
-            self.update_checklist(targets[:, [i-1]], cl[:, i, :], vocab)
-        return cl
-
-    def update_checklist(self, outputs, cl, vocab):
-        '''
-        Mark mentioned entities in outputs in a checklist.
-        outputs: integers. words are mapped by vocab and entities are mapped by entity_map
-        offset by vocab.size.
-        (batch_size, 1)
-        cl: checklist to be updated in place.
-        (batch_size, num_nodes)
-        '''
-        for i in xrange(self.batch_size):
-            output = outputs[i][0]
-            entity_id = self.graphs[i].output_to_node_id(output, vocab)
-            if entity_id is not None:
-                cl[i][entity_id] = 1
-
-    def get_batch_data(self, encoder_tokens, decoder_tokens, utterances):
+    def get_batch_data(self, encoder_tokens, decoder_tokens, encoder_entities, decoder_entities, utterances, vocab):
         '''
         Construct batched inputs for GraphEmbedder. (These could be precomputed as well but
         can take lots of memory.)
@@ -283,6 +248,7 @@ class GraphBatch(object):
 
         max_num_paths = self._max_num_paths()
         max_num_paths_per_node = self._max_num_paths_per_node()
+        # TODO: entities -> update_entities
         batch = {
                  'node_ids': self._batch_node_ids(max_num_nodes),
                  'mask': self._batch_mask(max_num_nodes),
@@ -292,7 +258,9 @@ class GraphBatch(object):
                  'node_feats': self._batch_node_feats(max_num_nodes),
                  'utterances': utterances,
                  'encoder_entities': self._batch_entity_lists(encoder_entity_lists, self.pad_utterance_id),
-                 'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id)
+                 'decoder_entities': self._batch_entity_lists(decoder_entity_lists, self.pad_utterance_id),
+                 'encoder_nodes': None if encoder_entities is None else self._entity_to_node_id(encoder_entities),
+                 'decoder_nodes': None if decoder_entities is None else self._entity_to_node_id(decoder_entities),
                 }
         return batch
 
@@ -318,6 +286,7 @@ class Graph(object):
         # NOTE: The first path is always a padding path
         self.paths = [Graph.metadata.PATH_PAD]
         # Read information form KB to fill in nodes and paths
+        self.num_items = len(self.kb.items)
         self.load_kb(self.kb)
 
         # Input data to feed_dict
@@ -395,8 +364,8 @@ class Graph(object):
         new_entities = set([x[1] for x in tokens if is_entity(x) and not self.nodes.has(x[1])])
         if len(new_entities) > 0:
             self.add_entity_nodes(new_entities)
-        node_ids = (self.nodes.to_ind(x[1]) if is_entity(x) else -1 for x in tokens)
-        self.entities.extend(node_ids)
+        node_ids = [self.nodes.to_ind(x[1]) for x in tokens if is_entity(x)]
+        self.entities.append(node_ids)
 
     def _update_nodes(self, entities):
         self.nodes.add_words(entities)
@@ -426,34 +395,12 @@ class Graph(object):
         self._update_feats(entities)
         self._update_node_paths(entities)
 
-    def get_entity_list(self, last_n=None):
+    def get_entity_list(self):
         '''
-        Input: return entity_list for the n most recent tokens received
-        Output: a list of entity list at each position of received entities
-        - E.g. I went to Stanford and MIT . => [[], [], [], [Stanford], [Stanford], [Stanford, MIT]]
+        Return a list of unique entities in these utterances for the last n utterances
         '''
-        N = len(self.entities)
-        if N == 0:
-            if not last_n:
-                return [[]]
-            return [[] for _ in xrange(last_n)]
-        if not last_n:
-            position = xrange(N)
-        else:
-            assert last_n <= N
-            position = (N - i for i in xrange(last_n, 0, -1))
-        entity_list = [self.get_entities(max(0, i-Graph.metadata.entity_hist_len), i+1) for i in position]
-        return entity_list
-
-    def get_entities(self, start, end):
-        '''
-        Return all entity ids (from self.nodes) in [start, end).
-        '''
-        # Filter tokens and remove duplicated entities
-        seen = set()
-        entities = [entity for entity in islice(self.entities, start, end) if \
-                entity != -1 and not (entity in seen or seen.add(entity))]
-        return entities
+        last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
+        return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
 
     def _node_type(self, node):
         # Use fine categorty for item and attr nodes
@@ -462,12 +409,35 @@ class Graph(object):
         #return type_
 
     def get_features(self):
-        feats = [[0, self._node_type(self.nodes.to_word(i))] for i in xrange(self.nodes.size)]
+        nodes = [self.nodes.to_word(i) for i in xrange(self.nodes.size)]
+        # For entity node, fix degree so that it excludes the edge incident to the attr node
+        feats = [[0, self._node_type(node)] if node[1] == 'item' or node[1] == 'attr'
+                else [-1, self._node_type(node)] for node in nodes]
         # Compute degree of each node
         for path in self.paths:
             n1, r, n2 = path
             feats[n1][0] += 1
         return self.get_feat_vec(feats)
+
+    @classmethod
+    def degree_feat_size(cls):
+        return 8
+
+    def _bin_degree(self, degree):
+        if degree < 4:
+            return degree
+        # NOTE: we consider degree only for attr and entity nodes (only count edges connected
+        # to item nodes).
+        assert degree <= self.num_items
+        p = degree / float(self.num_items)
+        if p >= 0.25 and p < 0.5:
+            return 4
+        elif p >= 0.5 and p < 0.75:
+            return 5
+        elif p >= 0.75 and p < 1:
+            return 6
+        elif p == 1:
+            return 7
 
     def get_feat_vec(self, raw_feats):
         '''
@@ -482,26 +452,9 @@ class Graph(object):
             return offset + feat_value
 
         for i, (degree, node_type) in enumerate(raw_feats):
-            f[i][get_index('degree', degree)] = 1
+            # Don't consider degree of item nodes (number of attrs, same for all items)
+            if not node_type.startswith('item'):
+                f[i][get_index('degree', self._bin_degree(degree))] = 1
             f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
-
-    def output_to_node_id(self, output, vocab):
-        '''
-        Map output prediction/target to local node ids.
-        '''
-        entity = None
-        if output >= vocab.size:
-            entity = Graph.metadata.entity_map.to_word(output - vocab.size)
-        else:
-            word = vocab.to_word(output)
-            if is_entity(word):
-                entity = word
-        if entity is not None:
-            try:
-                return self.nodes.to_ind(entity)
-            except KeyError:
-                # If the entity is from vocab, it may not be in the nodes of the graph
-                pass
-        return None

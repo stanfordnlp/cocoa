@@ -12,12 +12,13 @@ from collections import namedtuple, defaultdict
 import copy
 
 def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['surface', 'type', 'canonical'], default='canonical', help='Input entity form to the encoder')
+    parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
-    parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--entity-target-form', choices=['canonical', 'type', 'graph'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--prepend', default=False, action='store_true', help='Prepend entities to decoder utterance')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD', 'EOE'])
+markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>', EOE='</e>')
 
 def tokenize(utterance):
     '''
@@ -27,7 +28,7 @@ def tokenize(utterance):
     # Split on punctuation
     tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
     # Remove punctuation
-    tokens = [x for x in tokens if x not in '.,!?;']
+    #tokens = [x for x in tokens if x not in '.,!?;']
     return tokens
 
 def build_schema_mappings(schema, num_items):
@@ -71,6 +72,7 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
 
     # Add special symbols
     vocab.add_words(special_symbols)
+    print 'Vocabulary size:', vocab.size
     return vocab
 
 def create_mappings(dialogues, schema, num_items, entity_forms):
@@ -103,21 +105,53 @@ class TextIntMap(object):
         inputs = np.array([self.text_to_int(utterance, 'decoding') for utterance in input_utterances])
         return inputs
 
+    def process_entity(self, token_array, stage):
+        '''
+        token_array: 2D int array of tokens, assuming entities are mapped by entity_map offset by vocab_size.
+        Transform entities to specified form, e.g. type, canonical form.
+        Return the new token_array and an entity_array which has the same shape as token_array and use -1
+        for non-entity words and map entities by entity_map.
+        '''
+        offset = self.vocab.size
+        entity_array = np.full(token_array.shape, -1, dtype=np.int32)
+        entity_inds = token_array >= offset
+        entity_array[entity_inds] = token_array[entity_inds] - offset
+
+        use_entity_map = self.setting[stage]
+        # If use_entity_map, nothing needs to be done as entities are already mapped by the entity_map
+        if not use_entity_map:
+            # Entities needs to be transformed and mapped by vocab
+            for tok_int, is_ent in izip(np.nditer(token_array, op_flags=['readwrite']), np.nditer(entity_inds)):
+                if is_ent:
+                    entity = self.entity_map.to_word(tok_int - offset)
+                    # NOTE: at this point we have lost the surface form of the entity: using an empty string
+                    processed_entity = self.preprocessor.get_entity_form(('', entity), self.entity_forms[stage])
+                    tok_int[...] = self.vocab.to_ind(processed_entity)
+        return token_array, entity_array
+
     def use_entity_map(self, entity_form):
         if entity_form == 'graph':
             return True
         return False
 
-    def text_to_int(self, utterance, stage):
+    def get_entities(self, utterance):
+        return [-1 if not is_entity(token) else self.entity_map.to_ind(token) for token in tokens]
+
+    def text_to_int(self, utterance, stage=None):
         '''
         Process entities in the utterance based on whether it is used for encoding, decoding
         or ground truth.
         '''
-        use_entity_map = self.setting[stage]
-        tokens = self.preprocessor.process_utterance(utterance, stage)
-        if not use_entity_map:
-            return [self.vocab.to_ind(token) for token in tokens]
+        if stage is not None:
+            use_entity_map = self.setting[stage]
+            tokens = self.preprocessor.process_utterance(utterance, stage)
+            if not use_entity_map:
+                return [self.vocab.to_ind(token) for token in tokens]
+            else:
+                offset = self.vocab.size
+                return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token) + offset for token in tokens]
         else:
+            tokens = self.preprocessor.process_utterance(utterance)
             offset = self.vocab.size
             return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token) + offset for token in tokens]
 
@@ -146,6 +180,8 @@ class Dialogue(object):
         self.kbs = kbs
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = ([], [])
+        # entities: -1 for non-entity words, entities are mapped based on entity_map
+        self.entities = ([], [])
         # turns: input tokens of encoder, decoder input and target, later converted to integers
         self.turns = ([], [], [])
         self.agents = []
@@ -156,7 +192,12 @@ class Dialogue(object):
         assert not hasattr(self, 'graphs')
         self.graphs = [Graph(kb) for kb in self.kbs]
 
-    def add_utterance(self, agent, utterances):
+    def add_utterance(self, agent, utterances, prepend):
+        # Prepend entities to decoder utterances
+        if prepend:
+            decoder_utterance = utterances[self.DEC]
+            decoder_entities = [x for x in decoder_utterance if is_entity(x)] + [markers.EOE]
+            utterances[self.DEC][:0] = decoder_entities
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             for i in xrange(2):
@@ -170,19 +211,19 @@ class Dialogue(object):
         if self.is_int:
             return
         for i, turns in enumerate(self.token_turns):
-            if i == self.ENC:
-                stage = 'encoding'
-            elif i == self.DEC:
-                stage = 'decoding'
-            else:
-                raise ValueError('Unknown stage %s' % stage)
+            #if i == self.ENC:
+            #    stage = 'encoding'
+            #elif i == self.DEC:
+            #    stage = 'decoding'
+            #else:
+            #    raise ValueError('Unknown stage %s' % stage)
             for turn in turns:
-                self.turns[i].append([self.textint_map.text_to_int(utterance, stage)
+                self.turns[i].append([self.textint_map.text_to_int(utterance)
                     for utterance in turn])
         # Target tokens
         stage = 'target'
         for turn in self.token_turns[self.DEC]:
-            self.turns[self.TARGET].append([self.textint_map.text_to_int(utterance, stage)
+            self.turns[self.TARGET].append([self.textint_map.text_to_int(utterance)
                 for utterance in turn])
         self.is_int = True
 
@@ -202,6 +243,8 @@ class Dialogue(object):
         if hasattr(self, 'token_turns'):
             for i, turns in enumerate(self.token_turns):
                 for j, turn in enumerate(turns):
+                    for utterance in turn:
+                        utterance.append(markers.EOS)
                     self.token_turns[i][j] = [x for x in chain.from_iterable(turn)]
 
         self.flattened = True
@@ -295,6 +338,12 @@ class DialogueBatch(object):
         decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
+        # Process entities. NOTE: change turns in place!
+        encoder_inputs, encoder_entities = Dialogue.textint_map.process_entity(encoder_inputs, 'encoding')
+        decoder_inputs, decoder_entities = Dialogue.textint_map.process_entity(decoder_inputs, 'decoding')
+        decoder_targets, _ = Dialogue.textint_map.process_entity(decoder_targets, 'target')
+
+        # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
                  'encoder_inputs': encoder_inputs,
                  'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, int_markers.PAD),
@@ -303,6 +352,8 @@ class DialogueBatch(object):
                  'targets': decoder_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
+                 'encoder_entities': encoder_entities,
+                 'decoder_entities': decoder_entities,
                 }
         return batch
 
@@ -355,10 +406,11 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, prepend):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
+        self.prepend = prepend
         self.entity_forms = {'encoding': entity_encoding_form,
                 'decoding': entity_decoding_form,
                 'target': entity_target_form}
@@ -379,8 +431,11 @@ class Preprocessor(object):
         else:
             raise ValueError('Unknown entity form %s' % form)
 
-    def process_utterance(self, utterance, stage):
-        return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
+    def process_utterance(self, utterance, stage=None):
+        if stage is None:
+            return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
+        else:
+            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
     def _process_example(self, ex):
         '''
@@ -391,16 +446,16 @@ class Preprocessor(object):
         for e in ex.events:
             utterances = self.process_event(e, kbs[e.agent])
             if utterances:
-                dialogue.add_utterance(e.agent, utterances)
+                dialogue.add_utterance(e.agent, utterances, self.prepend)
         return dialogue
 
-    def item_to_entities(self, item):
+    def item_to_entities(self, item, attrs):
         '''
         Convert an item to a list of entities representing that item.
         '''
         entities = [(value, (value, type_)) for value, type_ in
             ((item[attr.name].lower(), self.attribute_types[attr.name])
-                for attr in self.attributes)]
+                for attr in attrs)]
         return entities
 
     @classmethod
@@ -425,9 +480,10 @@ class Preprocessor(object):
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.entitylink(tokenize(e.data))
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
             if entity_tokens:
-                return (entity_tokens, entity_tokens)
+                # NOTE: have two copies because we might change it given decoding/encoding
+                return (entity_tokens, copy.copy(entity_tokens))
             else:
                 return None
         elif e.action == 'select':
@@ -435,7 +491,7 @@ class Preprocessor(object):
             item_id = self.get_item_id(kb, e.data)
             item_str = 'item-%d' % item_id
             # We use the entities to represent the item during encoding and item-id during decoding
-            return ([markers.SELECT] + self.item_to_entities(e.data),
+            return ([markers.SELECT] + self.item_to_entities(e.data, kb.attributes),
                     [markers.SELECT, (item_str, (item_str, 'item'))])
         else:
             raise ValueError('Unknown event action.')
@@ -470,6 +526,7 @@ class DataGenerator(object):
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.use_kb = use_kb  # Whether to generate graph
         self.copy = copy
+        self.prepend = preprocessor.prepend
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
         for fold, dialogues in self.dialogues.iteritems():

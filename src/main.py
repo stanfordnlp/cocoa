@@ -75,18 +75,22 @@ if __name__ == '__main__':
         ckpt = None
 
     schema = Schema(model_args.schema_path, model_args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, (read_json(path) for path in args.scenarios_path))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
     word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
-    lexicon = Lexicon(schema, args.learned_lex, word_counts=None)
+    print 'Building lexicon...'
+    start = time.time()
+    lexicon = Lexicon(schema, args.learned_lex)
+    print '%.2f s'% (time.time() - start)
 
     # Dataset
     use_kb = False if model_args.model == 'encdec' else True
     copy = True if model_args.model == 'attn-copy-encdec' else False
     if model_args.model == 'attn-copy-encdec':
         model_args.entity_target_form = 'graph'
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend)
     if args.test:
+        model_args.dropout = 0
         data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
     else:
         data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
@@ -129,13 +133,13 @@ if __name__ == '__main__':
                 print '================== Eval %s ==================' % split
                 print '================== Sampling =================='
                 start_time = time.time()
-                bleu, ent_prec, ent_recall, ent_f1 = evaluator.test_bleu(sess, test_data, num_batches)
-                print 'bleu=%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu, ent_prec, ent_recall, ent_f1, time.time() - start_time)
+                bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1), (pre_prec, pre_recall, pre_f1) = evaluator.test_bleu(sess, test_data, num_batches)
+                print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f prepend_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, pre_prec, pre_recall, pre_f1, time.time() - start_time)
                 print '================== Perplexity =================='
                 start_time = time.time()
                 loss = learner.test_loss(sess, test_data, num_batches)
                 print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
-                logstats.add(split, {'bleu': bleu, 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
+                logstats.add(split, {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)

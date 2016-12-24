@@ -12,12 +12,15 @@ from collections import namedtuple
 from src.model.evaluate import FactEvaluator
 from src.lib import logstats
 
+def add_neural_system_arguments(parser):
+    parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
+
 class NeuralSystem(System):
     """
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, lexicon, model_path):
+    def __init__(self, schema, lexicon, model_path, fact_check, decoding):
         super(NeuralSystem, self).__init__()
         self.schema = schema
         self.lexicon = lexicon
@@ -27,14 +30,15 @@ class NeuralSystem(System):
         config = read_json(args_path)
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
+        config['decoding'] = decoding
         args = argparse.Namespace(**config)
 
         mappings_path = os.path.join(model_path, 'vocab.pkl')
         mappings = read_pickle(mappings_path)
         vocab = mappings['vocab']
 
-        # TODO: check that schema and domain are the same as the loaded model
         # TODO: different models have the same key now
+        args.dropout = 0
         logstats.add_args('model_args', args)
         model = build_model(schema, mappings, args)
 
@@ -63,11 +67,11 @@ class NeuralSystem(System):
             copy = True
         else:
             copy = False
-        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
+        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form, args.prepend)
         textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator())
+        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator', 'prepend'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator() if fact_check else None, prepend=args.prepend)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:

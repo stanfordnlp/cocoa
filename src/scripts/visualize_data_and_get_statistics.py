@@ -117,8 +117,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     add_scenario_arguments(parser)
     parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
-    parser.add_argument('--html_output', type=str, required=True, help='Name of file to write HTML report to')
-    parser.add_argument('--stats_output', type=str, required=True, help='Name of file to write JSON statistics to')
+    parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
+    parser.add_argument('--stats-output', type=str, required=True, help='Name of file to write JSON statistics to')
     parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     parser.add_argument('--alpha-stats', action='store_true', help='Get statistics grouped by alpha values')
     parser.add_argument('--item-stats', action='store_true',
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     transcripts = json.load(open(args.transcripts, 'r'))
     if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
         os.makedirs(os.path.dirname(args.html_output))

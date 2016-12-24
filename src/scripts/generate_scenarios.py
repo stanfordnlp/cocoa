@@ -156,7 +156,7 @@ while len(scenario_list) < args.num_scenarios:
         scenario_list.append(s)
 
 scenario_db = ScenarioDB(scenario_list)
-write_json(scenario_db.to_dict(), args.scenarios_path[0])
+write_json(scenario_db.to_dict(), args.scenarios_path)
 
 # Output a sample of what we've generated
 for i in range(min(100, len(scenario_db.scenarios_list))):

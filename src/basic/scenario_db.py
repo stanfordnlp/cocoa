@@ -4,7 +4,7 @@ from schema import Attribute
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', nargs='*', default=[], help='Output path for the scenarios generated', required=True)
+    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
 
 
 class Scenario(object):
@@ -20,10 +20,14 @@ class Scenario(object):
     @staticmethod
     def from_dict(schema, raw):
         alphas = []
-        attributes = schema.attributes  # compatibility with older data format
-        if 'attributes' in raw.keys():
+        # compatibility with older data format
+        if schema is not None:
+            attributes = schema.attributes
+        else:
+            assert 'attributes' in raw
+        if 'attributes' in raw:
             attributes = [Attribute.from_json(raw_attr) for raw_attr in raw['attributes']]
-        if 'alphas' in raw.keys():
+        if 'alphas' in raw:
             alphas = raw['alphas']
         return Scenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']], alphas)
 
@@ -60,7 +64,7 @@ class ScenarioDB(object):
         return self.scenarios_map[uuid]
 
     @staticmethod
-    def from_dict(schema, raw_list):
-        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw_list])
+    def from_dict(schema, raw):
+        return ScenarioDB([Scenario.from_dict(schema, s) for s in raw])
     def to_dict(self):
         return [s.to_dict() for s in self.scenarios_list]

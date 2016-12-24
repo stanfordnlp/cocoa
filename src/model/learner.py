@@ -9,7 +9,6 @@ from lib import logstats
 from vocab import is_entity
 import resource
 import numpy as np
-from encdec import get_prediction
 from model.util import EPS
 
 def memory():
@@ -20,7 +19,8 @@ def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
-    parser.add_argument('--max-epochs', type=int, default=10, help='Number of training epochs')
+    parser.add_argument('--min-epochs', type=int, default=10, help='Number of training epochs to run before checking for early stop')
+    parser.add_argument('--max-epochs', type=int, default=50, help='Maximum number of training epochs')
     parser.add_argument('--num-per-epoch', type=int, default=None, help='Number of examples per epoch')
     parser.add_argument('--print-every', type=int, default=1, help='Number of examples between printing training loss')
     parser.add_argument('--init-from', help='Initial parameters')
@@ -56,7 +56,7 @@ class Learner(object):
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, checklists=None, copied_nodes=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, init_checklists=None, encoder_nodes=None, decoder_nodes=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
@@ -77,12 +77,15 @@ class Learner(object):
                 }
 
         if graph_data is not None:
-            encoder_args['entities'] = graph_data['encoder_entities']
-            decoder_args['entities'] = graph_data['decoder_entities']
+            encoder_args['update_entities'] = graph_data['encoder_entities']
+            decoder_args['update_entities'] = graph_data['decoder_entities']
             encoder_args['utterances'] = graph_data['utterances']
             kwargs['graph_embedder'] = graph_data
-            decoder_args['checklists'] = checklists
-            decoder_args['copied_nodes'] = copied_nodes
+            decoder_args['init_checklists'] = init_checklists
+            encoder_args['entities'] = encoder_nodes
+            decoder_args['entities'] = decoder_nodes
+            decoder_args['cheat_selection'] = decoder_nodes
+            decoder_args['encoder_entities'] = encoder_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
         return feed_dict
@@ -116,31 +119,31 @@ class Learner(object):
         utterances = None
         graphs = dialogue_batch['graph']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
-            graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], utterances)
-            checklists = graphs.get_checklists(batch['targets'], self.vocab)
-            copied_nodes = graphs.get_copied_nodes(batch['targets'], self.vocab)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, checklists, copied_nodes)
+            graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, self.vocab)
+            init_checklists = graphs.get_zero_checklists(1)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, init_checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
             if test:
-                logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
+                logits, final_state, utterances, loss, seq_loss, total_loss, sel_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
-                         self.model.loss, self.model.seq_loss, self.model.total_loss],
+                         self.model.loss, self.model.seq_loss, self.model.total_loss, self.model.select_loss],
                         feed_dict=feed_dict)
             else:
-                _, logits, final_state, utterances, loss, seq_loss, gn = sess.run(
+                _, logits, final_state, utterances, loss, seq_loss, sel_loss, gn = sess.run(
                         [self.train_op,
                          self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
                          self.model.loss,
                          self.model.seq_loss,
+                         self.model.select_loss,
                          self.grad_norm], feed_dict=feed_dict)
             # NOTE: final_state = (rnn_state, attn, context)
             encoder_init_state = final_state[0]
 
             if self.verbose:
-                preds = get_prediction(logits)
+                preds = np.argmax(logits, axis=2)
                 if self.data.copy:
                     preds = graphs.copy_preds(preds, self.data.mappings['vocab'].size)
                 self._print_batch(batch, preds, seq_loss)
@@ -149,6 +152,7 @@ class Learner(object):
                 logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
             else:
                 logstats.update_summary_map(summary_map, {'loss': loss})
+                logstats.update_summary_map(summary_map, {'sel_loss': sel_loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
@@ -169,11 +173,12 @@ class Learner(object):
                     self.train_op,
                     self.model.decoder.output_dict['logits'],
                     self.model.decoder.output_dict['final_state'],
-                    self.model.loss, self.model.seq_loss, self.grad_norm], feed_dict=feed_dict)
+                    self.model.loss, self.model.seq_loss,
+                    self.grad_norm], feed_dict=feed_dict)
             encoder_init_state = final_state
 
             if self.verbose:
-                preds = get_prediction(logits)
+                preds = np.argmax(logits, axis=2)
                 self._print_batch(batch, preds, seq_loss)
 
             if test:
@@ -183,6 +188,8 @@ class Learner(object):
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def learn(self, args, config, ckpt=None, split='train'):
+        assert args.min_epochs <= args.max_epochs
+
         assert args.optimizer in optim.keys()
         optimizer = optim[args.optimizer](args.learning_rate)
 
@@ -214,6 +221,8 @@ class Learner(object):
             os.mkdir(best_checkpoint)
         best_save_path = os.path.join(best_checkpoint, 'tf_model.ckpt')
         best_loss = float('inf')
+        # Number of iterations without any improvement
+        num_epoch_no_impr = 0
 
         # Testing
         with tf.Session(config=config) as sess:
@@ -221,8 +230,10 @@ class Learner(object):
             if args.init_from:
                 saver.restore(sess, ckpt.model_checkpoint_path)
             summary_map = {}
-            for epoch in xrange(args.max_epochs):
-                print '================== Epoch %d ==================' % (epoch+1)
+            #for epoch in xrange(args.max_epochs):
+            epoch = 1
+            while True:
+                print '================== Epoch %d ==================' % (epoch)
                 for i in xrange(num_per_epoch):
                     start_time = time.time()
                     self._run_batch(train_data.next(), sess, summary_map, test=False)
@@ -232,7 +243,7 @@ class Learner(object):
                              'memory(MB)': memory()})
                     step += 1
                     if step % args.print_every == 0 or step % num_per_epoch == 0:
-                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch+1, logstats.summary_map_to_str(summary_map))
+                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch, logstats.summary_map_to_str(summary_map))
                         summary_map = {}  # Reset
                 step = 0
 
@@ -249,10 +260,23 @@ class Learner(object):
                     print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                     print '================== Sampling =================='
                     start_time = time.time()
-                    bleu, ent_prec, ent_recall, ent_f1 = self.evaluator.test_bleu(sess, test_data, num_batches)
-                    print 'bleu=%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu, ent_prec, ent_recall, ent_f1, time.time() - start_time)
+                    bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1), (pre_prec, pre_recall, pre_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
+                    print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f prepend_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, pre_prec, pre_recall, pre_f1, time.time() - start_time)
+
+                    # Start to record no improvement epochs
+                    if split == 'dev' and epoch > args.min_epochs:
+                        if loss < best_loss * 0.995:
+                            num_epoch_no_impr = 0
+                        else:
+                            num_epoch_no_impr += 1
+
                     if split == 'dev' and loss < best_loss:
                         print 'New best model'
                         best_loss = loss
                         best_saver.save(sess, best_save_path)
-                        logstats.add('best model', {'bleu': bleu, 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
+                        logstats.add('best model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss, 'epoch': epoch})
+
+                # Early stop when no improvement
+                if (epoch > args.min_epochs and num_epoch_no_impr >= 5) or epoch > args.max_epochs:
+                    break
+                epoch += 1
