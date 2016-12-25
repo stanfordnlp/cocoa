@@ -52,8 +52,8 @@ if __name__ == "__main__":
     # Speech acts
     lexicon = Lexicon(schema, False)
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
-    speech_act_stats = get_speech_acts(transcripts, scenario_db, preprocessor)
-    stats["speech_act"] = speech_act_stats
+    speech_act_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
+    stats["speech_act"] = speech_act_stats['speech_act']
 
     json.dump(stats, statsfile)
     statsfile.close()
