@@ -31,6 +31,12 @@ def tokenize(utterance):
     #tokens = [x for x in tokens if x not in '.,!?;']
     return tokens
 
+word_to_num = {'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'}
+def normalize_number(token):
+    if token in word_to_num:
+        return word_to_num[token]
+    return token
+
 def build_schema_mappings(schema, num_items):
     entity_map = Vocabulary(unk=True)
     for type_, values in schema.values.iteritems():
@@ -481,6 +487,7 @@ class Preprocessor(object):
         if e.action == 'message':
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
+            entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding
                 return (entity_tokens, copy.copy(entity_tokens))

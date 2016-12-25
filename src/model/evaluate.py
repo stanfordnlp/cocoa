@@ -202,6 +202,7 @@ class Evaluator(object):
             if probs is not None:
                 print 'TOP-K:'
                 for j, w in enumerate(pred):
+                    print j
                     topk = np.argsort(probs[j][i])[::-1][:5]
                     for id_ in topk:
                         prob = probs[j][i][id_]
