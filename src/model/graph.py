@@ -2,6 +2,7 @@ from collections import defaultdict
 import numpy as np
 from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
+# TODO: move graphembedderconfig to a separate file so that we don't need to import tf when it's not needed
 from src.model.graph_embedder import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
