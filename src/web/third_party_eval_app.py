@@ -14,6 +14,7 @@ app = Flask(__name__)
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenarios", type=str, help="path to scenarios file")
 parser.add_argument("--examples", type=str, help="path to examples file")
+parser.add_argument("--port", type=int, help="port to launch app on")
 args = parser.parse_args()
 
 def init_database(db_file):
@@ -103,5 +104,5 @@ def index():
 # Launch server
 app.secret_key = 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RT'
 
-server = WSGIServer(('', 5000), app)
+server = WSGIServer(('', args.port), app)
 server.serve_forever()
