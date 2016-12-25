@@ -24,7 +24,8 @@ def init_database(db_file):
     """
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (dialogue_num integer, humanlike_0 text, effective_0 text, strategic_0 text)""")
+    c.execute("""CREATE TABLE Responses (dialogue_num integer, humanlike_0 text, correct_0 text, strategic_0 text, fluent_0 text,
+              humanlike_1 text, correct_1 text, strategic_1 text, fluent_1 text)""")
     conn.commit()
     conn.close()
 
@@ -52,14 +53,17 @@ else:
 def handle_submit():
     backend = sqlite3.connect(db_path)
     results = request.get_json()
-    
+
     pprint.pprint(results)
 
     # Insert into dialogue
     with backend:
         c = backend.cursor()
-        c.execute("INSERT INTO Responses VALUES (?, ?, ?, ?)", (results["name"], results["humanlike_0"],
-                                                                results["effective_0"], results["strategic_0"]))
+        c.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?)", (results["name"], results["humanlike_0"],
+                                                                results["correct_0"], results["strategic_0"],
+                                                                results["fluent_0"], results["humanlike_1"],
+                                                                results["correct_1"], results["strategic_1"],
+                                                                results["fluent_1"]))
         backend.commit()
 
     return jsonify(result={"status": 200})

@@ -10,22 +10,30 @@
 <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script>
 
-    //window.onload = formatDialogue;
     questionAnswers = {};
 
     $(document).ready(function() {
         $("#submit").click(function() {
             human0Val = $('input[type=radio]:checked', '#humanlike0').val();
-            effective0Val = $('input[type=radio]:checked', '#effective0').val();
+            correct0Val = $('input[type=radio]:checked', '#correct0').val();
             strategic0Val = $("input[type=radio]:checked", "#strategic0").val();
+            fluent0Val = $("input[type=radio]:checked", "#fluent0").val();
 
-            console.log("Human " + human0Val);
-            console.log("Effect " + effective0Val);
-            console.log("Strat " + strategic0Val);
+            human1Val = $('input[type=radio]:checked', '#humanlike1').val();
+            correct1Val = $('input[type=radio]:checked', '#correct1').val();
+            strategic1Val = $("input[type=radio]:checked", "#strategic1").val();
+            fluent1Val = $("input[type=radio]:checked", "#fluent1").val();
+
 
             questionAnswers["humanlike_0"] = human0Val;
-            questionAnswers["effective_0"] = effective0Val;
+            questionAnswers["correct_0"] = correct0Val;
             questionAnswers["strategic_0"] = strategic0Val;
+            questionAnswers["fluent_0"] = fluent0Val;
+
+            questionAnswers["humanlike_1"] = human1Val;
+            questionAnswers["correct_1"] = correct1Val;
+            questionAnswers["strategic_1"] = strategic1Val;
+            questionAnswers["fluent_1"] = fluent1Val;
 
             console.log(questionAnswers);
             $.ajax({
@@ -57,8 +65,6 @@
             colonIdx = utterance.indexOf(":");
             agent = utterance.substring(0, colonIdx+1);
             rest = utterance.substring(colonIdx+1);
-            //console.log(agent);
-            //console.log(rest);
 
             $(".dialogue").append("<p>" + "<strong>" + agent + "</strong>" + rest + "</p>");
         }
@@ -95,7 +101,7 @@
         </div>
         <br>
 
-
+        <!-- Agent 0 questions -->
         <div class="q">
             How human-like is Agent 0? (5 is most human-like and 0 is least human-like)
             <form id="humanlike0">
@@ -110,8 +116,8 @@
         <br>
 
         <div class="q">
-            How effective is Agent 0? (5 is most effective and 0 is least effective)
-            <form id="effective0">
+            How factually-correct is Agent 0? (5 is most correct and 0 is least correct)
+            <form id="correct0">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -134,6 +140,70 @@
         </div>
 
         <br>
+
+        <div class="q">
+            How fluent is Agent 0? (5 is most fluent and 0 is least fluent)
+            <form id="fluent0">
+            <input type="radio" name="answer" value="1"> 1<br>
+            <input type="radio" name="answer" value="2"> 2<br>
+            <input type="radio" name="answer" value="3"> 3 <br>
+            <input type="radio" name="answer" value="4"> 4<br>
+            <input type="radio" name="answer" value="5"> 5<br>
+            </form>
+        </div>
+
+        <br>
+
+        <!-- Agent 1 questions -->
+        <div class="q">
+            How human-like is Agent 1? (5 is most human-like and 0 is least human-like)
+            <form id="humanlike1">
+            <input type="radio" name="answer" value="1"> 1<br>
+            <input type="radio" name="answer" value="2"> 2<br>
+            <input type="radio" name="answer" value="3"> 3 <br>
+            <input type="radio" name="answer" value="4"> 4<br>
+            <input type="radio" name="answer" value="5"> 5<br>
+            </form>
+        </div>
+
+        <br>
+
+        <div class="q">
+            How factually-correct is Agent 1? (5 is most correct and 0 is least correct)
+            <form id="correct1">
+            <input type="radio" name="answer" value="1"> 1<br>
+            <input type="radio" name="answer" value="2"> 2<br>
+            <input type="radio" name="answer" value="3"> 3 <br>
+            <input type="radio" name="answer" value="4"> 4<br>
+            <input type="radio" name="answer" value="5"> 5<br>
+            </form>
+        </div>
+
+        <br>
+
+        <div class="q">
+            How strategic is Agent 1? (5 is most strategic and 0 is least strategic)
+            <form id="strategic1">
+            <input type="radio" name="answer" value="1"> 1<br>
+            <input type="radio" name="answer" value="2"> 2<br>
+            <input type="radio" name="answer" value="3"> 3 <br>
+            <input type="radio" name="answer" value="4"> 4<br>
+            <input type="radio" name="answer" value="5"> 5<br>
+            </form>
+        </div>
+
+        <br>
+
+        <div class="q">
+            How fluent is Agent 1? (5 is most fluent and 0 is least fluent)
+            <form id="fluent1">
+            <input type="radio" name="answer" value="1"> 1<br>
+            <input type="radio" name="answer" value="2"> 2<br>
+            <input type="radio" name="answer" value="3"> 3 <br>
+            <input type="radio" name="answer" value="4"> 4<br>
+            <input type="radio" name="answer" value="5"> 5<br>
+            </form>
+        </div>
 
         <div class="buttons" style="text-align:center;">
          <button type="button" id="submit" >Submit HIT!</button>
