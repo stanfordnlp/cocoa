@@ -90,6 +90,50 @@
         <br>
         <br>
 
+        <!-- KBs for dialogue -->
+        <div class="kb">
+        <table align="middle" border="1" style="width: 100%">
+            <caption> <strong> Agent 0 Info </strong></caption>
+        <tr>
+            {% for name in column_names %}
+            <th>{{name}}</th>
+            {% endfor %}
+        </tr>
+        {% for row in kb0 %}
+        <tr>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+            </table>
+            </div>
+
+        <br>
+
+        <div class="kb">
+        <table align="middle" border="1"  style="width: 100%">
+            <caption> <strong> Agent 1 Info </strong></caption>
+        <tr>
+            {% for name in column_names %}
+            <th>{{name}}</th>
+            {% endfor %}
+        </tr>
+        {% for row in kb1 %}
+        <tr>
+            {% for name, value in row.items()%}
+            <td> {{value}}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+
+
+        </table>
+
+        </div>
+
+        <br> <br>
+
 
         <!-- Fill in a dialogue here -->
         <div class="dialogue">

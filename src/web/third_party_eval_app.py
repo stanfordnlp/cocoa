@@ -36,6 +36,18 @@ examples_file = args.examples
 with open(examples_file, "r") as f:
     examples = json.load(f)
 
+# Load scenarios containing KB info
+scenarios_json = args.scenarios
+with open(scenarios_json, "r") as f:
+    scenarios_info = json.load(f)
+
+# Form mapping from uuid -> scenario
+uuid_to_scenario = collections.defaultdict(dict)
+for scenario in scenarios_info:
+    uuid = scenario["uuid"]
+    uuid_to_scenario[uuid] = scenario
+
+# Mapping from id -> examples
 idx_to_examples = {idx: ex for idx, ex in enumerate(examples)}
 num_examples = len(examples)
 seen_examples = set()
@@ -81,6 +93,13 @@ def index():
     ex = idx_to_examples[ex_idx[0]]
     seen_examples.add(ex_idx[0])
 
+    uuid = ex["scenario_uuid"]
+    scenario = uuid_to_scenario[uuid]
+    kbs = scenario["kbs"]
+    agent0_kb = kbs[0]
+    agent1_kb = kbs[1]
+    column_names = agent1_kb[0].keys()
+
     # Get events for example
     events = ex["events"]
 
@@ -97,7 +116,10 @@ def index():
     # Will want to annotate by span of tokens
     return render_template("third_party_eval.html",
                            dialogue=msg_events,
-                           name=ex["scenario_uuid"]
+                           name=ex["scenario_uuid"],
+                           column_names=column_names,
+                           kb0=agent0_kb,
+                           kb1=agent1_kb
                            )
 
 
