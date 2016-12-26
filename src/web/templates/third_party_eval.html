@@ -48,7 +48,7 @@
                     window.location.reload(true);
                 },
                 failure: function(){
-                    console.log("SHIT");
+                    console.log(":(");
                 }
             })
 
@@ -71,7 +71,7 @@
     }
 
     window.onload = function(){
-        questionAnswers["name"] = {{ name|safe|tojson}};
+        questionAnswers["uuid"] = {{ uuid|safe|tojson}};
     }
 
 </script>
