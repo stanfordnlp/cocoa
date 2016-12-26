@@ -56,11 +56,13 @@ class Learner(object):
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
     # TODO: don't need graphs in the parameters
-    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, init_checklists=None, encoder_nodes=None, decoder_nodes=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, graph_data=None, graphs=None, copy=False, init_checklists=None, encoder_nodes=None, decoder_nodes=None, matched_items=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
             targets = graphs.copy_targets(batch['targets'], self.vocab.size)
+            matched_items = graphs.copy_targets(np.reshape(matched_items, [-1, 1]), self.vocab.size)
+            matched_items = np.reshape(matched_items, [-1])
         else:
             targets = batch['targets']
 
@@ -70,6 +72,7 @@ class Learner(object):
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'last_inds': batch['decoder_inputs_last_inds'],
+                'matched_items': matched_items,
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
@@ -118,10 +121,11 @@ class Learner(object):
         encoder_init_state = None
         utterances = None
         graphs = dialogue_batch['graph']
+        matched_items = dialogue_batch['matched_items']
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             graph_data = graphs.get_batch_data(batch['encoder_tokens'], batch['decoder_tokens'], batch['encoder_entities'], batch['decoder_entities'], utterances, self.vocab)
             init_checklists = graphs.get_zero_checklists(1)
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, init_checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'])
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, init_checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'], matched_items)
             if test:
                 logits, final_state, utterances, loss, seq_loss, total_loss, sel_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
@@ -160,8 +164,9 @@ class Learner(object):
         Run truncated RNN through a sequence of batch examples.
         '''
         encoder_init_state = None
+        matched_items = dialogue_batch['matched_items']
         for batch in dialogue_batch['batch_seq']:
-            feed_dict = self._get_feed_dict(batch, encoder_init_state)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, matched_items=matched_items)
             if test:
                 logits, final_state, loss, seq_loss, total_loss = sess.run([
                     self.model.decoder.output_dict['logits'],
