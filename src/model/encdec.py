@@ -43,12 +43,18 @@ def build_model(schema, mappings, args):
     else:
         raise('Unknown decoding method')
 
-    if args.reward is not None:
-        args.reward = [float(x) for x in args.reward]
+    try:
+        if args.reward is not None:
+            reward = [float(x) for x in args.reward]
+        else:
+            reward = None
+    # Compatible with old models
+    except AttributeError:
+        reward = None
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, args.reward)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, reward)
         model = BasicEncoderDecoder(word_embedder, encoder, decoder, pad, select)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
@@ -59,16 +65,16 @@ def build_model(schema, mappings, args):
         graph_embedder = GraphEmbedder(graph_embedder_config)
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=args.reward)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=reward)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=args.reward)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=reward)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=args.reward)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=reward)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=args.reward)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, reward=reward)
                 sup_gate = False
         model = GraphEncoderDecoder(word_embedder, graph_embedder, encoder, decoder, pad, select, sup_gate)
     else:
