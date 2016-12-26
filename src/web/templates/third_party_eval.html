@@ -12,19 +12,22 @@
 
     questionAnswers = {};
 
-    $(document).ready(function() {
-        $("#submit").click(function() {
-            human0Val = $('input[type=radio]:checked', '#humanlike0').val();
-            correct0Val = $('input[type=radio]:checked', '#correct0').val();
-            strategic0Val = $("input[type=radio]:checked", "#strategic0").val();
-            fluent0Val = $("input[type=radio]:checked", "#fluent0").val();
+    // Ensure all questions have a selected response
+    function ensureAllAnswered(){
+        human0Val = $('input[type=radio]:checked', '#humanlike0').val();
+        correct0Val = $('input[type=radio]:checked', '#correct0').val();
+        strategic0Val = $("input[type=radio]:checked", "#strategic0").val();
+        fluent0Val = $("input[type=radio]:checked", "#fluent0").val();
 
-            human1Val = $('input[type=radio]:checked', '#humanlike1').val();
-            correct1Val = $('input[type=radio]:checked', '#correct1').val();
-            strategic1Val = $("input[type=radio]:checked", "#strategic1").val();
-            fluent1Val = $("input[type=radio]:checked", "#fluent1").val();
+        human1Val = $('input[type=radio]:checked', '#humanlike1').val();
+        correct1Val = $('input[type=radio]:checked', '#correct1').val();
+        strategic1Val = $("input[type=radio]:checked", "#strategic1").val();
+        fluent1Val = $("input[type=radio]:checked", "#fluent1").val();
 
-
+        if (human0Val == null | correct0Val == null | strategic0Val == null | fluent0Val == null | human1Val == null | correct1Val == null | strategic1Val == null | fluent1Val == null){
+            return false;
+        }
+        else{
             questionAnswers["humanlike_0"] = human0Val;
             questionAnswers["correct_0"] = correct0Val;
             questionAnswers["strategic_0"] = strategic0Val;
@@ -34,9 +37,16 @@
             questionAnswers["correct_1"] = correct1Val;
             questionAnswers["strategic_1"] = strategic1Val;
             questionAnswers["fluent_1"] = fluent1Val;
+            return true;
+        }
+    }
 
-            console.log(questionAnswers);
-            $.ajax({
+    $(document).ready(function() {
+        $("#submit").click(function() {
+            allAnswered = ensureAllAnswered()
+            if (allAnswered){
+                console.log(questionAnswers);
+                $.ajax({
                 url: "/submit",
                 type: "POST",
                 data: JSON.stringify(questionAnswers),
@@ -50,7 +60,10 @@
                 failure: function(){
                     console.log(":(");
                 }
-            })
+                })
+            }else{
+                alert("You have not selected an answer for every question. Please do so before submitting the HIT.");
+            }
 
         });
     });
