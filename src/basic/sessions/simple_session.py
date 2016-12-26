@@ -154,8 +154,8 @@ class SimpleSession(Session):
             else:
                 return None
 
-        if random.random() < 0.2:  # Wait randomly
-            return None
+        #if random.random() < 0.2:  # Wait randomly
+        #    return None
 
         # Say hi first
         if not self.said_hi:
