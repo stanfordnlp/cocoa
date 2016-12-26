@@ -67,9 +67,9 @@ def init_dialogues(db_path):
         uuid_to_scenario[uuid] = scenario
 
     # Mapping from id -> examples
-    idx_to_examples = {idx: ex for idx, ex in enumerate(examples)}
+    #idx_to_examples = {idx: ex for idx, ex in enumerate(examples)}
 
-    for idx, ex in idx_to_examples.iteritems():
+    for ex in examples:
         uuid = ex["scenario_uuid"]
         scenario = uuid_to_scenario[uuid]
         kbs = scenario["kbs"]
@@ -81,10 +81,10 @@ def init_dialogues(db_path):
         events = ex["events"]
 
         # Filter to only include message data
-        msg_events = {} #
-        for idx, event in enumerate(events):
+        msg_events = [] #
+        for event in events:
             if event["action"] == "message":
-                msg_events[idx] = event
+                msg_events.append(event)
 
         c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?) """,
             (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps(agent0_kb),

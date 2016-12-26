@@ -137,8 +137,8 @@
 
         <!-- Fill in a dialogue here -->
         <div class="dialogue">
-            {% for idx, turn in dialogue.items() %}
-                <p id="{{idx}}"> <strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</p>
+            {% for turn in dialogue %}
+                <p> <strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</p>
 
             {% endfor %}
 

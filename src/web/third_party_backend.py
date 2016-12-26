@@ -130,7 +130,7 @@ class BackendConnection(object):
                 selected = None
                 for d in dialogues:
                     # Found a dialogue not previously shown to user
-                    if d[0] not in scenarios_evaluated and d[1] != "{}":
+                    if d[0] not in scenarios_evaluated and len(json.loads(d[1])) > 0:
                         selected = d
                         break
                 #print "Selected: ", selected
