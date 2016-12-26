@@ -620,10 +620,9 @@ class BackendConnection(object):
                 u = self._get_user_info_unchecked(cursor, userid)
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
-                dict_item = kb.items[idx]
-                item = kb.get_ordered_item(dict_item)
+                item = kb.items[idx]
                 self.send(userid, Event.SelectionEvent(u.agent_index,
-                                                       dict_item,
+                                                       item,
                                                        datetime.datetime.now().strftime(date_fmt)))
                 return item
         except sqlite3.IntegrityError:
