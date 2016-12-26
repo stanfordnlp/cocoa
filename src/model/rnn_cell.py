@@ -90,12 +90,15 @@ class AttnRNNCell(object):
         with tf.variable_scope('ScoreContextLinear'):
             with tf.variable_scope('Combine'):
                 if self.checklist:
-                    feature = [h, context, checklist]
+                    feature = [h, context]
                 else:
                     feature = [h, context]
                 attns = activation(batch_linear(feature, attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
+                if self.checklist:
+                    weight = tf.get_variable('cl_weight', [])
+                    attns = attns - tf.scalar_mul(weight, tf.squeeze(checklist, [2]))
         return attns
 
     def _score_context_bilinear(self, h, context):
