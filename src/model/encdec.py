@@ -501,7 +501,7 @@ class GraphDecoder(GraphEncoder):
             # NOTE: we assume that the initial state comes from the encoder and is just
             # the rnn state. We need to compute attention and get context for the attention
             # cell's initial state.
-            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists, tf.float32))
+            return cell.init_state(self.init_rnn_state, self.init_output, self.context, tf.cast(self.init_checklists[:, 0, :], tf.float32))
         else:
             return cell.zero_state(self.batch_size, self.context)
 
