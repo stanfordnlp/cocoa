@@ -25,11 +25,15 @@
     "task_title": "Who's Our Mutual Friend?",
     "icon": "handshake.jpg",
     "models": {
-        "neural_test": {
-            "active": true,
+        "neural_bot": {
+            "active": false,
             "type": "neural",
             "path": "/scr/hehe/game-dialogue/checkpoint/web-chat/checkpoint",
             "decoding": {"sample": 0.5}
+        }
+        "rule_bot": {
+            "active": true,
+            "type": "simple",
         }
     }
 }

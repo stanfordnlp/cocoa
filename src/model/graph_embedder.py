@@ -56,6 +56,7 @@ class GraphEmbedder(object):
         self.config = config
         self.scope = scope
         self.context_initialized = False
+        self.update_initialized = False
         self.build_model(scope)
 
     def build_model(self, scope=None):
@@ -239,7 +240,14 @@ class GraphEmbedder(object):
         utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
         inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
 
+        with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
+            weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
+            if not self.update_initialized:
+                self.update_initialized = True
+
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
         new_utterance = tf.sparse_to_dense(inds, tf.shape(curr_utterances), utterance, validate_indices=False)
-        return curr_utterances * self.config.decay + new_utterance
+
+        return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
+        #return curr_utterances * self.config.decay + new_utterance
