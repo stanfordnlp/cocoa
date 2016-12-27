@@ -14,7 +14,7 @@ date_fmt = '%Y-%m-%d %H-%M-%S'
 def is_question(tokens):
     first_word = tokens[0]
     last_word = tokens[-1]
-    if last_word == '?' or first_word in ('do', 'does', 'what'):
+    if last_word == '?' or first_word in ('do', 'does', 'what', 'any'):
         return True
     return False
 
