@@ -16,6 +16,7 @@ from src.basic.systems.neural_system import NeuralSystem, add_neural_system_argu
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
 from src.lib import logstats
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
@@ -33,6 +34,7 @@ args = parser.parse_args()
 logstats.init(args.stats_file)
 if args.random_seed:
     random.seed(args.random_seed)
+    np.random.seed(args.random_seed)
 
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
