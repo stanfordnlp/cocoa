@@ -6,8 +6,7 @@ import random
 import re
 import numpy as np
 from src.model.vocab import Vocabulary, is_entity
-from src.model.graph import Graph, GraphBatch, inv_rel
-from src.basic.kb import KB
+from src.model.graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy
@@ -32,13 +31,23 @@ def tokenize(utterance):
     #tokens = [x for x in tokens if x not in '.,!?;']
     return tokens
 
+word_to_num = {'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'}
+def normalize_number(token):
+    if token in word_to_num:
+        return word_to_num[token]
+    return token
+
+def item_to_entity(id_):
+    item_str = item_to_str(id_)
+    return (item_str, (item_str, 'item'))
+
 def build_schema_mappings(schema, num_items):
     entity_map = Vocabulary(unk=True)
     for type_, values in schema.values.iteritems():
         entity_map.add_words(((value.lower(), type_) for value in values))
     # Add item nodes
     for i in xrange(num_items):
-        entity_map.add_word(('item-%d' % i, 'item'))
+        entity_map.add_word(item_to_entity(i)[1])
     # TODO: add attribute nodes
 
     relation_map = Vocabulary(unk=False)
@@ -179,6 +188,7 @@ class Dialogue(object):
         '''
         self.uuid = uuid
         self.kbs = kbs
+        self.matched_items = self.get_correct_item(kbs)
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = ([], [])
         # entities: -1 for non-entity words, entities are mapped based on entity_map
@@ -188,6 +198,14 @@ class Dialogue(object):
         self.agents = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
+
+    @classmethod
+    def get_correct_item(cls, kbs):
+        for id1, item1 in enumerate(kbs[0].items):
+            for id2, item2 in enumerate(kbs[1].items):
+                if item1 == item2:
+                    return (id1, id2)
+        raise Exception('No matched item.')
 
     def create_graph(self):
         assert not hasattr(self, 'graphs')
@@ -262,9 +280,11 @@ class Dialogue(object):
                 turns[j].append([])
 
 class DialogueBatch(object):
-    def __init__(self, dialogues, use_kb=False):
+    use_kb = False
+    copy = False
+
+    def __init__(self, dialogues):
         self.dialogues = dialogues
-        self.use_kb = use_kb
 
     def _normalize_dialogue(self):
         '''
@@ -304,6 +324,10 @@ class DialogueBatch(object):
 
     def _get_kb_batch(self, agents):
         return [dialogue.kbs[agent] for dialogue, agent in izip(self.dialogues, agents)]
+
+    def _get_matched_item_batch(self, agents):
+        item_entities = [item_to_entity(dialogue.matched_items[agent]) for dialogue, agent in izip(self.dialogues, agents)]
+        return Dialogue.textint_map.text_to_int(item_entities, 'target')
 
     def _get_graph_batch(self, agents):
         return GraphBatch([dialogue.graphs[agent] for dialogue, agent in izip(self.dialogues, agents)])
@@ -392,9 +416,11 @@ class DialogueBatch(object):
             # Add agents and kbs
             agents = self._get_agent_batch(1 - start_encode)  # Decoding agent
             kbs = self._get_kb_batch(agents)
+            matched_items = self._get_matched_item_batch(agents)
             batch = {
                      'agent': agents,
                      'kb': kbs,
+                     'matched_items': matched_items,
                      'batch_seq': batch_seq,
                     }
             if self.use_kb:
@@ -421,6 +447,7 @@ class Preprocessor(object):
         '''
         An entity is represented as (surface_form, (canonical_form, type)).
         '''
+        assert len(entity) == 2
         if form == 'surface':
             return entity[0]
         elif form == 'type':
@@ -482,6 +509,7 @@ class Preprocessor(object):
         if e.action == 'message':
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
+            entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding
                 return (entity_tokens, copy.copy(entity_tokens))
@@ -490,10 +518,9 @@ class Preprocessor(object):
         elif e.action == 'select':
             # Convert an item to item-id (wrt to the speaker)
             item_id = self.get_item_id(kb, e.data)
-            item_str = 'item-%d' % item_id
             # We use the entities to represent the item during encoding and item-id during decoding
             return ([markers.SELECT] + self.item_to_entities(e.data, kb.attributes),
-                    [markers.SELECT, (item_str, (item_str, 'item'))])
+                    [markers.SELECT, item_to_entity(item_id)])
         else:
             raise ValueError('Unknown event action.')
 
@@ -529,6 +556,9 @@ class DataGenerator(object):
         self.copy = copy
         self.prepend = preprocessor.prepend
 
+        DialogueBatch.use_kb = use_kb
+        DialogueBatch.copy = copy
+
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
         for fold, dialogues in self.dialogues.iteritems():
             print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
@@ -561,7 +591,7 @@ class DataGenerator(object):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.extend(DialogueBatch(dialogue_batch, self.use_kb).create_batches())
+            dialogue_batches.extend(DialogueBatch(dialogue_batch).create_batches())
             start = end
         return dialogue_batches
 

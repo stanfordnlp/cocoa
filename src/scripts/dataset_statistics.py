@@ -1,13 +1,78 @@
 __author__ = 'anushabala'
 from src.basic.event import Event
+from src.basic.dataset import Example
 from datetime import datetime
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
+from src.lib import logstats
+from src.model.vocab import is_entity
 
 
 date_fmt = '%Y-%m-%d %H-%M-%S'
 
+def is_question(tokens):
+    first_word = tokens[0]
+    last_word = tokens[-1]
+    if last_word == '?' or first_word in ('do', 'does', 'what'):
+        return True
+    return False
+
+def is_inform(tokens):
+    for token in tokens:
+        if is_entity(token):
+            return True
+    return False
+
+def is_answer(tokens):
+    for token in tokens:
+        if token in ('yes', 'yep', 'yeah', 'no', 'nope', 'none'):
+            return True
+    return False
+
+def get_speech_acts(summary_map, event, utterance):
+    if event.action == 'select':
+        logstats.update_summary_map(summary_map, {'select': 1})
+    elif event.action == 'message':
+        if is_question(utterance):
+            logstats.update_summary_map(summary_map, {'question': 1})
+        else:
+            # NOTE: inform and answer are not exclusive, e.g. no, I have 3 apple.
+            inform = is_inform(utterance)
+            answer = is_answer(utterance)
+            if inform:
+                logstats.update_summary_map(summary_map, {'inform': 1})
+            if answer:
+                logstats.update_summary_map(summary_map, {'answer': 1})
+            if not inform and not answer:
+                logstats.update_summary_map(summary_map, {'other': 1})
+
+def analyze_strategy(all_chats, scenario_db, preprocessor):
+    speech_act_summary_map = {}
+    total_events = 0
+    for raw in all_chats:
+        ex = Example.from_dict(scenario_db, raw)
+        kbs = ex.scenario.kbs
+        for event in ex.events:
+            if event.action == 'select':
+                utterance = None
+            elif event.action == 'message':
+                utterance = preprocessor.process_event(event, kbs[event.agent])
+                # Skip empty utterances
+                if not utterance:
+                    continue
+                else:
+                    utterance = utterance[0]
+            else:
+                raise ValueError('Unknown event action %s.' % event.action)
+
+            total_events += 1
+            # All analysis
+            get_speech_acts(speech_act_summary_map, event, utterance)
+
+    # Summarize stats
+    total = float(total_events)
+    return {'speech_act': {k: speech_act_summary_map[k]['sum'] / total for k in ('question', 'inform', 'answer', 'other', 'select')}}
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
     total_time_taken = 0.0
