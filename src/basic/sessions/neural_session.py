@@ -59,7 +59,9 @@ class NeuralSession(Session):
         #    return None
         tokens = self.decode()
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
-            item = self.kb.items[int(tokens[1].split('-')[1])]
+            item_id = int(tokens[1].split('-')[1])
+            item = self.kb.items[item_id]
+            self.selected_items.append(item_id)
             return self.select(item)
         return self.message(' '.join(tokens))
 
@@ -134,7 +136,7 @@ class RNNNeuralSession(NeuralSession):
         inputs = np.reshape(self.env.textint_map.text_to_int([start_symbol], 'decoding'), [1, 1])
 
         decoder_args = self._decoder_args(init_state, inputs)
-        decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
+        decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, selected_items=[self.selected_items], **decoder_args)
 
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])[0]
         self._update_states(sess, decoder_output_dict, entity_tokens)
@@ -173,6 +175,8 @@ class GraphNeuralSession(RNNNeuralSession):
         self.context = None
         self.graph_data = None
         self.init_checklists = None
+
+        self.selected_items = []
 
     def encode(self, entity_tokens):
         super(GraphNeuralSession, self).encode(entity_tokens)

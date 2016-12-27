@@ -5,13 +5,14 @@ Encode when action is read and decode when action is write.
 
 import tensorflow as tf
 import numpy as np
+from itertools import izip
 from tensorflow.python.util import nest
 from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell, PreselectAttnRNNCell
 from src.model.graph import Graph, GraphMetadata
 from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
-from src.model.preprocess import markers
+from src.model.preprocess import markers, item_to_entity
 
 def add_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
@@ -93,11 +94,16 @@ class Sampler(object):
         self.t = t  # Temperature
         self.repeat_penalty = 2.
 
-    def sample(self, logits, prev_words=None):
+    def sample(self, logits, prev_words=None, masked_words=None):
         assert logits.shape[1] == 1
         if prev_words is not None:
             prev_words = np.expand_dims(prev_words, 1)
             logits = np.where(prev_words == 1, logits - np.log(2), logits)
+
+        if masked_words is not None:
+            for i, words in enumerate(masked_words):
+                for j, word in enumerate(words):
+                    logits[i][0][j] = float('-inf')
 
         # Greedy
         if self.t == 0:
@@ -555,7 +561,7 @@ class GraphDecoder(GraphEncoder):
     def pred_to_entity(self, pred, graphs, vocab):
         return graphs.pred_to_entity(pred, vocab.size)
 
-    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, selected_items=None, **kwargs):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
@@ -568,7 +574,11 @@ class GraphDecoder(GraphEncoder):
         probs = []
         graphs = kwargs['graphs']
         vocab = kwargs['vocab']
+        if selected_items is not None:
+            selected_items = [[item_to_entity(item)[1] for item in items] for items in selected_items]
+            selected_items = [[graph.nodes.to_ind(item) + vocab.size for item in items] for graph, items in izip(graphs.graphs, selected_items)]
         word_embeddings = 0
+
         for i in xrange(max_len):
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
             output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['probs'], self.output_dict['checklists']]
@@ -584,7 +594,7 @@ class GraphDecoder(GraphEncoder):
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
             probs.append(prob[0])
-            step_preds = self.sampler.sample(logits, prev_words=generated_word_types)
+            step_preds = self.sampler.sample(logits, prev_words=generated_word_types, masked_words=selected_items)
 
             if generated_word_types is None:
                 generated_word_types = np.zeros([batch_size, logits.shape[2]])
