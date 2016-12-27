@@ -91,8 +91,14 @@ class Sampler(object):
     '''
     def __init__(self, t):
         self.t = t  # Temperature
+        self.repeat_penalty = 2.
 
-    def sample(self, logits):
+    def sample(self, logits, prev_words=None):
+        assert logits.shape[1] == 1
+        if prev_words is not None:
+            prev_words = np.expand_dims(prev_words, 1)
+            logits = np.where(prev_words == 1, logits - np.log(2), logits)
+
         # Greedy
         if self.t == 0:
             return np.argmax(logits, axis=2)
@@ -100,7 +106,7 @@ class Sampler(object):
         else:
             p = self.softmax(logits, self.t)
             batch_size, seq_len, num_symbols = logits.shape
-            preds = np.zeros([batch_size, seq_len])
+            preds = np.zeros([batch_size, seq_len], dtype=np.int32)
             for i in xrange(batch_size):
                 for j in xrange(seq_len):
                     try:
@@ -555,6 +561,7 @@ class GraphDecoder(GraphEncoder):
         feed_dict = self.get_feed_dict(**kwargs)
         cl = kwargs['init_checklists']
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
+        generated_word_types = None
         # last_inds=0 because input length is one from here on
         last_inds = np.zeros([batch_size], dtype=np.int32)
         attn_scores = []
@@ -579,7 +586,12 @@ class GraphDecoder(GraphEncoder):
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
             probs.append(prob[0])
-            step_preds = self.sampler.sample(logits)
+            step_preds = self.sampler.sample(logits, prev_words=generated_word_types)
+
+            if generated_word_types is None:
+                generated_word_types = np.zeros([batch_size, logits.shape[2]])
+            generated_word_types[np.arange(batch_size), step_preds[:, 0]] = 1
+
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
