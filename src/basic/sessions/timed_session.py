@@ -11,15 +11,17 @@ class TimedSessionWrapper(Session):
     This class can be used to wrap around a session that produces event responses generated using rules (or a model) -
     the wrapper will add a delay to the responses sent by the session in order to simulate human typing/action rates.
     """
-    CHAR_RATE = 10
+    CHAR_RATE = 5
     EPSILON = 1500
-    SELECTION_DELAY = 10000
+    SELECTION_DELAY = 1000
+    REPEATED_SELECTION_DELAY = 10000
 
     def __init__(self, agent, session):
         super(TimedSessionWrapper, self).__init__(agent)
         self.session = session
         self.last_message_timestamp = datetime.datetime.now()
         self.queued_event = deque()
+        self.prev_action = None
 
     def receive(self, event):
         self.last_message_timestamp = datetime.datetime.now()
@@ -35,6 +37,8 @@ class TimedSessionWrapper(Session):
             delay = float(len(event.data)) / self.CHAR_RATE * 1000 + random.uniform(0, self.EPSILON)
         elif event.action == 'select':
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
+            if self.prev_action == 'select':
+                delay += self.REPEATED_SELECTION_DELAY
         else:
             # unsupported event action type?
             return None
@@ -43,4 +47,6 @@ class TimedSessionWrapper(Session):
             return None
         else:
             self.last_message_timestamp = datetime.datetime.now()
-            return self.queued_event.popleft()
+            event = self.queued_event.popleft()
+            self.prev_action = event.action
+            return event
