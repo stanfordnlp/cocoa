@@ -11,6 +11,7 @@ def add_graph_embed_arguments(parser):
     parser.add_argument('--use-entity-embedding', action='store_true', default=False, help='Whether to use entity embedding when compute node embeddings')
     parser.add_argument('--mp-iters', type=int, default=2, help='Number of iterations of message passing on the graph')
     parser.add_argument('--utterance-decay', type=float, default=1, help='Decay of old utterance embedding over time')
+    parser.add_argument('--learned-utterance-decay', default=False, action='store_true', help='Learning weight to combine old and new utterances')
     parser.add_argument('--msg-aggregation', default='sum', choices=['sum', 'max', 'avg'], help='How to aggregate messages from neighbors')
 
 activation = tf.tanh
@@ -207,14 +208,17 @@ class GraphEmbedder(object):
         utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
         inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
 
-        #with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
-        #    weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
-        #    if not self.update_initialized:
-        #        self.update_initialized = True
+        if self.config.learned_decay:
+            with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
+                weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
+                if not self.update_initialized:
+                    self.update_initialized = True
 
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
         new_utterance = tf.sparse_to_dense(inds, tf.shape(curr_utterances), utterance, validate_indices=False)
 
-        #return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
-        return curr_utterances * self.config.decay + new_utterance
+        if self.config.learned_decay:
+            return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
+        else:
+            return curr_utterances * self.config.decay + new_utterance

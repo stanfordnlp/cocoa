@@ -62,7 +62,7 @@ def build_model(schema, mappings, args):
         max_degree = args.num_items + len(schema.attributes)
         utterance_size = args.word_embed_size if args.bow_utterance else args.rnn_size
         graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], utterance_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, max_num_items=args.num_items)
-        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation)
+        graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation, learned_decay=args.learned_utterance_decay)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout)

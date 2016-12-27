@@ -1,5 +1,5 @@
 class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1, msg_agg='sum'):
+    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1, msg_agg='sum', learned_decay=False):
         self.node_embed_size = node_embed_size
 
         self.num_edge_labels = graph_metadata.relation_map.size
@@ -8,6 +8,7 @@ class GraphEmbedderConfig(object):
         # RNN output size
         self.utterance_size = graph_metadata.utterance_size
         self.decay = decay
+        self.learned_decay = learned_decay
 
         # Size of input features from Graph
         self.feat_size = graph_metadata.feat_size
