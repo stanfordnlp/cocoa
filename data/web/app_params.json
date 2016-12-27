@@ -28,7 +28,7 @@
         "neural_test": {
             "active": true,
             "type": "neural",
-            "path": "/home/hehe/game-dialogue/checkpoints/basic-punct/checkpoint",
+            "path": "/home/hehe/game-dialogue/checkpoints/preselect/checkpoint",
             "decoding": {"sample": 0.5}
         }
     }

@@ -11,7 +11,7 @@ class TimedSessionWrapper(Session):
     This class can be used to wrap around a session that produces event responses generated using rules (or a model) -
     the wrapper will add a delay to the responses sent by the session in order to simulate human typing/action rates.
     """
-    CHAR_RATE = 5
+    CHAR_RATE = 10
     EPSILON = 1500
     SELECTION_DELAY = 1000
     REPEATED_SELECTION_DELAY = 10000
