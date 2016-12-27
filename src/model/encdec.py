@@ -570,8 +570,6 @@ class GraphDecoder(GraphEncoder):
         vocab = kwargs['vocab']
         word_embeddings = 0
         for i in xrange(max_len):
-            #self._print_cl(cl)
-            #self._print_copied_nodes(copied_nodes)
             # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
             output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['probs'], self.output_dict['checklists']]
             if 'selection_scores' in self.output_dict:
@@ -688,8 +686,8 @@ class PreselectCopyGraphDecoder(CopyGraphDecoder):
         outputs, attn_scores = rnn_outputs
         self.output_dict.update({'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state, 'selection_scores': selection_scores})
 
-    def compute_loss(self, targets, pad):
-        loss, seq_loss, total_loss, _ = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad)
+    def compute_loss(self, targets, pad, select):
+        loss, seq_loss, total_loss, _ = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad, select)
 
         entity_targets = self.output_dict['checklists'][:, -1, :]
         entity_logits = self.output_dict['selection_scores']
@@ -729,8 +727,8 @@ class GatedCopyGraphDecoder(GraphDecoder):
         attn_logits = log_prob_copy + attn_scores - tf.reduce_logsumexp(attn_scores, 2, keep_dims=True)
         return tf.concat(2, [vocab_logits, attn_logits]), tf.concat(2, [log_prob_vocab, log_prob_copy])
 
-    def compute_loss(self, targets, pad):
-        loss, seq_loss, total_loss, select_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad)
+    def compute_loss(self, targets, pad, select):
+        loss, seq_loss, total_loss, select_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad, select)
 
         vocab_size = self.num_symbols
         # 0: vocab 1: copy
