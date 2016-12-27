@@ -102,8 +102,8 @@ class Sampler(object):
 
         if masked_words is not None:
             for i, words in enumerate(masked_words):
-                for j, word in enumerate(words):
-                    logits[i][0][j] = float('-inf')
+                for word_id in words:
+                    logits[i][0][word_id] = float('-inf')
 
         # Greedy
         if self.t == 0:
