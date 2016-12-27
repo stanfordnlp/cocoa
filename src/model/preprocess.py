@@ -451,7 +451,7 @@ class Preprocessor(object):
         if form == 'surface':
             return entity[0]
         elif form == 'type':
-            return entity[1][1]
+            return '<%s>' % entity[1][1]
         elif form == 'canonical':
             return entity[1]
         elif form == 'graph':
