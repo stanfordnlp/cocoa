@@ -15,39 +15,6 @@ def add_graph_embed_arguments(parser):
 
 activation = tf.tanh
 
-class GraphEmbedderConfig(object):
-    def __init__(self, node_embed_size, edge_embed_size, graph_metadata, entity_embed_size=None, use_entity_embedding=False, mp_iters=2, decay=1, msg_agg='sum'):
-        self.node_embed_size = node_embed_size
-
-        self.num_edge_labels = graph_metadata.relation_map.size
-        self.edge_embed_size = edge_embed_size
-
-        # RNN output size
-        self.utterance_size = graph_metadata.utterance_size
-        self.decay = decay
-
-        # Size of input features from Graph
-        self.feat_size = graph_metadata.feat_size
-
-        # Number of message passing iterations
-        self.mp_iters = mp_iters
-        self.msg_agg = msg_agg
-
-        self.context_size = self.node_embed_size * mp_iters
-        # x2 because we encoder and decoder utterances are concatenated
-        self.context_size += (self.utterance_size * 2 + self.feat_size)
-        if use_entity_embedding:
-            self.context_size += entity_embed_size
-
-        self.use_entity_embedding = use_entity_embedding
-        if use_entity_embedding:
-            self.num_entities = graph_metadata.entity_map.size
-            self.entity_embed_size = entity_embed_size
-
-        # padding
-        self.pad_path_id = graph_metadata.PAD_PATH_ID
-        self.node_pad = graph_metadata.NODE_PAD
-
 class GraphEmbedder(object):
     '''
     Graph embedding model.
@@ -240,14 +207,14 @@ class GraphEmbedder(object):
         utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
         inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
 
-        with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
-            weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
-            if not self.update_initialized:
-                self.update_initialized = True
+        #with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
+        #    weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
+        #    if not self.update_initialized:
+        #        self.update_initialized = True
 
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
         new_utterance = tf.sparse_to_dense(inds, tf.shape(curr_utterances), utterance, validate_indices=False)
 
-        return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
-        #return curr_utterances * self.config.decay + new_utterance
+        #return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
+        return curr_utterances * self.config.decay + new_utterance

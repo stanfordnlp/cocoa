@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
-from src.model.graph_embedder import GraphEmbedderConfig
+from src.model.graph_embedder_config import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')

@@ -9,7 +9,8 @@ from itertools import izip
 from tensorflow.python.util import nest
 from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell, PreselectAttnRNNCell
 from src.model.graph import Graph, GraphMetadata
-from src.model.graph_embedder import GraphEmbedder, GraphEmbedderConfig
+from src.model.graph_embedder import GraphEmbedder
+from src.model.graph_embedder_config import GraphEmbedderConfig
 from src.model.word_embedder import WordEmbedder
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 from src.model.preprocess import markers, item_to_entity
