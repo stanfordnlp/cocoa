@@ -35,7 +35,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
             if a == stop_symbol:
                 count += 1
                 if count == n:
-                    return i
+                    # +1: include </s>
+                    return i + 1
         return None
     tokens = []
     entities = []
