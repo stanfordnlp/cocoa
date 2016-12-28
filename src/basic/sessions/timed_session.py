@@ -24,17 +24,24 @@ class TimedSessionWrapper(Session):
         self.queued_event = deque()
         self.prev_action = None
         self.received = False
+        self.num_utterances = 0
 
     def receive(self, event):
+        # join and leave events
+        if not (event.action == 'select' or event.action == 'message'):
+            return
         self.last_message_timestamp = datetime.datetime.now()
         self.session.receive(event)
         self.received = True
+        self.num_utterances = 0
         self.queued_event.clear()
 
     def send(self):
         #if self.received is False and (self.last_message_timestamp + datetime.timedelta(milliseconds=random.uniform(self.PATIENCE/2., self.PATIENCE*2.)) > datetime.datetime.now() or self.prev_action == 'select'):
         #    return None
-        if self.received is False:
+        if (self.received is False and self.prev_action == 'select') or \
+            self.num_utterances == 2 or \
+            (self.received is False and self.last_message_timestamp + datetime.timedelta(milliseconds=random.uniform(self.PATIENCE/2., self.PATIENCE*2.)) > datetime.datetime.now()):
             return None
 
 	if len(self.queued_event) == 0:
@@ -60,4 +67,5 @@ class TimedSessionWrapper(Session):
             event = self.queued_event.popleft()
             self.prev_action = event.action
             self.received = False
+            self.num_utterances += 1
             return event
