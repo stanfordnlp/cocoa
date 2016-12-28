@@ -38,10 +38,11 @@ def build_model(schema, mappings, args):
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
     select = vocab.to_ind(markers.SELECT)
-    with tf.variable_scope('EncoderWordEmbedder'):
-        encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
-    with tf.variable_scope('DecoderWordEmbedder'):
-        decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+    #with tf.variable_scope('EncoderWordEmbedder'):
+    encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+    #with tf.variable_scope('DecoderWordEmbedder'):
+    #decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+    decoder_word_embedder = encoder_word_embedder
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
@@ -623,7 +624,7 @@ class GraphDecoder(GraphEncoder):
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
-        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'probs': probs, 'utterance_embedding': word_embeddings}
+        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'probs': probs, 'utterance_embedding': word_embeddings, 'checklists': cl}
         if 'selection_scores' in self.output_dict:
             output_dict['selection_scores'] = selection_scores
         return output_dict
