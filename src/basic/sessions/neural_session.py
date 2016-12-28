@@ -22,8 +22,8 @@ class NeuralSession(Session):
         self.model = env.model
         self.kb = kb
         self.matched_item = None
-        self.log = open('chat.debug.log', 'a')
-        self.log.write('-------------------------------------\n')
+        #self.log = open('chat.debug.log', 'a')
+        #self.log.write('-------------------------------------\n')
 
     def encode(self, entity_tokens):
         raise NotImplementedError
@@ -32,7 +32,7 @@ class NeuralSession(Session):
         raise NotImplementedError
 
     def receive(self, event):
-        self.log.write('receive event:%s\n' % str(event.to_dict()))
+        #self.log.write('receive event:%s\n' % str(event.to_dict()))
         # Parse utterance
         if event.action == 'select':
             self.matched_item = self._match(event.data)
@@ -96,7 +96,7 @@ class RNNNeuralSession(NeuralSession):
     def _encoder_args(self, entity_tokens):
         #inputs = np.reshape(self.env.textint_map.text_to_int(entity_tokens, 'encoding'), [1, -1])
         inputs, entities = self._process_entity_tokens(entity_tokens, 'encoding')
-        self.log.write('encoder entities:%s\n' % str(entities))
+        #self.log.write('encoder entities:%s\n' % str(entities))
         encoder_args = {'inputs': inputs,
                 'last_inds': self._get_last_inds(inputs),
                 'init_state': self.encoder_state,
@@ -131,7 +131,6 @@ class RNNNeuralSession(NeuralSession):
             # as opposed to EOS within a turn.
             start_symbol = markers.GO
             init_state = self._decoder_init_state(sess)
-            self.new_turn = False
         else:
             assert self.decoder_state is not None
             init_state = self.decoder_state
@@ -145,18 +144,20 @@ class RNNNeuralSession(NeuralSession):
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])[0]
         if not self._is_valid(entity_tokens):
             return None
-        self.log.write('decode:%s\n' % str(entity_tokens))
+        #self.log.write('decode:%s\n' % str(entity_tokens))
         self._update_states(sess, decoder_output_dict, entity_tokens)
         if self.env.evaluator is not None:
             self.env.evaluator.eval(self.kb, entity_tokens)
 
         # Text message
+        if self.new_turn:
+            self.new_turn = False
         return [x if not is_entity(x) else x[0] for x in entity_tokens]
 
     def _is_valid(self, tokens):
         if tokens[0] == markers.SELECT:
-            if len(tokens) > 1 and tokens[1].startswith('item-'):
-                item_id = int(tokens[1].split('-')[1])
+            if len(tokens) > 1 and isinstance(tokens[1], tuple) and tokens[1][0].startswith('item-'):
+                item_id = int(tokens[1][0].split('-')[1])
                 if item_id in self.selected_items:
                     return False
                 else:
@@ -167,7 +168,7 @@ class RNNNeuralSession(NeuralSession):
 
     def encode(self, entity_tokens):
         encoder_args = self._encoder_args(entity_tokens)
-        self.log.write('encode:%s\n' % str(entity_tokens))
+        #self.log.write('encode:%s\n' % str(entity_tokens))
         self.encoder_output_dict = self.model.encoder.encode(self.env.tf_session, **encoder_args)
         self.encoder_state = self.encoder_output_dict['final_state']
         self.new_turn = True
@@ -206,7 +207,7 @@ class GraphNeuralSession(RNNNeuralSession):
         encoder_args = super(GraphNeuralSession, self)._encoder_args(entity_tokens)
         graph_data = self.graph.get_batch_data([entity_tokens], None, encoder_args['entities'], None, self.utterances, self.env.vocab)
         encoder_args['update_entities'] = graph_data['encoder_entities']
-        self.log.write('encoder update entities:%s\n' % str(encoder_args['update_entities']))
+        #self.log.write('encoder update entities:%s\n' % str(encoder_args['update_entities']))
         encoder_args['entities'] = graph_data['encoder_nodes']
         encoder_args['utterances'] = graph_data['utterances']
         encoder_args['graph_data'] = graph_data
@@ -236,6 +237,6 @@ class GraphNeuralSession(RNNNeuralSession):
         # Update graph and utterances
         graph_data = self.graph.get_batch_data(None, [entity_tokens], None, None, self.utterances, self.env.vocab)
 
-        self.log.write('decoder update entities:%s\n' % str(graph_data['decoder_entities']))
+        #self.log.write('decoder update entities:%s\n' % str(graph_data['decoder_entities']))
         self.utterances, self.context = self.model.decoder.update_context(sess, graph_data['decoder_entities'], decoder_output_dict['final_output'], decoder_output_dict['utterance_embedding'], graph_data['utterances'], graph_data)
         self.init_checklists = decoder_output_dict['checklists']
