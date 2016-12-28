@@ -26,10 +26,14 @@
     "icon": "handshake.jpg",
     "models": {
         "neural_test": {
-            "active": true,
+            "active": false,
             "type": "neural",
             "path": "/home/hehe/game-dialogue/checkpoints/preselect/checkpoint",
             "decoding": {"sample": 0.5}
+        },
+        "rule_bot": {
+            "active": true,
+            "type": "simple"
         }
     }
 }

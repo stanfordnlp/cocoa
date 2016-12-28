@@ -81,9 +81,9 @@ def add_systems(config_dict, schema, lexicon):
         if info["active"]:
             type = info["type"]
             if type == SimpleSystem.name():
-                model = SimpleSystem()
-            elif type == HeuristicSystem.name():
-                model = HeuristicSystem()
+                model = SimpleSystem(lexicon, timed_session=True)
+            #elif type == HeuristicSystem.name():
+            #    model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
                 decoding = info["decoding"].items()[0]
