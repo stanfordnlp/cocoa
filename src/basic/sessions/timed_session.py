@@ -15,7 +15,7 @@ class TimedSessionWrapper(Session):
     EPSILON = 1500
     SELECTION_DELAY = 1000
     REPEATED_SELECTION_DELAY = 10000
-    PATIENCE = 2000
+    PATIENCE = 4000
 
     def __init__(self, agent, session):
         super(TimedSessionWrapper, self).__init__(agent)
@@ -32,13 +32,17 @@ class TimedSessionWrapper(Session):
         self.queued_event.clear()
 
     def send(self):
-        if self.received is False and self.last_message_timestamp + datetime.timedelta(milliseconds=random.uniform(self.PATIENCE/2., self.PATIENCE*2.)) > datetime.datetime.now():
+        #if self.received is False and (self.last_message_timestamp + datetime.timedelta(milliseconds=random.uniform(self.PATIENCE/2., self.PATIENCE*2.)) > datetime.datetime.now() or self.prev_action == 'select'):
+        #    return None
+        if self.received is False:
             return None
 
 	if len(self.queued_event) == 0:
             self.queued_event.append(self.session.send())
 
 	event = self.queued_event[0]
+        if event is None:
+            return self.queued_event.popleft()
         if event.action == 'message':
             delay = float(len(event.data)) / self.CHAR_RATE * 1000 + random.uniform(0, self.EPSILON)
         elif event.action == 'select':
