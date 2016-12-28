@@ -608,7 +608,7 @@ class DataGenerator(object):
             for graph in dialogue_batch['graph'].graphs:
                 graph.reset()
 
-    def generator(self, name, batch_size, shuffle=True):
+    def generator(self, name, batch_size, shuffle=False):
         dialogues = self.dialogues[name]
         for dialogue in dialogues:
             dialogue.convert_to_int()
