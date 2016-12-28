@@ -94,7 +94,7 @@ class Sampler(object):
         self.t = t  # Temperature
         self.repeat_penalty = 2.
 
-    def sample(self, logits, prev_words=None, masked_words=None):
+    def sample(self, logits, prev_words=None, masked_words=None, select=None):
         assert logits.shape[1] == 1
         if prev_words is not None:
             prev_words = np.expand_dims(prev_words, 1)
@@ -104,6 +104,9 @@ class Sampler(object):
             for i, words in enumerate(masked_words):
                 for word_id in words:
                     logits[i][0][word_id] = float('-inf')
+
+        if select is not None:
+            logits[:, 0, select] -= np.log(2)
 
         # Greedy
         if self.t == 0:
@@ -574,6 +577,7 @@ class GraphDecoder(GraphEncoder):
         probs = []
         graphs = kwargs['graphs']
         vocab = kwargs['vocab']
+        select = vocab.to_ind(markers.SELECT)
         if selected_items is not None:
             selected_items = [[item_to_entity(item)[1] for item in items] for items in selected_items]
             selected_items = [[graph.nodes.to_ind(item) + vocab.size for item in items] for graph, items in izip(graphs.graphs, selected_items)]
@@ -594,7 +598,7 @@ class GraphDecoder(GraphEncoder):
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
             probs.append(prob[0])
-            step_preds = self.sampler.sample(logits, prev_words=generated_word_types, masked_words=selected_items)
+            step_preds = self.sampler.sample(logits, prev_words=generated_word_types, masked_words=selected_items, select=select)
 
             if generated_word_types is None:
                 generated_word_types = np.zeros([batch_size, logits.shape[2]])
