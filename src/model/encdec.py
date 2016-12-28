@@ -38,11 +38,10 @@ def build_model(schema, mappings, args):
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
     select = vocab.to_ind(markers.SELECT)
-    #with tf.variable_scope('EncoderWordEmbedder'):
-    encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
-    #with tf.variable_scope('DecoderWordEmbedder'):
-    #decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
-    decoder_word_embedder = encoder_word_embedder
+    with tf.variable_scope('EncoderWordEmbedder'):
+        encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+    with tf.variable_scope('DecoderWordEmbedder'):
+        decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
