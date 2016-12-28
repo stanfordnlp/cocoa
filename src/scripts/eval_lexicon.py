@@ -7,10 +7,10 @@ import sys
 import time
 
 # Hack to be able to import modules one directory up
-sys.path.append("..")
-from basic.entity_ranker import EntityRanker
-from basic.lexicon import Lexicon
-from basic.schema import Schema
+#sys.path.append("..")
+from src.basic.entity_ranker import EntityRanker
+from src.basic.lexicon import Lexicon
+from src.basic.schema import Schema
 
 """
 Runs lexicon on transcripts of MTurk conversations and entity annotated dataset
