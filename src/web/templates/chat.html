@@ -112,8 +112,8 @@
 				window.onbeforeunload = disconnect;
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;
-					if (messageStartTime == null) {
-						messageStartTime = new Date();
+					if ($('#text').val().length == 0) {
+						messageStartTime = Date.now() / 1000.0;
 					}
 					if (code == 13) {
 						text = $('#text').val();
@@ -154,7 +154,7 @@
 					data: {
 						"uid": "{{ uid }}",
 						"message": message,
-						"start_time": messageStartTime.toString()
+						"start_time": messageStartTime
 					},
 					dataType: "json",
 					success: function(response) {
