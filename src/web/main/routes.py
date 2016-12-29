@@ -15,6 +15,7 @@ from backend import Status
 from src.basic.event import Event
 
 date_fmt = '%Y-%m-%d %H-%M-%S'
+request_date_fmt = '%a %b %d %Y %H:%M:%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -150,11 +151,16 @@ def text():
     logger.debug("User %s said: %s" % (userid_prefix(), message))
     displayed_message = format_message("You: {}".format(message), False)
     uid = userid()
+    str_start_time = request.args.get('start_time')
+    str_start_time = str_start_time[:str_start_time.index('GMT')].strip()
+    start_time = datetime.strptime(str_start_time, request_date_fmt)
+
     chat_info = backend.get_chat_info(uid)
     backend.send(uid,
                  Event.MessageEvent(chat_info.agent_index,
                                     message,
-                                    get_formatted_date())
+                                    get_formatted_date(),
+                                    start_time=start_time.strftime(date_fmt))
                  )
     return jsonify(message=displayed_message)
 

@@ -56,7 +56,7 @@ def init_database(db_file):
     c.execute(
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
-    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
+    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
     c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
 
     conn.commit()
