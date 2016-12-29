@@ -583,7 +583,7 @@ class DataGenerator(object):
                 dialogue.convert_to_int()
 
     def create_dialogue_batches(self, dialogues, batch_size):
-        dialogues.sort(key=lambda d: len(d.turns))
+        dialogues.sort(key=lambda d: len(d.turns[0]))
         N = len(dialogues)
         dialogue_batches = []
         start = 0
@@ -608,7 +608,7 @@ class DataGenerator(object):
             for graph in dialogue_batch['graph'].graphs:
                 graph.reset()
 
-    def generator(self, name, batch_size, shuffle=False):
+    def generator(self, name, batch_size, shuffle=True):
         dialogues = self.dialogues[name]
         for dialogue in dialogues:
             dialogue.convert_to_int()
