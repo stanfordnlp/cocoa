@@ -5,6 +5,7 @@ __author__ = 'anushabala'
 import uuid
 import logging
 from datetime import datetime
+import time
 
 from flask import jsonify, render_template, request, redirect, url_for, Markup
 from flask import current_app as app
@@ -14,8 +15,6 @@ from web_utils import get_backend
 from backend import Status
 from src.basic.event import Event
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
-request_date_fmt = '%a %b %d %Y %H:%M:%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -38,10 +37,6 @@ def userid_prefix():
 
 def generate_unique_key():
     return str(uuid.uuid4().hex)
-
-
-def get_formatted_date():
-    return datetime.now().strftime(date_fmt)
 
 
 # Required args: uid (the user ID of the current user)
@@ -90,7 +85,7 @@ def join_chat():
     chat_info = backend.get_chat_info(uid)
     backend.send(uid, Event.JoinEvent(chat_info.agent_index,
                                       uid,
-                                      get_formatted_date()))
+                                      str(time.time())))
     return jsonify(message=format_message("You entered the room.", True))
 
 
@@ -101,7 +96,7 @@ def leave_chat():
     chat_info = backend.get_chat_info(uid)
     backend.send(uid, Event.LeaveEvent(chat_info.agent_index,
                                        uid,
-                                       get_formatted_date()))
+                                       str(time.time())))
     return jsonify(success=True)
 
 
@@ -151,16 +146,13 @@ def text():
     logger.debug("User %s said: %s" % (userid_prefix(), message))
     displayed_message = format_message("You: {}".format(message), False)
     uid = userid()
-    str_start_time = request.args.get('start_time')
-    str_start_time = str_start_time[:str_start_time.index('GMT')].strip()
-    start_time = datetime.strptime(str_start_time, request_date_fmt)
-
+    start_time = request.args.get('start_time')
     chat_info = backend.get_chat_info(uid)
     backend.send(uid,
                  Event.MessageEvent(chat_info.agent_index,
                                     message,
-                                    get_formatted_date(),
-                                    start_time=start_time.strftime(date_fmt))
+                                    str(time.time()),
+                                    start_time)
                  )
     return jsonify(message=displayed_message)
 
