@@ -218,7 +218,7 @@ class BackendConnection(object):
             data = event.data
             if event.action == 'select':
                 data = json.dumps(event.data)
-            return chat_id, event.action, event.agent, event.time, data
+            return chat_id, event.action, event.agent, event.time, data, event.start_time
         try:
             with self.conn:
                 cursor = self.conn.cursor()
