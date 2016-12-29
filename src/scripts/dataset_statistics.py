@@ -2,9 +2,6 @@ __author__ = 'anushabala'
 from src.basic.event import Event
 from src.basic.dataset import Example
 from datetime import datetime
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
 from src.lib import logstats
 from src.model.vocab import is_entity
 
