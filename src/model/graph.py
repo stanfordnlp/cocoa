@@ -399,18 +399,19 @@ class Graph(object):
         '''
         Return a list of unique entities in these utterances for the last n utterances
         '''
-        #last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
-        #return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
-
-        entities = self.entities
-        if len(entities) == 0:
-            return []
-        if len(entities[-1]) == 0:
-            if len(entities) < 2:
-                return []
-            return list(set(self.entities[-2]))
+        if Graph.metadata.entity_hist_len > 0:
+            last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
+            return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
         else:
-            return list(set(self.entities[-1]))
+            entities = self.entities
+            if len(entities) == 0:
+                return []
+            if len(entities[-1]) == 0:
+                if len(entities) < 2:
+                    return []
+                return list(set(self.entities[-2]))
+            else:
+                return list(set(self.entities[-1]))
 
     def _node_type(self, node):
         # Use fine categorty for item and attr nodes
