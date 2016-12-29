@@ -399,8 +399,8 @@ class Graph(object):
         '''
         Return a list of unique entities in these utterances for the last n utterances
         '''
-        last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
-        return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
+        #last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
+        #return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
 
         entities = self.entities
         if len(entities) == 0:
