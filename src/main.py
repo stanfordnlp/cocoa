@@ -123,7 +123,7 @@ if __name__ == '__main__':
         evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         with tf.Session(config=config) as sess:
-            tf.initialize_all_variables().run()
+            sess.run(tf.global_variables_initializer())
             print 'Load TF model'
             start = time.time()
             saver = tf.train.Saver()
