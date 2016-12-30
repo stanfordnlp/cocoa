@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 __author__ = 'anushabala'
 from src.basic.event import Event
 from src.basic.dataset import Example
@@ -47,12 +49,57 @@ def get_speech_acts(summary_map, event, utterance):
             if not inform and not answer:
                 logstats.update_summary_map(summary_map, {'other': 1})
 
+
+def get_unique_values(kb):
+    unique_vals = {}
+    for attr in kb.attributes:
+        attr_vals = set()
+        for item in kb.items:
+            attr_vals.add(item[attr.name])
+        unique_vals[attr.value_type] = attr_vals
+    return unique_vals
+
+
+def get_kb_strategy(kbs, dialog):
+    kb_unique_vals = [get_unique_values(kbs[0]), get_unique_values(kbs[1])]
+    kb_attributes = {attr.value_type for attr in kbs[0].attributes}
+    attribute_agents = {}
+    attribute_order = []
+    for agent, utterance in dialog:
+        for token in utterance:
+            if is_entity(token):
+                attr_type = token[1][1]
+                if attr_type in kb_attributes and attr_type not in attribute_agents.keys():
+                    attribute_agents[attr_type] = agent
+                    attribute_order.append(attr_type)
+
+    labeled_order = []
+    for attr_type in attribute_order:
+        agent = attribute_agents[attr_type]
+        unique_vals = kb_unique_vals[agent]
+        num_unique_vals = {attr_type: len(unique_vals[attr_type]) for attr_type in unique_vals.keys()}
+        sorted_unique_vals = list(sorted(list({t for t in num_unique_vals.values()})))
+        pos = sorted_unique_vals.index(num_unique_vals[attr_type])
+        label = 'medium'
+        if pos == 0:
+            label = 'least_uniform'
+        elif pos == len(kbs[agent].attributes) - 1:
+            label = 'most_uniform'
+        labeled_order.append(label)
+
+    return labeled_order
+
+
 def analyze_strategy(all_chats, scenario_db, preprocessor):
     speech_act_summary_map = {}
+    kb_strategy_summary_map = {}
     total_events = 0
     for raw in all_chats:
         ex = Example.from_dict(scenario_db, raw)
         kbs = ex.scenario.kbs
+        if ex.outcome is None or ex.outcome["reward"] == 0:
+            continue  # skip incomplete dialogues
+        dialog = []
         for event in ex.events:
             if event.action == 'select':
                 utterance = None
@@ -63,16 +110,29 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
                     continue
                 else:
                     utterance = utterance[0]
+                    dialog.append((event.agent, utterance))
             else:
                 raise ValueError('Unknown event action %s.' % event.action)
 
             total_events += 1
             # All analysis
             get_speech_acts(speech_act_summary_map, event, utterance)
+        orders = tuple(get_kb_strategy(kbs, dialog))
+        if len(orders) not in kb_strategy_summary_map.keys():
+            kb_strategy_summary_map[len(orders)] = {}
+
+        if orders not in kb_strategy_summary_map[len(orders)].keys():
+            kb_strategy_summary_map[len(orders)][orders] = 0.0
+
+        kb_strategy_summary_map[len(orders)][tuple(orders)] += 1.0
+
 
     # Summarize stats
     total = float(total_events)
-    return {'speech_act': {k: speech_act_summary_map[k]['sum'] / total for k in ('question', 'inform', 'answer', 'other', 'select')}}
+    kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
+    return {'speech_act': {k: speech_act_summary_map[k]['sum'] / total for k in ('question', 'inform', 'answer', 'other', 'select') if k in speech_act_summary_map.keys()},
+            'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()}}
+
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
     total_time_taken = 0.0
@@ -291,4 +351,21 @@ def plot_num_items_stats(stats, save_path):
 
     plt.legend(loc='best')
     plt.savefig(save_path)
+
+
+def print_strategy_stats(stats):
+    speech_act_stats = stats['speech_act']
+    kb_strategy_stats = stats['kb_strategy']
+
+    print 'Speech act statistics:'
+    for act_type, frac in sorted([(a, b) for a,b in speech_act_stats.items()], key=lambda x:x[1], reverse=True):
+        print '%% %s: %2.3f' % (act_type, frac)
+
+    print "-----------------------------------"
+    print "KB attribute-based strategy statistics:"
+    for num_attrs, v in kb_strategy_stats.items():
+        print "Number of attributes mentioned: %d" % num_attrs
+        for order, frac in sorted([(a, b) for a, b in v.items()], key=lambda x: x[1], reverse=True):
+            print "\t%s: %2.3f" % (order, frac)
+
 
