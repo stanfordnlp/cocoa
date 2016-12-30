@@ -36,7 +36,7 @@ def log_events_to_json(scenario_db, db_path, json_path):
                 data = KB.string_to_item(data)
             event = Event(agent, time, action, data, start_time)
             chat_events.append(event)
-        ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome)
+        ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id)
         examples.append(ex)
 
     outfile = open(json_path, 'w')
