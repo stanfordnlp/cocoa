@@ -77,6 +77,7 @@
     window.onload = function(){
         questionAnswers["uuid"] = {{ uuid|safe|tojson}};
         questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
+        console.log("AGENT: " + questionAnswers["agent_id"]);
     }
 
 </script>
@@ -86,7 +87,7 @@
     <div class="wrapper" >
         <header>
             <h1><b>Instructions</b></h1> <br>
-               <span style="text-align:center;"> Below you will be given a dialogue that happened between two agents, <strong>Agent 0</strong> and <strong>Agent 1 </strong>
+               <span style="text-align:center;"> Below you will be given a dialogue that happened between two agents, <strong>Agent 1</strong> and <strong>Agent 2</strong>
                    Your task is to answer the questions that follow with regards to the agents in the dialogue presented.</span> <br> <br>
 
                 <ul style="margin-left: 30px;">
@@ -97,11 +98,11 @@
 
         <!-- KBs for dialogue -->
         <div class="kb">
-        <table align="middle" border="1" style="width: 100%">
+        <table align="middle" border="1" style="width: 100%" >
             {% if agent_id == 0 %}
-            <caption> <strong> Agent 0 Info </strong></caption>
-            {% else %}
             <caption> <strong> Agent 1 Info </strong></caption>
+            {% else %}
+            <caption> <strong> Agent 2 Info </strong></caption>
             {% endif %}
         <tr>
             {% for name in column_names %}
@@ -125,9 +126,9 @@
         <div class="dialogue">
             {% for turn in dialogue %}
                 {% if turn.agent == agent_id %}
-                <p> <span style="color:green"><strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</span></p>
+                <p> <span style="color:darkred"><strong>Agent {{turn.agent + 1}}:   </strong> {{turn.data}}</span></p>
                 {% else %}
-                <p> <strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</p>
+                <p> <strong>Agent {{turn.agent + 1}}:   </strong> {{turn.data}}</p>
                 {% endif %}
             {% endfor %}
 
@@ -136,56 +137,59 @@
 
         <!-- TODO: CHANGE FORMAT OF ANSWERS -->
         <!-- Agent questions -->
-        <div class="q">
-            How human-like is Agent {{agent_id}}? (5 is most human-like and 0 is least human-like)
-            <form id="humanlike">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
 
-        <br>
+         <div class="q">
 
-        <div class="q">
-            How factually-correct is Agent {{agent_id}}? (5 is most correct and 0 is least correct)
-            <form id="correct">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
-
-        <br>
-
-        <div class="q">
-            How strategic is Agent {{agent_id}}? (5 is most strategic and 0 is least strategic)
-            <form id="strategic">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
-
-        <br>
-
-        <div class="q">
-
-            How fluent is Agent {{agent_id}}? (5 is most fluent and 0 is least fluent)
+            How fluent is Agent {{agent_id + 1}}? <br>
             <form id="fluent">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
+            <div><input type="radio" name="answer" value="1"> very non-fluent </div>
+            <div><input type="radio" name="answer" value="2"> somewhat non-fluent </div>
+            <div><input type="radio" name="answer" value="3"> in the middle </div>
+            <div><input type="radio" name="answer" value="4"> somewhat fluent </div>
+            <div><input type="radio" name="answer" value="5"> very fluent </div><br>
             </form>
         </div>
+
+        <br>
+
+        <div class="q">
+            How factually-correct is Agent {{agent_id + 1}}?
+            <form id="correct">
+            <input type="radio" name="answer" value="1"> very non-factually-correct
+            <input type="radio" name="answer" value="2"> somewhat non-factually-correct
+            <input type="radio" name="answer" value="3"> in the middle
+            <input type="radio" name="answer" value="4"> somewhat factually-correct
+            <input type="radio" name="answer" value="5"> very factually-correct
+            </form>
+        </div>
+
+        <br>
+
+        <div class="q">
+            How strategic is Agent {{agent_id + 1}}?
+            <form id="strategic">
+            <input type="radio" name="answer" value="1"> very non-strategic
+            <input type="radio" name="answer" value="2"> somewhat non-strategic
+            <input type="radio" name="answer" value="3"> in the middle
+            <input type="radio" name="answer" value="4"> somewhat strategic
+            <input type="radio" name="answer" value="5"> very strategic
+            </form>
+        </div>
+
+        <br>
+
+        <div class="q">
+            How human-like is Agent {{agent_id + 1}}?
+            <form id="humanlike">
+            <input type="radio" name="answer" value="1"> very non-human-like
+            <input type="radio" name="answer" value="2"> somewhat non-human-like
+            <input type="radio" name="answer" value="3"> in the middle
+            <input type="radio" name="answer" value="4"> somewhat human-like
+            <input type="radio" name="answer" value="5"> very human-like
+            </form>
+        </div>
+
+        <br>
 
         <br>
 

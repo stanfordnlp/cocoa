@@ -50,6 +50,16 @@ header{
 .q{
    border-style: solid;
   border-color: darkred;
+  border-width: 8px;
+}
+
+/*.q div {*/
+    /*display: table-cell;*/
+    /*text-align: center;*/
+/*}*/
+
+table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+				content: " \25B4\25BE"
 }
 
 #entities{
@@ -118,6 +128,7 @@ button {
 button:hover, button:focus {
   box-shadow: inset 0px 0px 10px rgba(255, 255, 255, 1);
   background: #0ae;
+  cursor: pointer;
 }
 
 button:active {
