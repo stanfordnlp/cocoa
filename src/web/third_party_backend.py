@@ -37,8 +37,8 @@ class BackendConnection(object):
         with self.conn:
             cursor = self.conn.cursor()
             now = get_timestamp()
-            cursor.execute("INSERT OR IGNORE INTO ActiveUsers VALUES (?,?,?,?)",
-                           (userid, json.dumps([]), 0, now))
+            cursor.execute("INSERT OR IGNORE INTO ActiveUsers VALUES (?,?,?,?,?)",
+                           (userid, json.dumps([]), json.dumps([]), 0, now))
 
 
     def submit_task(self, userid, scenario_id, results, app):
@@ -53,37 +53,54 @@ class BackendConnection(object):
             cursor = self.conn.cursor()
             now = get_timestamp()
 
+            agent_id = int(results["agent_id"])
+
             # Update ActiveUsers to num_tasks and timestamp
-            cursor.execute("SELECT scenarios_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
-            scenarios_evaluated, prev_num_evals = cursor.fetchone()
-            updated_num_evals = prev_num_evals + 1
+            if agent_id == 0:
+                cursor.execute("SELECT agent0_scenarios_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
+                scenarios_evaluated, prev_num_evals = cursor.fetchone()
+                updated_num_evals = prev_num_evals + 1
 
-            # Update scenarios evaluated
-            scenarios_evaluated = json.loads(scenarios_evaluated)
-            scenarios_evaluated.append(scenario_id)
+                # Update scenarios evaluated
+                scenarios_evaluated = json.loads(scenarios_evaluated)
+                scenarios_evaluated.append(scenario_id)
 
-            cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, scenarios_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
-                                                                                                                               json.dumps(scenarios_evaluated), now, userid))
+                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent0_scenarios_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
+                                                                                                                                   json.dumps(scenarios_evaluated), now, userid))
+            else:
+                cursor.execute("SELECT agent1_scenarios_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
+                scenarios_evaluated, prev_num_evals = cursor.fetchone()
+                updated_num_evals = prev_num_evals + 1
+
+                # Update scenarios evaluated
+                scenarios_evaluated = json.loads(scenarios_evaluated)
+                scenarios_evaluated.append(scenario_id)
+
+                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent1_scenarios_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
+                                                                                                                                   json.dumps(scenarios_evaluated), now, userid))
 
             # Record answers to evaluation
-            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?)", (scenario_id, userid, results["humanlike_0"],
-                                                                                  results["correct_0"], results["strategic_0"],
-                                                                                  results["fluent_0"], results["humanlike_1"],
-                                                                                  results["correct_1"], results["strategic_1"],
-                                                                                  results["fluent_1"]))
+            print "AGENT ID BEFORE RESPONSES: ", agent_id
+            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?)", (scenario_id, userid, agent_id, results["humanlike"],
+                                                                                  results["correct"], results["strategic"],
+                                                                                  results["fluent"]))
             try:
                 # Update number of evals on dialogue
-                cursor.execute("SELECT num_evals FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
-                num_evals = cursor.fetchone()[0]
-                updated_num_evals = num_evals + 1
+                cursor.execute("SELECT num_agent0_evals, num_agent1_evals FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
+                num_agent0_evals, num_agent1_evals = cursor.fetchone()
+                if agent_id == 0:
+                    num_agent0_evals += 1
+                else:
+                    num_agent1_evals += 1
+
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
-                if updated_num_evals == app.config["num_evals_per_dialogue"]:
-                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?)",
-                                   (scenario_id, updated_num_evals, now))
+                if num_agent0_evals == app.config["num_evals_per_dialogue"] and num_agent1_evals == app.config["num_evals_per_dialogue"]:
+                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?)",
+                                   (scenario_id, num_agent0_evals, num_agent1_evals, now))
                     cursor.execute("DELETE FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
                 else:
                     # Update number of evals completed for dialogue
-                    cursor.execute("UPDATE ActiveDialogues SET num_evals=? WHERE scenario_id=?", (updated_num_evals, scenario_id))
+                    cursor.execute("UPDATE ActiveDialogues SET num_agent0_evals=?, num_agent1_evals=? WHERE scenario_id=?", (num_agent0_evals, num_agent1_evals, scenario_id))
 
             except TypeError as e:
                 print "Catching error: ", e
@@ -122,18 +139,25 @@ class BackendConnection(object):
                 cursor.execute("SELECT scenario_id, events, column_names, agent0_kb, agent1_kb FROM ActiveDialogues")
                 dialogues = cursor.fetchall()
 
-                cursor.execute("SELECT scenarios_evaluated FROM ActiveUsers WHERE user_id=?", (userid,))
+                cursor.execute("SELECT agent0_scenarios_evaluated, agent1_scenarios_evaluated FROM ActiveUsers WHERE user_id=?", (userid,))
                 scenarios_evaluated = cursor.fetchone()
                 print scenarios_evaluated
-                scenarios_evaluated = set(json.loads(scenarios_evaluated[0]))
-                print "EVAL: ", scenarios_evaluated
+                agent0_scenarios_evaluated = set(json.loads(scenarios_evaluated[0]))
+                agent1_scenarios_evaluated = set(json.loads(scenarios_evaluated[1]))
+                print "EVALUATED: ", agent0_scenarios_evaluated, "\t", agent1_scenarios_evaluated
                 selected = None
                 for d in dialogues:
                     # Found a dialogue not previously shown to user
-                    if d[0] not in scenarios_evaluated and len(json.loads(d[1])) > 0:
-                        selected = d
+                    if d[0] not in agent0_scenarios_evaluated and len(json.loads(d[1])) > 0:
+                        print "AGENT 0!"
+                        selected = {"agent_id": 0, "uuid": d[0], "events": d[1],
+                                    "column_names": d[2], "kb": d[3]}
                         break
-                #print "Selected: ", selected
+                    if d[0] not in agent1_scenarios_evaluated and len(json.loads(d[1])) > 0:
+                        print "AGENT 1!"
+                        selected = {"agent_id": 1, "uuid": d[0], "events": d[1],
+                                    "column_names": d[2], "kb": d[4]}
+                        break
                 return selected
             except Exception as e:
                 print "Error sampling from DB: ", e

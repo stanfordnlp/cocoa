@@ -31,11 +31,10 @@ def init_database(db_path):
     """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (scenario_id text, user_id text, humanlike_0 text, correct_0 text, strategic_0 text, fluent_0 text,
-              humanlike_1 text, correct_1 text, strategic_1 text, fluent_1 text)""")
-    c.execute("""CREATE TABLE ActiveDialogues (scenario_id text unique, events text, column_names text, agent0_kb text, agent1_kb text, num_evals integer)""")
-    c.execute("""CREATE TABLE CompletedDialogues(scenario_id text, num_evals integer, timestamp text)""")
-    c.execute("""CREATE TABLE ActiveUsers (user_id text unique, scenarios_evaluated text, num_evals_completed integer, timestamp text)""")
+    c.execute("""CREATE TABLE Responses (scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, fluent text)""")
+    c.execute("""CREATE TABLE ActiveDialogues (scenario_id text unique, events text, column_names text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
+    c.execute("""CREATE TABLE CompletedDialogues(scenario_id text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
+    c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_scenarios_evaluated text, agent1_scenarios_evaluated text, num_evals_completed integer, timestamp text)""")
     c.execute("""CREATE TABLE CompletedUsers (user_id text, mturk_code text, timestep text, num_evals_completed integer)""")
     conn.commit()
     conn.close()
@@ -66,16 +65,14 @@ def init_dialogues(db_path):
         uuid = scenario["uuid"]
         uuid_to_scenario[uuid] = scenario
 
-    # Mapping from id -> examples
-    #idx_to_examples = {idx: ex for idx, ex in enumerate(examples)}
 
     for ex in examples:
         uuid = ex["scenario_uuid"]
         scenario = uuid_to_scenario[uuid]
         kbs = scenario["kbs"]
-        agent0_kb = kbs[0] #
-        agent1_kb = kbs[1] #
-        column_names = agent1_kb[0].keys() #
+        agent0_kb = kbs[0]
+        agent1_kb = kbs[1]
+        column_names = agent1_kb[0].keys()
 
         # Get events for example
         events = ex["events"]
@@ -86,9 +83,9 @@ def init_dialogues(db_path):
             if event["action"] == "message":
                 msg_events.append(event)
 
-        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?) """,
+        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?) """,
             (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps(agent0_kb),
-            json.dumps(agent1_kb), 0))
+            json.dumps(agent1_kb), 0, 0))
 
     conn.commit()
     conn.close()
@@ -141,14 +138,12 @@ def index():
     num_evals_completed = backend.get_num_evals_completed(userid())
     if num_evals_completed < app.config["num_evals_per_worker"]:
         dialogue = backend.get_dialogue(userid())
-
-        # TODO: Fix error in order of msg event displays
         return render_template("third_party_eval.html",
-                               dialogue=json.loads(dialogue[1]),
-                               uuid=dialogue[0],
-                               column_names=json.loads(dialogue[2]),
-                               kb0=json.loads(dialogue[3]),
-                               kb1=json.loads(dialogue[4])
+                               dialogue=json.loads(dialogue["events"]),
+                               agent_id=dialogue["agent_id"],
+                               uuid=dialogue["uuid"],
+                               column_names=json.loads(dialogue["column_names"]),
+                               kb=json.loads(dialogue["kb"]),
                                )
     else:
         mturk_code = backend.get_finished_info(userid())

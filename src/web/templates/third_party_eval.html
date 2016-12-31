@@ -14,29 +14,20 @@
 
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
-        human0Val = $('input[type=radio]:checked', '#humanlike0').val();
-        correct0Val = $('input[type=radio]:checked', '#correct0').val();
-        strategic0Val = $("input[type=radio]:checked", "#strategic0").val();
-        fluent0Val = $("input[type=radio]:checked", "#fluent0").val();
+        humanVal = $('input[type=radio]:checked', '#humanlike').val();
+        correctVal = $('input[type=radio]:checked', '#correct').val();
+        strategicVal = $("input[type=radio]:checked", "#strategic").val();
+        fluentVal = $("input[type=radio]:checked", "#fluent").val();
 
-        human1Val = $('input[type=radio]:checked', '#humanlike1').val();
-        correct1Val = $('input[type=radio]:checked', '#correct1').val();
-        strategic1Val = $("input[type=radio]:checked", "#strategic1").val();
-        fluent1Val = $("input[type=radio]:checked", "#fluent1").val();
-
-        if (human0Val == null | correct0Val == null | strategic0Val == null | fluent0Val == null | human1Val == null | correct1Val == null | strategic1Val == null | fluent1Val == null){
+        if (humanVal == null | correctVal == null | strategicVal == null | fluentVal == null){
             return false;
         }
         else{
-            questionAnswers["humanlike_0"] = human0Val;
-            questionAnswers["correct_0"] = correct0Val;
-            questionAnswers["strategic_0"] = strategic0Val;
-            questionAnswers["fluent_0"] = fluent0Val;
+            questionAnswers["humanlike"] = humanVal;
+            questionAnswers["correct"] = correctVal;
+            questionAnswers["strategic"] = strategicVal;
+            questionAnswers["fluent"] = fluentVal;
 
-            questionAnswers["humanlike_1"] = human1Val;
-            questionAnswers["correct_1"] = correct1Val;
-            questionAnswers["strategic_1"] = strategic1Val;
-            questionAnswers["fluent_1"] = fluent1Val;
             return true;
         }
     }
@@ -85,6 +76,7 @@
 
     window.onload = function(){
         questionAnswers["uuid"] = {{ uuid|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
     }
 
 </script>
@@ -106,43 +98,24 @@
         <!-- KBs for dialogue -->
         <div class="kb">
         <table align="middle" border="1" style="width: 100%">
+            {% if agent_id == 0 %}
             <caption> <strong> Agent 0 Info </strong></caption>
-        <tr>
-            {% for name in column_names %}
-            <th>{{name}}</th>
-            {% endfor %}
-        </tr>
-        {% for row in kb0 %}
-        <tr>
-            {% for name, value in row.items()%}
-            <td> {{value}}</td>
-            {% endfor %}
-        </tr>
-        {% endfor %}
-            </table>
-            </div>
-
-        <br>
-
-        <div class="kb">
-        <table align="middle" border="1"  style="width: 100%">
+            {% else %}
             <caption> <strong> Agent 1 Info </strong></caption>
+            {% endif %}
         <tr>
             {% for name in column_names %}
             <th>{{name}}</th>
             {% endfor %}
         </tr>
-        {% for row in kb1 %}
+        {% for row in kb %}
         <tr>
             {% for name, value in row.items()%}
             <td> {{value}}</td>
             {% endfor %}
         </tr>
         {% endfor %}
-
-
         </table>
-
         </div>
 
         <br> <br>
@@ -151,17 +124,21 @@
         <!-- Fill in a dialogue here -->
         <div class="dialogue">
             {% for turn in dialogue %}
+                {% if turn.agent == agent_id %}
+                <p> <span style="color:green"><strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</span></p>
+                {% else %}
                 <p> <strong>Agent {{turn.agent}}:   </strong> {{turn.data}}</p>
-
+                {% endif %}
             {% endfor %}
 
         </div>
         <br>
 
-        <!-- Agent 0 questions -->
+        <!-- TODO: CHANGE FORMAT OF ANSWERS -->
+        <!-- Agent questions -->
         <div class="q">
-            How human-like is Agent 0? (5 is most human-like and 0 is least human-like)
-            <form id="humanlike0">
+            How human-like is Agent {{agent_id}}? (5 is most human-like and 0 is least human-like)
+            <form id="humanlike">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -173,8 +150,8 @@
         <br>
 
         <div class="q">
-            How factually-correct is Agent 0? (5 is most correct and 0 is least correct)
-            <form id="correct0">
+            How factually-correct is Agent {{agent_id}}? (5 is most correct and 0 is least correct)
+            <form id="correct">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -186,8 +163,8 @@
         <br>
 
         <div class="q">
-            How strategic is Agent 0? (5 is most strategic and 0 is least strategic)
-            <form id="strategic0">
+            How strategic is Agent {{agent_id}}? (5 is most strategic and 0 is least strategic)
+            <form id="strategic">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -199,8 +176,9 @@
         <br>
 
         <div class="q">
-            How fluent is Agent 0? (5 is most fluent and 0 is least fluent)
-            <form id="fluent0">
+
+            How fluent is Agent {{agent_id}}? (5 is most fluent and 0 is least fluent)
+            <form id="fluent">
             <input type="radio" name="answer" value="1"> 1<br>
             <input type="radio" name="answer" value="2"> 2<br>
             <input type="radio" name="answer" value="3"> 3 <br>
@@ -211,56 +189,6 @@
 
         <br>
 
-        <!-- Agent 1 questions -->
-        <div class="q">
-            How human-like is Agent 1? (5 is most human-like and 0 is least human-like)
-            <form id="humanlike1">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
-
-        <br>
-
-        <div class="q">
-            How factually-correct is Agent 1? (5 is most correct and 0 is least correct)
-            <form id="correct1">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
-
-        <br>
-
-        <div class="q">
-            How strategic is Agent 1? (5 is most strategic and 0 is least strategic)
-            <form id="strategic1">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
-
-        <br>
-
-        <div class="q">
-            How fluent is Agent 1? (5 is most fluent and 0 is least fluent)
-            <form id="fluent1">
-            <input type="radio" name="answer" value="1"> 1<br>
-            <input type="radio" name="answer" value="2"> 2<br>
-            <input type="radio" name="answer" value="3"> 3 <br>
-            <input type="radio" name="answer" value="4"> 4<br>
-            <input type="radio" name="answer" value="5"> 5<br>
-            </form>
-        </div>
 
         <div class="buttons" style="text-align:center;">
          <button type="button" id="submit" >Submit HIT!</button>
