@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 __author__ = 'anushabala'
 from src.basic.event import Event
 from src.basic.dataset import Example
@@ -9,6 +7,9 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from src.lib import logstats
 from src.model.vocab import is_entity
+from collections import defaultdict
+from itertools import izip
+import random
 
 
 date_fmt = '%Y-%m-%d %H-%M-%S'
@@ -26,29 +27,37 @@ def is_inform(tokens):
             return True
     return False
 
-def is_answer(tokens):
+def match_keywords(tokens):
+    types = []
     for token in tokens:
         if token in ('yes', 'yep', 'yeah', 'no', 'nope', 'none'):
-            return True
-    return False
+            types.append('answer')
+        elif token in ('hi', 'hello', 'hey', 'hiya', 'howdy'):
+            types.append('greeting')
+        elif token in ('sorry',):
+            types.append('apology')
+    return types
 
-def get_speech_acts(summary_map, event, utterance):
+def get_speech_act(summary_map, event, utterance):
+    act = []
     if event.action == 'select':
-        logstats.update_summary_map(summary_map, {'select': 1})
+        act.append('select')
     elif event.action == 'message':
         if is_question(utterance):
-            logstats.update_summary_map(summary_map, {'question': 1})
+            act.append('question')
         else:
             # NOTE: inform and answer are not exclusive, e.g. no, I have 3 apple.
             inform = is_inform(utterance)
-            answer = is_answer(utterance)
+            other_acts = match_keywords(utterance)
             if inform:
-                logstats.update_summary_map(summary_map, {'inform': 1})
-            if answer:
-                logstats.update_summary_map(summary_map, {'answer': 1})
-            if not inform and not answer:
-                logstats.update_summary_map(summary_map, {'other': 1})
-
+                act.append('inform')
+            act.extend(other_acts)
+    if len(act) == 0:
+        act = ('other',)
+    else:
+        act = tuple(sorted(list(set(act))))
+    summary_map[act] += 1
+    return act
 
 def get_unique_values(kb):
     unique_vals = {}
@@ -65,13 +74,12 @@ def get_kb_strategy(kbs, dialog):
     kb_attributes = {attr.value_type for attr in kbs[0].attributes}
     attribute_agents = {}
     attribute_order = []
-    for agent, utterance in dialog:
-        for token in utterance:
-            if is_entity(token):
-                attr_type = token[1][1]
-                if attr_type in kb_attributes and attr_type not in attribute_agents.keys():
-                    attribute_agents[attr_type] = agent
-                    attribute_order.append(attr_type)
+    for agent, _, entities, _ in dialog:
+        for token in entities:
+            attr_type = token[1]
+            if attr_type in kb_attributes and attr_type not in attribute_agents.keys():
+                attribute_agents[attr_type] = agent
+                attribute_order.append(attr_type)
 
     labeled_order = []
     for attr_type in attribute_order:
@@ -89,10 +97,76 @@ def get_kb_strategy(kbs, dialog):
 
     return labeled_order
 
+def abstract_entity(dialog):
+    #entity_map = {0: {}, 1: {}}
+    entity_map = {}
+    new_dialog = []
+    for agent, act, entities, utterance in dialog:
+        #m = entity_map[agent]
+        m = entity_map
+        for entity in entities:
+            if entity not in m:
+                m[entity] = len(m)
+        new_dialog.append((agent, act, tuple([m[e] for e in entities]), utterance))
+    return new_dialog
+
+START = '<s>'
+END = '</s>'
+utterance_map = {START: 0, 0: START, END: 1, 1: END}
+
+examples = defaultdict(list)
+
+def print_example(name, n):
+    print 'Examples for', name
+    try:
+        exs = examples[name]
+        for ex in random.sample(exs, min(n, len(exs))):
+            print ex
+    except KeyError:
+        print 'No example for', name
+
+def map_utterance(dialog):
+    '''
+    Convert a list of events/utterances to integers.
+    '''
+    utterances = [utterance_map[START]]
+    for agent, act, ents, utterance in dialog:
+        u = (act, ents)
+        if u not in utterance_map:
+            id_ = len(utterance_map)
+            utterance_map[u] = id_
+            utterance_map[id_] = u
+        utterances.append(utterance_map[u])
+        examples[u].append(utterance)
+    utterances.append(utterance_map[END])
+    return utterances
+
+def get_dialog_stats(summary_map, utterance_counts, dialog):
+    num_entities = 0
+    num_entity_types = 0
+    for agent, act, ents, utterance in dialog:
+        num_ents = len(ents)
+        num_types = len(set(ents))
+        num_entities += num_ents
+        num_entity_types += num_types
+        if num_ents > 0:
+            logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_ents > 1 else 0})
+            logstats.update_summary_map(summary_map, {'repeated_entity_per_entity_utterance': 1 if num_ents > num_types else 0})
+            if num_ents > num_types:
+                examples['repeated_entity_per_entity_utterance'].append(utterance)
+
+    logstats.update_summary_map(summary_map, {'num_entity_per_dialog': num_entities, 'num_entity_type_per_dialog': num_entity_types})
+
+    dialog = abstract_entity(dialog)
+    int_utterances = map_utterance(dialog)
+    for a, b in izip(int_utterances, int_utterances[1:]):
+        utterance_counts[a][b] += 1
 
 def analyze_strategy(all_chats, scenario_db, preprocessor):
-    speech_act_summary_map = {}
+    speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
+    dialog_summary_map = {}
+    utterance_counts = defaultdict(lambda : defaultdict(int))
     total_events = 0
     for raw in all_chats:
         ex = Example.from_dict(scenario_db, raw)
@@ -102,7 +176,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
         dialog = []
         for event in ex.events:
             if event.action == 'select':
-                utterance = None
+                utterance = []
             elif event.action == 'message':
                 utterance = preprocessor.process_event(event, kbs[event.agent])
                 # Skip empty utterances
@@ -110,13 +184,17 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
                     continue
                 else:
                     utterance = utterance[0]
-                    dialog.append((event.agent, utterance))
             else:
                 raise ValueError('Unknown event action %s.' % event.action)
 
             total_events += 1
-            # All analysis
-            get_speech_acts(speech_act_summary_map, event, utterance)
+
+            speech_act = get_speech_act(speech_act_summary_map, event, utterance)
+            entities = [x[1] for x in utterance if is_entity(x)]
+            dialog.append((event.agent, speech_act, entities, utterance))
+
+        get_dialog_stats(dialog_summary_map, utterance_counts, dialog)
+
         orders = tuple(get_kb_strategy(kbs, dialog))
         if len(orders) not in kb_strategy_summary_map.keys():
             kb_strategy_summary_map[len(orders)] = {}
@@ -130,8 +208,11 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
-    return {'speech_act': {k: speech_act_summary_map[k]['sum'] / total for k in ('question', 'inform', 'answer', 'other', 'select') if k in speech_act_summary_map.keys()},
-            'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()}}
+    return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
+            'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
+            'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
+            'utterance_counts': utterance_counts,
+            }
 
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
@@ -352,14 +433,71 @@ def plot_num_items_stats(stats, save_path):
     plt.legend(loc='best')
     plt.savefig(save_path)
 
+def get_topk_utterance(n, items):
+    total = float(sum([x[1] for x in items]))
+    sorted_counts = sorted(items, key=lambda x: x[1], reverse=True)
+    result = []
+    for k, v in sorted_counts[:n]:
+        if isinstance(k, tuple):
+            item = (tuple([utterance_map[x] for x in k]), v / total)
+        else:
+            item = (utterance_map[k], v / total)
+        result.append(item)
+    return result, len(sorted_counts), sum([x[1] for x in result])
+
+def get_initial_utterance(n, counts):
+    start = utterance_map[START]
+    init_counts = counts[start]
+    return get_topk_utterance(n, init_counts.items())
+
+def get_unigram_utterance(n, counts):
+    start = utterance_map[START]
+    unigram_counts = [(k, sum(v.values())) for k, v in counts.iteritems() if k != start]
+    return get_topk_utterance(n, unigram_counts)
+
+def get_bigram_utterance(n, counts):
+    bigram_counts = [((k1, k2), v) for k1, d in counts.iteritems() for k2, v in d.iteritems()]
+    return get_topk_utterance(n, bigram_counts)
 
 def print_strategy_stats(stats):
     speech_act_stats = stats['speech_act']
+    dialogue_stats = stats['dialog_stats']
     kb_strategy_stats = stats['kb_strategy']
+    utterance_counts = stats['utterance_counts']
 
+    print "-----------------------------------"
     print 'Speech act statistics:'
     for act_type, frac in sorted([(a, b) for a,b in speech_act_stats.items()], key=lambda x:x[1], reverse=True):
         print '%% %s: %2.3f' % (act_type, frac)
+
+    print "-----------------------------------"
+    print 'Dialogue statistics:'
+    for k, v in dialogue_stats.iteritems():
+        print '%s: %.3f' % (k, v)
+    print_example('repeated_entity_per_entity_utterance', 3)
+
+    k = 5
+    utterances, total, frac = get_initial_utterance(k, utterance_counts)
+    print "-----------------------------------"
+    print 'Top %d/%d/%.2f initial utterances:' % (k, total, frac)
+    for u, frac in utterances:
+        print '%s: %.3f' % (u, frac)
+
+    k = 10
+    utterances, total, frac = get_unigram_utterance(k, utterance_counts)
+    print "-----------------------------------"
+    print 'Top %d/%d/%.2f unigram utterances:' % (k, total, frac)
+    for u, frac in utterances:
+        print '%s: %.3f' % (u, frac)
+        print_example(u, 2)
+
+    utterances, total, frac = get_bigram_utterance(k, utterance_counts)
+    print "-----------------------------------"
+    print 'Top %d/%d/%.2f bigram utterances:' % (k, total, frac)
+    for u, frac in utterances:
+        print '%s, %s: %.3f' % (u[0], u[1], frac)
+
+    return
 
     print "-----------------------------------"
     print "KB attribute-based strategy statistics:"
