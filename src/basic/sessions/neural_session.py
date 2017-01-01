@@ -155,6 +155,8 @@ class RNNNeuralSession(NeuralSession):
         return [x if not is_entity(x) else x[0] for x in entity_tokens]
 
     def _is_valid(self, tokens):
+        if not tokens:
+            return False
         if tokens[0] == markers.SELECT:
             if len(tokens) > 1 and isinstance(tokens[1], tuple) and tokens[1][0].startswith('item-'):
                 item_id = int(tokens[1][0].split('-')[1])
