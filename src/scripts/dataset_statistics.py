@@ -6,9 +6,6 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
-
-
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
     total_time_taken = 0.0
     total_complete = 0.0
@@ -26,14 +23,14 @@ def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
                 if type(events[0].time) is int:
                     total_time_taken = events[-1].time - events[0].time
                 else:
-                    start_time = datetime.strptime(events[0].time, date_fmt)
-                    end_time = datetime.strptime(events[-1].time, date_fmt)
+                    start_time = datetime.fromtimestamp(float(events[0].time))
+                    end_time = datetime.fromtimestamp(float(events[-1].time))
                     total_time_taken += (end_time-start_time).seconds
 
                 if isinstance(events[0].time, str):
                     try:
-                        start_time = datetime.strptime(events[0].time, date_fmt)
-                        end_time = datetime.strptime(events[-1].time, date_fmt)
+                        start_time = datetime.fromtimestamp(float(events[0].time))
+                        end_time = datetime.fromtimestamp(float(events[-1].time))
                         total_time_taken += (end_time-start_time).seconds
                     except ValueError:
                         print "Error parsing event times: %s, %s" % (events[0].time, events[-1].time)

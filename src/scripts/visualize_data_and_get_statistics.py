@@ -8,7 +8,6 @@ from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
 import json
 from dataset_statistics import *
-import sqlite3
 
 
 def get_html_for_transcript(chat):
@@ -127,7 +126,6 @@ if __name__ == "__main__":
     parser.add_argument('--plot-item-stats', type=str, default=None,
                         help='If provided, and if --item-stats is specified, plots the relationship between # of items '
                              'and various stats to the provided path.')
-    parser.add_argument('--chat-db', type=str, help='Path to chat DB file')
 
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
