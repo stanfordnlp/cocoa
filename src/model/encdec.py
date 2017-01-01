@@ -602,7 +602,7 @@ class GraphDecoder(GraphEncoder):
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
             probs.append(prob[0])
-            step_preds = self.sampler.sample(logits, prev_words=None, masked_words=selected_items)
+            step_preds = self.sampler.sample(logits, prev_words=None, masked_words=selected_items, select=select)
 
             if generated_word_types is None:
                 generated_word_types = np.zeros([batch_size, logits.shape[2]])
