@@ -45,7 +45,7 @@ def build_model(schema, mappings, args):
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
-        sample_select = None if len(args.decoding) < 3 or args.decoding[2] == 'select' else select
+        sample_select = None if len(args.decoding) < 3 or args.decoding[2] != 'select' else select
     else:
         raise('Unknown decoding method')
 
