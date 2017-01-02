@@ -54,7 +54,7 @@ if __name__ == "__main__":
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
     strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
     print_strategy_stats(strategy_stats)
-    #stats["speech_act"] = strategy_stats['speech_act']
+    stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}
     stats["kb_strategy"] = strategy_stats['kb_strategy']
 
     json.dump(stats, statsfile)

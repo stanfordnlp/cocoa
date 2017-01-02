@@ -99,11 +99,12 @@ def get_kb_strategy(kbs, dialog):
 
 def abstract_entity(dialog):
     #entity_map = {0: {}, 1: {}}
-    entity_map = {}
+    #entity_map = {}
     new_dialog = []
     for agent, act, entities, utterance in dialog:
         #m = entity_map[agent]
-        m = entity_map
+        #m = entity_map
+        m = {}
         for entity in entities:
             if entity not in m:
                 m[entity] = len(m)
@@ -167,6 +168,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
     kb_strategy_summary_map = {}
     dialog_summary_map = {}
     utterance_counts = defaultdict(lambda : defaultdict(int))
+    first_word_counts = defaultdict(int)
     total_events = 0
     for raw in all_chats:
         ex = Example.from_dict(scenario_db, raw)
@@ -174,9 +176,11 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
         if ex.outcome is None or ex.outcome["reward"] == 0:
             continue  # skip incomplete dialogues
         dialog = []
-        for event in ex.events:
+        for i, event in enumerate(ex.events):
             if event.action == 'select':
                 utterance = []
+                if i == 0:
+                    first_word_counts['<select>'] += 1
             elif event.action == 'message':
                 utterance = preprocessor.process_event(event, kbs[event.agent])
                 # Skip empty utterances
@@ -184,6 +188,8 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
                     continue
                 else:
                     utterance = utterance[0]
+                    if i == 0:
+                        first_word_counts[utterance[0]] += 1
             else:
                 raise ValueError('Unknown event action %s.' % event.action)
 
@@ -212,6 +218,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
             'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
             'utterance_counts': utterance_counts,
+            'first_word_counts': first_word_counts,
             }
 
 
@@ -464,6 +471,7 @@ def print_strategy_stats(stats):
     dialogue_stats = stats['dialog_stats']
     kb_strategy_stats = stats['kb_strategy']
     utterance_counts = stats['utterance_counts']
+    first_word_counts = stats['first_word_counts']
 
     print "-----------------------------------"
     print 'Speech act statistics:'
@@ -475,6 +483,15 @@ def print_strategy_stats(stats):
     for k, v in dialogue_stats.iteritems():
         print '%s: %.3f' % (k, v)
     print_example('repeated_entity_per_entity_utterance', 3)
+
+    k = 10
+    print "-----------------------------------"
+    print 'Top %d first words:' % (k,)
+    sorted_words = sorted(first_word_counts.iteritems(), key=lambda x: x[1], reverse=True)
+    total = float(sum([x[1] for x in sorted_words]))
+    for i in xrange(k):
+        word, count = sorted_words[i]
+        print '%s: %.3f' % (word, count / total)
 
     k = 5
     utterances, total, frac = get_initial_utterance(k, utterance_counts)
