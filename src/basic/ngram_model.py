@@ -35,10 +35,12 @@ class ConditionalProbabilityTable(object):
 
 
 class NgramModel(object):
-    def __init__(self, tagged_data, n=7):
+    SKIP_PROBABILITY = 0.2
+    def __init__(self, tagged_data, n, attributes=None):
         self.n = n
+
         self.cpt = ConditionalProbabilityTable()
-        self.learn_ngram_model(tagged_data)
+        self.learn_ngram_model(tagged_data, attributes)
 
     @staticmethod
     def preprocess_tagged_tokens(tagged_utterance):
@@ -54,12 +56,9 @@ class NgramModel(object):
             if not isinstance(token, tuple):
                 new_utterance.append(token)
             else:
-                # print "In preprocess_tagged_tokens:", token
                 _, (_, entity_type, features) = token
                 new_utterance.append((entity_type, tuple(features)))
 
-        # print "Original tagged utterance:", tagged_utterance
-        # print "Preprocessed utterance:", new_utterance
         return new_utterance
 
     def preprocess_tagged_dialog(self, tagged_dialog):
@@ -73,17 +72,18 @@ class NgramModel(object):
             new_dialog.append((agent, self.preprocess_tagged_tokens(utterance)))
         return new_dialog
 
-    def learn_ngram_model(self, tagged_data):
-        for dialog in tagged_data:
-            processed_dialog = self.preprocess_tagged_dialog(dialog)
-            msg_sequence = dialog_to_message_sequence(processed_dialog)
+    def learn_ngram_model(self, tagged_data, attributes=None):
+        for (dialog, ex_attributes) in tagged_data:
+            if (attributes is not None and ex_attributes == attributes) or attributes is None:
+                processed_dialog = self.preprocess_tagged_dialog(dialog)
+                msg_sequence = dialog_to_message_sequence(processed_dialog)
 
-            for i in range(len(msg_sequence)):
-                for j in range(max(0, i - self.n), i+1):
-                    self.cpt[tuple(msg_sequence[j:i])][msg_sequence[i]] += 1
+                for i in range(len(msg_sequence)):
+                    for j in range(max(0, i - self.n), i+1):
+                        self.cpt[tuple(msg_sequence[j:i])][msg_sequence[i]] += 1
 
+        print "Number of keys in n-gram model: %d" % len(self.cpt.data.keys())
         self.cpt.normalize()
-        # self.cpt.dump()
 
     def generate(self, history, preprocess=False):
         """
@@ -104,7 +104,7 @@ class NgramModel(object):
         key = tuple()
         for i in np.arange(min(self.n, len(history)), 0, -1):
             key = tuple(history[max_tokens-i:max_tokens])
-            if self.cpt[key] is not None and len(self.cpt[key]) > 0:
+            if self.cpt[key] is not None and len(self.cpt[key]) > 0 and np.random.random() > self.SKIP_PROBABILITY:
                 break
         return self.cpt.sample(key)
 

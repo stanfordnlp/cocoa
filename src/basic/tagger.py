@@ -22,7 +22,7 @@ class MatchFeatures(Features):
 
 
 class MentionFeatures(Features):
-    Mention = 'MENTION'
+    NoMention = 'NO_MENTION'
     Partner = 'PARTNER'
     Me = 'ME'
 
@@ -37,7 +37,7 @@ class SelectionFeatures(Features):
 
     @classmethod
     def name(cls):
-        return "ITEM_MATCH"
+        return "Selection"
 
 
 MessageFeatures = namedtuple('MessageFeatures', ['Match', 'Mention', 'Selection'])
@@ -45,7 +45,7 @@ message_features = MessageFeatures(Match=MatchFeatures(), Mention=MentionFeature
 
 
 class Tagger(object):
-    _selection_type = 'Selection'
+    SELECTION_TYPE = 'selected_item'
 
     def __init__(self, type_attribute_mappings):
         """
@@ -61,7 +61,7 @@ class Tagger(object):
         ('northwestern', ('northwestern university', 'company')]
         would be tagged as
         ['do', 'you', 'know', 'anyone', 'from',
-        ('northwestern', ('northwestern university', 'company', ('MATCH', 'MATCH', '2')))]
+        ('northwestern', ('northwestern university', 'company', ('MATCH', '2')))]
 
         assuming that the entity 'Northwestern University' matches two items in the current agent's KB.
 
@@ -81,15 +81,18 @@ class Tagger(object):
 
         where feature_tuples is a list of any number of tuples, where each tuple corresponds to a single feature.
         The first element in each feature tuple is the name of the tuple (e.g. 'MATCH' or 'MENTION'). Each subsequent element is a string
-        comprising the value of that feature. Each feature tuple must have length at least 2 (the name of the feature
-        and at least one value).
+        comprising the value of that feature. Each feature tuple must have length 2 (the name of the feature
+        and its value).
 
-        e.g. ('MATCH', 'MATCH', '2') is a feature of type 'MATCH', and the value of the feature is ('MATCH', '2'). In
-        this case, this feature indicates that the entity in question matches 2 items in the KB of the current agent.
+        e.g. ('MATCH', 'NO_MATCH') is a feature of type 'MATCH', and the value of the feature is NO_MATCH. In
+        this case, this feature indicates that the entity in question doesn't match any items in the KB of the current
+        agent.
         """
         kb = scenario.get_kb(agent)
         tagged_utterance = []
         for token in linked_tokens:
+            # if isinstance(token, list):
+            #     token = token[0]
             if not isinstance(token, tuple):
                 tagged_utterance.append(token)
             else:
@@ -106,14 +109,13 @@ class Tagger(object):
         return tagged_utterance
 
     def tag_selection(self, agent, scenario, preprocessed_tokens):
-        str_item = preprocessed_tokens[1]
         # print "In tag_selection"
         # print preprocessed_tokens
         # print str_item
-        item = json.loads(str_item)
+        item = preprocessed_tokens[1]
         kb = scenario.get_kb(agent)
         features = [self.get_selection_features(item, kb)]
-        return [markers.SELECT, (str_item, (str_item, 'item', features)), markers.EOS]
+        return [markers.SELECT, (item, (item, self.SELECTION_TYPE, features)), markers.EOS]
 
     def get_selection_features(self, item, kb):
         if item in kb.items:
@@ -155,9 +157,9 @@ class Tagger(object):
                     if tagged_entity == canonical_entity and tagged_entity_type == entity_type:
                         # print "Found mention by agent {} in {}".format(agent_idx, tagged_message)
                         agent_name = MentionFeatures.Me if agent == agent_idx else MentionFeatures.Partner
-                        return MentionFeatures.name(), MentionFeatures.Mention, agent_name
+                        return MentionFeatures.name(), agent_name
             i += 1
 
             if i == limit:
                 break
-        return None
+        return MentionFeatures.name(), MentionFeatures.NoMention

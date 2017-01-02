@@ -24,7 +24,7 @@ def preprocess_event(event):
         utterance.append(markers.EOS)
         return event.agent, utterance
     elif event.action == 'select':
-        msg = [markers.SELECT, json.dumps(event.data), markers.EOS]
+        msg = [markers.SELECT, event.data, markers.EOS]
         return event.agent, msg
 
 

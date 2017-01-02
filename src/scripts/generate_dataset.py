@@ -37,9 +37,11 @@ if args.random_seed:
 
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
-entity_ranker = EntityRanker(None, args.scenarios_path[0], args.ranker_data, args.transcripts)
-# lexicon = Lexicon(schema, learned_lex=False)
-lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker)
+if args.ranker_data:
+    entity_ranker = EntityRanker(None, args.scenarios_path[0], args.ranker_data, args.transcripts)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker)
+else:
+    lexicon = Lexicon(schema, learned_lex=False)
 
 
 def get_system(name):
@@ -51,7 +53,7 @@ def get_system(name):
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path)
     elif name == 'ngram':
-        return NgramSystem(args.transcripts, args.scenarios_path[0], lexicon, schema)
+        return NgramSystem(args.transcripts, args.scenarios_path[0], lexicon, schema, attribute_specific=False, n=11)
     else:
         raise ValueError('Unknown system %s' % name)
 
@@ -62,6 +64,7 @@ num_examples = args.scenario_offset
 
 summary_map = {}
 def generate_examples(description, examples_path, max_examples, remove_fail):
+    print "Generating data for %s" % description
     global num_examples
     examples = []
     num_failed = 0
@@ -88,7 +91,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
         results = {k: (results0[k] + results1[k]) / 2. for k in results0}
         logstats.add('bot_chat', results)
 
-if args.train_max_examples:
+if args.train_max_examples > 0:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)
-if args.test_max_examples:
+if args.test_max_examples > 0:
     generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.remove_fail)

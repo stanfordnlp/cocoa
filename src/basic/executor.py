@@ -3,7 +3,6 @@ import json
 __author__ = 'anushabala'
 from src.basic.tagger import MentionFeatures, MatchFeatures, SelectionFeatures
 from src.model.preprocess import markers
-import numpy as np
 
 
 class Executor(object):
@@ -11,19 +10,23 @@ class Executor(object):
         self.type_attribute_mappings = type_attribute_mappings
 
     def get_matched_entities(self, entity_type, kb):
-        entities = set()
+        entities = []
         entity_name = self.type_attribute_mappings[entity_type]
         for item in kb.items:
             if entity_name not in item.keys():
                 return []
             name = item[entity_name]
-            entities.add(name)
+            entities.append(name)
 
-        return list(entities)
+        return entities
 
-    def get_mentioned_entities(self, entity_type, current_agent, agent_name, history):
-        entities = {}
-        mentioning_agent_id = current_agent if agent_name == MentionFeatures.Mention else 1 - current_agent
+    def get_mentioned_entities(self, entity_type, current_agent, agent_name, history, limit=5):
+        entities = []
+        if agent_name == MentionFeatures.NoMention:
+            return entities
+
+        mentioning_agent_id = current_agent if agent_name == MentionFeatures.Me else 1 - current_agent
+        i = 0
         for (agent_idx, tagged_message) in reversed(history):
             if agent_idx != mentioning_agent_id:
                 continue
@@ -31,66 +34,69 @@ class Executor(object):
                 if isinstance(token, tuple):
                     raw, (canonical, found_type, _ ) = token
                     if found_type == entity_type:
-                        entities[canonical] = raw
+                        entities.append(canonical)
+            i += 1
+            if i == limit:
+                break
 
         return entities
 
-    def get_selected_item(self, agent, kb, history):
+    def get_selection_candidates(self, agent, kb, history):
         for agent_idx, tagged_message in reversed(history):
             if agent_idx != agent and tagged_message[0] == markers.SELECT:
                 # print "in get_selected_item", tagged_message
-                str_item, (_, _, selection_features) = tagged_message[1]
+                item, (_, _, selection_features) = tagged_message[1]
                 if selection_features[0][1] == SelectionFeatures.KnownItem:
-                    return str_item, str_item
+                    return [item]
 
-        # else select random item from KB
-        idxes = np.arange(len(kb.items))
-        str_item = json.dumps(kb.items[np.random.choice(idxes)])
-        return str_item, str_item
+        # else return all possible candidates (all items in KB)
+        return kb.items
 
-    def get_entity(self, tagged_token, agent, scenario, tagged_history=[]):
-        # print "In get_entity"
+    def get_candidate_entities(self, tagged_token, agent, scenario, tagged_history=[]):
+        """
+        Returns a candidate set of entities that can be generated given the features for the current token and a
+        tagged history of the dialogue so far.
+        :param tagged_token: Tuple of form (entity_type, feature_tuples) where feature_tuples is a list of feature
+        tuples, where each feature tuple contains the feature name and value (see the Tagger class in tagger.py).
+        :param agent: Agent index of the current agent
+        :param scenario: Current scenario (instance of the Scenario class)
+        :param tagged_history: Tagged history of the dialogue so far: a list of tuples of tagged utterances of the
+        form (agent_id, tagged_utterance). If no history is provided, no entities will be found for history-based
+        features (e.g. mention features).
+        :return: A list of candidate entities based on the entity type and features.
+        """
         kb = scenario.get_kb(agent)
         entity_type, features = tagged_token
-        # print "entity type", entity_type
-        # print "features", features
-        matched_entities = {}
-        mentioned_entities = {}
-        for feature_tuple in features:
-            feature_name = feature_tuple[0]
-            if feature_name == SelectionFeatures.name():
-                return self.get_selected_item(agent, kb, tagged_history)
 
-            if feature_name == MatchFeatures.name():
-                val = feature_tuple[1]
-                if val == MatchFeatures.Match:
-                    matched_entities = self.get_matched_entities(entity_type, kb)
+        found_features = {feature_tuple[0]: feature_tuple[1] for feature_tuple in features}
+        if SelectionFeatures.name() in found_features.keys():
+            return self.get_selection_candidates(agent, kb, tagged_history)
 
-            if feature_name == MentionFeatures.name():
-                agent_name = feature_tuple[2]
-                mentioned_entities = self.get_mentioned_entities(entity_type, agent, agent_name, tagged_history)
+        matched_entities = self.get_matched_entities(entity_type, kb)
 
-        choices = self.get_matched_entities(entity_type, kb)
-        if len(mentioned_entities.keys()) > 0 and len(matched_entities) > 0:
-            # try to find intersection
-            intersection = set(mentioned_entities.keys()).intersection(set(matched_entities))
-            if len(intersection) > 0:
-                choices = list(intersection)
-            else:
-                choices = matched_entities
+        agent_name = found_features[MentionFeatures.name()]
+        mentioned_entities = self.get_mentioned_entities(entity_type, agent, agent_name, tagged_history)
 
-        if len(mentioned_entities.keys()) > 0 and len(matched_entities) == 0:
-            choices = mentioned_entities.keys()
+        if found_features[MatchFeatures.name()] == MatchFeatures.Match and found_features[MentionFeatures.name()] != MentionFeatures.NoMention:
+            # Mention and match features found
+            choices = list(set(mentioned_entities).intersection(set(matched_entities)))
 
-        if len(matched_entities) > 0 and len(mentioned_entities.keys()) == 0:
+        elif found_features[MatchFeatures.name()] == MatchFeatures.Match:
+            # No mention features
             choices = matched_entities
 
-        # print choices
+        elif found_features[MentionFeatures.name()] != MentionFeatures.NoMention:
+            choices = mentioned_entities
+
+        else:
+            # No mention or match features
+            # This should never happen (never generate an entity that isn't in the KB and wasn't previously mentioned
+            choices = []
+
         if len(choices) == 0:
-            return None, None
-        idxes = np.arange(len(choices))
-        i = np.random.choice(idxes)
-        # todo use entityrealizer to return raw and canonical entities
-        chosen = choices[i]
-        return chosen, chosen
+            # If any candidate sets are empty, return None and try to regenerate
+            return None
+
+        return choices
+
 
