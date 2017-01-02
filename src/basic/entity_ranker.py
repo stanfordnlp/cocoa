@@ -33,7 +33,6 @@ class EntityRanker(object):
         self.classifier = self._train(inputs, labels)
 
 
-
     def _train_tfidf_vectorizer(self, data_infile):
         """
         Train a tfidf vectorizer and generate token to tfidf score using provided
@@ -257,6 +256,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # TODO: Refactor so that can use ranker for ranking different scenarios from
+    # TODO: those used for training!
 
     ranker = EntityRanker(args.annotated_examples_path, args.scenarios_json, args.ranker_data, args.transcripts)
 
