@@ -12,8 +12,6 @@ from itertools import izip
 import random
 
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
-
 def is_question(tokens):
     first_word = tokens[0]
     last_word = tokens[-1]
@@ -238,16 +236,12 @@ def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
 
                 if type(events[0].time) is int:
                     total_time_taken = events[-1].time - events[0].time
-                else:
-                    start_time = datetime.strptime(events[0].time, date_fmt)
-                    end_time = datetime.strptime(events[-1].time, date_fmt)
-                    total_time_taken += (end_time-start_time).seconds
 
                 if isinstance(events[0].time, str):
                     try:
-                        start_time = datetime.strptime(events[0].time, date_fmt)
-                        end_time = datetime.strptime(events[-1].time, date_fmt)
-                        total_time_taken += (end_time-start_time).seconds
+                        start_time = float(events[0].time)
+                        end_time = float(events[-1].time)
+                        total_time_taken += (end_time-start_time)
                     except ValueError:
                         print "Error parsing event times: %s, %s" % (events[0].time, events[-1].time)
 
@@ -489,7 +483,7 @@ def print_strategy_stats(stats):
     print 'Top %d first words:' % (k,)
     sorted_words = sorted(first_word_counts.iteritems(), key=lambda x: x[1], reverse=True)
     total = float(sum([x[1] for x in sorted_words]))
-    for i in xrange(k):
+    for i in xrange(min(k, len(sorted_words))):
         word, count = sorted_words[i]
         print '%s: %.3f' % (word, count / total)
 
