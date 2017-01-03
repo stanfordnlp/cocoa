@@ -16,7 +16,6 @@ from flask import Markup
 from uuid import uuid4
 
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -224,7 +223,7 @@ class BackendConnection(object):
                 cursor = self.conn.cursor()
                 row = _create_row(chat_id, event)
 
-                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?)''', row)
+                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?)''', row)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
@@ -609,7 +608,7 @@ class BackendConnection(object):
             # fail silently - this just means that receive is called between the time that the chat has ended and the
             # time that the page is refreshed
             return None
-        controller.step()
+        controller.step(self)
         session = self._get_session(userid)
         return session.poll_inbox()
 
@@ -623,7 +622,7 @@ class BackendConnection(object):
                 item = kb.items[idx]
                 self.send(userid, Event.SelectionEvent(u.agent_index,
                                                        item,
-                                                       datetime.datetime.now().strftime(date_fmt)))
+                                                       str(time.time())))
                 return item
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -637,8 +636,8 @@ class BackendConnection(object):
             # fail silently because this just means that the user tries to send something after their partner has left
             # (but before the chat has ended)
             return None
-        controller.step()
-        self.add_event_to_db(controller.get_chat_id(), event)
+        controller.step(self)
+        # self.add_event_to_db(controller.get_chat_id(), event)
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):

@@ -221,17 +221,19 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
 
 def get_cross_talk(all_chats):
     summary_map = {}
+    is_null = lambda x: x is None or x == 'null'
     for chat in all_chats:
         if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
             events = [Event.from_dict(e) for e in chat["events"]]
             # start_time is not recorded
-            if events[0].start_time is None:
+            if events[0].action != 'select' and is_null(events[0].start_time):
                 continue
             for event1, event2 in izip(events, events[1:]):
                 sent_time = float(event1.time)
-                start_time = float(event2.start_time)
+                # start_time is None for select
+                start_time = float(event2.start_time) if not is_null(event2.start_time) else float(event2.time)
                 cross_talk = 1 if start_time < sent_time else 0
-                logstats.update_summary_map({'cross_talk': cross_talk})
+                logstats.update_summary_map(summary_map, {'cross_talk': cross_talk})
     return summary_map['cross_talk']['mean']
 
 
@@ -420,6 +422,7 @@ def print_group_stats(group_stats):
     print "Average number of utterances: %2.2f" % group_stats['avg_turns']
     print "Average utterance length: %2.2f tokens" % group_stats['avg_sentence_length']
     print "# of completed dialogues: %d" % group_stats['num_completed']
+    print "%% of cross talk: %.2f" % group_stats['cross_talk']
     print 'Total dialogues: %d' % group_stats['total']
 
 
