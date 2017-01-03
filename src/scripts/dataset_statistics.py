@@ -219,6 +219,21 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
             'first_word_counts': first_word_counts,
             }
 
+def get_cross_talk(all_chats):
+    summary_map = {}
+    for chat in all_chats:
+        if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
+            events = [Event.from_dict(e) for e in chat["events"]]
+            # start_time is not recorded
+            if events[0].start_time is None:
+                continue
+            for event1, event2 in izip(events, events[1:]):
+                sent_time = float(event1.time)
+                start_time = float(event2.start_time)
+                cross_talk = 1 if start_time < sent_time else 0
+                logstats.update_summary_map({'cross_talk': cross_talk})
+    return summary_map['cross_talk']['mean']
+
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
     total_time_taken = 0.0
@@ -234,16 +249,12 @@ def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
             if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
                 events = [Event.from_dict(e) for e in chat["events"]]
 
-                if type(events[0].time) is int:
-                    total_time_taken = events[-1].time - events[0].time
-
-                if isinstance(events[0].time, str):
-                    try:
-                        start_time = float(events[0].time)
-                        end_time = float(events[-1].time)
-                        total_time_taken += (end_time-start_time)
-                    except ValueError:
-                        print "Error parsing event times: %s, %s" % (events[0].time, events[-1].time)
+                try:
+                    start_time = float(events[0].time)
+                    end_time = float(events[-1].time)
+                    total_time_taken += (end_time-start_time)
+                except ValueError:
+                    print "Error parsing event times: %s, %s" % (events[0].time, events[-1].time)
 
                 total_complete += 1
     if total_complete == 0:
@@ -361,6 +372,7 @@ def get_total_statistics(all_chats, scenario_db):
         'avg_turns': get_average_sentences(all_chats, scenario_db),
         'avg_sentence_length': get_average_length(all_chats, scenario_db),
         'num_completed': get_num_completed(all_chats, scenario_db),
+        'cross_talk': get_cross_talk(all_chats),
         'total': get_total(all_chats, scenario_db)
     }
 

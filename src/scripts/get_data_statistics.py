@@ -56,6 +56,7 @@ if __name__ == "__main__":
     print_strategy_stats(strategy_stats)
     stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}
     stats["kb_strategy"] = strategy_stats['kb_strategy']
+    stats["dialog_stats"] = strategy_stats['dialog_stats']
 
     json.dump(stats, statsfile)
     statsfile.close()
