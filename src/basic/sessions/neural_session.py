@@ -2,7 +2,7 @@ __author__ = 'anushabala'
 from session import Session
 from src.model.graph import Graph, GraphBatch
 from src.model.preprocess import markers
-from src.model.vocab import is_entity
+from src.model.vocab import is_entity, Vocabulary
 from src.model.evaluate import pred_to_token
 import numpy as np
 import random
@@ -157,6 +157,8 @@ class RNNNeuralSession(NeuralSession):
     def _is_valid(self, tokens):
         if not tokens:
             return False
+        if Vocabulary.UNK in tokens:
+            return False
         if tokens[0] == markers.SELECT:
             if len(tokens) > 1 and isinstance(tokens[1], tuple) and tokens[1][0].startswith('item-'):
                 item_id = int(tokens[1][0].split('-')[1])
@@ -166,6 +168,10 @@ class RNNNeuralSession(NeuralSession):
                     return True
             else:
                 return False
+        else:
+            for token in tokens:
+                if isinstance(token, tuple) and token[0].startswith('item-'):
+                    return False
         return True
 
     def encode(self, entity_tokens):
