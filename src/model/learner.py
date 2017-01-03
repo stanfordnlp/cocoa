@@ -280,7 +280,7 @@ class Learner(object):
                         print 'New best model'
                         best_loss = loss
                         best_saver.save(sess, best_save_path)
-                        logstats.add('best model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss, 'epoch': epoch})
+                        logstats.add('best_model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss, 'epoch': epoch})
 
                 # Early stop when no improvement
                 if (epoch > args.min_epochs and num_epoch_no_impr >= 5) or epoch > args.max_epochs:
