@@ -29,6 +29,9 @@ def add_model_arguments(parser):
     parser.add_argument('--preselect', default=False, action='store_true', help='Pre-select entities before decoding')
     parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
     parser.add_argument('--reward', nargs='+', default=None, help='Reward for selection and success')
+    parser.add_argument('--node-embed-in-rnn-inputs', default=False, action='store_true', help='Add node embedding of entities as inputs to the RNN')
+    parser.add_argument('--no-graph-update', default=False, action='store_true', help='Do not update the KB graph during the dialogue')
+
     add_attention_arguments(parser)
 
 def build_model(schema, mappings, args):
@@ -54,9 +57,17 @@ def build_model(schema, mappings, args):
             reward = [float(x) for x in args.reward]
         else:
             reward = None
-    # Compatible with old models
+    # TODO: (remove this) Compatible with old models
     except AttributeError:
         reward = None
+
+    try:
+        update_graph = (not args.no_graph_update)
+        node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
+    # TODO: (remove this) Compatible with old models
+    except AttributeError:
+        update_graph = True
+        node_embed_in_rnn_inputs = True
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
@@ -69,18 +80,18 @@ def build_model(schema, mappings, args):
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation, learned_decay=args.learned_utterance_decay)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 sup_gate = False
         model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, sup_gate)
     else:
@@ -235,13 +246,15 @@ class GraphEncoder(BasicEncoder):
     '''
     RNN encoder that update knowledge graph at the end.
     '''
-    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False):
+    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, node_embed_in_rnn_inputs=False, update_graph=True):
         super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.graph_embedder = graph_embedder
         self.context_size = self.graph_embedder.config.context_size
         # Id of the utterance matrix to be updated: 0 is encoder utterances, 1 is decoder utterances
         self.utterance_id = 0
         self.bow_utterance = bow_utterance
+        self.node_embed_in_rnn_inputs = node_embed_in_rnn_inputs
+        self.update_graph = update_graph
 
     def _build_graph_variables(self, input_dict):
         if 'utterances' in input_dict:
@@ -281,8 +294,11 @@ class GraphEncoder(BasicEncoder):
         '''
         word_embeddings = word_embedder.embed(self.inputs, zero_pad=True)
         self.word_embeddings = word_embeddings
-        entity_embeddings = self._get_node_embedding(self.context[0], self.entities)
-        inputs = tf.concat(2, [word_embeddings, entity_embeddings])
+        if self.node_embed_in_rnn_inputs:
+            entity_embeddings = self._get_node_embedding(self.context[0], self.entities)
+            inputs = tf.concat(2, [word_embeddings, entity_embeddings])
+        else:
+            inputs = word_embeddings
         if not time_major:
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
         return inputs
@@ -302,6 +318,8 @@ class GraphEncoder(BasicEncoder):
             new_utterances = self.graph_embedder.update_utterance(self.update_entities, self.utterance_embedding, self.utterances, self.utterance_id)
         else:
             new_utterances = self.graph_embedder.update_utterance(self.update_entities, final_output, self.utterances, self.utterance_id)
+        if not self.update_graph:
+            new_utterances = self.utterances
         with tf.variable_scope(tf.get_variable_scope(), reuse=self.graph_embedder.context_initialized):
             context = self.graph_embedder.get_context(new_utterances)
 
@@ -461,8 +479,8 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None):
-        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance)
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None, node_embed_in_rnn_inputs=False, update_graph=True):
+        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance, node_embed_in_rnn_inputs, update_graph)
         self.sampler = Sampler(sample_t, sample_select)
         if reward is not None:
             self.add_reward = True
