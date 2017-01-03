@@ -410,13 +410,10 @@ class BackendConnection(object):
                 if from_mturk:
                     logger.info("Generating mechanical turk code for user %s" % userid[:6])
                     mturk_code = _generate_mturk_code(completed)
-                    message = u.message
-
-                    _add_finished_task_row(cursor, userid, mturk_code, u.chat_id)
-                    return FinishedState(Markup(message), num_seconds, mturk_code)
-
                 else:
-                    return FinishedState(Markup(u.message), num_seconds)
+                    mturk_code = None
+                _add_finished_task_row(cursor, userid, mturk_code, u.chat_id)
+                return FinishedState(Markup(u.message), num_seconds, mturk_code)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")

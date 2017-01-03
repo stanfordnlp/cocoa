@@ -16,6 +16,11 @@ def log_events_to_json(scenario_db, db_path, json_path):
     # c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
     cursor.execute('SELECT DISTINCT chat_id FROM event')
     ids = cursor.fetchall()
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    print(cursor.fetchall())
+    cursor.execute('SELECT * FROM active_user')
+    uids = cursor.fetchall()
+    print uids
 
     examples = []
     for chat_id in ids:
