@@ -52,8 +52,11 @@ if __name__ == "__main__":
     # Speech acts
     lexicon = Lexicon(schema, False)
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
-    speech_act_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
-    stats["speech_act"] = speech_act_stats['speech_act']
+    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
+    print_strategy_stats(strategy_stats)
+    stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}
+    stats["kb_strategy"] = strategy_stats['kb_strategy']
+    stats["dialog_stats"] = strategy_stats['dialog_stats']
 
     json.dump(stats, statsfile)
     statsfile.close()

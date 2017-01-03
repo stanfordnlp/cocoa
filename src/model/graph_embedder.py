@@ -208,15 +208,16 @@ class GraphEmbedder(object):
         utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
         inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
 
-        if self.config.learned_decay:
-            with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
-                weight = tf.expand_dims(tf.sigmoid(linear(utterance, 1, True)), 1)  # (batch_size, 1, 1)
-                if not self.update_initialized:
-                    self.update_initialized = True
-
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
         new_utterance = tf.sparse_to_dense(inds, tf.shape(curr_utterances), utterance, validate_indices=False)
+
+        if self.config.learned_decay:
+            with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
+                weight = tf.sigmoid(batch_linear(tf.concat(2, [curr_utterances, new_utterance]), 1, True))  # (batch_size, num_nodes, 1)
+                if not self.update_initialized:
+                    self.update_initialized = True
+
 
         if self.config.learned_decay:
             return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)

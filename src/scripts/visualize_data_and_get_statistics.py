@@ -1,4 +1,6 @@
+from src.basic.lexicon import Lexicon
 from src.basic.util import read_json
+from src.model.preprocess import Preprocessor
 
 __author__ = 'anushabala'
 
@@ -164,6 +166,13 @@ if __name__ == "__main__":
 
         if args.plot_item_stats is not None:
             plot_num_items_stats(stats_by_num_items, args.plot_item_stats)
+
+    lexicon = Lexicon(schema, False)
+    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
+    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
+    print_strategy_stats(strategy_stats)
+    stats["speech_act"] = strategy_stats['speech_act']
+    stats["kb_strategy"] = strategy_stats['kb_strategy']
 
     json.dump(stats, statsfile)
     statsfile.close()

@@ -1,7 +1,15 @@
 class Event(object):
-    '''
+    """
     An atomic event of a dialogue, which could be someone talking or making a selection.
-    '''
+
+    Params:
+    agent: The index of the agent triggering the event
+    time: Time at which event occurred
+    action: The action this event corresponds to ('select', 'message', ..)
+    data: Any data that is part of the event
+    start_time: The time at which the event action was started (e.g. the time at which an agent starting typing a
+    message to send)
+    """
     def __init__(self, agent, time, action, data, start_time=None):
         self.agent = agent
         self.time = time
@@ -11,9 +19,8 @@ class Event(object):
 
     @staticmethod
     def from_dict(raw):
-        if 'start_time' in raw.keys():
-            return Event(raw['agent'], raw['time'], raw['action'], raw['data'], start_time=raw['start_time'])
-        return Event(raw['agent'], raw['time'], raw['action'], raw['data'])
+        return Event(raw['agent'], raw['time'], raw['action'], raw['data'], start_time=raw.get('start_time'))
+
     def to_dict(self):
         return {'agent': self.agent, 'time': self.time, 'action': self.action, 'data': self.data,
                 'start_time': self.start_time}
