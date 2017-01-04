@@ -17,7 +17,7 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-target-form', choices=['canonical', 'graph'], default='canonical', help='Output entity form to the decoder')
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
+markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='[select]', PAD='<pad>')
 
 def tokenize(utterance):
     '''
