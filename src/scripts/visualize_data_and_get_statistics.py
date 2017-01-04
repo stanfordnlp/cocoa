@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     transcripts = json.load(open(args.transcripts, 'r'))
     if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
         os.makedirs(os.path.dirname(args.html_output))

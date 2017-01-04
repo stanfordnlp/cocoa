@@ -57,7 +57,7 @@ def init_database(db_file):
     c.execute(
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
-    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
+    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
     c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
 
     conn.commit()
@@ -87,7 +87,8 @@ def add_systems(config_dict, schema, lexicon, scenarios_path):
                 model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                model = NeuralSystem(schema, lexicon, path)
+                decoding = info["decoding"].items()[0]
+                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
             elif type == NgramSystem.name():
                 transcripts = info['transcripts']
                 n = info['n']
@@ -200,6 +201,6 @@ if __name__ == "__main__":
         app.config['task_icon'] = params['icon']
     atexit.register(cleanup, flask_app=app)
     print "App setup complete"
-    
+
     server = WSGIServer(('', args.port), app)
     server.serve_forever()

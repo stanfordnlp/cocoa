@@ -2,34 +2,37 @@ class Event(object):
     """
     An atomic event of a dialogue, which could be someone talking or making a selection.
     """
-    def __init__(self, agent, time, action, data, metadata=None):
+    def __init__(self, agent, time, action, data, start_time=None, metadata=None):
         '''
-        Creates a new Event object. The static functions MessageEvent, SelectionEvent, etc. should be used for standard
-        event types.
-        :param agent: The agent that triggered the event
-        :param time: Time at which the event was triggered. This *must* be a UNIX timestamp.
-        :param action: The type of action that the event represents (e.g. 'select', 'message')
-        :param data: The data contained in the event (e.g. the selected item, the message that was sent)
+        Params:
+        agent: The index of the agent triggering the event
+        time: Time at which event occurred
+        action: The action this event corresponds to ('select', 'message', ..)
+        data: Any data that is part of the event
+        start_time: The time at which the event action was started (e.g. the time at which an agent starting typing a
+        message to send)
         :param metadata: Any additional metadata that needs to be stored in the event.
         :return:
         '''
+
         self.agent = agent
         self.time = time
         self.action = action
         self.data = data
+        self.start_time = start_time
         self.metadata = metadata
 
     @staticmethod
     def from_dict(raw):
-        return Event(raw['agent'], raw['time'], raw['action'], raw['data'], raw.get('metadata'))
+        return Event(raw['agent'], raw['time'], raw['action'], raw['data'], start_time=raw.get('start_time'), metadata=raw.get('metadata'))
 
     def to_dict(self):
         return {'agent': self.agent, 'time': self.time, 'action': self.action, 'data': self.data,
-                'metadata': self.metadata}
+                'start_time': self.start_time, 'metadata': self.metadata}
 
     @staticmethod
-    def MessageEvent(agent, data, time=None, metadata=None):
-        return Event(agent, time, 'message', data, metadata)
+    def MessageEvent(agent, data, time=None, start_time=None, metadata=None):
+        return Event(agent, time, 'message', data, start_time=start_time, metadata=metadata)
 
     @staticmethod
     def SelectionEvent(agent, data, time=None, metadata=None):

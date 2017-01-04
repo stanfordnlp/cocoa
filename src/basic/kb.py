@@ -11,6 +11,7 @@ class KB(object):
     def __init__(self, attributes, items):
         self.attributes = attributes
         self.items = items
+        self.entity_set = set([value.lower() for item in items for value in item.values()])
 
     @staticmethod
     def from_dict(attributes, raw):

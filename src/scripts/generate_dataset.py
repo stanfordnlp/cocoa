@@ -11,8 +11,9 @@ from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
 from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.ngram_system import NgramSystem
+# from src.basic.systems.cmd_system import CmdSystem
+from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
 from src.basic.entity_ranker import EntityRanker
@@ -28,8 +29,10 @@ parser.add_argument('--remove-fail', default=False, action='store_true', help='R
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
 parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
+parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
+add_neural_system_arguments(parser)
 add_heuristic_system_arguments(parser)
 args = parser.parse_args()
 logstats.init(args.stats_file)
@@ -44,17 +47,18 @@ if args.ranker_data:
 else:
     lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path[0])
 
-
 def get_system(name):
     if name == 'simple':
-        return SimpleSystem()
+        return SimpleSystem(lexicon)
     elif name == 'heuristic':
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path)
+        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
     elif name == 'ngram':
         return NgramSystem(args.transcripts, args.scenarios_path[0], lexicon, schema, attribute_specific=False, n=11)
+    # elif name == 'cmd':
+    #     return CmdSystem()
     else:
         raise ValueError('Unknown system %s' % name)
 
@@ -85,12 +89,12 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
     print 'number of failed dialogues:', num_failed
 
     logstats.add('length', summary_map['length']['mean'])
-    # TODO: only work for neural agents trained on simulated data
-    if args.agents[0] == args.agents[1] and hasattr(agents[0], 'env'):
-        results0 = agents[0].env.evaluator.report()
-        results1 = agents[1].env.evaluator.report()
-        results = {k: (results0[k] + results1[k]) / 2. for k in results0}
-        logstats.add('bot_chat', results)
+    if args.fact_check:
+        if args.agents[0] == args.agents[1] and hasattr(agents[0], 'env'):
+            results0 = agents[0].env.evaluator.report()
+            results1 = agents[1].env.evaluator.report()
+            results = {k: (results0[k] + results1[k]) / 2. for k in results0}
+            logstats.add('bot_chat', results)
 
 if args.train_max_examples > 0:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)
