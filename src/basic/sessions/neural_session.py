@@ -22,6 +22,7 @@ class NeuralSession(Session):
         self.model = env.model
         self.kb = kb
         self.matched_item = None
+        self.sent_entity = False
         #self.log = open('chat.debug.log', 'a')
         #self.log.write('-------------------------------------\n')
 
@@ -54,7 +55,6 @@ class NeuralSession(Session):
         entity_tokens += [markers.EOS]
 
         self.encode(entity_tokens)
-
         self.sent_entity = False
 
     def _has_entity(self, tokens):
