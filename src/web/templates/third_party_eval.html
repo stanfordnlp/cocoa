@@ -96,11 +96,39 @@
     <div class="wrapper" >
         <header>
             <h1><b>Instructions</b></h1> <br>
-               <span style="text-align:center;"> Below you will be given a dialogue that happened between two agents, <strong>Agent 1</strong> and <strong>Agent 2</strong>
-                   Your task is to answer the questions that follow with regards to the agents in the dialogue presented.</span> <br> <br>
+               Below you will be given a dialogue that happened between two agents, <strong>Agent 1</strong> and <strong>Agent 2</strong>.
+                   In this dialogue, the two agents each know 10 different people. <strong>Agent 1 </strong> does not know which 10 people <strong>Agent 2</strong>
+                   knows, but <strong>Agent 1</strong> does know that she has one friend in common with <strong>Agent 2</strong>. In this dialogue
+                   the two agents are collectively trying to find out which friend they have in common, by discussing information about their respective friends. <br> <br>
 
-                <ul style="margin-left: 30px;">
-                </ul>
+                   Below you are also given the friends info from one of the agents. Your job is to answer the questions
+                   that follow the dialogue about this agent's behavior in the dialogue. We present a short description of
+                   each of the attributes we will be asking about: <br> <br>
+                   <ul style="margin-left: 30px;">
+                        <li>
+                            <span style="color:blue"><strong>FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent sound? If the agent says
+                            things like <i>Friend the is college</i>, that is <strong>very not fluent</strong>, but if they are saying things like
+                            <i>Most of my friends went to Ohio State</i>, this is <strong>very fluent</strong>.
+                        </li><br>
+                        <li>
+                            <span style="color:blue"><strong>FACTUALLY-CORRECT</strong></span>: How consistent are the statements made by the agent with their friends information? In other words,
+                            are they lying. For example, if the agent is saying things like <i>I have a friend that studied biology</i> but none of their friends
+                            studied biology, the agent is <strong>not very correct</strong>.
+                        </li><br>
+                       <li>
+                            <span style="color:blue"><strong>STRATEGIC</strong></span>: How useful are the statements made by the agent? Since the two agents
+                           are trying to find their friend in common as quickly as possible, how good do the questions asked by the agent
+                           seem or how appropriate are the agent's answers to the other agent's questions. For example, if the agent
+                           has no friends that worked at McKinsey but they ask <i>How many of your friends worked at McKinsey</i>, they
+                           are <strong>not very strategic</strong>.
+                       </li> <br>
+                       <li>
+                           <span style="color:blue"><strong>HUMAN-LIKE</strong></span>: If you were talking to this agent, would you be convinced that it is a human? Many
+                           of these dialogues were conducted between two Amazon Mechanical Turkers, so would you believe that the agent below
+                           is a Turker?
+                       </li>
+                   </ul>
+
         </header>
         <br>
         <br>
@@ -109,9 +137,9 @@
         <div class="kb">
         <table align="middle" border="1" style="width: 100%" >
             {% if agent_id == 0 %}
-            <caption> <strong> Agent 1 Info </strong></caption>
+            <caption> <strong> Agent 1 Friends Info </strong></caption>
             {% else %}
-            <caption> <strong> Agent 2 Info </strong></caption>
+            <caption> <strong> Agent 2 Friends Info </strong></caption>
             {% endif %}
         <tr>
             {% for name in column_names %}
@@ -151,7 +179,7 @@
             <p style="text-align:center;">How <strong>fluent</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_f">
                 <p style="float:left;">Not very fluent  </p>
-                <input type="range" id="fluent" min="1" max="5" style="width:60%;" >
+                <input type="range" id="fluent" min="1" max="5" style="width:40%;" >
                 <p style="float:right;">Very fluent</p>
             <!--<div><input type="radio" name="answer" value="1"> very non-fluent </div>-->
             <!--<div><input type="radio" name="answer" value="2"> somewhat non-fluent </div>-->
@@ -167,7 +195,7 @@
            <p style="text-align:center;">How <strong>factually-correct</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_c">
                 <p style="float:left;">Not very correct  </p>
-                <input type="range" id="correct" min="1" max="5" style="width:60%;" >
+                <input type="range" id="correct" min="1" max="5" style="width:40%;" >
                 <p style="float:right;">Very correct</p>
             <!--<input type="radio" name="answer" value="1"> very non-factually-correct-->
             <!--<input type="radio" name="answer" value="2"> somewhat non-factually-correct-->
@@ -183,7 +211,7 @@
             <p style="text-align:center;">How <strong>strategic</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_s">
                 <p style="float:left;">Not very strategic  </p>
-                <input type="range" id="strategic" min="1" max="5" style="width:60%;" >
+                <input type="range" id="strategic" min="1" max="5" style="width:40%;" >
                 <p style="float:right;">Very strategic</p>
             <!--<input type="radio" name="answer" value="1"> very non-strategic-->
             <!--<input type="radio" name="answer" value="2"> somewhat non-strategic-->
@@ -199,7 +227,7 @@
             <p style="text-align:center;">How <strong>human-like</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_h">
                 <p style="float:left;">Not very human-like  </p>
-                <input type="range" id="humanlike" min="1" max="5" style="width:60%;" >
+                <input type="range" id="humanlike" min="1" max="5" style="width:40%;" >
                 <p style="float:right;">Very human-like</p>
             <!--<input type="radio" name="answer" value="1"> very non-human-like-->
             <!--<input type="radio" name="answer" value="2"> somewhat non-human-like-->

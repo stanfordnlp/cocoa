@@ -221,7 +221,7 @@ input[type=checkbox]:checked ~ aside {
 }
 
 input[type=range]{
-  margin-left: 6%;
+  margin-left: 15%;
   /*margin-right: 20%;*/
 }
 
