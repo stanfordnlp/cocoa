@@ -1,9 +1,13 @@
 import json
+from src.basic.lexicon import Lexicon
+from src.basic.scenario_db import ScenarioDB
+from src.basic.schema import Schema
 
 __author__ = 'anushabala'
 from src.model.preprocess import markers
 from collections import namedtuple
-import numpy as np
+from ngram_util import preprocess_events
+from dataset import Example
 
 
 class Features(object):
@@ -142,9 +146,9 @@ class Tagger(object):
             if entity_name in item.keys() and item[entity_name].lower() == canonical_entity:
                 matches = True
         if matches:
-            return MatchFeatures.name(), MatchFeatures.NoMatch
-        else:
             return MatchFeatures.name(), MatchFeatures.Match
+        else:
+            return MatchFeatures.name(), MatchFeatures.NoMatch
 
     @staticmethod
     def _get_mention_features(canonical_entity, entity_type, agent, tagged_history, limit=5):
@@ -163,3 +167,76 @@ class Tagger(object):
             if i == limit:
                 break
         return MentionFeatures.name(), MentionFeatures.NoMention
+
+
+class DatasetTagger(object):
+    def __init__(self, lexicon, tagger, scenario_db):
+        self.scenario_db = scenario_db
+        self.lexicon = lexicon
+        self.tagger = tagger
+
+    def tag_data(self, raw_data, skip_incomplete=True):
+        tagged_data = []
+        attribute_combos = set()
+        i = 0
+        for raw_ex in raw_data:
+            ex = Example.from_dict(self.scenario_db, raw_ex)
+            for agent in [0, 1]:
+                if ex.outcome is not None and ex.outcome.get('reward') == 1:
+                    i += 1
+                    attributes = tuple(sorted([attr.name for attr in ex.scenario.attributes]))
+                    attribute_combos.add(attributes)
+                    tagged_data.append((self.tag_example(ex, agent), attributes))
+
+            if i % 50 == 0:
+                print "Tagged %d examples" % i
+
+        return tagged_data, attribute_combos
+
+    def tag_example(self, example, agent):
+        messages = preprocess_events(example.events, agent)
+        history = []
+        for a_idx, msg in messages:
+            if msg[0] == markers.SELECT:
+                # selection
+                # print "Current agent: %d Utterance agent: %d" % (agent, a_idx)
+                # print msg
+                tagged_message = self.tagger.tag_selection(agent, example.scenario, msg)
+                # print tagged_message
+                # print "-----------------------------------------"
+            else:
+                linked_tokens = self.lexicon.link_entity(msg, uuid=example.uuid)
+                # print "Current agent: %d Utterance agent: %d" % (agent, a_idx)
+                # print "Raw tokens:", msg
+                # print "Linked tokens: ", linked_tokens
+                tagged_message = self.tagger.tag_utterance(linked_tokens, example.scenario, agent, history)
+                # print tagged_message
+                # print "-----------------------------------------"
+
+            history.append((a_idx, tagged_message))
+
+        return history
+
+if __name__ == "__main__":
+    schema = Schema('data/friends-schema-large.json')
+
+    scenarios_path = 'output/friends-scenarios-random-15k.json'
+    scenario_db = ScenarioDB.from_dict(schema, json.load(open(scenarios_path, 'r')))
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=scenarios_path)
+    type_attribute_mappings = {v: k for (k, v) in schema.get_attributes().items()}
+    tagger = Tagger(type_attribute_mappings)
+    dataset_tagger = DatasetTagger(lexicon, tagger, scenario_db)
+
+    transcripts_path = 'web_output/friends-random-large-11k/transcripts/transcripts.json'
+    transcripts = json.load(open(transcripts_path, 'r'))
+    transcripts = transcripts[:10]
+    examples = []
+    for raw_ex in transcripts:
+        ex = Example.from_dict(scenario_db, raw_ex)
+        for agent in [0]:
+            tagged_ex = dataset_tagger.tag_example(ex, agent)
+            for (a_idx, tagged_message), event in zip(tagged_ex, ex.events):
+                event.metadata = tagged_message
+        examples.append(ex)
+
+    json.dump([ex.to_dict() for ex in examples], open('web_output/friends-random-large-11k/transcripts/tagged_transcripts.json', 'w'))

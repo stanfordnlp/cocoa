@@ -49,7 +49,7 @@ class NgramSession(Session):
 
     def send(self):
         if len(self.history) == 0:
-            self.update_history(self.agent, [markers.EOS])
+            self.update_history(1 - self.agent, [markers.GO, markers.EOS])
         generated = self.generate()
         # print "Generated tagged tokens:", generated
         event = self.convert_generated_tokens_to_event(generated)
@@ -63,7 +63,7 @@ class NgramSession(Session):
             return Event.SelectionEvent(self.agent, item, timestamp)
 
         raw_tokens = []
-        for token in generated_tokens:
+        for token in generated_tokens[:-1]:
             if is_entity(token):
                 raw, _ = token
                 if raw is None:
@@ -72,7 +72,7 @@ class NgramSession(Session):
                     raw_tokens.append(raw)
             else:
                 raw_tokens.append(token)
-        print raw_tokens
+        # print raw_tokens
         return Event.MessageEvent(self.agent, " ".join(raw_tokens), timestamp, metadata=generated_tokens)
 
     def generate(self, retry_limit=20):
@@ -82,17 +82,17 @@ class NgramSession(Session):
         while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS:
             token = self.model.generate(self.history, preprocess=True)
             if not self.is_token_valid(token) and retries < retry_limit:
-                print "[Agent %d] [will retry] Invalid token:" % self.agent, token
+                # print "[Agent %d] [will retry] Invalid token:" % self.agent, token
                 self.undo_generated_utterance()
                 retries += 1
             elif token == markers.SELECT and len(generated_tokens) >= 1:
                 if retries < retry_limit:
-                    print "[Agent %d] [will retry] Tried to select in middle of utterance" % self.agent
+                    # print "[Agent %d] [will retry] Tried to select in middle of utterance" % self.agent
                     retries += 1
                 else:
                     retries = 0
-                    print "[Agent %d] Tried to select in middle of utterance and exceeded limit; " \
-                          "stopping before selection" % self.agent
+                    # print "[Agent %d] Tried to select in middle of utterance and exceeded limit; " \
+                    #       "stopping before selection" % self.agent
                     token = markers.EOS
                     generated_tokens.append(token)
                     self.history.append(token)
@@ -103,7 +103,7 @@ class NgramSession(Session):
 
                 if candidates is None and retries < retry_limit:
                     # invalid state, try to regenerate
-                    print "[Agent %d] [will retry] Invalid state while getting candidates for token: " % self.agent, token
+                    # print "[Agent %d] [will retry] Invalid state while getting candidates for token: " % self.agent, token
                     retries += 1
                 else:
                     if retries >= retry_limit:
@@ -207,17 +207,18 @@ class NgramSession(Session):
             self.entity_scores[attr_name][mentioned_entity] = 0.
 
     def receive(self, event):
-        agent, tokens = preprocess_event(event)
-        # print "Received (event=%s)" % event.action
-        # print "Received tokens: ", tokens
-        if event.action == 'select':
-            tagged_tokens = self.tagger.tag_selection(self.agent, self.scenario, tokens)
-        else:
-            linked_tokens = self.lexicon.link_entity(tokens, agent=self.agent, uuid=self.uuid)
-            tagged_tokens = self.tagger.tag_utterance(linked_tokens, self.scenario, self.agent, self.tagged_history)
-        # print "Tagged received tokens:", tagged_tokens
-        self.update_history(event.agent, tagged_tokens)
-        self.update_scores(tagged_tokens)
+        if event is None or event.data is None:
+            agent, tokens = preprocess_event(event)
+            # print "Received (event=%s)" % event.action
+            # print "Received tokens: ", tokens
+            if event.action == 'select':
+                tagged_tokens = self.tagger.tag_selection(self.agent, self.scenario, tokens)
+            else:
+                linked_tokens = self.lexicon.link_entity(tokens, agent=self.agent, uuid=self.uuid)
+                tagged_tokens = self.tagger.tag_utterance(linked_tokens, self.scenario, self.agent, self.tagged_history)
+            # print "Tagged received tokens:", tagged_tokens
+            self.update_history(event.agent, tagged_tokens)
+            self.update_scores(tagged_tokens)
 
     def update_history(self, agent_idx, tagged_tokens):
         self.tagged_history.append((agent_idx, tagged_tokens))

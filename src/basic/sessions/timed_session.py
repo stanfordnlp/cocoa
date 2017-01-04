@@ -10,7 +10,7 @@ class TimedSessionWrapper(Session):
     This class can be used to wrap around a session that produces event responses generated using rules (or a model) -
     the wrapper will add a delay to the responses sent by the session in order to simulate human typing/action rates.
     """
-    CHAR_RATE = 10
+    CHAR_RATE = 8
     EPSILON = 1500
     SELECTION_DELAY = 1000
 
@@ -40,4 +40,6 @@ class TimedSessionWrapper(Session):
             return None
         else:
             self.last_message_timestamp = datetime.datetime.now()
-            return self.queued_event
+            e = self.queued_event
+            self.queued_event = None
+            return e

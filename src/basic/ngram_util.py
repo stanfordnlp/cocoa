@@ -13,7 +13,7 @@ def preprocess_events(events, agent):
     messages = [preprocess_event(e) for e in events]
 
     if len(messages) > 0 and agent == messages[0][0]:
-        messages.insert(0, (1-agent, [markers.EOS]))
+        messages.insert(0, (1-agent, [markers.GO, markers.EOS]))
 
     return messages
 

@@ -17,6 +17,7 @@ from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
+from src.basic.systems.ngram_system import NgramSystem
 from main import backend
 from gevent.wsgi import WSGIServer
 from src.basic.lexicon import Lexicon
@@ -63,7 +64,7 @@ def init_database(db_file):
     conn.close()
 
 
-def add_systems(config_dict, schema, lexicon):
+def add_systems(config_dict, schema, lexicon, scenarios_path):
     """
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
@@ -87,6 +88,10 @@ def add_systems(config_dict, schema, lexicon):
             elif type == NeuralSystem.name():
                 path = info["path"]
                 model = NeuralSystem(schema, lexicon, path)
+            elif type == NgramSystem.name():
+                transcripts = info['transcripts']
+                n = info['n']
+                model = NgramSystem(transcripts, scenarios_path, lexicon, schema, attribute_specific=False, n=n)
             else:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -170,14 +175,14 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False)
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path[0])
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
         params['models'] = {}
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
+    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, args.scenarios_path[0])
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

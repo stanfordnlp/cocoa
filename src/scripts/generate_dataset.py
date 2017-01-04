@@ -27,6 +27,7 @@ parser.add_argument('--scenario-offset', default=0, type=int, help='Number of sc
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
+parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 add_heuristic_system_arguments(parser)
@@ -35,13 +36,13 @@ logstats.init(args.stats_file)
 if args.random_seed:
     random.seed(args.random_seed)
 
-schema = Schema(args.schema_path)
+schema = Schema(args.schema_path, domain=args.domain)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
 if args.ranker_data:
     entity_ranker = EntityRanker(None, args.scenarios_path[0], args.ranker_data, args.transcripts)
-    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path[0])
 else:
-    lexicon = Lexicon(schema, learned_lex=False)
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path[0])
 
 
 def get_system(name):

@@ -35,7 +35,7 @@ class ConditionalProbabilityTable(object):
 
 
 class NgramModel(object):
-    SKIP_PROBABILITY = 0.2
+    SKIP_PROBABILITY = 0.1
     def __init__(self, tagged_data, n, attributes=None):
         self.n = n
 
@@ -104,7 +104,7 @@ class NgramModel(object):
         key = tuple()
         for i in np.arange(min(self.n, len(history)), 0, -1):
             key = tuple(history[max_tokens-i:max_tokens])
-            if self.cpt[key] is not None and len(self.cpt[key]) > 0 and np.random.random() > self.SKIP_PROBABILITY:
+            if self.cpt[key] is not None and len(self.cpt[key]) > 0:
                 break
         return self.cpt.sample(key)
 
