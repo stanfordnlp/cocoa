@@ -14,10 +14,19 @@
 
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
-        humanVal = $('input[type=radio]:checked', '#humanlike').val();
-        correctVal = $('input[type=radio]:checked', '#correct').val();
-        strategicVal = $("input[type=radio]:checked", "#strategic").val();
-        fluentVal = $("input[type=radio]:checked", "#fluent").val();
+        //humanVal = $('input[type=radio]:checked', '#humanlike').val();
+        //correctVal = $('input[type=radio]:checked', '#correct').val();
+        //strategicVal = $("input[type=radio]:checked", "#strategic").val();
+        //fluentVal = $("input[type=radio]:checked", "#fluent").val();
+        fluentVal = $("#fluent").val();
+        correctVal = $("#correct").val();
+        strategicVal = $("#strategic").val();
+        humanVal = $("#humanlike").val();
+        //fluentVal = document.getElementById("#myRange").value
+        console.log("FLUENT: " + fluentVal);
+        console.log("FLUENT: " + correctVal);
+        console.log("FLUENT: " + strategicVal);
+        console.log("FLUENT: " + humanVal);
 
         if (humanVal == null | correctVal == null | strategicVal == null | fluentVal == null){
             return false;
@@ -133,59 +142,70 @@
             {% endfor %}
 
         </div>
-        <br>
+        <br> <br>
 
-        <!-- TODO: CHANGE FORMAT OF ANSWERS -->
         <!-- Agent questions -->
 
          <div class="q">
 
-            How fluent is Agent {{agent_id + 1}}? <br>
-            <form id="fluent">
-            <div><input type="radio" name="answer" value="1"> very non-fluent </div>
-            <div><input type="radio" name="answer" value="2"> somewhat non-fluent </div>
-            <div><input type="radio" name="answer" value="3"> in the middle </div>
-            <div><input type="radio" name="answer" value="4"> somewhat fluent </div>
-            <div><input type="radio" name="answer" value="5"> very fluent </div><br>
+            <p style="text-align:center;">How <strong>fluent</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_f">
+                <p style="float:left;">Not very fluent  </p>
+                <input type="range" id="fluent" min="1" max="5" style="width:60%;" >
+                <p style="float:right;">Very fluent</p>
+            <!--<div><input type="radio" name="answer" value="1"> very non-fluent </div>-->
+            <!--<div><input type="radio" name="answer" value="2"> somewhat non-fluent </div>-->
+            <!--<div><input type="radio" name="answer" value="3"> in the middle </div>-->
+            <!--<div><input type="radio" name="answer" value="4"> somewhat fluent </div>-->
+            <!--<div><input type="radio" name="answer" value="5"> very fluent </div><br>-->
             </form>
         </div>
 
-        <br>
+        <br> <br>
 
         <div class="q">
-            How factually-correct is Agent {{agent_id + 1}}?
-            <form id="correct">
-            <input type="radio" name="answer" value="1"> very non-factually-correct
-            <input type="radio" name="answer" value="2"> somewhat non-factually-correct
-            <input type="radio" name="answer" value="3"> in the middle
-            <input type="radio" name="answer" value="4"> somewhat factually-correct
-            <input type="radio" name="answer" value="5"> very factually-correct
+           <p style="text-align:center;">How <strong>factually-correct</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_c">
+                <p style="float:left;">Not very correct  </p>
+                <input type="range" id="correct" min="1" max="5" style="width:60%;" >
+                <p style="float:right;">Very correct</p>
+            <!--<input type="radio" name="answer" value="1"> very non-factually-correct-->
+            <!--<input type="radio" name="answer" value="2"> somewhat non-factually-correct-->
+            <!--<input type="radio" name="answer" value="3"> in the middle-->
+            <!--<input type="radio" name="answer" value="4"> somewhat factually-correct-->
+            <!--<input type="radio" name="answer" value="5"> very factually-correct-->
             </form>
         </div>
 
-        <br>
+        <br> <br>
 
         <div class="q">
-            How strategic is Agent {{agent_id + 1}}?
-            <form id="strategic">
-            <input type="radio" name="answer" value="1"> very non-strategic
-            <input type="radio" name="answer" value="2"> somewhat non-strategic
-            <input type="radio" name="answer" value="3"> in the middle
-            <input type="radio" name="answer" value="4"> somewhat strategic
-            <input type="radio" name="answer" value="5"> very strategic
+            <p style="text-align:center;">How <strong>strategic</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_s">
+                <p style="float:left;">Not very strategic  </p>
+                <input type="range" id="strategic" min="1" max="5" style="width:60%;" >
+                <p style="float:right;">Very strategic</p>
+            <!--<input type="radio" name="answer" value="1"> very non-strategic-->
+            <!--<input type="radio" name="answer" value="2"> somewhat non-strategic-->
+            <!--<input type="radio" name="answer" value="3"> in the middle-->
+            <!--<input type="radio" name="answer" value="4"> somewhat strategic-->
+            <!--<input type="radio" name="answer" value="5"> very strategic-->
             </form>
         </div>
 
-        <br>
+        <br> <br>
 
         <div class="q">
-            How human-like is Agent {{agent_id + 1}}?
-            <form id="humanlike">
-            <input type="radio" name="answer" value="1"> very non-human-like
-            <input type="radio" name="answer" value="2"> somewhat non-human-like
-            <input type="radio" name="answer" value="3"> in the middle
-            <input type="radio" name="answer" value="4"> somewhat human-like
-            <input type="radio" name="answer" value="5"> very human-like
+            <p style="text-align:center;">How <strong>human-like</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_h">
+                <p style="float:left;">Not very human-like  </p>
+                <input type="range" id="humanlike" min="1" max="5" style="width:60%;" >
+                <p style="float:right;">Very human-like</p>
+            <!--<input type="radio" name="answer" value="1"> very non-human-like-->
+            <!--<input type="radio" name="answer" value="2"> somewhat non-human-like-->
+            <!--<input type="radio" name="answer" value="3"> in the middle-->
+            <!--<input type="radio" name="answer" value="4"> somewhat human-like-->
+            <!--<input type="radio" name="answer" value="5"> very human-like-->
             </form>
         </div>
 

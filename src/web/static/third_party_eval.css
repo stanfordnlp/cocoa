@@ -48,15 +48,12 @@ header{
 }
 
 .q{
+  align: center;
    border-style: solid;
   border-color: darkred;
   border-width: 8px;
 }
 
-/*.q div {*/
-    /*display: table-cell;*/
-    /*text-align: center;*/
-/*}*/
 
 table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
 				content: " \25B4\25BE"
@@ -221,6 +218,11 @@ input[type=checkbox]:checked ~ aside {
 
 .clip p {
   cursor: pointer;
+}
+
+input[type=range]{
+  margin-left: 6%;
+  /*margin-right: 20%;*/
 }
 
 /* Adjustments for wider screens */
