@@ -29,7 +29,7 @@
             "active": true,
             "type": "neural",
             "path": "/home/hehe/game-dialogue/checkpoints/basic/checkpoint",
-            "decoding": {"sample": 0.5}
+            "decoding": "sample 0.5 select"
         },
         "rule_bot": {
             "active": false,

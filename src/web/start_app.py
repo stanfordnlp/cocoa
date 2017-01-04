@@ -86,7 +86,7 @@ def add_systems(config_dict, schema, lexicon):
             #    model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                decoding = info["decoding"].items()[0]
+                decoding = info["decoding"].split()
                 model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
             else:
                 warnings.warn(
