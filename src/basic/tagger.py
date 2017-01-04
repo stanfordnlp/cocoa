@@ -196,6 +196,8 @@ class DatasetTagger(object):
     def tag_example(self, example, agent):
         messages = preprocess_events(example.events, agent)
         history = []
+        scenario = self.scenario_db.get(example.uuid)
+
         for a_idx, msg in messages:
             if msg[0] == markers.SELECT:
                 # selection
@@ -205,7 +207,8 @@ class DatasetTagger(object):
                 # print tagged_message
                 # print "-----------------------------------------"
             else:
-                linked_tokens = self.lexicon.link_entity(msg, uuid=example.uuid)
+
+                linked_tokens = self.lexicon.link_entity(msg, uuid=example.uuid, kb=scenario.get_kb(a_idx))
                 # print "Current agent: %d Utterance agent: %d" % (agent, a_idx)
                 # print "Raw tokens:", msg
                 # print "Linked tokens: ", linked_tokens
@@ -229,7 +232,7 @@ if __name__ == "__main__":
 
     transcripts_path = 'web_output/friends-random-large-11k/transcripts/transcripts.json'
     transcripts = json.load(open(transcripts_path, 'r'))
-    transcripts = transcripts[:10]
+    transcripts = transcripts[:100]
     examples = []
     for raw_ex in transcripts:
         ex = Example.from_dict(scenario_db, raw_ex)

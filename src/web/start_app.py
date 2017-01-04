@@ -57,7 +57,7 @@ def init_database(db_file):
     c.execute(
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
-    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
+    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, metadata text)''')
     c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
 
     conn.commit()
@@ -176,14 +176,14 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path[0])
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
         params['models'] = {}
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, args.scenarios_path[0])
+    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, args.scenarios_path)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

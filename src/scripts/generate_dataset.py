@@ -40,12 +40,12 @@ if args.random_seed:
     random.seed(args.random_seed)
 
 schema = Schema(args.schema_path, domain=args.domain)
-scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path[0]))
+scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
 if args.ranker_data:
-    entity_ranker = EntityRanker(None, args.scenarios_path[0], args.ranker_data, args.transcripts)
-    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path[0])
+    entity_ranker = EntityRanker(None, args.scenarios_path, args.ranker_data, args.transcripts)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path)
 else:
-    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path[0])
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
 
 def get_system(name):
     if name == 'simple':
@@ -56,7 +56,7 @@ def get_system(name):
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
     elif name == 'ngram':
-        return NgramSystem(args.transcripts, args.scenarios_path[0], lexicon, schema, attribute_specific=False, n=11)
+        return NgramSystem(args.transcripts, args.scenarios_path, lexicon, schema, attribute_specific=False, n=11)
     # elif name == 'cmd':
     #     return CmdSystem()
     else:

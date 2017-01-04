@@ -217,14 +217,14 @@ class BackendConnection(object):
         def _create_row(chat_id,event):
             data = event.data
             if event.action == 'select':
-                data = KB.ordered_item_to_dict(event.data)
-            return chat_id, event.action, event.agent, event.time, data, event.start_time
+                data = json.dumps(event.data)
+            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.metadata)
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 row = _create_row(chat_id, event)
 
-                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?)''', row)
+                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?,?)''', row)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
@@ -620,7 +620,7 @@ class BackendConnection(object):
                 u = self._get_user_info_unchecked(cursor, userid)
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
-                item = kb.get_ordered_item(idx)
+                item = kb.items[idx]
                 self.send(userid, Event.SelectionEvent(u.agent_index,
                                                        item,
                                                        str(time.time())))

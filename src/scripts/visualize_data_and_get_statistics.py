@@ -18,7 +18,7 @@ def prettify_tags(token):
     raw, (canonical, entity_type, features) = token
     feature_str = ",".join(["%s:%s" % (f[0], f[1]) for f in features])
     print feature_str
-    s = "<span style=\"color: #00ff00\"> %s: [%s: (%s)]</span>" % (raw, canonical, feature_str)
+    s = "<span style=\"color: #aa00ff\"> %s: [%s: (%s)]</span>" % (raw, canonical, feature_str)
     print s
     return s
 

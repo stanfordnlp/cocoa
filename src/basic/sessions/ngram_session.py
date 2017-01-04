@@ -60,7 +60,7 @@ class NgramSession(Session):
         timestamp = (datetime.now() - datetime.fromtimestamp(0)).total_seconds()
         if generated_tokens[0] == markers.SELECT:
             item = generated_tokens[1][0]
-            return Event.SelectionEvent(self.agent, item, timestamp)
+            return Event.SelectionEvent(self.agent, item, timestamp, metadata=generated_tokens)
 
         raw_tokens = []
         for token in generated_tokens[:-1]:
@@ -214,7 +214,7 @@ class NgramSession(Session):
             if event.action == 'select':
                 tagged_tokens = self.tagger.tag_selection(self.agent, self.scenario, tokens)
             else:
-                linked_tokens = self.lexicon.link_entity(tokens, agent=self.agent, uuid=self.uuid)
+                linked_tokens = self.lexicon.link_entity(tokens, uuid=self.uuid, kb=self.scenario.get_kb(1-self.agent))
                 tagged_tokens = self.tagger.tag_utterance(linked_tokens, self.scenario, self.agent, self.tagged_history)
             # print "Tagged received tokens:", tagged_tokens
             self.update_history(event.agent, tagged_tokens)
