@@ -55,12 +55,29 @@ class NeuralSession(Session):
 
         self.encode(entity_tokens)
 
+        self.sent_entity = False
+
+    def _has_entity(self, tokens):
+        for token in tokens:
+            if is_entity(token):
+                return True
+        return False
+
     def send(self):
+        # Don't send consecutive utterances with entities
+        if self.sent_entity:
+            return None
         if self.matched_item is not None:
             return self.select(self.matched_item)
         tokens = self.decode()
         if tokens is None:
             return None
+        if self._has_entity(tokens):
+            self.sent_entity = True
+        else:
+            self.sent_entity = False
+        # TODO: realize entities
+        tokens = [x if not is_entity(x) else x[0] for x in tokens]
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
             item_id = int(tokens[1].split('-')[1])
             self.selected_items.add(item_id)
@@ -80,6 +97,8 @@ class RNNNeuralSession(NeuralSession):
 
         self.new_turn = False
         self.end_turn = False
+
+        self.sent_entity = False
 
     @classmethod
     def _get_last_inds(cls, inputs):
@@ -152,7 +171,8 @@ class RNNNeuralSession(NeuralSession):
         # Text message
         if self.new_turn:
             self.new_turn = False
-        return [x if not is_entity(x) else x[0] for x in entity_tokens]
+        return entity_tokens
+        #return [x if not is_entity(x) else x[0] for x in entity_tokens]
 
     def _is_valid(self, tokens):
         if not tokens:
