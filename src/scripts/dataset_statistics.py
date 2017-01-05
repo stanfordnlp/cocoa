@@ -520,8 +520,6 @@ def print_strategy_stats(stats):
     for u, frac in utterances:
         print '%s, %s: %.3f' % (u[0], u[1], frac)
 
-    return
-
     print "-----------------------------------"
     print "KB attribute-based strategy statistics:"
     for num_attrs, v in kb_strategy_stats.items():
