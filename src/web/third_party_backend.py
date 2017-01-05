@@ -146,6 +146,7 @@ class BackendConnection(object):
                 agent1_scenarios_evaluated = set(json.loads(scenarios_evaluated[1]))
                 print "EVALUATED: ", agent0_scenarios_evaluated, "\t", agent1_scenarios_evaluated
                 selected = None
+                # TODO: Whether to change to random selection
                 for d in dialogues:
                     # Found a dialogue not previously shown to user
                     if d[0] not in agent0_scenarios_evaluated and len(json.loads(d[1])) > 0:

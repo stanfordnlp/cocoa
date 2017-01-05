@@ -82,6 +82,17 @@ def init_dialogues(db_path):
         for event in events:
             if event["action"] == "message":
                 msg_events.append(event)
+            elif event["action"] == "select":
+                # Modify format of selection data
+                new_data = "SELECT("
+                for attr in event["data"]:
+                    new_data += attr[1] + ", "
+                new_data = new_data.strip()
+                new_data = new_data.strip(",")
+                new_data += ")"
+                event["data"] = new_data
+                msg_events.append(event)
+
 
         c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?) """,
             (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps(agent0_kb),
