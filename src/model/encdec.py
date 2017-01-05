@@ -619,7 +619,8 @@ class GraphDecoder(GraphEncoder):
             word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
-            probs.append(prob[0])
+            # probs: batch_size x seq_len x num_symbols
+            probs.append(prob[:, 0, :])
             step_preds = self.sampler.sample(logits, prev_words=None)
 
             if generated_word_types is None:
