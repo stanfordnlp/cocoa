@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
-from src.model.graph_embedder import GraphEmbedderConfig
+from src.model.graph_embedder_config import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')
@@ -399,8 +399,19 @@ class Graph(object):
         '''
         Return a list of unique entities in these utterances for the last n utterances
         '''
-        last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
-        return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
+        if Graph.metadata.entity_hist_len > 0:
+            last_n = min(Graph.metadata.entity_hist_len, len(self.entities))
+            return list(set([e for entities in self.entities[-1*last_n:] for e in entities]))
+        else:
+            entities = self.entities
+            if len(entities) == 0:
+                return []
+            if len(entities[-1]) == 0:
+                if len(entities) < 2:
+                    return []
+                return list(set(self.entities[-2]))
+            else:
+                return list(set(self.entities[-1]))
 
     def _node_type(self, node):
         # Use fine categorty for item and attr nodes

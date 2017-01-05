@@ -17,19 +17,29 @@
 	    }
     },
 
-    "scenarios_json_file": "/afs/cs.stanford.edu/u/hehe/game-dialogue/data/friends-random-large/test-scenarios.json",
+    "scenarios_json_file": "/home/hehe/game-dialogue/data/test-scenarios.json",
     "connection_timeout_num_seconds": 3,
-    "templates_dir": "/afs/cs.stanford.edu/u/hehe/game-dialogue/src/web/templates",
+    "templates_dir": "/home/hehe/game-dialogue/src/web/templates",
     "end_survey": 1,
-    "instructions": "/afs/cs.stanford.edu/u/hehe/game-dialogue/data/web/mutual-friends-instructions.html",
+    "instructions": "/home/hehe/game-dialogue/data/web/mutual-friends-instructions.html",
     "task_title": "Who's Our Mutual Friend?",
     "icon": "handshake.jpg",
     "models": {
-        "neural_test": {
+        "neural_bot": {
+            "active": false,
+            "type": "neural",
+            "path": "/home/hehe/game-dialogue/checkpoints/basic/checkpoint",
+            "decoding": "sample 0.5 select"
+        },
+        "neural_bot2": {
             "active": true,
             "type": "neural",
-            "path": "/scr/hehe/game-dialogue/checkpoint/web-chat/checkpoint",
-            "decoding": {"sample": 0.5}
+            "path": "/home/hehe/game-dialogue/checkpoints/basic2/checkpoint",
+            "decoding": "sample 0.5 select"
+        },
+        "rule_bot": {
+            "active": false,
+            "type": "simple"
         }
     }
 }

@@ -5,6 +5,7 @@ __author__ = 'anushabala'
 import uuid
 import logging
 from datetime import datetime
+import time
 
 from flask import jsonify, render_template, request, redirect, url_for, Markup
 from flask import current_app as app
@@ -14,7 +15,6 @@ from web_utils import get_backend
 from backend import Status
 from src.basic.event import Event
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -37,10 +37,6 @@ def userid_prefix():
 
 def generate_unique_key():
     return str(uuid.uuid4().hex)
-
-
-def get_formatted_date():
-    return datetime.now().strftime(date_fmt)
 
 
 # Required args: uid (the user ID of the current user)
@@ -89,7 +85,7 @@ def join_chat():
     chat_info = backend.get_chat_info(uid)
     backend.send(uid, Event.JoinEvent(chat_info.agent_index,
                                       uid,
-                                      get_formatted_date()))
+                                      str(time.time())))
     return jsonify(message=format_message("You entered the room.", True))
 
 
@@ -100,7 +96,7 @@ def leave_chat():
     chat_info = backend.get_chat_info(uid)
     backend.send(uid, Event.LeaveEvent(chat_info.agent_index,
                                        uid,
-                                       get_formatted_date()))
+                                       str(time.time())))
     return jsonify(success=True)
 
 
@@ -138,7 +134,8 @@ def check_inbox():
         elif event.action == 'leave':
             message = format_message("Your partner has left the room.", True)
         elif event.action == 'select':
-            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in event.data])), True)
+            ordered_item = backend.schema.get_ordered_item(event.data)
+            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
         return jsonify(message=message, received=True)
     return jsonify(received=False)
 
@@ -150,11 +147,13 @@ def text():
     logger.debug("User %s said: %s" % (userid_prefix(), message))
     displayed_message = format_message("You: {}".format(message), False)
     uid = userid()
+    start_time = request.args.get('start_time')
     chat_info = backend.get_chat_info(uid)
     backend.send(uid,
                  Event.MessageEvent(chat_info.agent_index,
                                     message,
-                                    get_formatted_date())
+                                    str(time.time()),
+                                    start_time)
                  )
     return jsonify(message=displayed_message)
 
@@ -167,7 +166,8 @@ def select():
         return
     selected_item = backend.select(userid(), selection_id)
 
-    displayed_message = format_message("You selected: {}".format(", ".join([v[1] for v in selected_item])), True)
+    ordered_item = backend.schema.get_ordered_item(selected_item)
+    displayed_message = format_message("You selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
     return jsonify(message=displayed_message)
 
 

@@ -35,7 +35,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
             if a == stop_symbol:
                 count += 1
                 if count == n:
-                    return i
+                    # +1: include </s>
+                    return i + 1
         return None
     tokens = []
     entities = []
@@ -45,7 +46,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
         if remove_entity:
             #print 'raw pred:', textint_map.int_to_text(pred, 'target')
             entity_tokens, prepended_entities = remove_entities(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)]], 'target'))
-            tokens.append([x for x in entity_tokens if not x in (markers.EOS, markers.PAD)])
+            #tokens.append([x for x in entity_tokens if not x in (markers.EOS, markers.PAD)])
+            tokens.append([x for x in entity_tokens if not x in (markers.PAD,)])
             entities.append(prepended_entities)
         else:
             tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
@@ -67,7 +69,8 @@ class Evaluator(object):
 
         # For post-processing of generated utterances
         self.stop_symbol = self.vocab.to_ind(markers.EOS)
-        self.remove_symbols = map(self.vocab.to_ind, (markers.EOS, markers.PAD))
+        #self.remove_symbols = map(self.vocab.to_ind, (markers.EOS, markers.PAD))
+        self.remove_symbols = map(self.vocab.to_ind, (markers.PAD,))
 
     def dataset(self):
         '''
@@ -174,7 +177,8 @@ class Evaluator(object):
         targets = [token[1] if is_entity(token) else token for token in tokens]
         if self.prepend:
             targets, _ = remove_entities(targets)
-        targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
+        #targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
+        targets = [x for x in targets if x not in (markers.PAD,)]
         return targets
 
     def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores, probs):
@@ -202,6 +206,7 @@ class Evaluator(object):
             if probs is not None:
                 print 'TOP-K:'
                 for j, w in enumerate(pred):
+                    print j
                     topk = np.argsort(probs[j][i])[::-1][:5]
                     for id_ in topk:
                         prob = probs[j][i][id_]
