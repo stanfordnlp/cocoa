@@ -52,6 +52,7 @@ if __name__ == '__main__':
         vocab_path = os.path.join(args.init_from, 'vocab.pkl')
         saved_config = read_json(config_path)
         saved_config['decoding'] = args.decoding
+        saved_config['batch_size'] = args.batch_size
         model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
@@ -123,7 +124,7 @@ if __name__ == '__main__':
         evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         with tf.Session(config=config) as sess:
-            tf.initialize_all_variables().run()
+            sess.run(tf.global_variables_initializer())
             print 'Load TF model'
             start = time.time()
             saver = tf.train.Saver()
@@ -144,4 +145,4 @@ if __name__ == '__main__':
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
-        learner.learn(args, config, ckpt)
+        learner.learn(args, config, args.stats_file, ckpt)

@@ -57,7 +57,7 @@ class Controller(object):
         print 'outcome: %s' % outcome
         return Example(self.scenario, uuid, self.events, outcome)
 
-    def step(self):
+    def step(self, backend=None):
         with self.lock:
             # try to send messages from one session to the other(s)
             for agent, session in enumerate(self.sessions):
@@ -68,8 +68,10 @@ class Controller(object):
                 event = session.send()
                 if event is None:
                     continue
-
                 self.events.append(event)
+
+                if backend is not None:
+                    backend.add_event_to_db(self.get_chat_id(), event)
                 if event.action == 'select':
                     self.selections[agent] = event.data
                     if self.game_over():

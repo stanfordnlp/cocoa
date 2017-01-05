@@ -16,7 +16,6 @@ from flask import Markup
 from uuid import uuid4
 
 
-date_fmt = '%Y-%m-%d %H-%M-%S'
 logger = logging.getLogger(__name__)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler = logging.FileHandler("chat.log")
@@ -32,7 +31,7 @@ class Status(object):
     Chat = "chat"
     Finished = "finished"
     Survey = "survey"
-    
+
 
 class UnexpectedStatusException(Exception):
     def __init__(self, found_status, expected_status):
@@ -217,14 +216,14 @@ class BackendConnection(object):
         def _create_row(chat_id,event):
             data = event.data
             if event.action == 'select':
-                data = KB.ordered_item_to_dict(event.data)
-            return chat_id, event.action, event.agent, event.time, data
+                data = json.dumps(event.data)
+            return chat_id, event.action, event.agent, event.time, data, event.start_time
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 row = _create_row(chat_id, event)
 
-                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?)''', row)
+                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?)''', row)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
@@ -411,13 +410,10 @@ class BackendConnection(object):
                 if from_mturk:
                     logger.info("Generating mechanical turk code for user %s" % userid[:6])
                     mturk_code = _generate_mturk_code(completed)
-                    message = u.message
-
-                    _add_finished_task_row(cursor, userid, mturk_code, u.chat_id)
-                    return FinishedState(Markup(message), num_seconds, mturk_code)
-
                 else:
-                    return FinishedState(Markup(u.message), num_seconds)
+                    mturk_code = None
+                _add_finished_task_row(cursor, userid, mturk_code, u.chat_id)
+                return FinishedState(Markup(u.message), num_seconds, mturk_code)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -609,7 +605,7 @@ class BackendConnection(object):
             # fail silently - this just means that receive is called between the time that the chat has ended and the
             # time that the page is refreshed
             return None
-        controller.step()
+        controller.step(self)
         session = self._get_session(userid)
         return session.poll_inbox()
 
@@ -620,10 +616,10 @@ class BackendConnection(object):
                 u = self._get_user_info_unchecked(cursor, userid)
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
-                item = kb.get_ordered_item(idx)
+                item = kb.items[idx]
                 self.send(userid, Event.SelectionEvent(u.agent_index,
                                                        item,
-                                                       datetime.datetime.now().strftime(date_fmt)))
+                                                       str(time.time())))
                 return item
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -637,8 +633,8 @@ class BackendConnection(object):
             # fail silently because this just means that the user tries to send something after their partner has left
             # (but before the chat has ended)
             return None
-        controller.step()
-        self.add_event_to_db(controller.get_chat_id(), event)
+        controller.step(self)
+        # self.add_event_to_db(controller.get_chat_id(), event)
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):

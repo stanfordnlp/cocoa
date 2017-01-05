@@ -38,7 +38,7 @@ def add_website_arguments(parser):
     parser.add_argument('--output', type=str,
                         default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
-                             'and database). Defaults to a web_output/current_data, with the current date formatted as '
+                             'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '
                              'If the provided directory exists, all data in it is overwritten.')
     parser.add_argument('--domain', type=str,
@@ -56,7 +56,7 @@ def init_database(db_file):
     c.execute(
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
-    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text)''')
+    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
     c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
 
     conn.commit()
@@ -81,12 +81,12 @@ def add_systems(config_dict, schema, lexicon):
         if info["active"]:
             type = info["type"]
             if type == SimpleSystem.name():
-                model = SimpleSystem()
-            elif type == HeuristicSystem.name():
-                model = HeuristicSystem()
+                model = SimpleSystem(lexicon, timed_session=True)
+            #elif type == HeuristicSystem.name():
+            #    model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                decoding = info["decoding"].items()[0]
+                decoding = info["decoding"].split()
                 model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
             else:
                 warnings.warn(

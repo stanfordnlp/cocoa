@@ -88,7 +88,7 @@
 		<script type="text/javascript" charset="utf-8">
 			var validCheckInterval, inboxCheckInterval;
 			var BASE_URL = 'http://' + document.domain + ':' + location.port;
-			var selectTime = null;
+			var selectTime = null, messageStartTime = null;
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -112,10 +112,14 @@
 				window.onbeforeunload = disconnect;
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;
+					if ($('#text').val().length == 0) {
+						messageStartTime = Date.now() / 1000.0;
+					}
 					if (code == 13) {
 						text = $('#text').val();
 						$('#text').val('');
 						sendMessage(text);
+						messageStartTime = null;
 					}
 				});
 		
@@ -149,7 +153,8 @@
 					type: "get",
 					data: {
 						"uid": "{{ uid }}",
-						"message": message
+						"message": message,
+						"start_time": messageStartTime
 					},
 					dataType: "json",
 					success: function(response) {

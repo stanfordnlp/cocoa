@@ -31,8 +31,7 @@ class KB(object):
     def get_item(self, idx):
         return self.items[idx]
 
-    def get_ordered_item(self, idx):
-        item = self.items[idx]
+    def get_ordered_item(self, item):
         ordered_item = [(attr.name, item[attr.name]) for attr in self.attributes]
         return ordered_item
 
