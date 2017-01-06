@@ -231,7 +231,11 @@ def get_cross_talk(all_chats):
                 start_time = float(event2.start_time) if not is_null(event2.start_time) else float(event2.time)
                 cross_talk = 1 if start_time < sent_time else 0
                 logstats.update_summary_map(summary_map, {'cross_talk': cross_talk})
-    return summary_map['cross_talk']['mean']
+    try:
+        return summary_map['cross_talk']['mean']
+    # Cross talk only available for chats with start_time
+    except KeyError:
+        return -1
 
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
