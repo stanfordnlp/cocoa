@@ -35,6 +35,8 @@ class NeuralSession(Session):
 
     def receive(self, event):
         #self.log.write('receive event:%s\n' % str(event.to_dict()))
+        # Reset status
+        self.sent_entity = False
         # Parse utterance
         if event.action == 'select':
             self.matched_item = self._match(event.data)
@@ -59,7 +61,6 @@ class NeuralSession(Session):
         entity_tokens += [markers.EOS]
 
         self.encode(entity_tokens)
-        self.sent_entity = False
 
     def _has_entity(self, tokens):
         for token in tokens:
@@ -69,9 +70,10 @@ class NeuralSession(Session):
 
     def send(self):
         # Don't send consecutive utterances with entities
-        if self.sent_entity:
+        if self.sent_entity and not self.env.consecutive_entity:
             return None
         if self.matched_item is not None:
+            print 'got matched item, select'
             return self.select(self.matched_item)
         tokens = self.decode()
         if tokens is None:
@@ -80,7 +82,7 @@ class NeuralSession(Session):
             self.sent_entity = True
         else:
             self.sent_entity = False
-        for token in entity_tokens:
+        for token in tokens:
             if is_entity(token):
                 self.mentioned_entities.add(token[1][0])
         # TODO: realize entities
