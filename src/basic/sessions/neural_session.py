@@ -23,6 +23,7 @@ class NeuralSession(Session):
         self.kb = kb
         self.matched_item = None
         self.sent_entity = False
+        self.mentioned_entities = set()
         #self.log = open('chat.debug.log', 'a')
         #self.log.write('-------------------------------------\n')
 
@@ -43,7 +44,7 @@ class NeuralSession(Session):
                 # Got a match; we're done.
                 return
         elif event.action == 'message':
-            entity_tokens = self.env.preprocessor.process_event(event, self.kb)
+            entity_tokens = self.env.preprocessor.process_event(event, self.kb, mentioned_entities=self.mentioned_entities)
             # Empty message
             if entity_tokens is None:
                 return
@@ -52,6 +53,9 @@ class NeuralSession(Session):
                 entity_tokens = entity_tokens[0]
         else:
             raise ValueError('Unknown event action %s.' % event.action)
+        for token in entity_tokens:
+            if is_entity(token):
+                self.mentioned_entities.add(token[1][0])
         entity_tokens += [markers.EOS]
 
         self.encode(entity_tokens)
@@ -76,6 +80,9 @@ class NeuralSession(Session):
             self.sent_entity = True
         else:
             self.sent_entity = False
+        for token in entity_tokens:
+            if is_entity(token):
+                self.mentioned_entities.add(token[1][0])
         # TODO: realize entities
         tokens = [x if not is_entity(x) else x[0] for x in tokens]
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
