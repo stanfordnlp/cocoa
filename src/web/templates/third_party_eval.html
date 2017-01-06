@@ -8,6 +8,8 @@
 
 <!-- JS for maneuvering text -->
 <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+
 <script>
 
     questionAnswers = {};
@@ -153,17 +155,19 @@
 
         <!-- KBs for dialogue -->
         <div class="kb">
-        <table align="middle" border="1" style="width: 100%" >
+        <table align="middle" border="1" style="width: 100%" class="sortable">
             {% if agent_id == 0 %}
             <caption> <strong> Agent 1 Friends Info </strong></caption>
             {% else %}
             <caption> <strong> Agent 2 Friends Info </strong></caption>
             {% endif %}
+        <thead>
         <tr>
             {% for name in column_names %}
             <th>{{name}}</th>
             {% endfor %}
         </tr>
+        </thead>
         {% for row in kb %}
         <tr>
             {% for name, value in row.items()%}
