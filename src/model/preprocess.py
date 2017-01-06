@@ -566,7 +566,6 @@ class DataGenerator(object):
         DialogueBatch.copy = copy
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
-        import sys; sys.exit()
 
         for fold, dialogues in self.dialogues.iteritems():
             print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
