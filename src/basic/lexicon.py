@@ -51,12 +51,13 @@ class Lexicon(BaseLexicon):
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
-                                   "start", "go", "school", "do", "know", "no", "work"])
+                                   "start", "go", "school", "do", "know", "no", "work", "are",
+                                   "he", "she"])
 
         if scenarios_json is not None:
             self._process_kbs(scenarios_json)
-        else:
-            raise Warning("No scenarios json provided!")
+        #else:
+        #    raise Warning("No scenarios json provided!")
 
         # Ensure an entity ranker is provided for scoring (span, entity) pairs
         if learned_lex:
@@ -128,6 +129,8 @@ class Lexicon(BaseLexicon):
                     synonyms.extend(get_edits(phrase))
                     synonyms.extend(get_morphological_variants(phrase))
                     synonyms.extend(get_prefixes(phrase, min_length=1))
+                if phrase in ('and', '&', "'n"):
+                    synonyms.extend(['and', '&', "'n"])
 
             # Multi-token level variants: UPenn, uc berkeley
             if len(mod_entity.split(" ")) > 1:
@@ -152,6 +155,11 @@ class Lexicon(BaseLexicon):
         :param uuid: uuid of scenario containing KB for given agent
         :return:
         """
+        def all_substrings(tokens, s):
+            for token in tokens:
+                if token not in s:
+                    return False
+            return True
         # Use heuristic scoring system
         if not self.learned_lex:
             entity_scores = []
@@ -161,8 +169,6 @@ class Lexicon(BaseLexicon):
                 span_tokens = span.split()
                 entity_tokens = c_s.split()
 
-                if kb_entities is None:
-                    continue
                 ed = editdistance.eval(span, c[0])
                 if c[0] not in kb_entities:
                     # Prioritize exact match
@@ -175,8 +181,12 @@ class Lexicon(BaseLexicon):
                 # Prioritize multi phrase spans contained in entity
                 elif len(span_tokens) > 1 and span in c_s:
                     score = 1
+                elif len(span_tokens) > 1 and all_substrings(span_tokens, c_s):
+                    score = 2
+                elif len(span_tokens) > len(entity_tokens):
+                    score = float('inf')
                 else:
-                    score = ed
+                    score = ed + 3
 
                 entity_scores.append(c + (score,))
 
@@ -184,7 +194,7 @@ class Lexicon(BaseLexicon):
             entity_scores = sorted(entity_scores, key=lambda x: x[2])
 
             # If exact match or substring match with an entity
-            if entity_scores[0][2] <= 1:
+            if entity_scores[0][2] <= 5:
                 if span not in self.common_phrases:
                     best_match = entity_scores[0][:2]
                 else:
@@ -212,7 +222,30 @@ class Lexicon(BaseLexicon):
 
         return best_match
 
-    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None):
+    # TODO: hacky fix.
+    def combine_repeated_entity(self, entity_tokens):
+        is_entity = lambda x: not isinstance(x, basestring)
+        prev_entity = None
+        max_dist = 1
+        cache = []
+        combined_entity_tokens = []
+        for i, token in enumerate(entity_tokens):
+            if is_entity(token):
+                if prev_entity is not None and token[0] != prev_entity[0] and token[1] == prev_entity[1] and (len(cache) <= max_dist):
+                    surface = '%s %s %s' % (prev_entity[0], ' '.join(cache), token[0])
+                    combined_entity_tokens[-1] = (surface, prev_entity[1])
+                else:
+                    combined_entity_tokens.extend(cache)
+                    combined_entity_tokens.append(token)
+                prev_entity = token
+                cache = []
+            elif prev_entity is None:
+                combined_entity_tokens.append(token)
+            else:
+                cache.append(token)
+        return combined_entity_tokens
+
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None, mentioned_entities=None):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple','company'))]
@@ -223,9 +256,12 @@ class Lexicon(BaseLexicon):
         :param agent: Agent (0,1) whose utterance is being linked
         :param uuid: uuid of scenario being used for testing whether candidate entity is in KB
         """
-        # HACK
-        assert kb is not None
-        kb_entities = kb.entity_set
+        if kb is not None:
+            kb_entities = kb.entity_set
+            if mentioned_entities is not None:
+                kb_entities = kb_entities.union(mentioned_entities)
+        else:
+            kb_entities = None
 
         i = 0
         found_entities = []
@@ -275,6 +311,8 @@ class Lexicon(BaseLexicon):
             if not candidate_entities or single_char:
                 linked.append(raw_tokens[i])
                 i += 1
+
+        linked = self.combine_repeated_entity(linked)
 
         # For computing per dialogue entities found
         if return_entities:

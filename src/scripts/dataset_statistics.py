@@ -488,7 +488,7 @@ def print_strategy_stats(stats):
     print 'Dialogue statistics:'
     for k, v in dialogue_stats.iteritems():
         print '%s: %.3f' % (k, v)
-    print_example('repeated_entity_per_entity_utterance', 3)
+    print_example('repeated_entity_per_entity_utterance', 10)
 
     k = 10
     print "-----------------------------------"
