@@ -68,9 +68,10 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
         controller = Controller(scenario, sessions)
         ex = controller.simulate()
-        if remove_fail and ex.outcome['reward'] == 0:
+        if ex.outcome['reward'] == 0:
             num_failed += 1
-            continue
+            if remove_fail:
+                continue
         examples.append(ex)
         num_examples += 1
         logstats.update_summary_map(summary_map, {'length': len(ex.events)})
