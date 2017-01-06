@@ -97,9 +97,8 @@
         <header>
             <h1><b>Instructions</b></h1> <br>
                Below you will be given a dialogue that happened between two agents, <strong>Agent 1</strong> and <strong>Agent 2</strong>.
-                   In this dialogue, the two agents each know 10 different people. <strong>Agent 1 </strong> does not know which 10 people <strong>Agent 2</strong>
-                   knows, but <strong>Agent 1</strong> does know that she has one friend in common with <strong>Agent 2</strong>. In this dialogue
-                   the two agents are collectively trying to find out which friend they have in common, by discussing information about their respective friends. <br> <br>
+                   In this dialogue, each agent has a private table of friends with one friend that is common to both agents.  The goal of their dialogue is to find the
+                    unique mutual friend as quickly as possible.<br> <br>
 
                    Below you are also given the friends info from one of the agents. Your job is to answer the questions
                    that follow the dialogue about this agent's behavior in the dialogue, by moving each slider appropriately. The agent's statements are highlighted in <span style="color:darkred"> red</span>. In
@@ -108,21 +107,38 @@
                    each of the attributes we will be asking about: <br> <br>
                    <ul style="margin-left: 30px;">
                         <li>
-                            <span style="color:blue"><strong>FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent sound? If the agent says
-                            things like <i>Friend the is college</i>, that is <strong>very not fluent</strong>, but if they are saying things like
-                            <i>Most of my friends went to Ohio State</i>, this is <strong>very fluent</strong>.
+                            <span style="color:blue"><strong>FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent sound?
+                            <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">FLUENT</span>: Saying things like <i>Most of my friends went to Ohio State</i>
+                                </li>
+                                <li> <span style="color:red">NOT FLUENT</span>: Saying things like <i>Friend the is college</i>
+                                </li>
+                            </ul>
                         </li><br>
                         <li>
                             <span style="color:blue"><strong>FACTUALLY-CORRECT</strong></span>: How consistent are the statements made by the agent with their friend information? In other words,
-                            are they lying? For example, if the agent is saying things like <i>I have a friend that studied biology</i> but none of their friends
-                            studied biology, the agent is <strong>not very correct</strong>.
+                            are they lying?
+                            <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">FACTUALLY-CORRECT</span>: Saying things like <i>My colleges are Northwestern, Williams, and Ohio State</i> and having
+                                    all the agent's friends attending these colleges
+                                </li>
+                                <li> <span style="color:red">NOT FACTUALLY-CORRECT</span>: Saying things like <i>I have a friend that studied biology</i> but none of their friends
+                            studied biology
+                                </li>
+                            </ul>
                         </li><br>
                        <li>
                             <span style="color:blue"><strong>STRATEGIC</strong></span>: How useful are the statements made by the agent? Since the two agents
                            are trying to find their common friend as quickly as possible, how good do the questions asked by the agent
-                           seem and how appropriate are the agent's answers to the other agent's questions? For example, if the agent
-                           has no friends that worked at McKinsey but they ask <i>How many of your friends worked at McKinsey</i>, they
-                           are <strong>not very strategic</strong>.
+                           seem and how appropriate are the agent's answers to the other agent's questions?
+                           <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">STRATEGIC</span>: If the agent has one friend that likes evenings and the rest like mornings,
+                                    and the agent says <i>I have only one evening</i>
+                                </li>
+                                <li> <span style="color:red">NOT STRATEGIC</span>: If the  agent
+                           has no friends that worked at McKinsey but they ask <i>How many of your friends worked at McKinsey?</i>
+                                </li>
+                            </ul>
                        </li> <br>
                        <li>
                            <span style="color:blue"><strong>HUMAN-LIKE</strong></span>: If you were talking to this agent, would you be convinced that it is a human? Many
