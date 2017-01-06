@@ -78,10 +78,6 @@ for ex in annotated_examples:
                                     fout.write(str(idx) + "\t" + uuid + "\t" + str(agent) + "\t" + msw + "\t" + candidate_entity[0] + "\t" + msw + "\t" + "0" + "\n")
                                     idx += 1
 
-                # Add stop word train examples
-                # for t in lower_raw_tokens:
-                #     if t in sw:
-
 
 
 fout.close()
