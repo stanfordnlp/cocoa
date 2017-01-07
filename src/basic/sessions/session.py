@@ -16,5 +16,5 @@ class Session(object):
 
     def message(self, text):
         return Event(agent=self.agent, time=None, action='message', data=text)
-    def select(self, index):
-        return Event(agent=self.agent, time=None, action='select', data=index)
+    def select(self, item):
+        return Event(agent=self.agent, time=None, action='select', data=item)

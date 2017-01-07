@@ -5,7 +5,6 @@ import re
 import random
 
 from collections import defaultdict
-from entity_ranker import EntityRanker
 from fuzzywuzzy import fuzz
 from lexicon_utils import get_prefixes, get_acronyms, get_edits, get_morphological_variants
 
@@ -213,8 +212,7 @@ class Lexicon(BaseLexicon):
 
         return best_match
 
-
-    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE"):
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple','company'))]
@@ -225,12 +223,9 @@ class Lexicon(BaseLexicon):
         :param agent: Agent (0,1) whose utterance is being linked
         :param uuid: uuid of scenario being used for testing whether candidate entity is in KB
         """
-        # Stores KB of agent as set of entities
-        try:
-            kb_entities = self.uuid_to_kbs[uuid][agent]
-        except Exception as e:
-            print "No scenario provided so agent entities and entity scoring not well-defined..."
-            kb_entities = None
+        # HACK
+        assert kb is not None
+        kb_entities = kb.entity_set
 
         i = 0
         found_entities = []
@@ -303,6 +298,7 @@ if __name__ == "__main__":
     from schema import Schema
     import argparse
     import time
+    from entity_ranker import EntityRanker
 
     parser = argparse.ArgumentParser("arguments for basic testing lexicon")
     parser.add_argument("--schema", type=str, help="path to schema to use")
