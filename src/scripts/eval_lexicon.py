@@ -115,7 +115,7 @@ def eval_lexicon(lexicon, examples, re_pattern):
 
                 gold_annotation = []
                 for a in e["entityAnnotation"]:
-                    span = re.sub("-|\.", " ", a["span"].lower()).strip()
+                    span = re.sub("-", " ", a["span"].lower()).strip()
                     entity = a["entity"].lower()
                     gold_annotation.append((span, entity))
 
@@ -153,7 +153,7 @@ def eval_lexicon(lexicon, examples, re_pattern):
 if __name__ == "__main__":
     # Regex to remove all punctuation in utterances
     # TODO: Use easier regex
-    re_pattern = r"[\w*\']+|[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
+    re_pattern = r"\w\.\w\.|[\w*\']+|[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
     schema = Schema(args.schema)
 
     start = time.time()
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
 
     output_dir = os.path.dirname(os.path.dirname(os.getcwd())) + "/output"
-    lexicon = Lexicon(schema, learned_lex=False, entity_ranker=ranker, scenarios_json=args.scenarios_json)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=ranker, scenarios_json=args.scenarios_json)
 
     eval_lexicon(lexicon, examples, re_pattern)
     print "Total time: ", time.time() - start
