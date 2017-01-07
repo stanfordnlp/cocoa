@@ -243,6 +243,7 @@ class Lexicon(BaseLexicon):
                 combined_entity_tokens.append(token)
             else:
                 cache.append(token)
+        combined_entity_tokens.extend(cache)
         return combined_entity_tokens
 
     def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None, mentioned_entities=None):
