@@ -13,12 +13,14 @@ if __name__ == "__main__":
     add_scenario_arguments(parser)
     parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
     parser.add_argument('--stats-output', type=str, required=True, help='Name of file to write JSON statistics to')
+    parser.add_argument('--text-output', type=str, help='Name of file to write sentences line by line')
     parser.add_argument('--alpha-stats', action='store_true', help='Get statistics grouped by alpha values')
     parser.add_argument('--item-stats', action='store_true',
                         help='Get statistics grouped by number of items in scenarios')
     parser.add_argument('--plot-item-stats', type=str, default=None,
                         help='If provided, and if --item-stats is specified, plots the relationship between # of items '
                              'and various stats to the provided path.')
+    parser.add_argument('--lm', help='Path to LM (.arpa)')
 
     args = parser.parse_args()
     schema = Schema(args.schema_path)
@@ -49,14 +51,22 @@ if __name__ == "__main__":
         if args.plot_item_stats is not None:
             plot_num_items_stats(stats_by_num_items, args.plot_item_stats)
 
+    # LM
+    if args.lm:
+        import kenlm
+        lm = kenlm.Model(args.lm)
+    else:
+        lm = None
+
     # Speech acts
     lexicon = Lexicon(schema, False)
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
-    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
+    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm)
     print_strategy_stats(strategy_stats)
     stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}
     stats["kb_strategy"] = strategy_stats['kb_strategy']
     stats["dialog_stats"] = strategy_stats['dialog_stats']
+    stats["lm_score"] = strategy_stats['lm_score']
 
     json.dump(stats, statsfile)
     statsfile.close()
