@@ -273,9 +273,11 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
+    dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
+    dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
     return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
-            'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
+            'dialog_stats': dialog_stats,
             'lm_score': -1 if not lm else lm_summary_map['score']['mean'],
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
@@ -380,7 +382,6 @@ def get_average_sentences(all_chats, scenario_db, alphas=None, num_items=None):
 
 def get_num_completed(all_chats, scenario_db, alphas=None, num_items=None):
     num_complete = 0.0
-    total = 0.0
     for chat in all_chats:
         scenario = scenario_db.get(chat["scenario_uuid"])
         kb = scenario.get_kb(0)
@@ -390,9 +391,8 @@ def get_num_completed(all_chats, scenario_db, alphas=None, num_items=None):
                 or (alphas is None and num_items is None):
             if chat["outcome"] is not None:
                 num_complete += 1.0 if chat["outcome"]["reward"] == 1 else 0.0
-                total += 1
 
-    return num_complete, num_complete / total
+    return num_complete
 
 
 def get_alpha_groups(all_chats, scenario_db):
@@ -439,16 +439,16 @@ def get_total(all_chats, scenario_db, alphas=None, num_items=None):
 
 
 def get_total_statistics(all_chats, scenario_db):
-    num_comp, perc_comp = get_num_completed(all_chats, scenario_db)
-    return {
+    stats = {
         'avg_time_taken': get_average_time_taken(all_chats, scenario_db),
         'avg_turns': get_average_sentences(all_chats, scenario_db),
         'avg_sentence_length': get_average_length(all_chats, scenario_db),
-        'num_completed': num_comp,
-        'percentage_completed': perc_comp,
+        'num_completed': get_num_completed(all_chats, scenario_db),
         'cross_talk': get_cross_talk(all_chats),
         'total': get_total(all_chats, scenario_db)
     }
+    stats['completion_rate'] = stats['num_completed'] / stats['total']
+    return stats
 
 
 def get_statistics_by_alpha(all_chats, scenario_db):
@@ -494,7 +494,11 @@ def print_group_stats(group_stats):
     print "Average number of utterances: %2.2f" % group_stats['avg_turns']
     print "Average utterance length: %2.2f tokens" % group_stats['avg_sentence_length']
     print "# of completed dialogues: %d" % group_stats['num_completed']
-    print "%% of cross talk: %.2f" % group_stats['cross_talk']
+    try:
+        print "%% of cross talk: %.2f" % group_stats['cross_talk']
+    # cross_talk is not computed for alpha groups for now
+    except KeyError:
+        pass
     print 'Total dialogues: %d' % group_stats['total']
 
 
