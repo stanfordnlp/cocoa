@@ -6,6 +6,7 @@ from src.lib import logstats
 from src.model.vocab import is_entity
 from collections import defaultdict
 from itertools import izip
+from src.model.preprocess import word_to_num
 import random
 
 
@@ -161,11 +162,59 @@ def get_dialog_stats(summary_map, utterance_counts, dialog):
 def entity_to_type(tokens):
     return [x if not is_entity(x) else '<%s>' % x[1][1] for x in tokens]
 
+def to_number(token, max_number):
+    if token in [str(x) for x in range(max_number)]:
+        return int(token)
+    elif token in word_to_num:
+        return word_to_num[token]
+    elif token == 'all':
+        return max_number
+    elif token in ('none', 'no', "don't"):
+        return 0
+    return None
+
+def count_kb_entity(kb, entities):
+    count = 0
+    for item in kb.items:
+        item_entities = [x.lower() for x in item.values()]
+        match = True
+        for entity in entities:
+            if entity not in item_entities:
+                match = False
+                break
+        if match:
+            count += 1
+    return count
+
+def check_fact(summary_map, tokens, kb):
+    '''
+    Simple fact checker:
+        each utterance is converted to a list of numbers and entities and we assume
+        that the number describes the following entities, which will cause some false
+        negatives.
+    '''
+    hypothesis = []
+    N = len(kb.items)
+    for token in tokens:
+        if is_entity(token):
+            if len(hypothesis) > 0:
+                # Represent entity as its canonical form
+                hypothesis[-1][1].append(token[1][0])
+        else:
+            number = to_number(token, N)
+            if number:
+                hypothesis.append((number, []))
+    for n, entities in hypothesis:
+        if len(entities) > 0:
+            correct = 1 if  n == count_kb_entity(kb, entities) else 0
+            logstats.update_summary_map(summary_map, {'correct': correct})
+
 def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
     dialog_summary_map = {}
+    fact_summary_map = {}
     utterance_counts = defaultdict(lambda : defaultdict(int))
     first_word_counts = defaultdict(int)
     total_events = 0
@@ -192,6 +241,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
                     for token in utterance:
                         if is_entity(token):
                             mentioned_entities.add(token[1][0])
+                    check_fact(fact_summary_map, utterance, kbs[event.agent])
                     if lm:
                         logstats.update_summary_map(lm_summary_map, {'score': lm.score(' '.join(entity_to_type(utterance)))})
                     if fout:
@@ -229,6 +279,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             'lm_score': -1 if not lm else lm_summary_map['score']['mean'],
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
+            'correct': fact_summary_map['correct']['mean']
             }
 
 def get_cross_talk(all_chats):

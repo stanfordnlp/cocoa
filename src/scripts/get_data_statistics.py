@@ -67,6 +67,7 @@ if __name__ == "__main__":
     stats["kb_strategy"] = strategy_stats['kb_strategy']
     stats["dialog_stats"] = strategy_stats['dialog_stats']
     stats["lm_score"] = strategy_stats['lm_score']
+    stats["correct"] = strategy_stats['correct']
 
     json.dump(stats, statsfile)
     statsfile.close()
