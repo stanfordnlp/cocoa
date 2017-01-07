@@ -47,6 +47,7 @@ class ScenarioDB(object):
     '''
     def __init__(self, scenarios_list):
         self.scenarios_list = scenarios_list  # Keep things in order
+        self.size = len(scenarios_list)
         self.scenarios_map = {}  # Map from uuid to scenario
         for scenario in scenarios_list:
             self.scenarios_map[scenario.uuid] = scenario
