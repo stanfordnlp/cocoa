@@ -70,7 +70,7 @@ class InverseLexicon(object):
                 realized = variants[idx]
 
             except:
-                print "Have not encountered entity in data..."
+                print "Have not encountered entity in data... ", entity
                 realized = -1
 
             if realized != -1:
@@ -98,7 +98,8 @@ class InverseLexicon(object):
 
 
     def test(self):
-        entities = [("amanda", "school"), ("rowan eastern college of the arts", "school"), ("bible studies", "major")]
+        entities = [("amanda", "school"), ("rowan eastern college of the arts", "school"), ("bible studies", "major"),
+            ("stanford university", "school"), ("north eastern university of pennsylvania", "school")]
         realized = self.realize_entity(entities)
         print realized
 

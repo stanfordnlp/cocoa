@@ -86,6 +86,23 @@ class EntityRanker(object):
         self.uuid_to_kbs = uuid_to_kbs
 
 
+    def _tfidf_bin(self, token):
+        """
+        Return tfidf bin number of token
+        :param token:
+        :return:
+        """
+        tfidf = self.token_to_tfidf[token]
+        if tfidf < 3:
+            return 1
+        elif tfidf < 5:
+            return 2
+        elif tfidf < 7:
+            return 3
+        else:
+            return 4
+
+
     def _feature_func(self, span, entity, agent, uuid):
         """
         Get a series of features between a span of text and a candidate entity
@@ -122,7 +139,9 @@ class EntityRanker(object):
         elif ed == 2:
             features["EDIT_DISTANCE=2"] = 1.0
         elif ed > 2:
-            features["EDIT_DISTANCE>2"] = 1.0
+            # Only trigger feature if span and entity both have multiple tokens
+            if len(entity_clean_tokens) > 1 and len(span_tokens) > 1:
+                features["EDIT_DISTANCE>2"] = 1.0
 
         all_in = True
         for s in span_tokens:
@@ -142,17 +161,15 @@ class EntityRanker(object):
             features["PARTIAL_RATIO_<50"] = 1.0
 
         # TF-IDF scores
-        span_tfidf = self.token_to_tfidf[span]
-        entity_tfidf = self.token_to_tfidf[entity]
-        # TODO: Good way to incorporate TF-IDF scores?
-        #features["TFIDF_DIFF"] = -1*entity_tfidf + span_tfidf
+        for idx, st in enumerate(entity_clean_tokens):
+            bin = self._tfidf_bin(st)
+            features["TFIDF_entity_"+str(idx)+"_"+str(bin)] = 1.0
 
 
         # KB context - upweight if entity is in current agent's KB
         if kb_entities is not None and entity in kb_entities:
             features["IN_KB"] = 1.0
 
-        # TODO: Use type features?
 
         # Feature if both span and entity are stop word
         if span in self.stop_words and entity in self.stop_words:
@@ -245,7 +262,7 @@ class EntityRanker(object):
 
 if __name__ == "__main__":
     # TODO: Handle keeping terms like "m.d." intact rather than removing punctuation
-    re_pattern = r"[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
+    re_pattern = r"\w\.\w\.|[\w*\']+|[(\w*&)]+|[\w]+|\.|\(|\)|\\|\"|\/|;|\#|\$|\%|\@|\{|\}|\:"
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--ranker-data", type=str, help="path to train data")
