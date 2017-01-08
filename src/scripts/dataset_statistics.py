@@ -147,7 +147,7 @@ def get_dialog_stats(summary_map, utterance_counts, dialog):
         num_entities += num_ents
         num_entity_types += num_types
         if num_ents > 0:
-            logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_ents > 1 else 0})
+            logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_types > 1 else 0})
             logstats.update_summary_map(summary_map, {'repeated_entity_per_entity_utterance': 1 if num_ents > num_types else 0})
             if num_ents > num_types:
                 examples['repeated_entity_per_entity_utterance'].append(utterance)
