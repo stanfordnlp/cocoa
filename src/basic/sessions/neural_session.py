@@ -1,11 +1,15 @@
 __author__ = 'anushabala'
 from session import Session
 from src.model.graph import Graph, GraphBatch
-from src.model.preprocess import markers
+from src.model.preprocess import markers, word_to_num
 from src.model.vocab import is_entity, Vocabulary
 from src.model.evaluate import pred_to_token
 import numpy as np
 import random
+import re
+from itertools import izip
+
+num_to_word = {v: k for k, v in word_to_num.iteritems()}
 
 class NeuralSession(Session):
     """
@@ -26,6 +30,9 @@ class NeuralSession(Session):
         self.mentioned_entities = set()
         #self.log = open('chat.debug.log', 'a')
         #self.log.write('-------------------------------------\n')
+
+        self.capitalize = random.choice([True, False])
+        self.numerical = random.choice([True, False])
 
     def encode(self, entity_tokens):
         raise NotImplementedError
@@ -68,6 +75,27 @@ class NeuralSession(Session):
                 return True
         return False
 
+    def naturalize(self, tokens):
+        '''
+        Process the tokens to add variation, e.g. capitalization, number representation.
+        '''
+        # Map wrong numerics to word, e.g. not that 1
+        for i, (w1, w2) in enumerate(izip(tokens, tokens[1:])):
+            if w1 in ('this', 'that', 'the') and w2 == '1':
+                tokens[i+1] == 'one'
+        if self.capitalize:
+            tokens[0] = tokens[0].title()
+            tokens = ['I' if x == 'i' else x for x in tokens]
+        # Model output is numerical by default
+        if not self.numerical:
+            tokens = [num_to_word[x] if x in num_to_word else x for x in tokens]
+        return tokens
+
+    def attach_punct(self, s):
+        s = re.sub(r' ([.,!?;])', r'\1', s)
+        s = re.sub(r'\.{3,}', r'...', s)
+        return s
+
     def send(self):
         # Don't send consecutive utterances with entities
         if self.sent_entity and not self.env.consecutive_entity:
@@ -75,7 +103,10 @@ class NeuralSession(Session):
         if self.matched_item is not None:
             print 'got matched item, select'
             return self.select(self.matched_item)
-        tokens = self.decode()
+        for i in xrange(1):
+            tokens = self.decode()
+            if tokens is not None:
+                break
         if tokens is None:
             return None
         if self._has_entity(tokens):
@@ -92,7 +123,9 @@ class NeuralSession(Session):
             self.selected_items.add(item_id)
             item = self.kb.items[item_id]
             return self.select(item)
-        return self.message(' '.join(tokens))
+        tokens = self.naturalize(tokens)
+        s = self.attach_punct(' '.join(tokens))
+        return self.message(s)
 
 class RNNNeuralSession(NeuralSession):
     '''
