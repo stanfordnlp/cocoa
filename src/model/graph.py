@@ -50,7 +50,11 @@ class GraphMetadata(object):
         # Item names/ids
         node_types.add_words([item_to_str(i) for i in xrange(max_num_items)])
         #node_types.add_words(['item', 'attr'])
-        self.feat_inds = {'degree': (0, degree_size), 'node_type': (degree_size, node_types.size), 'rel_degree': (degree_size + node_types.size, rel_degree_size)}
+        self.feat_inds = {'degree': (0, degree_size),
+                'node_type': (degree_size, node_types.size),
+                'rel_degree': (degree_size + node_types.size, rel_degree_size),
+                'mentioned': (degree_size + node_types.size + rel_degree_size, 1)
+                }
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
 
@@ -113,12 +117,12 @@ class GraphBatch(object):
     def _batch_node_feats(self, max_num_nodes):
         return self._make_batch((self.batch_size, max_num_nodes, Graph.metadata.feat_size), 0, np.float32, 'feats')
 
-    def update_entities(self, tokens):
+    def update_entities(self, tokens, stage=None):
         assert len(tokens) == self.batch_size
         for graph, toks in izip(self.graphs, tokens):
             # toks is None when this is a padded turn
             if toks is not None:
-                graph.read_utterance(toks)
+                graph.read_utterance(toks, stage=None)
 
     def _batch_entity_lists(self, entity_lists, pad_utterance_id):
         max_len = max([len(entity_list) for entity_list in entity_lists])
@@ -157,14 +161,14 @@ class GraphBatch(object):
                     new_preds[i][j] = Graph.metadata.entity_map.to_ind(entity) + vocab_size
         return new_preds
 
-    def update_graph(self, tokens):
+    def update_graph(self, tokens, stage=None):
         '''
         Update graph: add new entities tokens.
         Return lists of entities at the end of the sequence of tokens so that the encoder
         or decoder can update the utterance matrix accordingly.
         '''
         if tokens is not None:
-            self.update_entities(tokens)
+            self.update_entities(tokens, stage=None)
         entity_lists = [graph.get_entity_list() for graph in self.graphs]
         return entity_lists
 
@@ -234,8 +238,8 @@ class GraphBatch(object):
           we will get updated utterance matrices from GraphEmbedder.
         - node_ids, entity_ids, paths, node_paths, node_feats
         '''
-        encoder_entity_lists = self.update_graph(encoder_tokens)
-        decoder_entity_lists = self.update_graph(decoder_tokens)
+        encoder_entity_lists = self.update_graph(encoder_tokens, stage='encoding')
+        decoder_entity_lists = self.update_graph(decoder_tokens, stage='decoding')
 
         max_num_nodes = self._max_num_nodes()
         if utterances is None:
@@ -354,17 +358,20 @@ class Graph(object):
                 self._add_path(attr_node, 'has', entity_node)
         self.paths = np.array(self.paths, dtype=np.int32)
 
-    def read_utterance(self, tokens):
+    def read_utterance(self, tokens, stage=None):
         '''
         Map entities to node ids and tokens to -1. Add new nodes if needed.
         tokens: from batch['encoder/decoder_tokens']; entities are represented
         as (surface_form, (canonical_form, type)), i.e. output of entitylink.
         '''
-        new_entities = set([x[1] for x in tokens if is_entity(x) and not self.nodes.has(x[1])])
+        entities = [x[1] for x in tokens if is_entity(x)]
+        new_entities = set([x for x in entities if not self.nodes.has(x)])
         if len(new_entities) > 0:
             self.add_entity_nodes(new_entities)
         node_ids = [self.nodes.to_ind(x[1]) for x in tokens if is_entity(x)]
         self.entities.append(node_ids)
+        if stage == 'decoding':
+            self._update_mentioned(entities)
 
     def _update_nodes(self, entities):
         self.nodes.add_words(entities)
@@ -375,6 +382,11 @@ class Graph(object):
         feats = [[0, self._node_type(x)] for x in entities]
         new_feat_vec = self.get_feat_vec(feats)
         self.feats = np.concatenate((self.feats, new_feat_vec), axis=0)
+
+    def _update_mentioned(self, entities):
+        for entity in entities:
+            entity_id = self.nodes.to_ind(entity)
+            self.feats[entity_id][self._get_index('mentioned', 0)] = 1
 
     def _update_entity_ids(self, entities):
         self.entity_ids = np.concatenate([self.entity_ids,
@@ -420,7 +432,7 @@ class Graph(object):
 
     def get_features(self):
         nodes = [self.nodes.to_word(i) for i in xrange(self.nodes.size)]
-        # For entity node, fix degree so that it excludes the edge incident to the attr node
+        # For entity node, -1 degree so that it excludes the edge incident to the attr node
         feats = [[0, self._node_type(node)] if node[1] == 'item' or node[1] == 'attr'
                 else [-1, self._node_type(node)] for node in nodes]
         # Compute degree of each node
@@ -431,25 +443,30 @@ class Graph(object):
 
     @classmethod
     def degree_feat_size(cls):
-        return 5
+        return 6
 
     def _bin_degree(self, degree):
-        #if degree < 4:
-        #    return degree
         # NOTE: we consider degree only for attr and entity nodes (only count edges connected
         # to item nodes).
         assert degree <= self.num_items
         p = degree / float(self.num_items)
-        if p < 0.25:
+        if p == 0:
             return 0
-        if p >= 0.25 and p < 0.5:
+        if p < 0.25:
             return 1
-        elif p >= 0.5 and p < 0.75:
+        if p >= 0.25 and p < 0.5:
             return 2
-        elif p >= 0.75 and p < 1:
+        if p >= 0.5 and p < 0.75:
             return 3
-        elif p == 1:
+        if p >= 0.75 and p < 1:
             return 4
+        if p == 1:
+            return 5
+
+    def _get_index(self, feat_name, feat_value):
+        offset, size = Graph.metadata.feat_inds[feat_name]
+        assert feat_value < size
+        return offset + feat_value
 
     def get_feat_vec(self, raw_feats):
         '''
@@ -458,16 +475,11 @@ class Graph(object):
         '''
         f = np.zeros([len(raw_feats), Graph.metadata.feat_size])
 
-        def get_index(feat_name, feat_value):
-            offset, size = Graph.metadata.feat_inds[feat_name]
-            assert feat_value < size
-            return offset + feat_value
-
         for i, (degree, node_type) in enumerate(raw_feats):
             # Don't consider degree of item nodes (number of attrs, same for all items)
             if not node_type.startswith('item'):
-                f[i][get_index('rel_degree', self._bin_degree(degree))] = 1
-                f[i][get_index('degree', degree)] = 1
-            f[i][get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
+                f[i][self._get_index('rel_degree', self._bin_degree(degree))] = 1
+                f[i][self._get_index('degree', degree)] = 1
+            f[i][self._get_index('node_type', Graph.metadata.node_types.to_ind(node_type))] = 1
 
         return f
