@@ -32,8 +32,8 @@ def init_database(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.execute("""CREATE TABLE Responses (scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, fluent text)""")
-    c.execute("""CREATE TABLE ActiveDialogues (scenario_id text unique, events text, column_names text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
-    c.execute("""CREATE TABLE CompletedDialogues(scenario_id text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
+    c.execute("""CREATE TABLE ActiveDialogues (scenario_id text unique, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
+    c.execute("""CREATE TABLE CompletedDialogues(scenario_id text, agent_mapping text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
     c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_scenarios_evaluated text, agent1_scenarios_evaluated text, num_evals_completed integer, timestamp text)""")
     c.execute("""CREATE TABLE CompletedUsers (user_id text, mturk_code text, timestep text, num_evals_completed integer)""")
     conn.commit()
@@ -85,7 +85,7 @@ def init_dialogues(db_path):
             elif event["action"] == "select":
                 # Modify format of selection data
                 new_data = "SELECT("
-                for attr in event["data"]:
+                for attr in event["data"].iteritems():
                     new_data += attr[1] + ", "
                 new_data = new_data.strip()
                 new_data = new_data.strip(",")
@@ -93,9 +93,9 @@ def init_dialogues(db_path):
                 event["data"] = new_data
                 msg_events.append(event)
 
-
-        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?) """,
-            (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps(agent0_kb),
+        # TODO: Replace placeholder agent mapping
+        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?) """,
+            (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps({"Agent 0": "human", "Agent 1": "bot"}), json.dumps(agent0_kb),
             json.dumps(agent1_kb), 0, 0))
 
     conn.commit()

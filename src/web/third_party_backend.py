@@ -86,8 +86,8 @@ class BackendConnection(object):
                                                                                   results["fluent"]))
             try:
                 # Update number of evals on dialogue
-                cursor.execute("SELECT num_agent0_evals, num_agent1_evals FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
-                num_agent0_evals, num_agent1_evals = cursor.fetchone()
+                cursor.execute("SELECT num_agent0_evals, num_agent1_evals, agent_mapping FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
+                num_agent0_evals, num_agent1_evals, agent_mapping = cursor.fetchone()
                 if agent_id == 0:
                     num_agent0_evals += 1
                 else:
@@ -95,8 +95,8 @@ class BackendConnection(object):
 
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
                 if num_agent0_evals == app.config["num_evals_per_dialogue"] and num_agent1_evals == app.config["num_evals_per_dialogue"]:
-                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?)",
-                                   (scenario_id, num_agent0_evals, num_agent1_evals, now))
+                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?,?)",
+                                   (scenario_id, agent_mapping, num_agent0_evals, num_agent1_evals, now))
                     cursor.execute("DELETE FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
                 else:
                     # Update number of evals completed for dialogue
