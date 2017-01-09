@@ -106,10 +106,10 @@ class NgramSession(Session):
                     # print "[Agent %d] [will retry] Invalid state while getting candidates for token: " % self.agent, token
                     retries += 1
                 else:
-                    if retries >= retry_limit:
-                        print "[Agent %d] Retried %d times and gave up" % (self.agent, retries)
-                    elif retries > 0:
-                        print "[Agent %d] Retried %d times and successfully regenerated" % (self.agent, retries)
+                    # if retries >= retry_limit:
+                    #     print "[Agent %d] Retried %d times and gave up" % (self.agent, retries)
+                    # elif retries > 0:
+                    #     print "[Agent %d] Retried %d times and successfully regenerated" % (self.agent, retries)
                     retries = 0
                     token_with_entity = token
                     if is_entity(token):
@@ -148,11 +148,11 @@ class NgramSession(Session):
             # mention feature present but no entities were mentioned
             if not self.is_token_valid(token):
                 # if entity type isn't valid return none
-                print "[Agent %d]  Invalid token: " % self.agent, token
+                # print "[Agent %d]  Invalid token: " % self.agent, token
                 return ("NONE", ("NONE", entity_type, features))
             else:
                 # if features lead to invalid state just choose best ranked entity of this type
-                print "[Agent %d]  Invalid state from features:" % self.agent, token
+                # print "[Agent %d]  Invalid state from features:" % self.agent, token
                 if entity_type == Tagger.SELECTION_TYPE:
                     candidates = self.kb.items
                 else:

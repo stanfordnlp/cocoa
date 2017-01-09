@@ -188,7 +188,7 @@ class DatasetTagger(object):
                     attribute_combos.add(attributes)
                     tagged_data.append((self.tag_example(ex, agent), attributes))
 
-            if i % 50 == 0:
+            if i % 1000 == 0:
                 print "Tagged %d examples" % i
 
         return tagged_data, attribute_combos
