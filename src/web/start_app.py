@@ -39,7 +39,7 @@ def add_website_arguments(parser):
     parser.add_argument('--output', type=str,
                         default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
-                             'and database). Defaults to a web_output/current_data, with the current date formatted as '
+                             'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '
                              'If the provided directory exists, all data in it is overwritten.')
     parser.add_argument('--domain', type=str,
@@ -82,12 +82,12 @@ def add_systems(config_dict, schema, lexicon, scenarios_path):
         if info["active"]:
             type = info["type"]
             if type == SimpleSystem.name():
-                model = SimpleSystem()
-            elif type == HeuristicSystem.name():
-                model = HeuristicSystem()
+                model = SimpleSystem(lexicon, timed_session=True)
+            #elif type == HeuristicSystem.name():
+            #    model = HeuristicSystem()
             elif type == NeuralSystem.name():
                 path = info["path"]
-                decoding = info["decoding"].items()[0]
+                decoding = info["decoding"].split()
                 model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
             elif type == NgramSystem.name():
                 transcripts = info['transcripts']

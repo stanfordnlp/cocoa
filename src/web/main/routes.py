@@ -134,7 +134,8 @@ def check_inbox():
         elif event.action == 'leave':
             message = format_message("Your partner has left the room.", True)
         elif event.action == 'select':
-            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in event.data])), True)
+            ordered_item = backend.schema.get_ordered_item(event.data)
+            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
         return jsonify(message=message, received=True)
     return jsonify(received=False)
 
@@ -165,7 +166,8 @@ def select():
         return
     selected_item = backend.select(userid(), selection_id)
 
-    displayed_message = format_message("You selected: {}".format(", ".join([v[1] for v in selected_item])), True)
+    ordered_item = backend.schema.get_ordered_item(selected_item)
+    displayed_message = format_message("You selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
     return jsonify(message=displayed_message)
 
 

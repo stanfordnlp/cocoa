@@ -14,7 +14,6 @@ class Event(object):
         :param metadata: Any additional metadata that needs to be stored in the event.
         :return:
         '''
-
         self.agent = agent
         self.time = time
         self.action = action
