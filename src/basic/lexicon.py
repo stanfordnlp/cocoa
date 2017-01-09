@@ -29,9 +29,6 @@ class BaseLexicon(object):
         for type_, values in self.schema.values.iteritems():
             for value in values:
                 self._add_entity(type_, value.lower())
-        # Add attributes
-        for attr in self.schema.attributes:
-            self._add_entity('attr', attr.name.lower())
 
     def _add_entity(self, type, entity):
         # Keep track of number of times words in this entity shows up
@@ -148,7 +145,7 @@ class Lexicon(BaseLexicon):
                 self.lexicon[synonym].append((entity, type))
 
 
-    def score_and_match(self, span, candidates, agent, uuid, kb_entities):
+    def score_and_match(self, span, candidates, agent, uuid, kb_entities, known_kb=True):
         """
         Score the given span with the list of candidate entities and returns best match
         :param span:
@@ -175,7 +172,7 @@ class Lexicon(BaseLexicon):
                 entity_tokens = c_s.split()
 
                 ed = editdistance.eval(span, c[0])
-                if c[0] not in kb_entities:
+                if c[0] not in kb_entities and known_kb:
                     # Prioritize exact match
                     if c[0] == span:
                         score = 0
@@ -202,7 +199,7 @@ class Lexicon(BaseLexicon):
             # If exact match or substring match with an entity
             entity, type_, score = entity_scores[0]
             if score <= 5:
-                if span not in self.common_phrases or type_ == 'attr':
+                if span not in self.common_phrases:
                     best_match = (entity, type_)
                 else:
                     best_match = (span, None)
@@ -253,7 +250,7 @@ class Lexicon(BaseLexicon):
         combined_entity_tokens.extend(cache)
         return combined_entity_tokens
 
-    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None, mentioned_entities=None):
+    def link_entity(self, raw_tokens, return_entities=False, agent=1, uuid="NONE", kb=None, mentioned_entities=None, known_kb=True):
         """
         Add detected entities to each token
         Example: ['i', 'work', 'at', 'apple'] => ['i', 'work', 'at', ('apple', ('apple','company'))]
@@ -297,7 +294,7 @@ class Lexicon(BaseLexicon):
                 # Found some match
                 if len(candidate_entities) > 0:
                     if kb_entities is not None:
-                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities)
+                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities, known_kb)
                     else:
                         # TODO: Fix default system, if no kb_entities provided -- only returns random candidate now
                         best_match = random.sample(candidate_entities, 1)[0]
