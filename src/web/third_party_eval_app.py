@@ -72,7 +72,7 @@ def init_dialogues(db_path):
         kbs = scenario["kbs"]
         agent0_kb = kbs[0]
         agent1_kb = kbs[1]
-        column_names = ["School", "Major", "Company", "Name"]
+        column_names = agent0_kb[0].keys()#["School", "Major", "Company", "Name"]
 
         # Get events for example
         events = ex["events"]
