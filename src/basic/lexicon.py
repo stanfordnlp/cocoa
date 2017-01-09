@@ -29,6 +29,9 @@ class BaseLexicon(object):
         for type_, values in self.schema.values.iteritems():
             for value in values:
                 self._add_entity(type_, value.lower())
+        # Add attributes
+        for attr in self.schema.attributes:
+            self._add_entity('attr', attr.name.lower())
 
     def _add_entity(self, type, entity):
         # Keep track of number of times words in this entity shows up
@@ -161,9 +164,11 @@ class Lexicon(BaseLexicon):
                     return False
             return True
         # Use heuristic scoring system
+        #print 'span:', span
         if not self.learned_lex:
             entity_scores = []
             for c in candidates:
+                #print 'c:', c
                 # Clean up punctuation
                 c_s = re.sub("-", " ", c[0])
                 span_tokens = span.split()
@@ -187,6 +192,7 @@ class Lexicon(BaseLexicon):
                     score = float('inf')
                 else:
                     score = ed + 3
+                #print 'score:', score
 
                 entity_scores.append(c + (score,))
 
@@ -194,9 +200,10 @@ class Lexicon(BaseLexicon):
             entity_scores = sorted(entity_scores, key=lambda x: x[2])
 
             # If exact match or substring match with an entity
-            if entity_scores[0][2] <= 5:
-                if span not in self.common_phrases:
-                    best_match = entity_scores[0][:2]
+            entity, type_, score = entity_scores[0]
+            if score <= 5:
+                if span not in self.common_phrases or type_ == 'attr':
+                    best_match = (entity, type_)
                 else:
                     best_match = (span, None)
             else:

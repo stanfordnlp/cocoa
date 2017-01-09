@@ -49,7 +49,9 @@ def build_schema_mappings(schema, num_items):
     # Add item nodes
     for i in xrange(num_items):
         entity_map.add_word(item_to_entity(i)[1])
-    # TODO: add attribute nodes
+    # Add attr nodes
+    for attr in schema.attributes:
+        entity_map.add_word((attr.name.lower(), 'attr'))
 
     relation_map = Vocabulary(unk=False)
     attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
