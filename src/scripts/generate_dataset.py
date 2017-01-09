@@ -11,10 +11,12 @@ from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
 from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.cmd_system import CmdSystem
+from src.basic.systems.ngram_system import NgramSystem
+# from src.basic.systems.cmd_system import CmdSystem
 from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
+from src.basic.entity_ranker import EntityRanker
 from src.lib import logstats
 import numpy as np
 
@@ -22,9 +24,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use {heuristic}', nargs='*')
 parser.add_argument('--model-path', help='Path to model (used for neural agents)')
+parser.add_argument("--ranker-data", type=str, help="path to train data")
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
+parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
+parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
@@ -36,9 +41,13 @@ if args.random_seed:
     random.seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-schema = Schema(args.schema_path)
+schema = Schema(args.schema_path, domain=args.domain)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-lexicon = Lexicon(schema, learned_lex=False)
+if args.ranker_data:
+    entity_ranker = EntityRanker(None, args.scenarios_path, args.ranker_data, args.transcripts)
+    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path)
+else:
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
 
 def get_system(name):
     if name == 'simple':
@@ -48,8 +57,10 @@ def get_system(name):
     elif name == 'neural':
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
-    elif name == 'cmd':
-        return CmdSystem()
+    elif name == 'ngram':
+        return NgramSystem(args.transcripts, args.scenarios_path, lexicon, schema, attribute_specific=False, n=11)
+    # elif name == 'cmd':
+    #     return CmdSystem()
     else:
         raise ValueError('Unknown system %s' % name)
 
@@ -60,12 +71,13 @@ num_examples = args.scenario_offset
 
 summary_map = {}
 def generate_examples(description, examples_path, max_examples, remove_fail):
+    print "Generating data for %s" % description
     global num_examples
     examples = []
     num_failed = 0
     for i in range(max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
-        sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
+        sessions = [agents[0].new_session(0, scenario.kbs[0], scenario.uuid), agents[1].new_session(1, scenario.kbs[1], scenario.uuid)]
         controller = Controller(scenario, sessions)
         ex = controller.simulate()
         if remove_fail and ex.outcome['reward'] == 0:
@@ -86,7 +98,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
             results = {k: (results0[k] + results1[k]) / 2. for k in results0}
             logstats.add('bot_chat', results)
 
-if args.train_max_examples:
+if args.train_max_examples > 0:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)
-if args.test_max_examples:
+if args.test_max_examples > 0:
     generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.remove_fail)

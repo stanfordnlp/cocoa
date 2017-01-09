@@ -9,6 +9,7 @@ import time
 import datetime
 import logging
 import numpy as np
+from src.basic.sessions.timed_session import TimedSessionWrapper
 from src.basic.controller import Controller
 from src.basic.event import Event
 from src.basic.kb import KB
@@ -217,20 +218,20 @@ class BackendConnection(object):
             data = event.data
             if event.action == 'select':
                 data = json.dumps(event.data)
-            return chat_id, event.action, event.agent, event.time, data, event.start_time
+            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.metadata)
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 row = _create_row(chat_id, event)
 
-                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?)''', row)
+                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?,?)''', row)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
     def attempt_join_chat(self, userid):
         def _init_controller(my_index, partner_type, scenario, chat_id):
             my_session = self.systems[Partner.Human].new_session(my_index, scenario.get_kb(my_index))
-            partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
+            partner_session = TimedSessionWrapper(1-my_index, self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index), scenario.uuid))
 
             controller = Controller(scenario, [my_session, partner_session], chat_id=chat_id, debug=False)
 

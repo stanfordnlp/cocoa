@@ -28,21 +28,21 @@ def log_events_to_json(scenario_db, db_path, json_path, uids):
     examples = []
     for chat_id in ids:
         # chat_id is a tuple   (id,)
-        cursor.execute('SELECT agent, action, time, data, start_time FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
+        cursor.execute('SELECT agent, action, time, data, start_time, metadata FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
         logged_events = cursor.fetchall()
         cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', chat_id)
         (uuid, outcome) = cursor.fetchone()
         try:
             outcome = json.loads(outcome)
         except ValueError:
-            continue
+            outcome = {'reward': 0}
         chat_events = []
-        for (agent, action, time, data, start_time) in logged_events:
+        for (agent, action, time, data, start_time, metadata) in logged_events:
             if action == 'join' or action == 'leave':
                 continue
             if action == 'select':
                 data = KB.string_to_item(data)
-            event = Event(agent, time, action, data, start_time)
+            event = Event(agent, time, action, data, start_time, metadata)
             chat_events.append(event)
         ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id[0])
         examples.append(ex)
