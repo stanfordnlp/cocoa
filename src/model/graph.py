@@ -53,7 +53,6 @@ class GraphMetadata(object):
         self.feat_inds = {'degree': (0, degree_size),
                 'node_type': (degree_size, node_types.size),
                 'rel_degree': (degree_size + node_types.size, rel_degree_size),
-                'mentioned': (degree_size + node_types.size + rel_degree_size, 1)
                 }
         self.feat_size = sum([v[1] for v in self.feat_inds.values()])
         self.node_types = node_types
@@ -370,8 +369,6 @@ class Graph(object):
             self.add_entity_nodes(new_entities)
         node_ids = [self.nodes.to_ind(x[1]) for x in tokens if is_entity(x)]
         self.entities.append(node_ids)
-        if stage == 'decoding':
-            self._update_mentioned(entities)
 
     def _update_nodes(self, entities):
         self.nodes.add_words(entities)
@@ -382,11 +379,6 @@ class Graph(object):
         feats = [[0, self._node_type(x)] for x in entities]
         new_feat_vec = self.get_feat_vec(feats)
         self.feats = np.concatenate((self.feats, new_feat_vec), axis=0)
-
-    def _update_mentioned(self, entities):
-        for entity in entities:
-            entity_id = self.nodes.to_ind(entity)
-            self.feats[entity_id][self._get_index('mentioned', 0)] = 1
 
     def _update_entity_ids(self, entities):
         self.entity_ids = np.concatenate([self.entity_ids,
