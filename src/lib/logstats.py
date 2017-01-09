@@ -1,4 +1,5 @@
 import json
+from src.basic.util import read_json
 
 # Global statistics that we can output to monitor the run.
 
@@ -6,8 +7,12 @@ stats_path = None
 STATS = {}
 
 def init(path):
-    global stats_path
+    global stats_path, STATS
     stats_path = path
+    try:
+        STATS = read_json(stats_path)
+    except Exception:
+        STATS = {}
 
 def add(*args):
     # Example: add_stats('data', 'num_examples', 3)
