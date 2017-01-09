@@ -510,13 +510,13 @@ class Preprocessor(object):
         assert item_id is not None
         return item_id
 
-    def process_event(self, e, kb, mentioned_entities=None):
+    def process_event(self, e, kb, mentioned_entities=None, known_kb=True):
         '''
         Convert event to two lists of tokens and entities for encoding and decoding.
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities)
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
             entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding

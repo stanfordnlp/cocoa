@@ -53,7 +53,7 @@ class NeuralSession(Session):
                 # Got a match; we're done.
                 return
         elif event.action == 'message':
-            entity_tokens = self.env.preprocessor.process_event(event, self.kb, mentioned_entities=self.mentioned_entities)
+            entity_tokens = self.env.preprocessor.process_event(event, self.kb, mentioned_entities=self.mentioned_entities, known_kb=False)
             # Empty message
             if entity_tokens is None:
                 return
