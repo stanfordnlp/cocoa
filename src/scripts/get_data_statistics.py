@@ -6,11 +6,12 @@ from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
 from src.model.preprocess import Preprocessor
 from dataset_statistics import *
-from src.basic.lexicon import Lexicon
+from src.basic.lexicon import Lexicon, add_lexicon_arguments
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     add_scenario_arguments(parser)
+    add_lexicon_arguments(parser)
     parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
     parser.add_argument('--stats-output', type=str, required=True, help='Name of file to write JSON statistics to')
     parser.add_argument('--text-output', type=str, help='Name of file to write sentences line by line')
@@ -59,7 +60,7 @@ if __name__ == "__main__":
         lm = None
 
     # Speech acts
-    lexicon = Lexicon(schema, False)
+    lexicon = Lexicon(schema, False, stop_words=args.stop_words)
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
     strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm)
     print_strategy_stats(strategy_stats)
