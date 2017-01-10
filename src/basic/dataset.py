@@ -31,7 +31,9 @@ class Example(object):
         uuid = raw['scenario_uuid']
         events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
-        ex_id = raw['uuid']
+        #ex_id = raw['uuid']
+        # TODO: prevent it from breaking until uuid is logged correctly
+        ex_id = uuid
         return Example(scenario, uuid, events, outcome, ex_id)
 
     def to_dict(self):
