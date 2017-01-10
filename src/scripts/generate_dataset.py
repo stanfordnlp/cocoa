@@ -14,7 +14,8 @@ from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.cmd_system import CmdSystem
 from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
-from src.basic.lexicon import Lexicon
+from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.basic.inverse_lexicon import InverseLexicon
 from src.lib import logstats
 import numpy as np
 
@@ -27,6 +28,7 @@ parser.add_argument('--remove-fail', default=False, action='store_true', help='R
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
+add_lexicon_arguments(parser)
 add_dataset_arguments(parser)
 add_neural_system_arguments(parser)
 add_heuristic_system_arguments(parser)
@@ -38,7 +40,11 @@ if args.random_seed:
 
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-lexicon = Lexicon(schema, learned_lex=False)
+lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+if args.inverse_lexicon:
+    realizer = InverseLexicon(schema, args.inverse_lexicon)
+else:
+    realizer = None
 
 if args.train_max_examples is None:
     args.train_max_examples = scenario_db.size
@@ -52,7 +58,7 @@ def get_system(name):
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
+        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding, realizer=realizer)
     elif name == 'cmd':
         return CmdSystem()
     else:
