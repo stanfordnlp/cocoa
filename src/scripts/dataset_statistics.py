@@ -214,7 +214,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
             'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
             'utterance_counts': utterance_counts,
-            'first_word_counts': first_word_counts,
+            'first_word_counts': first_word_counts
             }
 
 def get_cross_talk(all_chats):

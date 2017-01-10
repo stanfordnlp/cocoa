@@ -8,10 +8,8 @@ from src.model.preprocess import Preprocessor
 from dataset_statistics import *
 from src.basic.lexicon import Lexicon
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    add_scenario_arguments(parser)
-    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
+
+def add_statistics_arguments(parser):
     parser.add_argument('--stats-output', type=str, required=True, help='Name of file to write JSON statistics to')
     parser.add_argument('--alpha-stats', action='store_true', help='Get statistics grouped by alpha values')
     parser.add_argument('--item-stats', action='store_true',
@@ -20,17 +18,15 @@ if __name__ == "__main__":
                         help='If provided, and if --item-stats is specified, plots the relationship between # of items '
                              'and various stats to the provided path.')
 
-    args = parser.parse_args()
-    schema = Schema(args.schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    transcripts = json.load(open(args.transcripts, 'r'))
+
+def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     if not os.path.exists(os.path.dirname(args.stats_output)) and len(os.path.dirname(args.stats_output)) > 0:
         os.makedirs(os.path.dirname(args.stats_output))
 
     stats = {}
     statsfile = open(args.stats_output, 'w')
     stats["total"] = total_stats = get_total_statistics(transcripts, scenario_db)
-    print "Aggregated dataset statistics"
+    print "Aggregated total dataset statistics"
     print_group_stats(total_stats)
 
     if args.alpha_stats:
@@ -50,7 +46,6 @@ if __name__ == "__main__":
             plot_num_items_stats(stats_by_num_items, args.plot_item_stats)
 
     # Speech acts
-    lexicon = Lexicon(schema, False)
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
     strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor)
     print_strategy_stats(strategy_stats)
@@ -60,3 +55,16 @@ if __name__ == "__main__":
 
     json.dump(stats, statsfile)
     statsfile.close()
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    add_scenario_arguments(parser)
+    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
+    add_statistics_arguments(parser)
+
+    parsed_args = parser.parse_args()
+    schema = Schema(parsed_args.schema_path)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(parsed_args.scenarios_path))
+    transcripts = json.load(open(parsed_args.transcripts, 'r'))
+    lexicon = Lexicon(schema, False, scenarios_json=parsed_args.scenarios_path)
+    compute_statistics(parsed_args, lexicon, schema, scenario_db, transcripts)

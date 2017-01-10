@@ -6,8 +6,12 @@ import os
 from argparse import ArgumentParser
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
+from src.basic.event import Event
 import json
-from dataset_statistics import *
+
+
+def add_visualization_arguments(parser):
+    parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
 
 
 def get_html_for_transcript(chat, agent=None):
@@ -131,16 +135,7 @@ def aggregate_chats(transcripts, scenario_db):
     return html
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    add_scenario_arguments(parser)
-    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
-    parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
-
-    args = parser.parse_args()
-    schema = Schema(args.schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    transcripts = json.load(open(args.transcripts, 'r'))
+def visualize_transcripts(args, scenario_db, transcripts):
     if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
         os.makedirs(os.path.dirname(args.html_output))
 
@@ -150,3 +145,16 @@ if __name__ == "__main__":
     for line in html_lines:
         outfile.write(line+"\n")
     outfile.close()
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    add_scenario_arguments(parser)
+    add_visualization_arguments(parser)
+    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
+
+    args = parser.parse_args()
+    schema = Schema(args.schema_path)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    transcripts = json.load(open(args.transcripts, 'r'))
+
+    visualize_transcripts(args, scenario_db, transcripts)
