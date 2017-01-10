@@ -8,18 +8,27 @@ from collections import defaultdict
 from fuzzywuzzy import fuzz
 from lexicon_utils import get_prefixes, get_acronyms, get_edits, get_morphological_variants
 
+def add_lexicon_arguments(parser):
+    parser.add_argument('--stop-words', type=str, help='Path to stop words list')
+    parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
+    parser.add_argument('--inverse-lexicon', help='Path to inverse lexicon data')
 
 class BaseLexicon(object):
     """
     Base lexicon class defining general purpose functions for any lexicon
     """
-    def __init__(self, schema, learned_lex):
+    def __init__(self, schema, learned_lex, stop_words=None):
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
+        if stop_words:
+            with open(stop_words, 'r') as fin:
+                self.stop_words = set([x.strip() for x in fin.read().split()][:1000])
+        else:
+            self.stop_words = None
         self.load_entities()
         self.compute_synonyms()
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
@@ -46,16 +55,16 @@ class Lexicon(BaseLexicon):
     """
     Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
-    def __init__(self, schema, learned_lex=False, entity_ranker=None, scenarios_json=None):
-        super(Lexicon, self).__init__(schema, learned_lex)
+    def __init__(self, schema, learned_lex=False, entity_ranker=None, scenarios_json=None, stop_words=None):
+        super(Lexicon, self).__init__(schema, learned_lex, stop_words)
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
                                    "start", "go", "school", "do", "know", "no", "work", "are",
                                    "he", "she"])
 
-        if scenarios_json is not None:
-            self._process_kbs(scenarios_json)
+        #if scenarios_json is not None:
+        #    self._process_kbs(scenarios_json)
         #else:
         #    raise Warning("No scenarios json provided!")
 
@@ -142,10 +151,11 @@ class Lexicon(BaseLexicon):
 
             # Add to lexicon
             for synonym in set(synonyms):
+                if self.stop_words and synonym not in self.word_counts and synonym in self.stop_words:
+                    continue
                 self.lexicon[synonym].append((entity, type))
 
-
-    def score_and_match(self, span, candidates, agent, uuid, kb_entities, known_kb=True):
+    def score_and_match(self, span, candidates, agent, uuid, kb_entities, kb_entity_types, known_kb=True):
         """
         Score the given span with the list of candidate entities and returns best match
         :param span:
@@ -155,11 +165,6 @@ class Lexicon(BaseLexicon):
         :param uuid: uuid of scenario containing KB for given agent
         :return:
         """
-        def all_substrings(tokens, s):
-            for token in tokens:
-                if token not in s:
-                    return False
-            return True
         # Use heuristic scoring system
         #print 'span:', span
         if not self.learned_lex:
@@ -172,39 +177,76 @@ class Lexicon(BaseLexicon):
                 entity_tokens = c_s.split()
 
                 ed = editdistance.eval(span, c[0])
+                # Filter false positives
+                if c[1] not in kb_entity_types:
+                    #print 'false type'
+                    continue
+
+                def is_stopwords():
+                    if span == c[0]:
+                        return False
+                    if len(span_tokens) == 1 and span in self.stop_words:
+                        return True
+                    if span_tokens[0] in ('and', 'or', 'to', 'from', 'of', 'in', 'at'):
+                        return True
+                    all_stop = True
+                    for x in span_tokens:
+                        if x not in self.stop_words:
+                            all_stop = False
+                            break
+                    if all_stop:
+                        return True
+                    return False
+
+                if is_stopwords():
+                    #print 'stop words'
+                    continue
+                if len(span_tokens) > len(entity_tokens):
+                    continue
                 if c[0] not in kb_entities and known_kb:
                     # Prioritize exact match
                     if c[0] == span:
                         score = 0
                     else:
-                        score = float("inf")
-                elif c[0] in kb_entities and span in entity_tokens:
+                        #print 'not in kb'
+                        continue
+                elif span in entity_tokens:
                     score = 0
                 # Prioritize multi phrase spans contained in entity
                 elif len(span_tokens) > 1 and span in c_s:
                     score = 1
-                elif len(span_tokens) > 1 and all_substrings(span_tokens, c_s):
-                    score = 2
-                elif len(span_tokens) > len(entity_tokens):
-                    score = float('inf')
                 else:
-                    score = ed + 3
+                    score = ed + 2
+                # Prioritize entity in KB even if we are not sure
+                if not known_kb and c[0] not in kb_entities and c[0] != span:
+                    score += 3
                 #print 'score:', score
 
                 entity_scores.append(c + (score,))
 
             # Sort entity scores
+            if len(entity_scores) == 0:
+                return (span, None)
             entity_scores = sorted(entity_scores, key=lambda x: x[2])
 
             # If exact match or substring match with an entity
             entity, type_, score = entity_scores[0]
-            if score <= 5:
-                if span not in self.common_phrases:
-                    best_match = (entity, type_)
-                else:
-                    best_match = (span, None)
-            else:
+
+            # Be more cautious when not known_kb; +3 because previous prioritization
+            if score > 8 and not known_kb:
                 best_match = (span, None)
+            elif (score > 5 and len(entity_scores) > 1) or span in self.common_phrases:
+                best_match = (span, None)
+            else:
+                best_match = (entity, type_)
+
+            #if score <= 5:
+            #    if span not in self.common_phrases:
+            #        best_match = (entity, type_)
+            #    else:
+            #        best_match = (span, None)
+            #else:
+            #    best_match = (span, None)
         else:
             # Use learned ranker
             entity_scores = []
@@ -265,8 +307,10 @@ class Lexicon(BaseLexicon):
             kb_entities = kb.entity_set
             if mentioned_entities is not None:
                 kb_entities = kb_entities.union(mentioned_entities)
+            kb_entity_types = kb.entity_type_set
         else:
             kb_entities = None
+            kb_entity_types = None
 
         i = 0
         found_entities = []
@@ -294,7 +338,7 @@ class Lexicon(BaseLexicon):
                 # Found some match
                 if len(candidate_entities) > 0:
                     if kb_entities is not None:
-                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities, known_kb)
+                        best_match = self.score_and_match(phrase, candidate_entities, agent, uuid, kb_entities, kb_entity_types, known_kb)
                     else:
                         # TODO: Fix default system, if no kb_entities provided -- only returns random candidate now
                         best_match = random.sample(candidate_entities, 1)[0]
