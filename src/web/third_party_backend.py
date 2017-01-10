@@ -57,36 +57,36 @@ class BackendConnection(object):
 
             # Update ActiveUsers to num_tasks and timestamp
             if agent_id == 0:
-                cursor.execute("SELECT agent0_scenarios_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
-                scenarios_evaluated, prev_num_evals = cursor.fetchone()
+                cursor.execute("SELECT agent0_dialogues_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
+                dialogues_evaluted, prev_num_evals = cursor.fetchone()
                 updated_num_evals = prev_num_evals + 1
 
                 # Update scenarios evaluated
-                scenarios_evaluated = json.loads(scenarios_evaluated)
-                scenarios_evaluated.append(scenario_id)
+                dialogues_evaluted = json.loads(dialogues_evaluted)
+                dialogues_evaluted.append(results["dialogue_id"])
 
-                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent0_scenarios_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
-                                                                                                                                   json.dumps(scenarios_evaluated), now, userid))
+                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent0_dialogues_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
+                                                                                                                                   json.dumps(dialogues_evaluted), now, userid))
             else:
-                cursor.execute("SELECT agent1_scenarios_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
-                scenarios_evaluated, prev_num_evals = cursor.fetchone()
+                cursor.execute("SELECT agent1_dialogues_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
+                dialogues_evaluated, prev_num_evals = cursor.fetchone()
                 updated_num_evals = prev_num_evals + 1
 
                 # Update scenarios evaluated
-                scenarios_evaluated = json.loads(scenarios_evaluated)
-                scenarios_evaluated.append(scenario_id)
+                dialogues_evaluated= json.loads(dialogues_evaluated)
+                dialogues_evaluated.append(scenario_id)
 
-                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent1_scenarios_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
-                                                                                                                                   json.dumps(scenarios_evaluated), now, userid))
+                cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent1_dialogues_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
+                                                                                                                                   json.dumps(dialogues_evaluated), now, userid))
 
             # Record answers to evaluation
             print "AGENT ID BEFORE RESPONSES: ", agent_id
-            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?)", (scenario_id, userid, agent_id, results["humanlike"],
+            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, userid, agent_id, results["humanlike"],
                                                                                   results["correct"], results["strategic"],
                                                                                   results["fluent"]))
             try:
                 # Update number of evals on dialogue
-                cursor.execute("SELECT num_agent0_evals, num_agent1_evals, agent_mapping FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
+                cursor.execute("SELECT num_agent0_evals, num_agent1_evals, agent_mapping FROM ActiveDialogues WHERE dialogue_id=?", (results["dialogue_id"],))
                 num_agent0_evals, num_agent1_evals, agent_mapping = cursor.fetchone()
                 if agent_id == 0:
                     num_agent0_evals += 1
@@ -95,12 +95,12 @@ class BackendConnection(object):
 
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
                 if num_agent0_evals == app.config["num_evals_per_dialogue"] and num_agent1_evals == app.config["num_evals_per_dialogue"]:
-                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?,?)",
-                                   (scenario_id, agent_mapping, num_agent0_evals, num_agent1_evals, now))
+                    cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?,?,?)",
+                                   (results["dialogue_id"], scenario_id, agent_mapping, num_agent0_evals, num_agent1_evals, now))
                     cursor.execute("DELETE FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
                 else:
                     # Update number of evals completed for dialogue
-                    cursor.execute("UPDATE ActiveDialogues SET num_agent0_evals=?, num_agent1_evals=? WHERE scenario_id=?", (num_agent0_evals, num_agent1_evals, scenario_id))
+                    cursor.execute("UPDATE ActiveDialogues SET num_agent0_evals=?, num_agent1_evals=? WHERE dialogue_id=?", (num_agent0_evals, num_agent1_evals, results["dialogue_id"]))
 
             except TypeError as e:
                 print "Catching error: ", e
@@ -136,28 +136,28 @@ class BackendConnection(object):
             cursor = self.conn.cursor()
 
             try:
-                cursor.execute("SELECT scenario_id, events, column_names, agent0_kb, agent1_kb FROM ActiveDialogues")
+                cursor.execute("SELECT dialogue_id, scenario_id, events, column_names, agent0_kb, agent1_kb FROM ActiveDialogues")
                 dialogues = cursor.fetchall()
 
-                cursor.execute("SELECT agent0_scenarios_evaluated, agent1_scenarios_evaluated FROM ActiveUsers WHERE user_id=?", (userid,))
-                scenarios_evaluated = cursor.fetchone()
-                print scenarios_evaluated
-                agent0_scenarios_evaluated = set(json.loads(scenarios_evaluated[0]))
-                agent1_scenarios_evaluated = set(json.loads(scenarios_evaluated[1]))
-                print "EVALUATED: ", agent0_scenarios_evaluated, "\t", agent1_scenarios_evaluated
+                cursor.execute("SELECT agent0_dialogues_evaluated, agent1_dialogues_evaluated FROM ActiveUsers WHERE user_id=?", (userid,))
+                dialogues_evaluated = cursor.fetchone()
+                print dialogues_evaluated
+                agent0_dialogues_evaluated = set(json.loads(dialogues_evaluated[0]))
+                agent1_dialogues_evaluated = set(json.loads(dialogues_evaluated[1]))
+                print "EVALUATED: ", agent0_dialogues_evaluated, "\t", agent1_dialogues_evaluated
                 selected = None
                 # TODO: Whether to change to random selection
                 for d in dialogues:
                     # Found a dialogue not previously shown to user
-                    if d[0] not in agent0_scenarios_evaluated and len(json.loads(d[1])) > 0:
+                    if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
                         print "AGENT 0!"
-                        selected = {"agent_id": 0, "uuid": d[0], "events": d[1],
-                                    "column_names": d[2], "kb": d[3]}
+                        selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                    "column_names": d[3], "kb": d[4]}
                         break
-                    if d[0] not in agent1_scenarios_evaluated and len(json.loads(d[1])) > 0:
+                    if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
                         print "AGENT 1!"
-                        selected = {"agent_id": 1, "uuid": d[0], "events": d[1],
-                                    "column_names": d[2], "kb": d[4]}
+                        selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                    "column_names": d[3], "kb": d[5]}
                         break
                 return selected
             except Exception as e:

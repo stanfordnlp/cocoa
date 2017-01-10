@@ -31,10 +31,10 @@ def init_database(db_path):
     """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, fluent text)""")
-    c.execute("""CREATE TABLE ActiveDialogues (scenario_id text unique, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
-    c.execute("""CREATE TABLE CompletedDialogues(scenario_id text, agent_mapping text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
-    c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_scenarios_evaluated text, agent1_scenarios_evaluated text, num_evals_completed integer, timestamp text)""")
+    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, fluent text)""")
+    c.execute("""CREATE TABLE ActiveDialogues (dialogue_id text unique, scenario_id text, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
+    c.execute("""CREATE TABLE CompletedDialogues(dialogue_id text, scenario_id text, agent_mapping text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
+    c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_dialogues_evaluated text, agent1_dialogues_evaluated text, num_evals_completed integer, timestamp text)""")
     c.execute("""CREATE TABLE CompletedUsers (user_id text, mturk_code text, timestep text, num_evals_completed integer)""")
     conn.commit()
     conn.close()
@@ -62,23 +62,23 @@ def init_dialogues(db_path):
     # Form mapping from uuid -> scenario
     uuid_to_scenario = collections.defaultdict(dict)
     for scenario in scenarios_info:
-        uuid = scenario["uuid"]
-        uuid_to_scenario[uuid] = scenario
+        scenario_id = scenario["uuid"]
+        uuid_to_scenario[scenario_id] = scenario
 
 
     for ex in examples:
-        uuid = ex["scenario_uuid"]
-        scenario = uuid_to_scenario[uuid]
+        scenario_id = ex["scenario_uuid"]
+        scenario = uuid_to_scenario[scenario_id]
         kbs = scenario["kbs"]
         agent0_kb = kbs[0]
         agent1_kb = kbs[1]
-        column_names = agent0_kb[0].keys()#["School", "Major", "Company", "Name"]
+        column_names = agent0_kb[0].keys()
 
         # Get events for example
         events = ex["events"]
 
         # Filter to only include message data
-        msg_events = [] #
+        msg_events = []
         for event in events:
             if event["action"] == "message":
                 msg_events.append(event)
@@ -94,8 +94,9 @@ def init_dialogues(db_path):
                 msg_events.append(event)
 
         # TODO: Replace placeholder agent mapping
-        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?) """,
-            (uuid, json.dumps(msg_events), json.dumps(column_names), json.dumps({"Agent 0": "human", "Agent 1": "bot"}), json.dumps(agent0_kb),
+        # TODO: Replace random dialogue id with actual transcript id
+        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
+            (str(uuid.uuid4())[:5], scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps({"Agent 0": "human", "Agent 1": "bot"}), json.dumps(agent0_kb),
             json.dumps(agent1_kb), 0, 0))
 
     conn.commit()
@@ -132,9 +133,10 @@ def handle_submit():
 
     backend = get_backend()
     print "USER ID: ", userid()
-    print "Scenario ID: ", results["uuid"]
+    print "Scenario ID: ", results["scenario_id"]
+    print "Dialogue ID: ", results["dialogue_id"]
 
-    backend.submit_task(userid(), results["uuid"], results, app)
+    backend.submit_task(userid(), results["scenario_id"], results, app)
 
 
     return jsonify(result={"status": 200})
@@ -152,7 +154,8 @@ def index():
         return render_template("third_party_eval.html",
                                dialogue=json.loads(dialogue["events"]),
                                agent_id=dialogue["agent_id"],
-                               uuid=dialogue["uuid"],
+                               dialogue_id=dialogue["dialogue_id"],
+                               scenario_id=dialogue["scenario_id"],
                                column_names=json.loads(dialogue["column_names"]),
                                kb=json.loads(dialogue["kb"]),
                                )

@@ -86,7 +86,8 @@
     }
 
     window.onload = function(){
-        questionAnswers["uuid"] = {{ uuid|safe|tojson}};
+        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
         questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
         console.log("AGENT: " + questionAnswers["agent_id"]);
     }
