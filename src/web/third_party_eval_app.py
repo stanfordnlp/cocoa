@@ -93,10 +93,13 @@ def init_dialogues(db_path):
                 event["data"] = new_data
                 msg_events.append(event)
 
+        dialogue_id = ex["uuid"]
+        agents_mapping = ex["agents"]
+
         # TODO: Replace placeholder agent mapping
         # TODO: Replace random dialogue id with actual transcript id
         c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
-            (str(uuid.uuid4())[:5], scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps({"Agent 0": "human", "Agent 1": "bot"}), json.dumps(agent0_kb),
+            (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
             json.dumps(agent1_kb), 0, 0))
 
     conn.commit()

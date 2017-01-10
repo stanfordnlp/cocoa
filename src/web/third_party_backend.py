@@ -58,23 +58,23 @@ class BackendConnection(object):
             # Update ActiveUsers to num_tasks and timestamp
             if agent_id == 0:
                 cursor.execute("SELECT agent0_dialogues_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
-                dialogues_evaluted, prev_num_evals = cursor.fetchone()
+                dialogues_evaluated, prev_num_evals = cursor.fetchone()
                 updated_num_evals = prev_num_evals + 1
 
                 # Update scenarios evaluated
-                dialogues_evaluted = json.loads(dialogues_evaluted)
-                dialogues_evaluted.append(results["dialogue_id"])
+                dialogues_evaluated = json.loads(dialogues_evaluated)
+                dialogues_evaluated.append(results["dialogue_id"])
 
                 cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent0_dialogues_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
-                                                                                                                                   json.dumps(dialogues_evaluted), now, userid))
+                                                                                                                                   json.dumps(dialogues_evaluated), now, userid))
             else:
                 cursor.execute("SELECT agent1_dialogues_evaluated, num_evals_completed FROM ActiveUsers WHERE user_id=?", (userid,))
                 dialogues_evaluated, prev_num_evals = cursor.fetchone()
                 updated_num_evals = prev_num_evals + 1
 
                 # Update scenarios evaluated
-                dialogues_evaluated= json.loads(dialogues_evaluated)
-                dialogues_evaluated.append(scenario_id)
+                dialogues_evaluated = json.loads(dialogues_evaluated)
+                dialogues_evaluated.append(results["dialogue_id"])
 
                 cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent1_dialogues_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
                                                                                                                                    json.dumps(dialogues_evaluated), now, userid))
