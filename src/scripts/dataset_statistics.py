@@ -271,6 +271,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
 
     if fout:
         fout.close()
+
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
@@ -320,7 +321,6 @@ def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
                 or (alphas is None and num_items is None):
             if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
                 events = [Event.from_dict(e) for e in chat["events"]]
-
                 try:
                     start_time = float(events[0].time)
                     end_time = float(events[-1].time)
