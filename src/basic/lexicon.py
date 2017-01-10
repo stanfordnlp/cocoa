@@ -9,7 +9,7 @@ from fuzzywuzzy import fuzz
 from lexicon_utils import get_prefixes, get_acronyms, get_edits, get_morphological_variants
 
 def add_lexicon_arguments(parser):
-    parser.add_argument('--stop-words', type=str, help='Path to stop words list')
+    parser.add_argument('--stop-words', type=str, default='data/common_words.txt', help='Path to stop words list')
     parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
     parser.add_argument('--inverse-lexicon', help='Path to inverse lexicon data')
 
@@ -24,11 +24,8 @@ class BaseLexicon(object):
         self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
-        if stop_words:
-            with open(stop_words, 'r') as fin:
-                self.stop_words = set([x.strip() for x in fin.read().split()][:1000])
-        else:
-            self.stop_words = None
+        with open(stop_words, 'r') as fin:
+            self.stop_words = set([x.strip() for x in fin.read().split()][:1000])
         self.load_entities()
         self.compute_synonyms()
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
