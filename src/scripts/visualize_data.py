@@ -6,19 +6,29 @@ import os
 from argparse import ArgumentParser
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
+from src.basic.event import Event
 import json
-from dataset_statistics import *
 
 
-def get_html_for_transcript(chat, schema):
+def add_visualization_arguments(parser):
+    parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
+
+
+def get_html_for_transcript(chat, agent=None):
     chat_html= ['<table>', '<tr>', '<td width=\"50%%\">']
     events = [Event.from_dict(e) for e in chat["events"]]
 
     if len(events) == 0:
         return False, None
 
+    if agent == 0:
+        chat_html.append("<b>Agent 0 (You)</b></td><td width=\"50%%\"><b>Agent 1 (Partner)</b></td></tr><tr><td width=\"50%%\">")
+    elif agent == 1:
+        chat_html.append("<b>Agent 0 (Partner)</b></td><td width=\"50%%\"><b>Agent 1 (You)</b></td></tr><tr><td width=\"50%%\">")
+    else:
+        chat_html.append("<b>Agent 0</b></td><td width=\"50%%\"><b>Agent 1</b></td></tr><tr><td width=\"50%%\">")
+
     current_user = 0
-    chat_html.append("<b>Agent 0</b></td><td width=\"50%%\"><b>Agent 1</b></td></tr><tr><td width=\"50%%\">")
 
     for event in events:
         if event.agent != current_user:
@@ -78,7 +88,23 @@ def render_scenario(scenario):
     return html
 
 
-def aggregate_chats(transcripts, scenario_db, schema):
+def visualize_chat(chat, scenario_db, agent=None):
+    completed, chat_html = get_html_for_transcript(chat, agent)
+    if chat_html is None:
+        return False, None
+
+    scenario_html = render_scenario(scenario_db.get(chat["scenario_uuid"]))
+
+    html_lines = []
+    html_lines.append('<h4>Scenario</h4>')
+    html_lines.extend(scenario_html)
+    html_lines.append('<h4>Dialogue</h4>')
+    html_lines.extend(chat_html)
+
+    return completed, html_lines
+
+
+def aggregate_chats(transcripts, scenario_db):
     html = ['<!DOCTYPE html>','<html>',
             '<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
             'tr:nth-child(n) { border: solid thin;}</style></head><body>']
@@ -87,21 +113,17 @@ def aggregate_chats(transcripts, scenario_db, schema):
     total = 0
     num_completed = 0
     for (idx, chat) in enumerate(transcripts):
-        completed, chat_html = get_html_for_transcript(chat, schema)
-        scenario_html = render_scenario(scenario_db.get(chat["scenario_uuid"]))
+        completed, chat_html = visualize_chat(chat, scenario_db)
         if completed:
             num_completed += 1
-            completed_chats.append('<div><h3>Chat %d</h3>' % idx)
-            completed_chats.append('<h4>Scenario</h4>')
-            completed_chats.extend(scenario_html)
-            completed_chats.append('<h4>Dialogue</h4>')
             completed_chats.extend(chat_html)
             completed_chats.append('</div>')
             completed_chats.append("<hr>")
         else:
             if chat_html is not None:
                 incomplete_chats.extend(chat_html)
-                incomplete_chats.extend(scenario_html)
+                incomplete_chats.append('</div>')
+                incomplete_chats.append("<hr>")
         total += 1
 
     html.extend(['<h3>Total number of chats: %d</h3>' % total,
@@ -113,22 +135,26 @@ def aggregate_chats(transcripts, scenario_db, schema):
     return html
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser()
-    add_scenario_arguments(parser)
-    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
-    parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
-
-    args = parser.parse_args()
-    schema = Schema(args.schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    transcripts = json.load(open(args.transcripts, 'r'))
+def visualize_transcripts(args, scenario_db, transcripts):
     if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
         os.makedirs(os.path.dirname(args.html_output))
 
-    html_lines = aggregate_chats(transcripts, scenario_db, schema)
+    html_lines = aggregate_chats(transcripts, scenario_db)
 
     outfile = open(args.html_output, 'w')
     for line in html_lines:
         outfile.write(line+"\n")
     outfile.close()
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    add_scenario_arguments(parser)
+    add_visualization_arguments(parser)
+    parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
+
+    args = parser.parse_args()
+    schema = Schema(args.schema_path)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    transcripts = json.load(open(args.transcripts, 'r'))
+
+    visualize_transcripts(args, scenario_db, transcripts)

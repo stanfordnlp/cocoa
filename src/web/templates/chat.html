@@ -314,7 +314,31 @@
 			</tbody>
 			</table>
         </div>
-<!--         </div> -->
+        {% if partner_kb %}
+        <div id="peek">
+            <h3>Partner's friends</h3>
+			<table class="sortable">
+			<thead>
+			<tr>
+			{% for attr in attributes %}
+			<th>{{ attr}}</th>
+			{% endfor %}
+			</tr>
+			</thead>
+			<tbody>
+				{% set ctr = 1 %}
+				{% for item in partner_kb %}
+				<tr>
+					{% for attr in attributes %}
+					<td>{{item[attr]}}</td>
+					{% endfor %}
+					{% set ctr = ctr + 1 %}
+				</tr>
+				{% endfor %}
+			</tbody>
+			</table>
+        </div>
+        {% endif %}
 
     </div>
     </div>

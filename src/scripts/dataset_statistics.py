@@ -8,6 +8,7 @@ from collections import defaultdict
 from itertools import izip
 from src.model.preprocess import word_to_num
 import random
+import matplotlib.pyplot as plt
 
 
 def is_question(tokens):
