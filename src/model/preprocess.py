@@ -517,6 +517,8 @@ class Preprocessor(object):
         if e.action == 'message':
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
+            #print e.data
+            #print entity_tokens
             entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding
@@ -547,7 +549,8 @@ class Preprocessor(object):
         dialogues = []
         for ex in examples:
             d = self._process_example(ex)
-            if len(d.agents) < 2:
+            # Skip incomplete chats
+            if len(d.agents) < 2 or ex.outcome['reward'] == 0:
                 continue
                 print 'Removing dialogue %s' % d.uuid
                 for event in ex.events:
