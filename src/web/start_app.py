@@ -10,7 +10,7 @@ import atexit
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.web.dump_events_to_json import log_events_to_json
+from src.web.dump_events_to_json import log_transcripts_to_json
 from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
@@ -57,7 +57,8 @@ def init_database(db_file):
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
     c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
-    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
+    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text,
+    agent_ids text, agent_types text)''')
 
     conn.commit()
     conn.close()
@@ -75,7 +76,7 @@ def add_systems(config_dict, schema, lexicon):
         bot. Also includes the pairing probability for humans (backend.Partner.Human)
     """
 
-    systems = {backend.Partner.Human: HumanSystem()}
+    systems = {HumanSystem.name(): HumanSystem()}
 
     for (sys_name, info) in config_dict.iteritems():
         if info["active"]:
@@ -104,7 +105,7 @@ def add_systems(config_dict, schema, lexicon):
 def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
-    log_events_to_json(app.config['scenario_db'], db_path, transcript_path)
+    log_transcripts_to_json(app.config['scenario_db'], db_path, transcript_path, None)
 
 
 def init(output_dir):
@@ -171,7 +172,7 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False)
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
