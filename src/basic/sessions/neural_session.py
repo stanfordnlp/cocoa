@@ -54,6 +54,7 @@ class NeuralSession(Session):
                 return
         elif event.action == 'message':
             entity_tokens = self.env.preprocessor.process_event(event, self.kb, mentioned_entities=self.mentioned_entities, known_kb=False)
+            print entity_tokens[0]
             # Empty message
             if entity_tokens is None:
                 return
@@ -101,7 +102,6 @@ class NeuralSession(Session):
         if self.sent_entity and not self.env.consecutive_entity:
             return None
         if self.matched_item is not None:
-            print 'got matched item, select'
             return self.select(self.matched_item)
         for i in xrange(1):
             tokens = self.decode()
@@ -116,8 +116,10 @@ class NeuralSession(Session):
         for token in tokens:
             if is_entity(token):
                 self.mentioned_entities.add(token[1][0])
-        # TODO: realize entities
-        tokens = [x if not is_entity(x) else x[0] for x in tokens]
+        if self.env.realizer is None:
+            tokens = [x if not is_entity(x) else x[0] for x in tokens]
+        else:
+            tokens = self.env.realizer.realize_entity(tokens)
         if len(tokens) > 1 and tokens[0] == markers.SELECT and tokens[1].startswith('item-'):
             item_id = int(tokens[1].split('-')[1])
             self.selected_items.add(item_id)
