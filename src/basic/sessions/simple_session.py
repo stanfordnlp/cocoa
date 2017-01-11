@@ -19,15 +19,21 @@ class SimpleSession(Session):
 
     greetings = ['hi', 'hello', 'hey', 'hiya']
 
-    def __init__(self, agent, kb, lexicon):
+    def __init__(self, agent, kb, lexicon, realizer=None, consecutive_entity=True):
         super(SimpleSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
+        self.attr_type = {attr.name: attr.value_type for attr in kb.attributes}
         self.lexicon = lexicon
+        self.realizer = realizer
+        self.consecutive_entity = consecutive_entity
         self.num_items = len(kb.items)
         self.entity_coords = self.get_entity_coords()
         self.entity_weights = self.weight_entity()
         self.item_weights = [1.] * self.num_items
+
+        self.sent_entity = False
+        self.mentioned_entities = set()
 
         # Dialogue state
         self.asked_entities = None
@@ -43,9 +49,35 @@ class SimpleSession(Session):
         entity_coords = defaultdict(list)
         for row, item in enumerate(self.kb.items):
             for col, attr in enumerate(self.kb.attributes):
-                entity = item[attr.name]
-                entity_coords[entity.lower()].append(row)
+                entity = (item[attr.name].lower(), attr.value_type)
+                entity_coords[entity].append(row)
         return entity_coords
+
+    def get_related_entity(self, entities):
+        '''
+        Return entities in the same row and col as the input entities.
+        '''
+        rows = set()
+        types = set()
+        for entity in entities:
+            rows.update(self.entity_coords[entity])
+            types.add(entity[1])
+        cols = []
+        for i, attr in enumerate(self.kb.attributes):
+            if attr.value_type in types:
+                cols.append(i)
+        row_entities = set()
+        col_entities = set()
+        for row, item in enumerate(self.kb.items):
+            for col, attr in enumerate(self.kb.attributes):
+                entity = (item[attr.name].lower(), attr.value_type)
+                if entity in entities:
+                    continue
+                if row in rows:
+                    row_entities.add(entity)
+                if col in cols:
+                    col_entities.add(entity)
+        return row_entities, col_entities
 
     def count_entity(self):
         '''
@@ -53,8 +85,9 @@ class SimpleSession(Session):
         '''
         entity_counts = defaultdict(int)
         for item in self.kb.items:
-            for entity in item.values():
-                entity_counts[entity.lower()] += 1
+            for attr_name, entity in item.iteritems():
+                entity = (entity.lower(), self.attr_type[attr_name])
+                entity_counts[entity] += 1
         return entity_counts
 
     def weight_entity(self):
@@ -64,7 +97,7 @@ class SimpleSession(Session):
         entity_counts = self.count_entity()
         N = float(self.num_items)
         # Scale counts to [0, 1]
-        entity_weights = {entity.lower(): count / N for entity, count in entity_counts.iteritems()}
+        entity_weights = {entity: count / N for entity, count in entity_counts.iteritems()}
         return entity_weights
 
     def choose_fact(self):
@@ -95,11 +128,15 @@ class SimpleSession(Session):
     def fact_to_str(self, fact, num_items, include_count=True):
         fact_str = []
         total = num_items
-        for attrs, count in fact:
-            if include_count:
-                s = '%s %s' % (self.number_to_str(count, total), ' and '.join([a for a in attrs]))
+        for entities, count in fact:
+            if self.realizer:
+                entities_str = self.realizer.realize_entity(entities)
             else:
-                s = ' and '.join([a for a in attrs])
+                entities_str = [x[0] for x in entities]
+            if include_count:
+                s = '%s %s' % (self.number_to_str(count, total), ' and '.join([a for a in entities_str]))
+            else:
+                s = ' and '.join([a for a in entities_str])
             fact_str.append(s)
         fact_str = ', '.join(fact_str)
         return fact_str
@@ -108,15 +145,15 @@ class SimpleSession(Session):
         if count == 0:
             return 'no'
         elif count == 1:
-            return 'one'
+            return '1'
         elif count == total:
             return 'all'
         elif count == 2:
-            return 'two'
+            return '2'
         elif count > 2./3. * total:
-            return 'most'
+            return 'many'
         else:
-            return str(count)
+            return 'some'
 
     def inform(self, facts):
         fact_str = self.fact_to_str(facts, self.num_items)
@@ -143,10 +180,13 @@ class SimpleSession(Session):
 
     def update_item_weights(self, entities, delta):
         for i, item in enumerate(self.kb.items):
-            values = item.values()
-            self.item_weights[i] += delta * len([entity for entity in entities if entity in values])
+            values = [v.lower() for v in item.values()]
+            self.item_weights[i] += delta * len([entity for entity in entities if entity[0] in values])
 
     def send(self):
+        # Don't send consecutive utterances with entities
+        if self.sent_entity and not self.env.consecutive_entity:
+            return None
         if self.matched_item:
             if not self.selected:
                 self.selected = True
@@ -164,42 +204,65 @@ class SimpleSession(Session):
         if self.asked_entities is not None:
             response = self.answer(self.asked_entities)
             self.asked_entities = None
+            self.sent_entity = True
             return response
 
         # Inform or Ask or Select
-        if np.random.random() < 0.7:
+        if (not self.can_select()) or np.random.random() < 0.7:
             facts, entities = self.choose_fact()
             # Decrease weights of entities mentioned
-            self.update_entity_weights(entities, -0.5)
+            self.update_entity_weights(entities, -1.)
             if np.random.random() < 0.5:
                 return self.inform(facts)
             else:
                 return self.ask(facts)
+            self.sent_entity = True
         else:
             item_id = self.sample_item()
             # Don't repeatedly select one item
             self.item_weights[item_id] = -100
             return self.select(self.kb.items[item_id])
 
+    def can_select(self):
+        '''
+        We can select only when at least on item has weight > 1.
+        '''
+        if max(self.item_weights) > 1.:
+            return True
+        return False
+
+    def is_question(self, tokens):
+        first_word = tokens[0]
+        last_word = tokens[-1]
+        if last_word == '?' or first_word in ('do', 'does', 'what', 'any'):
+            return True
+        return False
+
     def receive(self, event):
+        self.sent_entity = False
         if event.action == 'message':
             raw_utterance = event.data
-            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb)
-            entities = [word[1][0] for word in entity_tokens if is_entity(word)]
+            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, mentioned_entities=self.mentioned_entities, known_kb=False)
+            for token in entity_tokens:
+                if is_entity(token):
+                    self.mentioned_entities.add(token[1][0])
+            entities = [word[1] for word in entity_tokens if is_entity(word)]
 
-            if re.search(r'do you|\?', raw_utterance.lower()) is not None:
+            if self.is_question(entity_tokens):
                 self.asked_entities = entities
 
             # Update item weights
             if len(entities) > 0:
                 if len([x for x in entity_tokens if x in ('no', 'none', "don't", 'zero')]) > 0:
-                    delta = -1
+                    negative = True
                 else:
-                    delta = 1
-                self.update_item_weights(entities, delta)
+                    negative = False
+                self.update_item_weights(entities, -10. if negative else 1.)
 
-            # Increase weights of entities mentioned by the partner
-            self.update_entity_weights(entities, 0.5)
+                row_entities, col_entities = self.get_related_entity(entities)
+                self.update_entity_weights(entities, -10. if negative else 1.)
+                self.update_entity_weights(row_entities, -1. if negative else 2.)
+                self.update_entity_weights(col_entities, 1. if negative else 0.5)
 
         elif event.action == 'select':
             for item in self.kb.items:
