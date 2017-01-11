@@ -20,6 +20,7 @@ from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
 from src.model.graph import Graph, GraphMetadata, add_graph_arguments
 from src.model.graph_embedder import add_graph_embed_arguments
+from src.basic.tagger import Tagger
 from src.lib import logstats
 
 if __name__ == '__main__':
@@ -79,7 +80,7 @@ if __name__ == '__main__':
     schema = Schema(model_args.schema_path, model_args.domain)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
-    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
+    #word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
     print 'Building lexicon...'
     start = time.time()
     lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
@@ -90,7 +91,12 @@ if __name__ == '__main__':
     copy = True if model_args.model == 'attn-copy-encdec' else False
     if model_args.model == 'attn-copy-encdec':
         model_args.entity_target_form = 'graph'
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend)
+    if model_args.model == 'tagger-encdec':
+        type_attribute_mappings = {v: k for (k, v) in schema.get_attributes().items()}
+        tagger = Tagger(type_attribute_mappings)
+    else:
+        tagger = None
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend, tagger=tagger)
     if args.test:
         model_args.dropout = 0
         data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)

@@ -9,6 +9,7 @@ from src.model.vocab import Vocabulary, is_entity
 from src.model.graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
+from src.basic.ngram_model import NgramModel
 import copy
 
 def add_preprocess_arguments(parser):
@@ -436,11 +437,12 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, prepend):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, prepend, tagger=None):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
         self.prepend = prepend
+        self.tagger = tagger
         self.entity_forms = {'encoding': entity_encoding_form,
                 'decoding': entity_decoding_form,
                 'target': entity_target_form}
@@ -476,9 +478,14 @@ class Preprocessor(object):
         dialogue = Dialogue(kbs, ex.uuid)
 
         mentioned_entities = set()
+        tagged_history = []
         for e in ex.events:
-            utterances = self.process_event(e, kbs[e.agent], mentioned_entities)
+            tagger_param = [ex.scenario, e.agent, tagged_history]
+            utterances = self.process_event(e, kbs[e.agent], mentioned_entities, tagger_param=tagger_param)
             if utterances:
+                if self.tagger:
+                    tagged_history.append((e.agent, utterances[0]))
+                    utterances = [NgramModel.preprocess_tagged_tokens(u) for u in utterances]
                 dialogue.add_utterance(e.agent, utterances, self.prepend)
                 for token in utterances[0]:
                     if is_entity(token):
@@ -510,27 +517,46 @@ class Preprocessor(object):
         assert item_id is not None
         return item_id
 
-    def process_event(self, e, kb, mentioned_entities=None, known_kb=True):
+    def tag_utterance(self, tagger, tagger_param, entity_tokens):
+        scenario, agent, tagged_history = tagger_param
+        return tagger.tag_utterance(entity_tokens, scenario, agent, tagged_history)
+
+    def tag_selection(self, tagger, tagger_param, item):
+        scenario, agent, tagged_history = tagger_param
+        # Fake preprocessed_tokens: (None, item)
+        tagged = tagger.tag_selection(agent, scenario, (None, item))
+        # Remove EOS because we will add it later
+        return tagged[:-1]
+
+    def process_event(self, e, kb, mentioned_entities=None, known_kb=True, tagger_param=None):
         '''
         Convert event to two lists of tokens and entities for encoding and decoding.
         '''
+        if self.tagger:
+            assert tagger_param is not None
         if e.action == 'message':
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
             #print e.data
             #print entity_tokens
             entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
+            if self.tagger and entity_tokens:
+                entity_tokens = self.tag_utterance(tagger, tagger_param, entity_tokens)
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding
                 return (entity_tokens, copy.copy(entity_tokens))
             else:
                 return None
         elif e.action == 'select':
-            # Convert an item to item-id (wrt to the speaker)
-            item_id = self.get_item_id(kb, e.data)
-            # We use the entities to represent the item during encoding and item-id during decoding
-            return ([markers.SELECT] + self.item_to_entities(e.data, kb.attributes),
-                    [markers.SELECT, item_to_entity(item_id)])
+            if self.tagger:
+                entity_tokens = self.tag_selection(tagger, tagger_param, e.data)
+                return (entity_tokens, copy.copy(entity_tokens))
+            else:
+                # Convert an item to item-id (wrt to the speaker)
+                item_id = self.get_item_id(kb, e.data)
+                # We use the entities to represent the item during encoding and item-id during decoding
+                return ([markers.SELECT] + self.item_to_entities(e.data, kb.attributes),
+                        [markers.SELECT, item_to_entity(item_id)])
         else:
             raise ValueError('Unknown event action.')
 
