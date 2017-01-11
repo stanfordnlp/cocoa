@@ -185,7 +185,7 @@ class SimpleSession(Session):
 
     def send(self):
         # Don't send consecutive utterances with entities
-        if self.sent_entity and not self.env.consecutive_entity:
+        if self.sent_entity and not self.consecutive_entity:
             return None
         if self.matched_item:
             if not self.selected:
@@ -204,7 +204,6 @@ class SimpleSession(Session):
         if self.asked_entities is not None:
             response = self.answer(self.asked_entities)
             self.asked_entities = None
-            self.sent_entity = True
             return response
 
         # Inform or Ask or Select
