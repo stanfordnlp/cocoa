@@ -154,14 +154,21 @@ def index():
     num_evals_completed = backend.get_num_evals_completed(userid())
     if num_evals_completed < app.config["num_evals_per_worker"]:
         dialogue = backend.get_dialogue(userid())
-        return render_template("third_party_eval.html",
-                               dialogue=json.loads(dialogue["events"]),
-                               agent_id=dialogue["agent_id"],
-                               dialogue_id=dialogue["dialogue_id"],
-                               scenario_id=dialogue["scenario_id"],
-                               column_names=json.loads(dialogue["column_names"]),
-                               kb=json.loads(dialogue["kb"]),
-                               )
+        # If no dialogue found 
+        if dialogue is None:
+            mturk_code = backend.get_finished_info(userid())
+            return render_template("third_party_eval_finished.html",
+                               mturk_code=mturk_code,
+                               finished_message="YOU HAVE FINISHED THE HIT!")
+        else:
+            return render_template("third_party_eval.html",
+                                   dialogue=json.loads(dialogue["events"]),
+                                   agent_id=dialogue["agent_id"],
+                                   dialogue_id=dialogue["dialogue_id"],
+                                   scenario_id=dialogue["scenario_id"],
+                                   column_names=json.loads(dialogue["column_names"]),
+                                   kb=json.loads(dialogue["kb"]),
+                                   )
     else:
         mturk_code = backend.get_finished_info(userid())
         return render_template("third_party_eval_finished.html",
