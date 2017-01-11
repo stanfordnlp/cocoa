@@ -31,7 +31,7 @@ def init_database(db_path):
     """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, fluent text)""")
+    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, user_id text, agent_id integer, humanlike text, correct text, strategic text, cooperative text, fluent text)""")
     c.execute("""CREATE TABLE ActiveDialogues (dialogue_id text unique, scenario_id text, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
     c.execute("""CREATE TABLE CompletedDialogues(dialogue_id text, scenario_id text, agent_mapping text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
     c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_dialogues_evaluated text, agent1_dialogues_evaluated text, num_evals_completed integer, timestamp text)""")
@@ -96,8 +96,6 @@ def init_dialogues(db_path):
         dialogue_id = ex["uuid"]
         agents_mapping = ex["agents"]
 
-        # TODO: Replace placeholder agent mapping
-        # TODO: Replace random dialogue id with actual transcript id
         c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
             (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
             json.dumps(agent1_kb), 0, 0))
@@ -154,7 +152,7 @@ def index():
     num_evals_completed = backend.get_num_evals_completed(userid())
     if num_evals_completed < app.config["num_evals_per_worker"]:
         dialogue = backend.get_dialogue(userid())
-        # If no dialogue found 
+        # If no dialogue found
         if dialogue is None:
             mturk_code = backend.get_finished_info(userid())
             return render_template("third_party_eval_finished.html",

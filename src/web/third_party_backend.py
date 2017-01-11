@@ -81,8 +81,8 @@ class BackendConnection(object):
 
             # Record answers to evaluation
             print "AGENT ID BEFORE RESPONSES: ", agent_id
-            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, userid, agent_id, results["humanlike"],
-                                                                                  results["correct"], results["strategic"],
+            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, userid, agent_id, results["humanlike"],
+                                                                                  results["correct"], results["strategic"], results["cooperative"],
                                                                                   results["fluent"]))
             try:
                 # Update number of evals on dialogue
