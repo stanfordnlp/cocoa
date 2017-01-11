@@ -55,7 +55,7 @@ class Controller(object):
         uuid = generate_uuid('E')
         outcome = {'reward': self.reward}
         print 'outcome: %s' % outcome
-        return Example(self.scenario, uuid, self.events, outcome, uuid)
+        return Example(self.scenario, uuid, self.events, outcome, uuid, None)
 
     def step(self, backend=None):
         with self.lock:
