@@ -84,7 +84,7 @@ def add_systems(config_dict, schema, lexicon, realizer):
             type = info["type"]
             # TODO: add realizer to simple system
             if type == SimpleSystem.name():
-                model = SimpleSystem(lexicon, timed_session=True)
+                model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
             elif type == NeuralSystem.name():
                 path = info["path"]
                 decoding = info["decoding"].split()
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=True, templates_dir=templates_dir)
+    app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
