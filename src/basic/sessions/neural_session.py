@@ -249,7 +249,6 @@ class RNNNeuralSession(NeuralSession):
         if self.env.copy:
             preds = self.graph.copy_preds(preds, self.env.vocab.size)
         entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map, self.env.prepend)
-        # TODO: The output does not have surface form yet. Add the canonical form as surface for now.
         entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
         return entity_tokens
 

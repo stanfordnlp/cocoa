@@ -54,7 +54,7 @@ if args.test_max_examples is None:
 
 def get_system(name):
     if name == 'simple':
-        return SimpleSystem(lexicon)
+        return SimpleSystem(lexicon, realizer=realizer)
     elif name == 'heuristic':
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
