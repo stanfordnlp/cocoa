@@ -79,15 +79,17 @@ class BackendConnection(object):
                 cursor.execute("UPDATE ActiveUsers SET num_evals_completed=?, agent1_dialogues_evaluated=?, timestamp=? WHERE user_id=?", (updated_num_evals,
                                                                                                                                    json.dumps(dialogues_evaluated), now, userid))
 
-            # Record answers to evaluation
-            print "AGENT ID BEFORE RESPONSES: ", agent_id
-            cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, userid, agent_id, results["humanlike"],
-                                                                                  results["correct"], results["strategic"], results["cooperative"],
-                                                                                  results["fluent"]))
             try:
                 # Update number of evals on dialogue
                 cursor.execute("SELECT num_agent0_evals, num_agent1_evals, agent_mapping FROM ActiveDialogues WHERE dialogue_id=?", (results["dialogue_id"],))
                 num_agent0_evals, num_agent1_evals, agent_mapping = cursor.fetchone()
+
+
+                # Record answers to evaluation
+                cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, agent_mapping, userid, agent_id, results["humanlike"],
+                                                                                      results["correct"], results["strategic"], results["cooperative"],
+                                                                                      results["fluent"]))
+
                 if agent_id == 0:
                     num_agent0_evals += 1
                 else:
