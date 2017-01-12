@@ -129,6 +129,8 @@ class SimpleSession(Session):
         fact_str = []
         total = num_items
         for entities, count in fact:
+            # Add caninical form as surface form
+            entities = [(x[0], x) for x in entities]
             if self.realizer:
                 entities_str = self.realizer.realize_entity(entities)
             else:
