@@ -93,8 +93,12 @@ class BackendConnection(object):
                 else:
                     num_agent1_evals += 1
 
+                print "Dialogue ID: ", results["dialogue_id"]
+                print "Num agent 0 evals: ", num_agent0_evals
+                print "Num agent 1 evals: ", num_agent1_evals
+
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
-                if num_agent0_evals == app.config["num_evals_per_dialogue"] and num_agent1_evals == app.config["num_evals_per_dialogue"]:
+                if num_agent0_evals >= app.config["num_evals_per_dialogue"] and num_agent1_evals >= app.config["num_evals_per_dialogue"]:
                     cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?,?,?)",
                                    (results["dialogue_id"], scenario_id, agent_mapping, num_agent0_evals, num_agent1_evals, now))
                     cursor.execute("DELETE FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
@@ -125,7 +129,7 @@ class BackendConnection(object):
             return mturk_code
 
 
-    def get_dialogue(self, userid):
+    def get_dialogue(self, userid, app):
         """
         Get an unfinished dialogue to display for user. Return necessary information
         for displaying on frontend
@@ -136,7 +140,7 @@ class BackendConnection(object):
             cursor = self.conn.cursor()
 
             try:
-                cursor.execute("SELECT dialogue_id, scenario_id, events, column_names, agent0_kb, agent1_kb FROM ActiveDialogues")
+                cursor.execute("SELECT dialogue_id, scenario_id, events, column_names, agent0_kb, agent1_kb, num_agent0_evals, num_agent1_evals FROM ActiveDialogues")
                 dialogues = cursor.fetchall()
 
                 cursor.execute("SELECT agent0_dialogues_evaluated, agent1_dialogues_evaluated FROM ActiveUsers WHERE user_id=?", (userid,))
@@ -148,17 +152,20 @@ class BackendConnection(object):
                 selected = None
                 # TODO: Whether to change to random selection
                 for d in dialogues:
-                    # Found a dialogue not previously shown to user
-                    if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                        print "AGENT 0!"
-                        selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
-                                    "column_names": d[3], "kb": d[4]}
-                        break
-                    if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                        print "AGENT 1!"
-                        selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
-                                    "column_names": d[3], "kb": d[5]}
-                        break
+                    # Num agent0_evals < num evals per dialogue
+                    if d[6] < app.config["num_evals_per_dialogue"]:
+                        # Found a dialogue not previously shown to user
+                        if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                            print "AGENT 0!"
+                            selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                        "column_names": d[3], "kb": d[4]}
+                            break
+                    if d[7] < app.config["num_evals_per_dialogue"]:
+                        if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                            print "AGENT 1!"
+                            selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                        "column_names": d[3], "kb": d[5]}
+                            break
                 return selected
             except Exception as e:
                 print "Error sampling from DB: ", e

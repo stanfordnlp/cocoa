@@ -154,7 +154,7 @@ def index():
     backend.create_user_if_necessary(userid())
     num_evals_completed = backend.get_num_evals_completed(userid())
     if num_evals_completed < app.config["num_evals_per_worker"]:
-        dialogue = backend.get_dialogue(userid())
+        dialogue = backend.get_dialogue(userid(), app)
         # If no dialogue found
         if dialogue is None:
             mturk_code = backend.get_finished_info(userid())
