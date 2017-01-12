@@ -79,7 +79,10 @@ def init_dialogues(db_path):
 
         # Filter to only include message data
         msg_events = []
+        # Keep track of those agents that are actually participating
+        agents_present = set()
         for event in events:
+            agents_present.add(event["agent"])
             if event["action"] == "message":
                 msg_events.append(event)
             elif event["action"] == "select":
@@ -95,10 +98,10 @@ def init_dialogues(db_path):
 
         dialogue_id = ex["uuid"]
         agents_mapping = ex["agents"]
-
-        c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
-            (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
-            json.dumps(agent1_kb), 0, 0))
+        if len(agents_present) == 2:
+            c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
+                (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
+                json.dumps(agent1_kb), 0, 0))
 
     conn.commit()
     conn.close()
