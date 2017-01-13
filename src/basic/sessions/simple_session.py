@@ -3,10 +3,13 @@ import re
 from collections import defaultdict
 from src.basic.sample_utils import sample_candidates
 from session import Session
-from src.model.preprocess import tokenize
+from src.model.preprocess import tokenize, word_to_num
 from src.model.vocab import is_entity
 from src.basic.lexicon import Lexicon
 import numpy as np
+from itertools import izip
+
+num_to_word = {v: k for k, v in word_to_num.iteritems()}
 
 class SimpleSession(Session):
     '''
@@ -104,8 +107,8 @@ class SimpleSession(Session):
         return entity_weights
 
     def choose_fact(self):
-        num_entities = np.random.randint(1, 5)
-        entities = sample_candidates(self.entity_weights.items())
+        num_entities = np.random.randint(1, 3)
+        entities = sample_candidates(self.entity_weights.items(), num_entities)
         return self.entity_to_fact(entities), entities
 
     def entity_to_fact(self, entities):
@@ -128,7 +131,7 @@ class SimpleSession(Session):
             facts.append(fact)
         return facts
 
-    def fact_to_str(self, fact, num_items, include_count=True):
+    def fact_to_str(self, fact, num_items, include_count=True, prefix=False, question=False):
         fact_str = []
         total = num_items
         for entities, count in fact:
@@ -138,12 +141,33 @@ class SimpleSession(Session):
                 entities_str = self.realizer.realize_entity(entities)
             else:
                 entities_str = [x[0] for x in entities]
+            if prefix:
+                new_str = []
+                for entity, s in izip(entities, entities_str):
+                    entity_type = entity[1][1]
+                    if entity_type == 'name':
+                        p = 'named'
+                    elif entity_type == 'school':
+                        p = 'who went to'
+                    elif entity_type == 'company':
+                        p = 'working at'
+                    elif entity_type == 'major':
+                        p = 'who studied'
+                    else:
+                        p = random.choice(['who like' if count > 1 else 'who like', 'into'])
+                    new_str.append(p + ' ' + s)
+                entities_str = new_str
+            conj = '%s' % ('friends' if count > 1 else 'friend') if prefix else ''
             if include_count:
-                s = '%s %s' % (self.number_to_str(count, total), ' and '.join([a for a in entities_str]))
+                s = '%s %s %s' % (self.number_to_str(count, total), conj, ' and '.join([a for a in entities_str]))
             else:
-                s = ' and '.join([a for a in entities_str])
+                s = '%s %s' % (conj, ' and '.join([a for a in entities_str]))
             fact_str.append(s)
-        fact_str = ', '.join(fact_str)
+        if question and len(fact_str) > 1:
+            fact_str = ', '.join(fact_str[:-1]) + ' or ' + fact_str[-1]
+        else:
+            fact_str = ', '.join(fact_str)
+        fact_str = fact_str.replace('  ', ' ')
         return fact_str
 
     def number_to_str(self, count, total):
@@ -160,14 +184,23 @@ class SimpleSession(Session):
         else:
             return 'some'
 
+    def naturalize(self, text):
+        tokens = text.split()
+        if self.capitalize:
+            tokens[0] = tokens[0].title()
+            tokens = ['I' if x == 'i' else x for x in tokens]
+        if not self.numerical:
+            tokens = [num_to_word[x] if x in num_to_word else x for x in tokens]
+        return ' '.join(tokens)
+
     def inform(self, facts):
-        fact_str = self.fact_to_str(facts, self.num_items)
-        message = 'I have %s.' % fact_str
+        fact_str = self.fact_to_str(facts, self.num_items, prefix=random.choice([False, True]))
+        message = self.naturalize('i have %s.' % fact_str)
         return self.message(message)
 
     def ask(self, facts):
-        fact_str = self.fact_to_str(facts, self.num_items, include_count=False)
-        message = 'Do you have %s?' % fact_str
+        fact_str = self.fact_to_str(facts, self.num_items, include_count=False, prefix=random.choice([False, True]), question=True)
+        message = self.naturalize('do you have any %s?' % fact_str)
         return self.message(message)
 
     def answer(self, entities):
@@ -216,7 +249,7 @@ class SimpleSession(Session):
             self.sent_entity = True
             facts, entities = self.choose_fact()
             # Decrease weights of entities mentioned
-            self.update_entity_weights(entities, -1.)
+            self.update_entity_weights(entities, -10.)
             if np.random.random() < 0.5:
                 return self.inform(facts)
             else:
