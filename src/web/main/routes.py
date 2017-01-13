@@ -201,11 +201,16 @@ def index():
         logger.info("Getting finished information for user %s" % userid()[:6])
         finished_info = backend.get_finished_info(userid(), from_mturk=mturk)
         mturk_code = finished_info.mturk_code if mturk else None
+        visualize_link = False
+        if request.args.get('debug') is not None and request.args.get('debug') == '1':
+            visualize_link = True
         return render_template('finished.html',
                                finished_message=finished_info.message,
                                mturk_code=mturk_code,
                                title=app.config['task_title'],
-                               icon=app.config['task_icon'])
+                               icon=app.config['task_icon'],
+                               visualize=visualize_link,
+                               uid=userid())
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         peek = False
