@@ -42,6 +42,9 @@ class SimpleSession(Session):
         self.matched_item = None
         self.selected = False
 
+        self.capitalize = random.choice([True, False])
+        self.numerical = random.choice([True, False])
+
     def get_entity_coords(self):
         '''
         Return a dict of {entity: [row]}
