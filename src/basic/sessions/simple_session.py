@@ -213,6 +213,7 @@ class SimpleSession(Session):
 
         # Inform or Ask or Select
         if (not self.can_select()) or np.random.random() < 0.7:
+            self.sent_entity = True
             facts, entities = self.choose_fact()
             # Decrease weights of entities mentioned
             self.update_entity_weights(entities, -1.)
@@ -220,7 +221,6 @@ class SimpleSession(Session):
                 return self.inform(facts)
             else:
                 return self.ask(facts)
-            self.sent_entity = True
         else:
             item_id = self.sample_item()
             # Don't repeatedly select one item
