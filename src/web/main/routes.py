@@ -147,13 +147,15 @@ def text():
     logger.debug("User %s said: %s" % (userid_prefix(), message))
     displayed_message = format_message("You: {}".format(message), False)
     uid = userid()
-    start_time = request.args.get('start_time')
+    time_taken = float(request.args.get('time_taken'))
+    received_time = time.time()
+    start_time = received_time - time_taken
     chat_info = backend.get_chat_info(uid)
     backend.send(uid,
                  Event.MessageEvent(chat_info.agent_index,
                                     message,
-                                    str(time.time()),
-                                    start_time)
+                                    str(received_time),
+                                    str(start_time))
                  )
     return jsonify(message=displayed_message)
 

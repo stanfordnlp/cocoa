@@ -89,6 +89,7 @@
 			var validCheckInterval, inboxCheckInterval;
 			var BASE_URL = 'http://' + document.domain + ':' + location.port;
 			var selectTime = null, messageStartTime = null;
+			var messageTime = 0.0;
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -118,8 +119,11 @@
 					if (code == 13) {
 						text = $('#text').val();
 						$('#text').val('');
+						var currentTime = Date.now() / 1000.0;
+						messageTime = currentTime - messageStartTime;
 						sendMessage(text);
 						messageStartTime = null;
+						messageTime = 0.0;
 					}
 				});
 		
@@ -154,7 +158,7 @@
 					data: {
 						"uid": "{{ uid }}",
 						"message": message,
-						"start_time": messageStartTime
+						"time_taken": messageTime
 					},
 					dataType: "json",
 					success: function(response) {
