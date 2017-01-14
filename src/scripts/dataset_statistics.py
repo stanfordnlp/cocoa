@@ -7,6 +7,8 @@ from src.model.vocab import is_entity
 from collections import defaultdict
 from itertools import izip
 import random
+# import matplotlib.pyplot as plt
+from nltk.corpus import stopwords
 
 
 def is_question(tokens):
@@ -63,6 +65,11 @@ def get_unique_values(kb):
         unique_vals[attr.value_type] = attr_vals
     return unique_vals
 
+def get_entity_type(entity):
+    if not is_entity(entity):
+        return None
+    _, (_, entity_type) = entity
+    return entity_type
 
 def get_kb_strategy(kbs, dialog):
     kb_unique_vals = [get_unique_values(kbs[0]), get_unique_values(kbs[1])]
@@ -112,6 +119,7 @@ utterance_map = {START: 0, 0: START, END: 1, 1: END}
 
 examples = defaultdict(list)
 
+
 def print_example(name, n):
     print 'Examples for', name
     try:
@@ -120,6 +128,7 @@ def print_example(name, n):
             print ex
     except KeyError:
         print 'No example for', name
+
 
 def map_utterance(dialog):
     '''
@@ -136,6 +145,7 @@ def map_utterance(dialog):
         examples[u].append(utterance)
     utterances.append(utterance_map[END])
     return utterances
+
 
 def get_dialog_stats(summary_map, utterance_counts, dialog):
     num_entities = 0
@@ -158,13 +168,18 @@ def get_dialog_stats(summary_map, utterance_counts, dialog):
     for a, b in izip(int_utterances, int_utterances[1:]):
         utterance_counts[a][b] += 1
 
+
 def analyze_strategy(all_chats, scenario_db, preprocessor):
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
     dialog_summary_map = {}
+    template_summary_map = {'total': 0.}
+    speech_act_sequence_summary_map = {'total': 0.}
     utterance_counts = defaultdict(lambda : defaultdict(int))
     first_word_counts = defaultdict(int)
+
     total_events = 0
+
     for raw in all_chats:
         ex = Example.from_dict(scenario_db, raw)
         kbs = ex.scenario.kbs
@@ -191,10 +206,12 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
             total_events += 1
 
             speech_act = get_speech_act(speech_act_summary_map, event, utterance)
+            get_linguistic_template(template_summary_map, utterance)
             entities = [x[1] for x in utterance if is_entity(x)]
             dialog.append((event.agent, speech_act, entities, utterance))
 
         get_dialog_stats(dialog_summary_map, utterance_counts, dialog)
+        get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
 
         orders = tuple(get_kb_strategy(kbs, dialog))
         if len(orders) not in kb_strategy_summary_map.keys():
@@ -214,7 +231,10 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
             'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
+            'linguistic_templates': template_summary_map,
+            'speech_act_sequence': speech_act_sequence_summary_map
             }
+
 
 def get_cross_talk(all_chats):
     summary_map = {}
@@ -232,6 +252,41 @@ def get_cross_talk(all_chats):
                 cross_talk = 1 if start_time < sent_time else 0
                 logstats.update_summary_map(summary_map, {'cross_talk': cross_talk})
     return summary_map['cross_talk']['mean']
+
+
+def get_linguistic_template(template_summary_map, utterance):
+    if len(utterance) == 0:
+        return
+    template = []
+    for token in utterance:
+        if is_entity(token):
+            template.append(get_entity_type(token))
+        else:
+            if token not in stopwords.words('english'):
+                template.append(token)
+
+    k = tuple(template)
+    if k not in template_summary_map.keys():
+        template_summary_map[k] = 0.
+
+    template_summary_map['total'] += 1.
+    template_summary_map[k] += 1.
+
+
+def get_speech_act_histograms(speech_act_sequence_summary_map, dialog, collapsed=False):
+    seq = []
+    last_act = None
+    for (_, act, _, _) in dialog:
+        if (act != last_act and collapsed) or (not collapsed):
+            seq.append(act)
+        last_act = act
+
+    k = tuple(seq)
+    if k not in speech_act_sequence_summary_map.keys():
+        speech_act_sequence_summary_map[k] = 0.
+
+    speech_act_sequence_summary_map['total'] += 1.
+    speech_act_sequence_summary_map[k] += 1.
 
 
 def get_average_time_taken(all_chats, scenario_db, alphas=None, num_items=None):
@@ -446,6 +501,7 @@ def plot_num_items_stats(stats, save_path):
     plt.legend(loc='best')
     plt.savefig(save_path)
 
+
 def get_topk_utterance(n, items):
     total = float(sum([x[1] for x in items]))
     sorted_counts = sorted(items, key=lambda x: x[1], reverse=True)
@@ -458,19 +514,36 @@ def get_topk_utterance(n, items):
         result.append(item)
     return result, len(sorted_counts), sum([x[1] for x in result])
 
+
 def get_initial_utterance(n, counts):
     start = utterance_map[START]
     init_counts = counts[start]
     return get_topk_utterance(n, init_counts.items())
+
 
 def get_unigram_utterance(n, counts):
     start = utterance_map[START]
     unigram_counts = [(k, sum(v.values())) for k, v in counts.iteritems() if k != start]
     return get_topk_utterance(n, unigram_counts)
 
+
 def get_bigram_utterance(n, counts):
     bigram_counts = [((k1, k2), v) for k1, d in counts.iteritems() for k2, v in d.iteritems()]
     return get_topk_utterance(n, bigram_counts)
+
+
+def get_top_k_from_counts(k, counts):
+    """
+    Given a map of counts mapping from a key to its frequency, returns the top k keys (based on frequency) after
+    normalizing the frequencies by the total.
+    :param k: The number of keys to return
+    :param counts: A map of counts mapping from a key to its frequency.
+    :return: A map from every key to its normalized frequency
+    """
+    total = sum(counts.values())
+    sorted_counts = sorted([(k, v/total) for (k, v) in counts.items() if k != 'total'], key=lambda x: x[1], reverse=True)
+    return {k: v for (k, v) in sorted_counts[:k]}
+
 
 def print_strategy_stats(stats):
     speech_act_stats = stats['speech_act']
@@ -478,6 +551,8 @@ def print_strategy_stats(stats):
     kb_strategy_stats = stats['kb_strategy']
     utterance_counts = stats['utterance_counts']
     first_word_counts = stats['first_word_counts']
+    template_counts = stats['linguistic_templates']
+    speech_act_sequences = stats['speech_act_sequences']
 
     print "-----------------------------------"
     print 'Speech act statistics:'
@@ -520,11 +595,23 @@ def print_strategy_stats(stats):
     for u, frac in utterances:
         print '%s, %s: %.3f' % (u[0], u[1], frac)
 
+    k = 10
+    print "-----------------------------------"
+    print 'Top %d linguistic templates' % k
+    top_templates = get_top_k_from_counts(k, template_counts)
+    for template, v in top_templates.iteritems():
+        print '%s: %.3f' % (" ".join(template), v)
+
+    k = 10
+    print "-----------------------------------"
+    print 'Top %d speech act sequences' % k
+    top_speech_act_sequences = get_top_k_from_counts(k, speech_act_sequences)
+    for template, v in top_speech_act_sequences.iteritems():
+        print '[%s]: %.3f' % (" ".join(template), v)
+
     print "-----------------------------------"
     print "KB attribute-based strategy statistics:"
     for num_attrs, v in kb_strategy_stats.items():
         print "Number of attributes mentioned: %d" % num_attrs
         for order, frac in sorted([(a, b) for a, b in v.items()], key=lambda x: x[1], reverse=True):
             print "\t%s: %2.3f" % (order, frac)
-
-
