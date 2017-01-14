@@ -5,11 +5,26 @@ import numpy as np
 import sqlite3
 
 from collections import defaultdict
+from statsmodels.stats.inter_rater import fleiss_kappa
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--db-path", type=str, help="path to db to output results from")
 args = vars(parser.parse_args())
+
+def bin(ratings):
+    """
+    Bin provided ratings into len(ratings) bins based on counts of ratings,
+    assumed to be discretized
+    :param ratings:
+    :return:
+    """
+    binned = np.zeros(5)
+    for r in ratings:
+        r = int(r)
+        binned[r-1] += 1
+    return binned
+
 
 conn = sqlite3.connect(args["db_path"])
 curs = conn.cursor()
@@ -37,15 +52,25 @@ for r in responses:
     dialogue_to_agent_mapping[dialogue_id] = agent_mapping
 
 
-
 # Compute mean/stddev
 for dialogue_id, values in dialogue_to_responses.iteritems():
     for agent_id, question_responses in values.iteritems():
+        question_arr = []
         for question, responses in question_responses.iteritems():
-            avg = np.array(responses[:5]).mean()
-            std = np.array(responses[:5]).std()
+            responses = np.array(responses[:5])
+            question_arr.append(bin(responses))
+
+            avg = responses.mean()
+            median = np.median(responses)
+            std = responses.std()
+
             dialogue_to_stats[dialogue_id][agent_id][question].append(avg)
+            dialogue_to_stats[dialogue_id][agent_id][question].append(median)
             dialogue_to_stats[dialogue_id][agent_id][question].append(std)
+
+        question_arr = np.array(question_arr)
+        kappa = fleiss_kappa(question_arr)
+        dialogue_to_stats[dialogue_id][agent_id]["kappa"].append(kappa)
 
 
 dialogue_eval_info = []
