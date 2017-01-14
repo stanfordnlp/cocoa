@@ -288,8 +288,30 @@ class BackendConnection(object):
             userids = [r[0] for r in cursor.fetchall()]
             return userids
 
-        def _choose_new_scenario(cursor):
+        def _find_unused_scenarios(cursor, partner_type):
+            cursor.execute("SELECT scenario_id, agent_types FROM chat")
+            data = cursor.fetchall()
+            used_scenarios = set()
+            partner_scenarios = set()
+            for (sid, agent_types) in data:
+                agent_types = json.loads(agent_types)
+                if agent_types['0'] == partner_type or agent_types['1'] == partner_type:
+                    partner_scenarios.add(sid)
+                else:
+                    used_scenarios.add(sid)
+
+            return used_scenarios.difference(partner_scenarios)
+
+        def _choose_new_scenario(cursor, partner_type):
             cursor.execute("SELECT scenario_id FROM chat")
+            # todo here: get all chats where one of the agents is human, neural, etc. for all bot types except
+            # the current one, get the union of seen scenarios, then get all scenarios that haven't been used for this
+            # type, and choose one of those scenarios randomly.
+            # if that set is empty, choose a new scenario.
+            unused_scenarios = _find_unused_scenarios(cursor, partner_type)
+            if len(unused_scenarios) > 0:
+                return np.random.choice(list(unused_scenarios))
+
             prev_scenarios = set(r[0] for r in cursor.fetchall())
             return self.scenario_db.select_random(prev_scenarios)
 
@@ -304,7 +326,7 @@ class BackendConnection(object):
                 partner_type = np.random.choice(partner_types, p=partner_probs)
 
                 my_index = np.random.choice([0, 1])
-                scenario = _choose_new_scenario(cursor)
+                scenario = _choose_new_scenario(cursor, partner_type)
                 scenario_id = scenario.uuid
                 chat_id = self._generate_chat_id()
                 if partner_type == HumanSystem.name():
