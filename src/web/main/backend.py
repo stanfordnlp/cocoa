@@ -291,16 +291,16 @@ class BackendConnection(object):
         def _find_unused_scenarios(cursor, partner_type):
             cursor.execute("SELECT scenario_id, agent_types FROM chat")
             data = cursor.fetchall()
-            used_scenarios = set()
-            partner_scenarios = set()
+            used_scenarios = {partner_type: set(),
+                              'other': set()}
             for (sid, agent_types) in data:
                 agent_types = json.loads(agent_types)
                 if agent_types['0'] == partner_type or agent_types['1'] == partner_type:
-                    partner_scenarios.add(sid)
+                    used_scenarios[partner_type].add(sid)
                 else:
-                    used_scenarios.add(sid)
+                    used_scenarios['other'].add(sid)
 
-            return used_scenarios.difference(partner_scenarios)
+            return used_scenarios['other'].difference(used_scenarios[partner_type])
 
         def _choose_new_scenario(cursor, partner_type):
             cursor.execute("SELECT scenario_id FROM chat")
@@ -312,8 +312,7 @@ class BackendConnection(object):
             if len(unused_scenarios) > 0:
                 return np.random.choice(list(unused_scenarios))
 
-            prev_scenarios = set(r[0] for r in cursor.fetchall())
-            return self.scenario_db.select_random(prev_scenarios)
+            return self.scenario_db.select_random(exclude_seen=True)
 
         try:
             with self.conn:
