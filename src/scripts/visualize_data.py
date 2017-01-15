@@ -14,7 +14,7 @@ def add_visualization_arguments(parser):
     parser.add_argument('--html-output', type=str, required=True, help='Name of file to write HTML report to')
 
 
-def get_html_for_transcript(chat, agent=None):
+def get_html_for_transcript(chat, agent=None, partner_type='Human'):
     chat_html= ['<table>', '<tr>', '<td width=\"50%%\">']
     events = [Event.from_dict(e) for e in chat["events"]]
 
@@ -22,9 +22,9 @@ def get_html_for_transcript(chat, agent=None):
         return False, None
 
     if agent == 0:
-        chat_html.append("<b>Agent 0 (You)</b></td><td width=\"50%%\"><b>Agent 1 (Partner)</b></td></tr><tr><td width=\"50%%\">")
+        chat_html.append("<b>Agent 0 (You)</b></td><td width=\"50%%\"><b>Agent 1 (Partner: %s)</b></td></tr><tr><td width=\"50%%\">" % partner_type)
     elif agent == 1:
-        chat_html.append("<b>Agent 0 (Partner)</b></td><td width=\"50%%\"><b>Agent 1 (You)</b></td></tr><tr><td width=\"50%%\">")
+        chat_html.append("<b>Agent 0 (Partner: %s)</b></td><td width=\"50%%\"><b>Agent 1 (You)</b></td></tr><tr><td width=\"50%%\">" % partner_type)
     else:
         chat_html.append("<b>Agent 0</b></td><td width=\"50%%\"><b>Agent 1</b></td></tr><tr><td width=\"50%%\">")
 
@@ -88,8 +88,8 @@ def render_scenario(scenario):
     return html
 
 
-def visualize_chat(chat, scenario_db, agent=None):
-    completed, chat_html = get_html_for_transcript(chat, agent)
+def visualize_chat(chat, scenario_db, agent=None, partner_type='Human'):
+    completed, chat_html = get_html_for_transcript(chat, agent, partner_type)
     if chat_html is None:
         return False, None
 
