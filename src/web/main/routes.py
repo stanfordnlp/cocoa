@@ -232,7 +232,7 @@ def index():
                                icon=app.config['task_icon'],
                                partner_kb=partner_kb)
     elif status == Status.Survey:
-        return render_template('survey.html',
+        return render_template('task_survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
                                icon=app.config['task_icon'])

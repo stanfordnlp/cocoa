@@ -355,8 +355,7 @@ class BackendConnection(object):
             self._update_user(cursor, userid,
                               status=new_status,
                               message=message,
-                              partner_id=-1,
-                              partner_type="")
+                              partner_id=-1)
 
         if self.is_game_over(userid):
             controller = self.controller_map[userid]
@@ -523,12 +522,13 @@ class BackendConnection(object):
 
                     elif u.status == Status.Survey:
                         if isinstance(e, ConnectionTimeoutException):
+                            # this should never happen because surveys can't time out
                             logger.info('ConnectionTimeOutException for user %s in survey state. Updating to connected '
                                         'and reentering waiting state.' % userid[:6])
                             self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
                             return Status.Waiting
                         else:
-                            return Status.Survey # this should never happen because surveys can't time out
+                            return Status.Survey
                     else:
                         raise Exception("Unknown status: {} for user: {}".format(u.status, userid))
 
@@ -673,9 +673,9 @@ class BackendConnection(object):
             with self.conn:
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
-
-                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?)',
-                               (userid, user_info.chat_id, user_info.partner_type, data['question1'], data['question2']))
+                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?)',
+                               (userid, user_info.chat_id, user_info.partner_type,
+                                data['fluent'], data['correct'], data['cooperative'], data['humanlike']))
                 _user_finished(userid)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
