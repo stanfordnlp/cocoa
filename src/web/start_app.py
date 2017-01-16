@@ -198,6 +198,7 @@ if __name__ == "__main__":
         params['models'] = {}
 
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
+    add_scenarios_to_db(db_file, scenario_db, systems)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
