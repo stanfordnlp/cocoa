@@ -56,12 +56,16 @@ def init_database(db_file):
     c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
     c.execute(
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-        correct integer, cooperative integer, human_like integer)''')
+        correct integer, cooperative integer, human_like integer, comments text)''')
     c.execute(
         '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
     )
     c.execute(
         '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text)'''
+    )
+    c.execute(
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer,
+        PRIMARY KEY (scenario_id, partner_type))'''
     )
 
     conn.commit()
@@ -182,6 +186,9 @@ if __name__ == "__main__":
 
     if 'models' not in params.keys():
         params['models'] = {}
+
+    if 'max_scenarios' not in params.keys():
+        params['max_scenarios'] = -1
 
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
 

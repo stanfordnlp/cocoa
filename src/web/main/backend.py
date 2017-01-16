@@ -16,6 +16,7 @@ from src.basic.controller import Controller
 from src.basic.event import Event
 from flask import Markup
 from uuid import uuid4
+from collections import defaultdict
 
 
 logger = logging.getLogger(__name__)
@@ -288,45 +289,64 @@ class BackendConnection(object):
             userids = [r[0] for r in cursor.fetchall()]
             return userids
 
-        def _find_unused_scenarios(cursor, partner_type):
-            cursor.execute("SELECT scenario_id, agent_types FROM chat")
-            data = cursor.fetchall()
-            used_scenarios = {partner_type: set(),
-                              'other': set()}
-            for (sid, agent_types) in data:
-                agent_types = json.loads(agent_types)
-                if agent_types['0'] == partner_type or agent_types['1'] == partner_type:
-                    used_scenarios[partner_type].add(sid)
-                else:
-                    used_scenarios['other'].add(sid)
+        def _choose_scenario_and_partner_type(cursor):
+            # for each scenario, get number of complete dialogues per agent type
+            all_partners = self.systems.keys()
+            cursor.execute('''SELECT * FROM scenario''')
+            db_scenarios = cursor.fetchall()
+            scenario_dialogues = defaultdict(lambda: defaultdict(int))
 
-            return used_scenarios['other'].difference(used_scenarios[partner_type])
+            for (scenario_id, partner_type, num_complete) in db_scenarios:
+                # map from scenario ID -> partner type -> # of completed dialogues with that partner
+                if scenario_id not in scenario_dialogues:
+                    scenario_dialogues[scenario_id] = {}
+                scenario_dialogues[scenario_id][partner_type] = num_complete
 
-        def _choose_new_scenario(cursor, partner_type):
-            cursor.execute("SELECT scenario_id FROM chat")
-            # todo here: get all chats where one of the agents is human, neural, etc. for all bot types except
-            # the current one, get the union of seen scenarios, then get all scenarios that haven't been used for this
-            # type, and choose one of those scenarios randomly.
-            # if that set is empty, choose a new scenario.
-            unused_scenarios = _find_unused_scenarios(cursor, partner_type)
-            if len(unused_scenarios) > 0:
-                return np.random.choice(list(unused_scenarios))
+            if len(scenario_dialogues.keys()) == 0 \
+                    or len(scenario_dialogues.keys()) < self.config['max_scenarios'] \
+                    or self.config['max_scenarios'] < 0:
+                # if no chats have been completed yet, or if we haven't reached the max number of scenarios yet
+                # (if max_scenarios==-1 no max is defined, so this will always run)
+                return self.scenario_db.select_random(exclude_seen=True), np.random.choice(all_partners)
 
-            return self.scenario_db.select_random(exclude_seen=True)
+            # if the max number of scenarios has been reached, try to get at least one dialogue from each agent type
+            active_scenarios = defaultdict(list)
+            for sid in scenario_dialogues.keys():
+                # active scenarios are those for which at least one agent type has no dialogues
+                for partner_type in all_partners:
+                    if scenario_dialogues[sid][partner_type] == 0:
+                        active_scenarios[sid].append(partner_type)
 
+            # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
+            # just select a random scenario and agent type
+            if len(active_scenarios.keys()) == 0:
+                sid = np.random.choice(active_scenarios.keys())
+                p = np.random.choice(all_partners)
+                return self.scenario_db.get(sid), p
+
+            # otherwise, select a random active scenario and an agent type that it's missing
+            sid = np.random.choice(active_scenarios.keys())
+            p = np.random.choice(active_scenarios[sid])
+            return self.scenario_db.get(sid), p
+
+        def _update_used_scenarios(scenario_id, partner_type):
+            cursor.execute(
+                '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
+                VALUES (
+                ?,
+                ?,
+                COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) + 1, 1)
+                )''',
+                (scenario_id, partner_type, scenario_id, partner_type))
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 others = _get_other_waiting_users(cursor, userid)
 
-                partner_types = self.pairing_probabilities.keys()
-                partner_probs = self.pairing_probabilities.values()
-
-                partner_type = np.random.choice(partner_types, p=partner_probs)
-
                 my_index = np.random.choice([0, 1])
-                scenario = _choose_new_scenario(cursor, partner_type)
+                scenario, partner_type = _choose_scenario_and_partner_type(cursor)
                 scenario_id = scenario.uuid
+                _update_used_scenarios(scenario_id, partner_type)
                 chat_id = self._generate_chat_id()
                 if partner_type == HumanSystem.name():
                     if len(others) == 0:
@@ -673,9 +693,10 @@ class BackendConnection(object):
             with self.conn:
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
-                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?)',
+                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?)',
                                (userid, user_info.chat_id, user_info.partner_type,
-                                data['fluent'], data['correct'], data['cooperative'], data['humanlike']))
+                                data['fluent'], data['correct'], data['cooperative'],
+                                data['humanlike'], data['comments']))
                 _user_finished(userid)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")

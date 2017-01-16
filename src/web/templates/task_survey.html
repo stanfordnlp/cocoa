@@ -20,6 +20,7 @@
         correctVal = $("#correct").val();
         coopVal = $("#cooperative").val();
         humanVal = $("#humanlike").val();
+        comments = $("#comments").val();
         //fluentVal = document.getElementById("#myRange").value
         console.log("FLUENT: " + fluentVal);
         console.log("HONEST: " + correctVal);
@@ -34,6 +35,10 @@
             questionAnswers["correct"] = correctVal;
             questionAnswers["fluent"] = fluentVal;
             questionAnswers["cooperative"] = coopVal;
+            if(comments == null) {
+            	comments = "";
+            }
+            questionAnswers["comments"] = comments;
             return true;
         }
     }
@@ -143,6 +148,13 @@
                 <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:11%;" >
                 <p style="float:right;">Very human-like</p>
             </form>
+        </div>
+        
+        <div class="q">
+        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
+        	<form id="q_h">
+        	<input type="text" id="comments">
+        	</form>
         </div>
 
         <br>
