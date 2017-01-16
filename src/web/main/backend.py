@@ -369,10 +369,26 @@ class BackendConnection(object):
                               message=message,
                               partner_id=-1)
 
+        def _update_scenario_db(cursor, userid, controller, outcome):
+            if outcome['reward'] is None or outcome['reward'] == 0:
+                u = self._get_user_info_unchecked(cursor, userid)
+                sid = controller.scenario.uuid
+                partner_type = u.partner_type
+                cursor.execute(
+                    '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
+                    VALUES (
+                    ?,
+                    ?,
+                    COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) + 1, 1)
+                    )''',
+                    (sid, partner_type, sid, partner_type))
+
         if self.is_game_over(userid):
             controller = self.controller_map[userid]
             controller.set_inactive()
-            self.update_chat_reward(cursor, controller.get_chat_id(), controller.get_outcome())
+            outcome = controller.get_outcome()
+            self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
+            _update_scenario_db(cursor, userid, controller, outcome)
             self.controller_map[userid] = None
             _user_finished(cursor, userid)
 

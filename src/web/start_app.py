@@ -75,12 +75,14 @@ def init_database(db_file):
 def add_scenarios_to_db(db_file, scenario_db, systems):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
-    for sid in scenario_db.scenarios_list:
+    for scenario in scenario_db.scenarios_list:
+        sid = scenario.uuid
         for agent_type in systems.keys():
-            c.execute('''INSERT INTO scenario VALUES (?,?,0)''', (sid, agent_type))
+            c.execute('''INSERT INTO scenario VALUES (?,?, 0)''', (sid, agent_type))
 
     conn.commit()
     conn.close()
+
 
 def add_systems(config_dict, schema, lexicon):
     """

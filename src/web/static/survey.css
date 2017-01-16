@@ -225,6 +225,17 @@ input[type=range]{
   /*margin-right: 20%;*/
 }
 
+textarea{
+  display:block;
+  margin-left: auto;
+  margin-right: auto;
+  border-style: solid;
+  border-color: purple;
+  border-width: 1px;
+  font-size: 0.75em;
+  /*margin-right: 20%;*/
+}
+
 /* Adjustments for wider screens */
 @media all and (min-width: 800px) {
   /* Don't take all the space as readability is lost when line length
