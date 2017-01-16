@@ -302,17 +302,9 @@ class BackendConnection(object):
                     scenario_dialogues[scenario_id] = {}
                 scenario_dialogues[scenario_id][partner_type] = num_complete
 
-            if len(scenario_dialogues.keys()) == 0 \
-                    or len(scenario_dialogues.keys()) < self.config['max_scenarios'] \
-                    or self.config['max_scenarios'] < 0:
-                # if no chats have been completed yet, or if we haven't reached the max number of scenarios yet
-                # (if max_scenarios==-1 no max is defined, so this will always run)
-                return self.scenario_db.select_random(exclude_seen=True), np.random.choice(all_partners)
-
-            # if the max number of scenarios has been reached, try to get at least one dialogue from each agent type
+            # find "active" scenarios (scenarios for which at least one agent type has no dialogues)
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
-                # active scenarios are those for which at least one agent type has no dialogues
                 for partner_type in all_partners:
                     if scenario_dialogues[sid][partner_type] == 0:
                         active_scenarios[sid].append(partner_type)
