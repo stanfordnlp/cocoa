@@ -157,10 +157,11 @@ def index():
         dialogue = backend.get_dialogue(userid(), app)
         # If no dialogue found
         if dialogue is None:
-            mturk_code = backend.get_finished_info(userid())
+            #mturk_code = backend.get_finished_info(userid())
             return render_template("third_party_eval_finished.html",
-                               mturk_code=mturk_code,
-                               finished_message="YOU HAVE FINISHED THE HIT!")
+                               mturk_code=str(random.randint(0,10000)),
+                               finished_message="You have exceeded the allowed number of dialogues to be evaluated and hence can no longer do these HITs! If you believe this"
+                                                " message was given in error, please contact us.")
         else:
             return render_template("third_party_eval.html",
                                    dialogue=json.loads(dialogue["events"]),

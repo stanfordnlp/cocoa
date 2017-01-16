@@ -131,6 +131,33 @@ class BackendConnection(object):
             return mturk_code
 
 
+    def _check_dialogue(self, d, agent0_dialogues_evaluated, agent1_dialogues_evaluated, app):
+        """
+        Check if given dialogue can be presented to Turker for eval
+        :param d: Dialogue to consider
+        :param agent0_dialogues_evaluated: Which dialogues agent has already evaluated
+        :param agent1_dialogues_evaluated: Which dialogues agent has already evaluated
+        :param app: App info
+        :return:
+        """
+        # Num agent0_evals < num evals per dialogue
+        if d[6] < app.config["num_evals_per_dialogue"]:
+            # Found a dialogue not previously shown to user
+            if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                print "AGENT 0!"
+                selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                            "column_names": d[3], "kb": d[4]}
+                return selected
+        if d[7] < app.config["num_evals_per_dialogue"]:
+            if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                print "AGENT 1!"
+                selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                            "column_names": d[3], "kb": d[5]}
+                return selected
+
+        return None
+
+
     def get_dialogue(self, userid, app):
         """
         Get an unfinished dialogue to display for user. Return necessary information
@@ -138,6 +165,7 @@ class BackendConnection(object):
         :param userid:
         :return:
         """
+        # TODO: Add extra fields to prevent concurrency issues!
         with self.conn:
             cursor = self.conn.cursor()
 
@@ -152,22 +180,35 @@ class BackendConnection(object):
                 agent1_dialogues_evaluated = set(json.loads(dialogues_evaluated[1]))
                 print "EVALUATED: ", agent0_dialogues_evaluated, "\t", agent1_dialogues_evaluated
                 selected = None
-                # TODO: Whether to change to random selection
-                for d in dialogues:
-                    # Num agent0_evals < num evals per dialogue
-                    if d[6] < app.config["num_evals_per_dialogue"]:
-                        # Found a dialogue not previously shown to user
-                        if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                            print "AGENT 0!"
-                            selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
-                                        "column_names": d[3], "kb": d[4]}
-                            break
-                    if d[7] < app.config["num_evals_per_dialogue"]:
-                        if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                            print "AGENT 1!"
-                            selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
-                                        "column_names": d[3], "kb": d[5]}
-                            break
+                count = 0
+                while True:
+                    if count >= len(dialogues) * 2:
+                        for d in dialogues:
+                            selected = self._check_dialogue(d, agent0_dialogues_evaluated, agent1_dialogues_evaluated, app)
+                            if selected is None:
+                                print "No more dialogues for current user!"
+                                raise Exception
+                            else:
+                                return selected
+
+
+                    agent_type = random.randint(0, 1)
+                    d = random.sample(dialogues, 1)[0]
+                    if agent_type == 0:
+                        # Num agent0_evals < num evals per dialogue
+                        if d[6] < app.config["num_evals_per_dialogue"]:
+                            # Found a dialogue not previously shown to user
+                            if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                                selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                            "column_names": d[3], "kb": d[4]}
+                                break
+                    else:
+                        if d[7] < app.config["num_evals_per_dialogue"]:
+                            if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
+                                selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
+                                            "column_names": d[3], "kb": d[5]}
+                                break
+                    count += 1
                 return selected
             except Exception as e:
                 print "Error sampling from DB: ", e
