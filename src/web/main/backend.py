@@ -119,9 +119,17 @@ class BackendConnection(object):
         return self.sessions.get(userid)
 
     def _end_chat_and_transition_to_waiting(self, cursor, userid, message):
+        def _update_scenario_db():
+            if outcome['reward'] is None or outcome['reward'] == 0:
+                u = self._get_user_info_unchecked(cursor, userid)
+                sid = controller.scenario.uuid
+                partner_type = u.partner_type
+                self.decrement_completed_chat(cursor, sid, partner_type)
 
         controller = self.controller_map[userid]
-        self.update_chat_reward(cursor, controller.get_chat_id(), controller.get_outcome())
+        outcome = controller.get_outcome()
+        self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
+        _update_scenario_db()
         controller.set_inactive()
         self.controller_map[userid] = None
         self._update_user(cursor, userid,
@@ -338,11 +346,11 @@ class BackendConnection(object):
                 my_index = np.random.choice([0, 1])
                 scenario, partner_type = _choose_scenario_and_partner_type(cursor)
                 scenario_id = scenario.uuid
-                _update_used_scenarios(scenario_id, partner_type)
                 chat_id = self._generate_chat_id()
                 if partner_type == HumanSystem.name():
                     if len(others) == 0:
                         return None
+                    _update_used_scenarios(scenario_id, partner_type)
                     partner_id = np.random.choice(others)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(), HumanSystem.name())
@@ -350,6 +358,7 @@ class BackendConnection(object):
                         self.add_chat_to_db(chat_id, scenario_id, partner_id, userid, HumanSystem.name(), HumanSystem.name())
                     return _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
                 else:
+                    _update_used_scenarios(scenario_id, partner_type)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)
                     else:
@@ -360,6 +369,17 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
+    def decrement_completed_chat(self, cursor, scenario_id, partner_type):
+        cursor.execute(
+            '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
+            VALUES (
+            ?,
+            ?,
+            COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) - 1, 1)
+            )''',
+            (scenario_id, partner_type, scenario_id, partner_type)
+        )
+
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         def _user_finished(cursor, userid):
             new_status = Status.Survey if self.do_survey else Status.Finished
@@ -369,26 +389,19 @@ class BackendConnection(object):
                               message=message,
                               partner_id=-1)
 
-        def _update_scenario_db(cursor, userid, controller, outcome):
+        def _update_scenario_db():
             if outcome['reward'] is None or outcome['reward'] == 0:
                 u = self._get_user_info_unchecked(cursor, userid)
                 sid = controller.scenario.uuid
                 partner_type = u.partner_type
-                cursor.execute(
-                    '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
-                    VALUES (
-                    ?,
-                    ?,
-                    COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) + 1, 1)
-                    )''',
-                    (sid, partner_type, sid, partner_type))
+                self.decrement_completed_chat(cursor, sid, partner_type)
 
         if self.is_game_over(userid):
             controller = self.controller_map[userid]
             controller.set_inactive()
             outcome = controller.get_outcome()
             self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
-            _update_scenario_db(cursor, userid, controller, outcome)
+            _update_scenario_db()
             self.controller_map[userid] = None
             _user_finished(cursor, userid)
 
