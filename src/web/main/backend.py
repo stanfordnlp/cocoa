@@ -735,6 +735,17 @@ class BackendConnection(object):
                 print("WARNING: Rolled back transaction")
                 return None
 
+        def _get_agent_type(partner_idx):
+            try:
+                cursor.execute('''SELECT agent_types FROM chat WHERE chat_id=?''', (chat_id,))
+                agent_types = json.loads(cursor.fetchone()[0])
+                agent_types = dict((int(k), v) for (k, v) in agent_types.items())
+                return agent_types[partner_idx]
+            except sqlite3.OperationalError:
+                # this should never happen!!
+                print "No agent types stored for chat %s" % chat_id
+                return None
+
         def _get_agent_index():
             try:
                 cursor.execute('SELECT agent_ids FROM chat WHERE chat_id=?', (chat_id,))
@@ -742,6 +753,7 @@ class BackendConnection(object):
                 agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
                 return 0 if agent_ids[0] == userid else 1
             except sqlite3.OperationalError:
+                # this should never happen!!
                 print "No agent IDs stored for chat %s" % chat_id
                 return None
 
@@ -749,6 +761,7 @@ class BackendConnection(object):
             cursor = self.conn.cursor()
             chat_id = _get_chat_id()
             agent_index = _get_agent_index()
+            partner_type = _get_agent_type(1-agent_index)
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db)
-            _, html = visualize_chat(ex.to_dict(), self.scenario_db, agent=agent_index)
+            _, html = visualize_chat(ex.to_dict(), self.scenario_db, agent=agent_index, partner_type=partner_type)
             return html
