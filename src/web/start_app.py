@@ -183,7 +183,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=True, templates_dir=templates_dir)
+    app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
