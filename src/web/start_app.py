@@ -192,8 +192,7 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    # lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
-    lexicon = None
+    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
