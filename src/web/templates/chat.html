@@ -23,6 +23,7 @@
 
 			div#icon {
 				padding: 10px 100px 10px 20px;
+				display: inline-block;
 			}
 
 			textarea#chat {
@@ -89,6 +90,7 @@
 			var validCheckInterval, inboxCheckInterval;
 			var BASE_URL = 'http://' + document.domain + ':' + location.port;
 			var selectTime = null, messageStartTime = null;
+			var messageTime = 0.0;
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -118,8 +120,11 @@
 					if (code == 13) {
 						text = $('#text').val();
 						$('#text').val('');
+						var currentTime = Date.now() / 1000.0;
+						messageTime = currentTime - messageStartTime;
 						sendMessage(text);
 						messageStartTime = null;
+						messageTime = 0.0;
 					}
 				});
 		
@@ -154,7 +159,7 @@
 					data: {
 						"uid": "{{ uid }}",
 						"message": message,
-						"start_time": messageStartTime
+						"time_taken": messageTime
 					},
 					dataType: "json",
 					success: function(response) {
@@ -203,7 +208,7 @@
 							window.location.reload(true);
 						}
 					}
-				})
+				});
 				
 			}
 
@@ -214,13 +219,24 @@
             		url: BASE_URL + '/_leave_chat/',
             		type: "get",
             		data: {"uid": "{{ uid }}"}
-            	})
+            	});
             	$.ajax({
             		url: BASE_URL + '/_disconnect/',
             		type: "get",
             		data: {"uid": "{{ uid }}" }
             	});
             }
+            
+            
+            function skipChat() {
+	            disconnect();
+            	$.ajax({
+            		url: BASE_URL + '/_skip_chat/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}"}
+				});			
+				window.location.reload(true);
+			}
 
 		</script>
 
@@ -245,7 +261,10 @@
 					var t = getTimeRemaining(endtime);
 					minutesSpan.innerHTML = t.minutes+':';
 					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-
+					console.log(t.total/1000);
+					if (t.total/1000 <= {{ quit_enabled|int }}) {
+						$("#leave").css("display", "inline-block");
+					}
 					if (t.total <= 0) {
 						clearInterval(validCheckInterval);
 						clearInterval(timeinterval);
@@ -286,8 +305,13 @@
     </div>
 
     <div id="info_container">
-	    <div id="icon">
-			<img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+    	<div id="topright">
+			<div id="icon">
+				<img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+			</div>
+			<div style="display:none; color:#FF0000;" id="leave">
+			<h4><a href="javascript:skipChat();">Click here</a> to quit this chat.</h4>
+			</div>
 		</div>
 		<div id="friends">
             <h3>Your friends</h3>
