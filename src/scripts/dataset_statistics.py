@@ -298,7 +298,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
             'linguistic_templates': template_summary_map,
-            'speech_act_sequence': speech_act_sequence_summary_map,
+            'speech_act_sequences': speech_act_sequence_summary_map,
             'correct': fact_summary_map['correct']['mean']
             }
 
