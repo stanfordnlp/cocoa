@@ -10,7 +10,7 @@ import atexit
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.web.dump_events_to_json import log_events_to_json
+from src.web.dump_events_to_json import log_transcripts_to_json
 from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
@@ -19,7 +19,8 @@ from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
 from main import backend
 from gevent.wsgi import WSGIServer
-from src.basic.lexicon import Lexicon
+from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.basic.inverse_lexicon import InverseLexicon
 
 __author__ = 'anushabala'
 
@@ -57,13 +58,14 @@ def init_database(db_file):
         '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
         how_effective integer)''')
     c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
-    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text)''')
+    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text,
+    agent_ids text, agent_types text)''')
 
     conn.commit()
     conn.close()
 
 
-def add_systems(config_dict, schema, lexicon):
+def add_systems(config_dict, schema, lexicon, realizer):
     """
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
@@ -75,19 +77,18 @@ def add_systems(config_dict, schema, lexicon):
         bot. Also includes the pairing probability for humans (backend.Partner.Human)
     """
 
-    systems = {backend.Partner.Human: HumanSystem()}
+    systems = {HumanSystem.name(): HumanSystem()}
 
     for (sys_name, info) in config_dict.iteritems():
         if info["active"]:
             type = info["type"]
+            # TODO: add realizer to simple system
             if type == SimpleSystem.name():
-                model = SimpleSystem(lexicon, timed_session=True)
-            #elif type == HeuristicSystem.name():
-            #    model = HeuristicSystem()
+                model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
             elif type == NeuralSystem.name():
                 path = info["path"]
                 decoding = info["decoding"].split()
-                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
+                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True, realizer=realizer, consecutive_entity=False)
             else:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -104,7 +105,7 @@ def add_systems(config_dict, schema, lexicon):
 def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
-    log_events_to_json(app.config['scenario_db'], db_path, transcript_path)
+    log_transcripts_to_json(app.config['scenario_db'], db_path, transcript_path, None)
 
 
 def init(output_dir):
@@ -129,6 +130,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     add_website_arguments(parser)
     add_scenario_arguments(parser)
+    add_lexicon_arguments(parser)
     args = parser.parse_args()
 
     params_file = args.config
@@ -162,7 +164,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=True, templates_dir=templates_dir)
+    app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
@@ -171,14 +173,18 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False)
+    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    if args.inverse_lexicon:
+        realizer = InverseLexicon(schema, args.inverse_lexicon)
+    else:
+        realizer = None
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
         params['models'] = {}
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
+    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

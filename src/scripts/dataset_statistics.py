@@ -6,9 +6,10 @@ from src.lib import logstats
 from src.model.vocab import is_entity
 from collections import defaultdict
 from itertools import izip
+from src.model.preprocess import word_to_num
 import random
-# import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
+import matplotlib.pyplot as plt
 
 
 def is_question(tokens):
@@ -156,7 +157,7 @@ def get_dialog_stats(summary_map, utterance_counts, dialog):
         num_entities += num_ents
         num_entity_types += num_types
         if num_ents > 0:
-            logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_ents > 1 else 0})
+            logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_types > 1 else 0})
             logstats.update_summary_map(summary_map, {'repeated_entity_per_entity_utterance': 1 if num_ents > num_types else 0})
             if num_ents > num_types:
                 examples['repeated_entity_per_entity_utterance'].append(utterance)
@@ -168,36 +169,97 @@ def get_dialog_stats(summary_map, utterance_counts, dialog):
     for a, b in izip(int_utterances, int_utterances[1:]):
         utterance_counts[a][b] += 1
 
+def entity_to_type(tokens):
+    return [x if not is_entity(x) else '<%s>' % x[1][1] for x in tokens]
 
-def analyze_strategy(all_chats, scenario_db, preprocessor):
+def to_number(token, max_number):
+    if token in [str(x) for x in range(max_number)]:
+        return int(token)
+    elif token in word_to_num:
+        return word_to_num[token]
+    elif token == 'all':
+        return max_number
+    elif token in ('none', 'no', "don't"):
+        return 0
+    return None
+
+def count_kb_entity(kb, entities):
+    count = 0
+    for item in kb.items:
+        item_entities = [x.lower() for x in item.values()]
+        match = True
+        for entity in entities:
+            if entity not in item_entities:
+                match = False
+                break
+        if match:
+            count += 1
+    return count
+
+def check_fact(summary_map, tokens, kb):
+    '''
+    Simple fact checker:
+        each utterance is converted to a list of numbers and entities and we assume
+        that the number describes the following entities, which will cause some false
+        negatives.
+    '''
+    hypothesis = []
+    N = len(kb.items)
+    for token in tokens:
+        if is_entity(token):
+            if len(hypothesis) > 0:
+                # Represent entity as its canonical form
+                hypothesis[-1][1].append(token[1][0])
+        else:
+            number = to_number(token, N)
+            if number:
+                hypothesis.append((number, []))
+    for n, entities in hypothesis:
+        if len(entities) > 0:
+            correct = 1 if  n == count_kb_entity(kb, entities) else 0
+            logstats.update_summary_map(summary_map, {'correct': correct})
+
+def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
+    fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
     dialog_summary_map = {}
-    template_summary_map = {'total': 0.}
-    speech_act_sequence_summary_map = {'total': 0.}
+    fact_summary_map = {}
     utterance_counts = defaultdict(lambda : defaultdict(int))
     first_word_counts = defaultdict(int)
+    template_summary_map = {'total': 0.}
+    speech_act_sequence_summary_map = {'total': 0.}
 
     total_events = 0
 
+    lm_summary_map = {}
     for raw in all_chats:
         ex = Example.from_dict(scenario_db, raw)
         kbs = ex.scenario.kbs
         if ex.outcome is None or ex.outcome["reward"] == 0:
             continue  # skip incomplete dialogues
         dialog = []
+        mentioned_entities = set()
         for i, event in enumerate(ex.events):
             if event.action == 'select':
                 utterance = []
                 if i == 0:
                     first_word_counts['<select>'] += 1
             elif event.action == 'message':
-                utterance = preprocessor.process_event(event, kbs[event.agent])
+                utterance = preprocessor.process_event(event, kbs[event.agent], mentioned_entities)
                 # Skip empty utterances
                 if not utterance:
                     continue
                 else:
                     utterance = utterance[0]
+                    for token in utterance:
+                        if is_entity(token):
+                            mentioned_entities.add(token[1][0])
+                    check_fact(fact_summary_map, utterance, kbs[event.agent])
+                    if lm:
+                        logstats.update_summary_map(lm_summary_map, {'score': lm.score(' '.join(entity_to_type(utterance)))})
+                    if fout:
+                        fout.write('%s\n' % (' '.join(entity_to_type(utterance))))
                     if i == 0:
                         first_word_counts[utterance[0]] += 1
             else:
@@ -222,17 +284,22 @@ def analyze_strategy(all_chats, scenario_db, preprocessor):
 
         kb_strategy_summary_map[len(orders)][tuple(orders)] += 1.0
 
-
+    if fout:
+        fout.close()
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
+    dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
+    dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
     return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
-            'dialog_stats': {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map},
+            'dialog_stats': dialog_stats,
+            'lm_score': -1 if not lm else lm_summary_map['score']['mean'],
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
             'linguistic_templates': template_summary_map,
-            'speech_act_sequence': speech_act_sequence_summary_map
+            'speech_act_sequence': speech_act_sequence_summary_map,
+            'correct': fact_summary_map['correct']['mean']
             }
 
 
@@ -251,7 +318,11 @@ def get_cross_talk(all_chats):
                 start_time = float(event2.start_time) if not is_null(event2.start_time) else float(event2.time)
                 cross_talk = 1 if start_time < sent_time else 0
                 logstats.update_summary_map(summary_map, {'cross_talk': cross_talk})
-    return summary_map['cross_talk']['mean']
+    try:
+        return summary_map['cross_talk']['mean']
+    # Cross talk only available for chats with start_time
+    except KeyError:
+        return -1
 
 
 def get_linguistic_template(template_summary_map, utterance):
@@ -372,7 +443,8 @@ def get_num_completed(all_chats, scenario_db, alphas=None, num_items=None):
         if (alphas is not None and tuple(scenario.alphas) == alphas) \
                 or (num_items is not None and items == num_items) \
                 or (alphas is None and num_items is None):
-            num_complete += 1.0 if chat["outcome"] is not None and chat["outcome"]["reward"] == 1 else 0.0
+            if chat["outcome"] is not None:
+                num_complete += 1.0 if chat["outcome"]["reward"] == 1 else 0.0
 
     return num_complete
 
@@ -421,7 +493,7 @@ def get_total(all_chats, scenario_db, alphas=None, num_items=None):
 
 
 def get_total_statistics(all_chats, scenario_db):
-    return {
+    stats = {
         'avg_time_taken': get_average_time_taken(all_chats, scenario_db),
         'avg_turns': get_average_sentences(all_chats, scenario_db),
         'avg_sentence_length': get_average_length(all_chats, scenario_db),
@@ -429,6 +501,8 @@ def get_total_statistics(all_chats, scenario_db):
         'cross_talk': get_cross_talk(all_chats),
         'total': get_total(all_chats, scenario_db)
     }
+    stats['completion_rate'] = stats['num_completed'] / stats['total']
+    return stats
 
 
 def get_statistics_by_alpha(all_chats, scenario_db):
@@ -474,7 +548,11 @@ def print_group_stats(group_stats):
     print "Average number of utterances: %2.2f" % group_stats['avg_turns']
     print "Average utterance length: %2.2f tokens" % group_stats['avg_sentence_length']
     print "# of completed dialogues: %d" % group_stats['num_completed']
-    print "%% of cross talk: %.2f" % group_stats['cross_talk']
+    try:
+        print "%% of cross talk: %.2f" % group_stats['cross_talk']
+    # cross_talk is not computed for alpha groups for now
+    except KeyError:
+        pass
     print 'Total dialogues: %d' % group_stats['total']
 
 
@@ -563,7 +641,7 @@ def print_strategy_stats(stats):
     print 'Dialogue statistics:'
     for k, v in dialogue_stats.iteritems():
         print '%s: %.3f' % (k, v)
-    print_example('repeated_entity_per_entity_utterance', 3)
+    print_example('repeated_entity_per_entity_utterance', 10)
 
     k = 10
     print "-----------------------------------"

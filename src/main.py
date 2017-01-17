@@ -12,7 +12,7 @@ from src.basic.util import read_json, write_json, read_pickle, write_pickle
 from src.basic.dataset import add_dataset_arguments, read_dataset
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.lexicon import Lexicon
+from src.basic.lexicon import Lexicon, add_lexicon_arguments
 from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
 from src.model.entity import Entity
 from src.model.encdec import add_model_arguments, build_model
@@ -29,9 +29,9 @@ if __name__ == '__main__':
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
-    parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
     parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     add_scenario_arguments(parser)
+    add_lexicon_arguments(parser)
     add_dataset_arguments(parser)
     add_preprocess_arguments(parser)
     add_model_arguments(parser)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
     print 'Building lexicon...'
     start = time.time()
-    lexicon = Lexicon(schema, args.learned_lex)
+    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
     print '%.2f s'% (time.time() - start)
 
     # Dataset

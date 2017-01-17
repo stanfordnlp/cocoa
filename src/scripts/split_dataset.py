@@ -11,6 +11,7 @@ parser.add_argument('--dev-frac', help='Fraction of dev examples', type=float, d
 parser.add_argument('--output-path', help='Output path for splits')
 args = parser.parse_args()
 
+np.random.seed(0)
 json_data = ([], [], [])
 for path in args.example_paths:
     examples = read_json(path)
