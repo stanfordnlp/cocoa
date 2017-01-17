@@ -9,6 +9,7 @@ from itertools import izip
 from src.model.preprocess import word_to_num
 import random
 import matplotlib.pyplot as plt
+from itertools import izip
 
 
 def is_question(tokens):
@@ -96,16 +97,24 @@ def get_kb_strategy(kbs, dialog):
 
 def abstract_entity(dialog):
     #entity_map = {0: {}, 1: {}}
-    #entity_map = {}
+    entity_map = {}
     new_dialog = []
     for agent, act, entities, utterance in dialog:
         #m = entity_map[agent]
-        #m = entity_map
-        m = {}
+        m = entity_map
+        #m = {}
         for entity in entities:
             if entity not in m:
                 m[entity] = len(m)
-        new_dialog.append((agent, act, tuple([m[e] for e in entities]), utterance))
+        if len(new_dialog) == 0 or new_dialog[-1][0] != agent:
+            new_dialog.append((agent, act, tuple([m[e] for e in entities]), utterance))
+        else:
+            prev_agent, prev_act, prev_entities, prev_utterance = new_dialog[-1]
+            assert agent == prev_agent
+            act = tuple(sorted(list(set(act + prev_act))))
+            entities = tuple(sorted(list(set(list(prev_entities) + [m[e] for e in entities]))))
+            utterance = prev_utterance.append(utterance) if prev_utterance else utterance
+            new_dialog[-1] = (agent, act, entities, utterance)
     return new_dialog
 
 START = '<s>'
@@ -127,16 +136,18 @@ def map_utterance(dialog):
     '''
     Convert a list of events/utterances to integers.
     '''
-    utterances = [utterance_map[START]]
+    #utterances = [utterance_map[START]]
+    utterances = [((START,), ())]
     for agent, act, ents, utterance in dialog:
         u = (act, ents)
-        if u not in utterance_map:
-            id_ = len(utterance_map)
-            utterance_map[u] = id_
-            utterance_map[id_] = u
-        utterances.append(utterance_map[u])
+        #if u not in utterance_map:
+        #    id_ = len(utterance_map)
+        #    utterance_map[u] = id_
+        #    utterance_map[id_] = u
+        #utterances.append(utterance_map[u])
+        utterances.append(u)
         examples[u].append(utterance)
-    utterances.append(utterance_map[END])
+    utterances.append(((END,), ()))
     return utterances
 
 def get_dialog_stats(summary_map, utterance_counts, dialog):
@@ -210,14 +221,29 @@ def check_fact(summary_map, tokens, kb):
             correct = 1 if  n == count_kb_entity(kb, entities) else 0
             logstats.update_summary_map(summary_map, {'correct': correct})
 
+def update_ngram_counts(counts, utterance):
+    tokens = [x if not is_entity(x) else ('<%s>' % x[1][1]) for x in utterance]
+    for x in tokens:
+        counts[1][(x,)] += 1
+    for x, y in izip(tokens, tokens[1:]):
+        counts[2][(x, y)] += 1
+    for x, y, z in izip(tokens, tokens[1:], tokens[2:]):
+        counts[3][(x, y, z)] += 1
+    return counts
+
+# NOTE: Use this instead of lambda function so that we can pickle the counts
+def dd():
+    return defaultdict(int)
+
 def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
     dialog_summary_map = {}
     fact_summary_map = {}
-    utterance_counts = defaultdict(lambda : defaultdict(int))
+    utterance_counts = defaultdict(dd)
     first_word_counts = defaultdict(int)
+    ngram_counts = defaultdict(dd)
     total_events = 0
     lm_summary_map = {}
     for raw in all_chats:
@@ -245,6 +271,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
                     check_fact(fact_summary_map, utterance, kbs[event.agent])
                     if lm:
                         logstats.update_summary_map(lm_summary_map, {'score': lm.score(' '.join(entity_to_type(utterance)))})
+                    update_ngram_counts(ngram_counts, utterance)
                     if fout:
                         fout.write('%s\n' % (' '.join(entity_to_type(utterance))))
                     if i == 0:
@@ -282,24 +309,42 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             'lm_score': -1 if not lm else lm_summary_map['score']['mean'],
             'utterance_counts': utterance_counts,
             'first_word_counts': first_word_counts,
+            'ngram_counts': ngram_counts,
             'correct': fact_summary_map['correct']['mean']
             }
 
 def get_cross_talk(all_chats):
     summary_map = {}
     is_null = lambda x: x is None or x == 'null'
+    count = 0
+
+    def is_valid(event):
+        if is_null(event.start_time) or event.start_time >= event.time:
+            return False
+        return True
+
     for chat in all_chats:
         if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
             events = [Event.from_dict(e) for e in chat["events"]]
-            # start_time is not recorded
-            if events[0].action != 'select' and is_null(events[0].start_time):
-                continue
             for event1, event2 in izip(events, events[1:]):
+                # start_time is not available
+                if not is_valid(event2):
+                    continue
                 sent_time = float(event1.time)
-                # start_time is None for select
-                start_time = float(event2.start_time) if not is_null(event2.start_time) else float(event2.time)
+                start_time = float(event2.start_time)
                 cross_talk = 1 if start_time < sent_time else 0
                 logstats.update_summary_map(summary_map, {'cross_talk': cross_talk})
+
+                if is_valid(event1):
+                    typing_time = float(event1.time) - float(event1.start_time)
+                    assert typing_time > 0
+                    msg_len = len(event1.data)
+                    logstats.update_summary_map(summary_map, {'char_per_sec': msg_len / typing_time})
+
+    try:
+        print 'Char/Sec:', summary_map['char_per_sec']['mean']
+    except KeyError:
+        pass
     try:
         return summary_map['cross_talk']['mean']
     # Cross talk only available for chats with start_time
@@ -363,6 +408,7 @@ def get_average_length(all_chats, scenario_db, alphas=None, num_items=None):
 def get_average_sentences(all_chats, scenario_db, alphas=None, num_items=None):
     total_length = 0.0
     total_complete = 0.0
+    max_length = 0
     for chat in all_chats:
         scenario = scenario_db.get(chat["scenario_uuid"])
         kb = scenario.get_kb(0)
@@ -370,16 +416,34 @@ def get_average_sentences(all_chats, scenario_db, alphas=None, num_items=None):
         if (alphas is not None and tuple(scenario.alphas) == alphas) \
                 or (num_items is not None and items == num_items) \
                 or (alphas is None and num_items is None):
+            l = len(chat['events'])
+            max_length = max(l, max_length)
             if chat["outcome"] is not None and chat["outcome"]["reward"] == 1:
-                events = [Event.from_dict(e) for e in chat["events"]]
-                total_length += len([e for e in events if e.action == 'message'])
+                total_length += l
                 total_complete += 1
     if total_complete == 0:
         # no complete dialogues for this setting - should never happen with sufficient data
         print "No complete dialogues for ", alphas
         return -1.0
+    #print 'Maximum dialogue length:', max_length
     return total_length/total_complete
 
+def get_turns_vs_completed(all_chats):
+    num_turns_dict = defaultdict(dict)
+    for chat in all_chats:
+        if chat["outcome"] is not None:
+            num_turns = len(chat['events'])
+            logstats.update_summary_map(num_turns_dict[num_turns], {'complete': 1 if chat["outcome"]["reward"] == 1 else 0})
+    return {k: v['complete']['sum'] for k, v in num_turns_dict.iteritems()}
+
+def get_select_vs_completed(all_chats):
+    num_select_dict = defaultdict(dict)
+    for chat in all_chats:
+        if chat["outcome"] is not None:
+            events = [Event.from_dict(e) for e in chat["events"]]
+            num_select = len([e for e in events if e.action == 'select'])
+            logstats.update_summary_map(num_select_dict[num_select], {'complete': 1 if chat["outcome"]["reward"] == 1 else 0})
+    return {k: v['complete']['sum'] for k, v in num_select_dict.iteritems()}
 
 def get_num_completed(all_chats, scenario_db, alphas=None, num_items=None):
     num_complete = 0.0
@@ -443,12 +507,19 @@ def get_total_statistics(all_chats, scenario_db):
     stats = {
         'avg_time_taken': get_average_time_taken(all_chats, scenario_db),
         'avg_turns': get_average_sentences(all_chats, scenario_db),
+        'turns_vs_completed': get_turns_vs_completed(all_chats),
+        'select_vs_completed': get_select_vs_completed(all_chats),
         'avg_sentence_length': get_average_length(all_chats, scenario_db),
         'num_completed': get_num_completed(all_chats, scenario_db),
         'cross_talk': get_cross_talk(all_chats),
         'total': get_total(all_chats, scenario_db)
     }
-    stats['completion_rate'] = stats['num_completed'] / stats['total']
+    total = float(stats['total'])
+    for t in stats['turns_vs_completed']:
+        stats['turns_vs_completed'][t] /= total
+    for t in stats['select_vs_completed']:
+        stats['select_vs_completed'][t] /= total
+    stats['completion_rate'] = stats['num_completed'] / total
     return stats
 
 
@@ -531,20 +602,23 @@ def get_topk_utterance(n, items):
     sorted_counts = sorted(items, key=lambda x: x[1], reverse=True)
     result = []
     for k, v in sorted_counts[:n]:
-        if isinstance(k, tuple):
-            item = (tuple([utterance_map[x] for x in k]), v / total)
-        else:
-            item = (utterance_map[k], v / total)
+        #if isinstance(k, tuple):
+        #    item = (tuple([utterance_map[x] for x in k]), v / total)
+        #else:
+        #    item = (utterance_map[k], v / total)
+        item = (k, v / total)
         result.append(item)
     return result, len(sorted_counts), sum([x[1] for x in result])
 
 def get_initial_utterance(n, counts):
-    start = utterance_map[START]
+    #start = utterance_map[START]
+    start = ((START,), ())
     init_counts = counts[start]
     return get_topk_utterance(n, init_counts.items())
 
 def get_unigram_utterance(n, counts):
-    start = utterance_map[START]
+    #start = utterance_map[START]
+    start = ((START,), ())
     unigram_counts = [(k, sum(v.values())) for k, v in counts.iteritems() if k != start]
     return get_topk_utterance(n, unigram_counts)
 
@@ -558,6 +632,7 @@ def print_strategy_stats(stats):
     kb_strategy_stats = stats['kb_strategy']
     utterance_counts = stats['utterance_counts']
     first_word_counts = stats['first_word_counts']
+    ngram_counts = stats['ngram_counts']
 
     print "-----------------------------------"
     print 'Speech act statistics:'
@@ -578,6 +653,17 @@ def print_strategy_stats(stats):
     for i in xrange(min(k, len(sorted_words))):
         word, count = sorted_words[i]
         print '%s: %.3f' % (word, count / total)
+
+    k = 10
+    print "-----------------------------------"
+    print 'Top %d ngrams:' % (k,)
+    for n in xrange(1, 4):
+        sorted_words = sorted(ngram_counts[n].iteritems(), key=lambda x: x[1], reverse=True)
+        total = float(sum(ngram_counts[n].values()))
+        print '----- n = %d -----' % n
+        for i in xrange(min(k, len(sorted_words))):
+            word, count = sorted_words[i]
+            print '%s: %.3f' % (word, count / total)
 
     k = 5
     utterances, total, frac = get_initial_utterance(k, utterance_counts)
