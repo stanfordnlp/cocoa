@@ -192,12 +192,16 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
+    # lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
+    lexicon = None
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
         params['models'] = {}
+
+    if 'quit_after' not in params.keys():
+        params['quit_after'] = 150
 
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
     add_scenarios_to_db(db_file, scenario_db, systems)

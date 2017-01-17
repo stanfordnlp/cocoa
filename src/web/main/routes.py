@@ -24,7 +24,7 @@ logger.addHandler(handler)
 
 
 def generate_userid():
-    return "U_"+uuid.uuid4().hex
+    return "U_" + uuid.uuid4().hex
 
 
 def userid():
@@ -97,6 +97,14 @@ def leave_chat():
     backend.send(uid, Event.LeaveEvent(chat_info.agent_index,
                                        uid,
                                        str(time.time())))
+    return jsonify(success=True)
+
+
+@main.route('/_skip_chat/', methods=['GET'])
+def skip_chat():
+    backend = get_backend()
+    uid = userid()
+    backend.skip_chat(uid)
     return jsonify(success=True)
 
 
@@ -230,12 +238,15 @@ def index():
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
                                icon=app.config['task_icon'],
-                               partner_kb=partner_kb)
+                               partner_kb=partner_kb,
+                               quit_enabled=app.config['user_params']['status_params']['chat']['num_seconds'] - app.config['user_params']['quit_after'])
     elif status == Status.Survey:
+        survey_info = backend.get_survey_info(userid())
         return render_template('task_survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
-                               icon=app.config['task_icon'])
+                               icon=app.config['task_icon'],
+                               message=survey_info.message)
 
 
 @main.route('/visualize', methods=['GET', 'POST'])
