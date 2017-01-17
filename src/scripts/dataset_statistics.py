@@ -688,7 +688,7 @@ def get_top_k_from_counts(n, counts):
     """
     Given a map of counts mapping from a key to its frequency, returns the top k keys (based on frequency) after
     normalizing the frequencies by the total.
-    :param k: The number of keys to return
+    :param n: The number of keys to return
     :param counts: A map of counts mapping from a key to its frequency.
     :return: A map from every key to its normalized frequency
     """
