@@ -95,6 +95,7 @@ class BackendConnection(object):
         self.lexicon = lexicon
 
         self.do_survey = True if "end_survey" in params.keys() and params["end_survey"] == 1 else False
+        self.skip_chat_enabled = True if "skip_chat_enabled" in params.keys() and params["skip_chat_enabled"] else False
         self.scenario_db = scenario_db
         self.schema = schema
         self.systems = systems
@@ -118,7 +119,13 @@ class BackendConnection(object):
     def _get_session(self, userid):
         return self.sessions.get(userid)
 
-    def _end_chat_and_transition_to_waiting(self, cursor, userid, message):
+    def _stop_waiting_and_transition_to_finished(self, cursor, userid):
+        logger.info("User waiting duration exceeded time limit. Ending session for user.")
+        self._update_user(cursor, userid,
+                          status=Status.Finished,
+                          message=Messages.WaitingTimeExpired)
+
+    def _end_chat(self, cursor, userid):
         def _update_scenario_db():
             if outcome['reward'] is None or outcome['reward'] == 0:
                 u = self._get_user_info_unchecked(cursor, userid)
@@ -132,16 +139,6 @@ class BackendConnection(object):
         _update_scenario_db()
         controller.set_inactive()
         self.controller_map[userid] = None
-        self._update_user(cursor, userid,
-                          status=Status.Waiting,
-                          connected_status=1,
-                          message=message)
-
-    def _stop_waiting_and_transition_to_finished(self, cursor, userid):
-        logger.info("User waiting duration exceeded time limit. Ending session for user.")
-        self._update_user(cursor, userid,
-                          status=Status.Finished,
-                          message=Messages.WaitingTimeExpired)
 
     def _ensure_not_none(self, v, exception_class):
         if v is None:
@@ -388,20 +385,15 @@ class BackendConnection(object):
                           partner_id=-1)
 
     def end_chat_and_finish(self, cursor, userid, message=Messages.ChatCompleted):
-        def _update_scenario_db():
-            if outcome['reward'] is None or outcome['reward'] == 0:
-                u = self._get_user_info_unchecked(cursor, userid)
-                sid = controller.scenario.uuid
-                partner_type = u.partner_type
-                self.decrement_completed_chat(cursor, sid, partner_type)
-
-        controller = self.controller_map[userid]
-        controller.set_inactive()
-        outcome = controller.get_outcome()
-        self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
-        _update_scenario_db()
-        self.controller_map[userid] = None
+        self._end_chat(cursor, userid)
         self.user_finished(cursor, userid, message)
+
+    def end_chat_and_transition_to_waiting(self, cursor, userid, message):
+        self._end_chat(cursor, userid)
+        self._update_user(cursor, userid,
+                          status=Status.Waiting,
+                          connected_status=1,
+                          message=message)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         if self.is_game_over(userid):
@@ -573,7 +565,7 @@ class BackendConnection(object):
                                 % userid[:6])
                             message = Messages.ChatExpired
 
-                        self._end_chat_and_transition_to_waiting(cursor, userid, message=message)
+                        self.end_chat_and_transition_to_waiting(cursor, userid, message=message)
                         return Status.Waiting
 
                     elif u.status == Status.Finished:
@@ -615,7 +607,10 @@ class BackendConnection(object):
                 except StatusTimeoutException:
                     u = self._get_user_info_unchecked(cursor, userid)
                     logger.debug("User {} had status timeout.".format(u.name[:6]))
-                    self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
+                    if self.skip_chat_enabled:
+                        self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
+                    else:
+                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                     return False
                 except ConnectionTimeoutException:
                     return False
@@ -624,13 +619,19 @@ class BackendConnection(object):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
                     except UnexpectedStatusException:
-                        self.end_chat_and_finish(cursor, userid, message=Messages.PartnerLeftRoom)
+                        if self.skip_chat_enabled:
+                            self.end_chat_and_finish(cursor, userid, message=Messages.PartnerLeftRoom)
+                        else:
+                            self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
-                        self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
+                        if self.skip_chat_enabled:
+                            self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
+                        else:
+                            self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
-                        self._end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerConnectionTimeout)
+                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerConnectionTimeout)
                         return False
 
                     if self.controller_map[userid] != self.controller_map[u.partner_id]:
