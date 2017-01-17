@@ -208,7 +208,13 @@ def index():
                                icon=app.config['task_icon'])
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
-        chat_info = backend.get_chat_info(userid())
+        peek = False
+        if request.args.get('peek') is not None and request.args.get('peek') == '1':
+            peek = True
+        chat_info = backend.get_chat_info(userid(), peek=peek)
+        partner_kb = None
+        if peek:
+            partner_kb = chat_info.partner_kb.to_dict()
         return render_template('chat.html',
                                uid=userid(),
                                kb=chat_info.kb.to_dict(),
@@ -216,9 +222,23 @@ def index():
                                num_seconds=chat_info.num_seconds,
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
-                               icon=app.config['task_icon'])
+                               icon=app.config['task_icon'],
+                               partner_kb=partner_kb)
     elif status == Status.Survey:
         return render_template('survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
                                icon=app.config['task_icon'])
+
+
+@main.route('/visualize', methods=['GET', 'POST'])
+def visualize():
+    uid = request.args.get('uid')
+    backend = get_backend()
+    html_lines = ['<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
+                  'tr:nth-child(n) { border: solid thin;}</style></head><body>']
+    html_lines.extend(backend.visualize_chat(uid))
+    html_lines.append('</body>')
+    html_lines = "".join(html_lines)
+    return render_template('visualize.html',
+                           dialogue=Markup(html_lines))

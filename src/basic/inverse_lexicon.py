@@ -6,6 +6,7 @@ from lexicon import Lexicon
 from collections import defaultdict, Counter
 from lexicon_utils import get_morphological_variants, get_prefixes, get_edits, get_acronyms
 from schema import Schema
+from src.model.vocab import is_entity
 
 
 class InverseLexicon(object):
@@ -19,7 +20,6 @@ class InverseLexicon(object):
         self.inverse_lexicon = defaultdict(Counter)  # Mapping from entity -> list of realized variants of entity (seen in data)
         self.load_entities()
         self._process_inverse_lexicon_data(inverse_lexicon_data)
-
 
     def _process_inverse_lexicon_data(self, inverse_lexicon_data):
         """
@@ -52,49 +52,57 @@ class InverseLexicon(object):
         return self.inverse_lexicon.get(phrase, [])
 
 
-    def realize_entity(self, entities):
+    def realize_entity(self, entity_tokens):
+        return [token if not is_entity(token) else self._realize_entity(token[1]) for token in entity_tokens]
+
+    def _realize_entity(self, entity):
         """
         Take a list of entity tuples
         :param entities: List of entity tuples to realize to some surface form
         :return:
         """
-        realized_entities = []
-        for entity, type in entities:
-            # Try checking in inverse lexicon frequency count
+        entity, type = entity
+        if type == 'item':
+            return entity
+        # Try checking in inverse lexicon frequency count
+        if entity not in self.inverse_lexicon:
+            print "Have not encountered entity %s in data..." % entity
+            realized = -1
+        else:
+            items = self.inverse_lexicon[entity].items()
+            variants = [item[0] for item in items]
+            counts = np.array([item[1] for item in items], dtype=np.float32)
+            # Make it peaky
+            peaky_counts = counts ** 2
+            normal_counts = peaky_counts / np.sum(peaky_counts)
             try:
-                items = self.inverse_lexicon[entity].items()
-                variants = [item[0] for item in items]
-                counts = np.array([item[1] for item in items], dtype=np.float32)
-                normal_counts = counts / np.sum(counts)
                 idx = np.random.choice(np.arange(len(counts)), 1, p=normal_counts)[0]
-                realized = variants[idx]
+            except ValueError:
+                idx = np.argmax(counts)
+            realized = variants[idx]
 
-            except:
-                print "Have not encountered entity in data..."
-                realized = -1
-
-            if realized != -1:
-                realized_entities.append(realized)
+        if realized != -1:
+            return realized
+        else:
+            # TODO: Modify heuristic rules when entity not found in data
+            if len(entity.split()) == 1:
+                return entity
             else:
-                # TODO: Modify heuristic rules when entity not found in data
-                if len(entity.split()) == 1:
-                    realized_entities.append(entity)
-                else:
-                    tokens = entity.split()
-                    realized = ""
-                    # Only take first two tokens if more than three
-                    if len(tokens) > 3:
-                        realized = " ".join(tokens[:3])
+                tokens = entity.split()
+                realized = ""
+                # Only take first two tokens if more than three
+                #if len(tokens) > 3:
+                #    realized = " ".join(tokens[:3])
+                #else:
+                for t in tokens:
+                    if t.lower() == "university":
+                        realized += "univ. "
                     else:
-                        for t in tokens:
-                            if t.lower() == "university":
-                                realized += "univ. "
-                            else:
-                                realized += t + " "
+                        realized += t + " "
 
-                    realized_entities.append(realized.strip())
+                realized = realized.strip()
 
-        return realized_entities
+        return realized
 
 
     def test(self):

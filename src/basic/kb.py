@@ -12,6 +12,7 @@ class KB(object):
         self.attributes = attributes
         self.items = items
         self.entity_set = set([value.lower() for item in items for value in item.values()])
+        self.entity_type_set = set([attr.value_type for attr in self.attributes])
 
     @staticmethod
     def from_dict(attributes, raw):

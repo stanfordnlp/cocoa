@@ -3,6 +3,9 @@ import json
 __author__ = 'anushabala'
 import uuid
 from src.web.main.web_states import FinishedState, UserChatState, WaitingState
+from src.basic.systems.human_system import HumanSystem
+from src.scripts.visualize_data import visualize_chat
+from src.web.dump_events_to_json import convert_events_to_json
 import hashlib
 import sqlite3
 import time
@@ -11,7 +14,6 @@ import logging
 import numpy as np
 from src.basic.controller import Controller
 from src.basic.event import Event
-from src.basic.kb import KB
 from flask import Markup
 from uuid import uuid4
 
@@ -53,11 +55,6 @@ class StatusTimeoutException(Exception):
 
 class NoSuchUserException(Exception):
     pass
-
-
-class Partner(object):
-    Human = 'human'
-    Bot = m.hexdigest()
 
 
 class Messages(object):
@@ -120,8 +117,7 @@ class BackendConnection(object):
     def _get_session(self, userid):
         return self.sessions.get(userid)
 
-    def _end_chat_and_transition_to_waiting(self, cursor, userid, partner_id, message, partner_message):
-        logger.info("Removing users %s and %s from chat room - transition to WAIT" % (userid[:6], partner_id[:6]))
+    def _end_chat_and_transition_to_waiting(self, cursor, userid, message):
 
         controller = self.controller_map[userid]
         self.update_chat_reward(cursor, controller.get_chat_id(), controller.get_outcome())
@@ -207,10 +203,12 @@ class BackendConnection(object):
         u = User(self._ensure_not_none(x, NoSuchUserException))
         return u
 
-    def add_chat_to_db(self, chat_id, scenario_id):
+    def add_chat_to_db(self, chat_id, scenario_id, agent0_id, agent1_id, agent0_type, agent1_type):
+        agents = json.dumps({0: agent0_type, 1: agent1_type})
+        agent_ids = json.dumps({0: agent0_id, 1: agent1_id})
         with self.conn:
             cursor = self.conn.cursor()
-            cursor.execute('''INSERT INTO chat VALUES (?,?,"")''', (chat_id, scenario_id))
+            cursor.execute('''INSERT INTO chat VALUES (?,?,"",?,?)''', (chat_id, scenario_id, agent_ids, agents))
 
     def add_event_to_db(self, chat_id, event):
         def _create_row(chat_id,event):
@@ -229,7 +227,7 @@ class BackendConnection(object):
 
     def attempt_join_chat(self, userid):
         def _init_controller(my_index, partner_type, scenario, chat_id):
-            my_session = self.systems[Partner.Human].new_session(my_index, scenario.get_kb(my_index))
+            my_session = self.systems[HumanSystem.name()].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
 
             controller = Controller(scenario, [my_session, partner_session], chat_id=chat_id, debug=False)
@@ -237,7 +235,7 @@ class BackendConnection(object):
             return controller, my_session, partner_session
 
         def _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id):
-            controller, my_session, partner_session = _init_controller(my_index, Partner.Human, scenario, chat_id)
+            controller, my_session, partner_session = _init_controller(my_index, HumanSystem.name(), scenario, chat_id)
             self.controller_map[userid] = controller
             self.controller_map[partner_id] = controller
 
@@ -247,6 +245,7 @@ class BackendConnection(object):
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
                               partner_id=userid,
+                              partner_type=HumanSystem.name(),
                               scenario_id=scenario.uuid,
                               agent_index=1 - my_index,
                               selected_index=-1,
@@ -256,6 +255,7 @@ class BackendConnection(object):
             self._update_user(cursor, userid,
                               status=Status.Chat,
                               partner_id=partner_id,
+                              partner_type=HumanSystem.name(),
                               scenario_id=scenario_id,
                               agent_index=my_index,
                               selected_index=-1,
@@ -272,7 +272,8 @@ class BackendConnection(object):
 
             self._update_user(cursor, userid,
                               status=Status.Chat,
-                              partner_id=Partner.Bot,
+                              partner_id=0,
+                              partner_type=bot_type,
                               scenario_id=scenario_id,
                               agent_index=my_index,
                               selected_index=-1,
@@ -306,14 +307,21 @@ class BackendConnection(object):
                 scenario = _choose_new_scenario(cursor)
                 scenario_id = scenario.uuid
                 chat_id = self._generate_chat_id()
-                if partner_type == Partner.Human:
+                if partner_type == HumanSystem.name():
                     if len(others) == 0:
                         return None
-                    self.add_chat_to_db(chat_id, scenario_id)
                     partner_id = np.random.choice(others)
+                    if my_index == 0:
+                        self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(), HumanSystem.name())
+                    else:
+                        self.add_chat_to_db(chat_id, scenario_id, partner_id, userid, HumanSystem.name(), HumanSystem.name())
                     return _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
                 else:
-                    self.add_chat_to_db(chat_id, scenario_id)
+                    if my_index == 0:
+                        self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)
+                    else:
+                        self.add_chat_to_db(chat_id, scenario_id, 0, userid, partner_type, HumanSystem.name())
+
                     return _pair_with_bot(cursor, userid, my_index, partner_type, scenario, chat_id)
 
         except sqlite3.IntegrityError:
@@ -326,7 +334,8 @@ class BackendConnection(object):
             self._update_user(cursor, userid,
                               status=new_status,
                               message=message,
-                              partner_id=-1)
+                              partner_id=-1,
+                              partner_type="")
 
         if self.is_game_over(userid):
             controller = self.controller_map[userid]
@@ -371,7 +380,7 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
-    def get_chat_info(self, userid):
+    def get_chat_info(self, userid, peek=False):
         try:
             with self.conn:
                 logger.info("Getting chat info for user %s" % userid[:6])
@@ -380,8 +389,12 @@ class BackendConnection(object):
                 num_seconds_remaining = (self.config["status_params"]["chat"]["num_seconds"] +
                                          u.status_timestamp) - current_timestamp_in_seconds()
                 scenario = self.scenario_db.get(u.scenario_id)
-                return UserChatState(u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index),
-                                     scenario.attributes, num_seconds_remaining)
+                if peek:
+                    return UserChatState(u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index),
+                                         scenario.attributes, num_seconds_remaining, scenario.get_kb(1 - u.agent_index))
+                else:
+                    return UserChatState(u.agent_index, scenario.uuid, u.chat_id, scenario.get_kb(u.agent_index),
+                                         scenario.attributes, num_seconds_remaining)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -477,8 +490,7 @@ class BackendConnection(object):
                                 % userid[:6])
                             message = Messages.ChatExpired
 
-                        self._end_chat_and_transition_to_waiting(cursor, userid, u.partner_id, message=message,
-                                                                 partner_message=message)
+                        self._end_chat_and_transition_to_waiting(cursor, userid, message=message)
                         return Status.Waiting
 
                     elif u.status == Status.Finished:
@@ -519,8 +531,7 @@ class BackendConnection(object):
                 except StatusTimeoutException:
                     u = self._get_user_info_unchecked(cursor, userid)
                     logger.debug("User {} had status timeout.".format(u.name[:6]))
-                    self._end_chat_and_transition_to_waiting(cursor, userid, u.partner_id, message=Messages.YouLeftRoom,
-                                                             partner_message=Messages.PartnerLeftRoom)
+                    self._end_chat_and_transition_to_waiting(cursor, userid, message=Messages.YouLeftRoom)
                     return False
                 except ConnectionTimeoutException:
                     return False
@@ -529,17 +540,13 @@ class BackendConnection(object):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
                     except UnexpectedStatusException:
-                        self._end_chat_and_transition_to_waiting(cursor, userid, None, message=Messages.PartnerLeftRoom,
-                                                                 partner_message=None)
+                        self._end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
-                        self._end_chat_and_transition_to_waiting(cursor, userid, u.partner_id, message=Messages.ChatExpired,
-                                                                 partner_message=Messages.ChatExpired)
+                        self._end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
-                        self._end_chat_and_transition_to_waiting(cursor, userid, u.partner_id,
-                                                                 message=Messages.PartnerLeftRoom,
-                                                                 partner_message=Messages.YouLeftRoom)
+                        self._end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom,)
                         return False
 
                     if self.controller_map[userid] != self.controller_map[u.partner_id]:
@@ -573,7 +580,7 @@ class BackendConnection(object):
 
     def is_user_partner_bot(self, cursor, userid):
         u = self._get_user_info_unchecked(cursor, userid)
-        return u.partner_id is not None and u.partner_id == Partner.Bot
+        return len(u.partner_type) > 0 and u.partner_type != HumanSystem.name()
 
     def is_status_unchanged(self, userid, assumed_status):
         try:
@@ -655,3 +662,30 @@ class BackendConnection(object):
     def update_chat_reward(self, cursor, chat_id, outcome):
         str_outcome = json.dumps(outcome)
         cursor.execute('''UPDATE chat SET outcome=? WHERE chat_id=?''', (str_outcome, chat_id))
+
+    def visualize_chat(self, userid):
+        def _get_chat_id():
+            try:
+                cursor.execute('SELECT chat_id FROM mturk_task WHERE name=?', (userid,))
+                return cursor.fetchone()[0]
+            except sqlite3.IntegrityError:
+                print("WARNING: Rolled back transaction")
+                return None
+
+        def _get_agent_index():
+            try:
+                cursor.execute('SELECT agent_ids FROM chat WHERE chat_id=?', (chat_id,))
+                agent_ids = json.loads(cursor.fetchone()[0])
+                agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
+                return 0 if agent_ids[0] == userid else 1
+            except sqlite3.OperationalError:
+                print "No agent IDs stored for chat %s" % chat_id
+                return None
+
+        with self.conn:
+            cursor = self.conn.cursor()
+            chat_id = _get_chat_id()
+            agent_index = _get_agent_index()
+            ex = convert_events_to_json(chat_id, cursor, self.scenario_db)
+            _, html = visualize_chat(ex.to_dict(), self.scenario_db, agent=agent_index)
+            return html
