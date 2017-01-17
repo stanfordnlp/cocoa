@@ -200,7 +200,7 @@ if __name__ == "__main__":
         params['models'] = {}
 
     if 'quit_after' not in params.keys():
-        params['quit_after'] = 150
+        params['quit_after'] = params['status_params']['chat']['num_seconds'] + 1
 
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
     add_scenarios_to_db(db_file, scenario_db, systems)
