@@ -477,10 +477,14 @@ class BackendConnection(object):
 
         def _is_chat_complete(cursor, chat_id):
             cursor.execute('''SELECT outcome FROM chat WHERE chat_id=?''', (chat_id,))
-            outcome = json.loads(cursor.fetchone()[0])
-            if outcome['reward'] is None or outcome['reward'] == 0:
+            try:
+                outcome = json.loads(cursor.fetchone()[0])
+                if outcome['reward'] is None or outcome['reward'] == 0:
+                    return False
+                else:
+                    return True
+            except ValueError:
                 return False
-            return True
 
         try:
             logger.info("Trying to get finished session info for user %s" % userid[:6])
