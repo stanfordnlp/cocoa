@@ -610,17 +610,17 @@ def get_bigram_utterance(n, counts):
     return get_topk_utterance(n, bigram_counts)
 
 
-def get_top_k_from_counts(k, counts):
+def get_top_k_from_counts(n, counts):
     """
     Given a map of counts mapping from a key to its frequency, returns the top k keys (based on frequency) after
     normalizing the frequencies by the total.
-    :param k: The number of keys to return
+    :param n: The number of keys to return
     :param counts: A map of counts mapping from a key to its frequency.
     :return: A map from every key to its normalized frequency
     """
     total = sum(counts.values())
     sorted_counts = sorted([(k, v/total) for (k, v) in counts.items() if k != 'total'], key=lambda x: x[1], reverse=True)
-    return {k: v for (k, v) in sorted_counts[:k]}
+    return {k: v for (k, v) in sorted_counts[:n]}
 
 
 def print_strategy_stats(stats):
