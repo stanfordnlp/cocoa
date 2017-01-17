@@ -376,7 +376,7 @@ def get_linguistic_template(template_summary_map, utterance):
     template = []
     for token in utterance:
         if is_entity(token):
-            template.append(get_entity_type(token))
+            template.append('<%s>' % get_entity_type(token))
         else:
             if token not in stopwords.words('english'):
                 template.append(token)
@@ -684,7 +684,7 @@ def get_bigram_utterance(n, counts):
     return get_topk_utterance(n, bigram_counts)
 
 
-def get_top_k_from_counts(k, counts):
+def get_top_k_from_counts(n, counts):
     """
     Given a map of counts mapping from a key to its frequency, returns the top k keys (based on frequency) after
     normalizing the frequencies by the total.
@@ -694,7 +694,8 @@ def get_top_k_from_counts(k, counts):
     """
     total = sum(counts.values())
     sorted_counts = sorted([(k, v/total) for (k, v) in counts.items() if k != 'total'], key=lambda x: x[1], reverse=True)
-    return {k: v for (k, v) in sorted_counts[:k]}
+    #return {k: v for (k, v) in sorted_counts[:n]}
+    return sorted_counts[:n]
 
 
 def print_strategy_stats(stats):
@@ -763,15 +764,15 @@ def print_strategy_stats(stats):
     print "-----------------------------------"
     print 'Top %d linguistic templates' % k
     top_templates = get_top_k_from_counts(k, template_counts)
-    for template, v in top_templates.iteritems():
+    for template, v in top_templates:
         print '%s: %.3f' % (" ".join(template), v)
 
     k = 10
     print "-----------------------------------"
     print 'Top %d speech act sequences' % k
     top_speech_act_sequences = get_top_k_from_counts(k, speech_act_sequences)
-    for template, v in top_speech_act_sequences.iteritems():
-        print '[%s]: %.3f' % (" ".join(template), v)
+    for template, v in top_speech_act_sequences:
+        print '[%s]: %.3f' % (" ".join([str(t) for t in template]), v)
 
     print "-----------------------------------"
     print "KB attribute-based strategy statistics:"
