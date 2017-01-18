@@ -8,7 +8,7 @@ from collections import defaultdict
 from itertools import izip
 from src.model.preprocess import word_to_num
 import random
-from nltk.corpus import stopwords
+#from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from itertools import izip
 
@@ -378,8 +378,8 @@ def get_linguistic_template(template_summary_map, utterance):
         if is_entity(token):
             template.append('<%s>' % get_entity_type(token))
         else:
-            if token not in stopwords.words('english'):
-                template.append(token)
+            #if token not in stopwords.words('english'):
+            template.append(token)
 
     k = tuple(template)
     if k not in template_summary_map.keys():
