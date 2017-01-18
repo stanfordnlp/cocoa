@@ -21,7 +21,6 @@ class InverseLexicon(object):
         self.load_entities()
         self._process_inverse_lexicon_data(inverse_lexicon_data)
 
-
     def _process_inverse_lexicon_data(self, inverse_lexicon_data):
         """
         Process inverse lexicon data
@@ -66,17 +65,21 @@ class InverseLexicon(object):
         if type == 'item':
             return entity
         # Try checking in inverse lexicon frequency count
-        try:
+        if entity not in self.inverse_lexicon:
+            print "Have not encountered entity %s in data..." % entity
+            realized = -1
+        else:
             items = self.inverse_lexicon[entity].items()
             variants = [item[0] for item in items]
             counts = np.array([item[1] for item in items], dtype=np.float32)
-            normal_counts = counts / np.sum(counts)
-            idx = np.random.choice(np.arange(len(counts)), 1, p=normal_counts)[0]
+            # Make it peaky
+            peaky_counts = counts ** 2
+            normal_counts = peaky_counts / np.sum(peaky_counts)
+            try:
+                idx = np.random.choice(np.arange(len(counts)), 1, p=normal_counts)[0]
+            except ValueError:
+                idx = np.argmax(counts)
             realized = variants[idx]
-
-        except:
-            print "Have not encountered entity %s in data..." % entity
-            realized = -1
 
         if realized != -1:
             return realized
@@ -88,14 +91,14 @@ class InverseLexicon(object):
                 tokens = entity.split()
                 realized = ""
                 # Only take first two tokens if more than three
-                if len(tokens) > 3:
-                    realized = " ".join(tokens[:3])
-                else:
-                    for t in tokens:
-                        if t.lower() == "university":
-                            realized += "univ. "
-                        else:
-                            realized += t + " "
+                #if len(tokens) > 3:
+                #    realized = " ".join(tokens[:3])
+                #else:
+                for t in tokens:
+                    if t.lower() == "university":
+                        realized += "univ. "
+                    else:
+                        realized += t + " "
 
                 realized = realized.strip()
 

@@ -26,6 +26,7 @@ class BaseLexicon(object):
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         with open(stop_words, 'r') as fin:
             self.stop_words = set([x.strip() for x in fin.read().split()][:1000])
+            self.stop_words.update(['one', '1', 'two', '2', 'three', '3', 'four', '4', 'five', '5', 'six', '6', 'seven', '7', 'eight', '8', 'nine', '9', 'ten', '10'])
         self.load_entities()
         self.compute_synonyms()
         print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))

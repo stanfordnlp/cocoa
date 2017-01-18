@@ -30,6 +30,7 @@ parser.add_argument('--remove-fail', default=False, action='store_true', help='R
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
 parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
+parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
 add_lexicon_arguments(parser)
@@ -57,22 +58,16 @@ if args.test_max_examples is None:
 
 def get_system(name):
     if name == 'simple':
-        return SimpleSystem(lexicon)
+        return SimpleSystem(lexicon, realizer=realizer)
     elif name == 'heuristic':
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
         assert args.model_path
-<<<<<<< HEAD
-        return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding, realizer=realizer)
-    elif name == 'cmd':
-        return CmdSystem()
-=======
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
     elif name == 'ngram':
         return NgramSystem(args.transcripts, args.scenarios_path, lexicon, schema, attribute_specific=False, n=11)
     # elif name == 'cmd':
     #     return CmdSystem()
->>>>>>> FETCH_HEAD
     else:
         raise ValueError('Unknown system %s' % name)
 
@@ -82,8 +77,7 @@ agents = [get_system(name) for name in args.agents]
 num_examples = args.scenario_offset
 
 summary_map = {}
-def generate_examples(description, examples_path, max_examples, remove_fail):
-    print "Generating data for %s" % description
+def generate_examples(description, examples_path, max_examples, remove_fail, max_turns):
     global num_examples
     examples = []
     num_failed = 0
@@ -91,7 +85,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0], scenario.uuid), agents[1].new_session(1, scenario.kbs[1], scenario.uuid)]
         controller = Controller(scenario, sessions)
-        ex = controller.simulate()
+        ex = controller.simulate(max_turns)
         if ex.outcome['reward'] == 0:
             num_failed += 1
             if remove_fail:
@@ -111,7 +105,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail):
             results = {k: (results0[k] + results1[k]) / 2. for k in results0}
             logstats.add('bot_chat', results)
 
-if args.train_max_examples > 0:
-    generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail)
-if args.test_max_examples > 0:
-    generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.remove_fail)
+if args.train_max_examples:
+    generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail, args.max_turns)
+if args.test_max_examples:
+    generate_examples('test', args.test_examples_paths[0], args.test_max_examples, args.remove_fail, args.max_turns)

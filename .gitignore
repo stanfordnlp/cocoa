@@ -4,3 +4,8 @@ output
 data/*
 log/*
 Makefile
+*.pkl
+*.json
+*.png
+web_output/*
+*.pdf

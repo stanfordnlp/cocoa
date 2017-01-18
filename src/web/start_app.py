@@ -52,14 +52,34 @@ def init_database(db_file):
     c.execute(
         '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
         connected_status integer, connected_timestamp integer, message text, partner_type text,
-        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)''')
+        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
+    )
     c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
     c.execute(
-        '''CREATE TABLE survey (name text, chat_id text, partner_type text, how_mechanical integer,
-        how_effective integer)''')
-    c.execute('''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)''')
-    c.execute('''CREATE TABLE chat (chat_id text, scenario_id text, outcome text,
-    agent_ids text, agent_types text)''')
+        '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+        correct integer, cooperative integer, human_like integer, comments text)''')
+    c.execute(
+        '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
+    )
+    c.execute(
+        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text)'''
+    )
+    c.execute(
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer,
+        PRIMARY KEY (scenario_id, partner_type))'''
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def add_scenarios_to_db(db_file, scenario_db, systems):
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    for scenario in scenario_db.scenarios_list:
+        sid = scenario.uuid
+        for agent_type in systems.keys():
+            c.execute('''INSERT INTO scenario VALUES (?,?, 0)''', (sid, agent_type))
 
     conn.commit()
     conn.close()
@@ -84,7 +104,7 @@ def add_systems(config_dict, schema, lexicon, realizer):
             type = info["type"]
             # TODO: add realizer to simple system
             if type == SimpleSystem.name():
-                model = SimpleSystem(lexicon, timed_session=True)
+                model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
             elif type == NeuralSystem.name():
                 path = info["path"]
                 decoding = info["decoding"].split()
@@ -164,7 +184,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=True, templates_dir=templates_dir)
+    app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
@@ -185,6 +205,10 @@ if __name__ == "__main__":
         params['models'] = {}
 
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
+    if 'quit_after' not in params.keys():
+        params['quit_after'] = params['status_params']['chat']['num_seconds'] + 1
+
+    add_scenarios_to_db(db_file, scenario_db, systems)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

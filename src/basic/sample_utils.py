@@ -49,5 +49,5 @@ def sample_candidates(candidates, n=1):
     n = min(n, len(candidates))
     weights = softmax([weight for value, weight in candidates])
     values = [value for value, weight in candidates]
-    samples = np.random.choice(values, n, replace=False, p=weights)
-    return samples
+    samples = np.random.choice(range(len(values)), n, replace=False, p=weights)
+    return [values[i] for i in samples]

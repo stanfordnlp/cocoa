@@ -143,6 +143,7 @@ class RNNNeuralSession(NeuralSession):
         self.end_turn = False
 
         self.sent_entity = False
+        self.selected_items = set()
 
     @classmethod
     def _get_last_inds(cls, inputs):
@@ -226,7 +227,7 @@ class RNNNeuralSession(NeuralSession):
         if tokens[0] == markers.SELECT:
             if len(tokens) > 1 and isinstance(tokens[1], tuple) and tokens[1][0].startswith('item-'):
                 item_id = int(tokens[1][0].split('-')[1])
-                if item_id in self.selected_items:
+                if item_id in self.selected_items or item_id >= len(self.kb.items):
                     return False
                 else:
                     return True
@@ -249,7 +250,6 @@ class RNNNeuralSession(NeuralSession):
         if self.env.copy:
             preds = self.graph.copy_preds(preds, self.env.vocab.size)
         entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map, self.env.prepend)
-        # TODO: The output does not have surface form yet. Add the canonical form as surface for now.
         entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
         return entity_tokens
 
@@ -268,8 +268,6 @@ class GraphNeuralSession(RNNNeuralSession):
         self.context = None
         self.graph_data = None
         self.init_checklists = None
-
-        self.selected_items = set()
 
     def encode(self, entity_tokens):
         super(GraphNeuralSession, self).encode(entity_tokens)
