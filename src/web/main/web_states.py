@@ -17,6 +17,11 @@ class WaitingState(object):
         self.num_seconds = num_seconds
 
 
+class SurveyState(object):
+    def __init__(self, message):
+        self.message = message
+
+
 class UserChatState(object):
     def __init__(self, agent_index, scenario_id, chat_id, kb, attributes, num_seconds, partner_kb=None):
         self.agent_index = agent_index

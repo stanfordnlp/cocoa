@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 import os
 import json
-from src.basic.util import read_json
+from src.basic.util import read_json, write_pickle
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
 from src.model.preprocess import Preprocessor
@@ -63,6 +63,11 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     stats["dialog_stats"] = strategy_stats['dialog_stats']
     stats["lm_score"] = strategy_stats['lm_score']
     stats["correct"] = strategy_stats['correct']
+    #stats["ngram_counts"] = strategy_stats['ngram_counts']
+    #stats["utterance_counts"] = strategy_stats['utterance_counts']
+    outdir = os.path.dirname(args.stats_output)
+    write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
+    write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
     json.dump(stats, statsfile)
     statsfile.close()

@@ -24,7 +24,7 @@ logger.addHandler(handler)
 
 
 def generate_userid():
-    return "U_"+uuid.uuid4().hex
+    return "U_" + uuid.uuid4().hex
 
 
 def userid():
@@ -100,6 +100,14 @@ def leave_chat():
     return jsonify(success=True)
 
 
+@main.route('/_skip_chat/', methods=['GET'])
+def skip_chat():
+    backend = get_backend()
+    uid = userid()
+    backend.skip_chat(uid)
+    return jsonify(success=True)
+
+
 @main.route('/_check_status_change/', methods=['GET'])
 def check_status_change():
     backend = get_backend()
@@ -147,13 +155,15 @@ def text():
     logger.debug("User %s said: %s" % (userid_prefix(), message))
     displayed_message = format_message("You: {}".format(message), False)
     uid = userid()
-    start_time = request.args.get('start_time')
+    time_taken = float(request.args.get('time_taken'))
+    received_time = time.time()
+    start_time = received_time - time_taken
     chat_info = backend.get_chat_info(uid)
     backend.send(uid,
                  Event.MessageEvent(chat_info.agent_index,
                                     message,
-                                    str(time.time()),
-                                    start_time)
+                                    str(received_time),
+                                    str(start_time))
                  )
     return jsonify(message=displayed_message)
 
@@ -201,11 +211,16 @@ def index():
         logger.info("Getting finished information for user %s" % userid()[:6])
         finished_info = backend.get_finished_info(userid(), from_mturk=mturk)
         mturk_code = finished_info.mturk_code if mturk else None
+        visualize_link = False
+        if request.args.get('debug') is not None and request.args.get('debug') == '1':
+            visualize_link = True
         return render_template('finished.html',
                                finished_message=finished_info.message,
                                mturk_code=mturk_code,
                                title=app.config['task_title'],
-                               icon=app.config['task_icon'])
+                               icon=app.config['task_icon'],
+                               visualize=visualize_link,
+                               uid=userid())
     elif status == Status.Chat:
         logger.info("Getting chat information for user %s" % userid()[:6])
         peek = False
@@ -223,12 +238,15 @@ def index():
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
                                icon=app.config['task_icon'],
-                               partner_kb=partner_kb)
+                               partner_kb=partner_kb,
+                               quit_enabled=app.config['user_params']['status_params']['chat']['num_seconds'] - app.config['user_params']['quit_after'])
     elif status == Status.Survey:
-        return render_template('survey.html',
+        survey_info = backend.get_survey_info(userid())
+        return render_template('task_survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
-                               icon=app.config['task_icon'])
+                               icon=app.config['task_icon'],
+                               message=survey_info.message)
 
 
 @main.route('/visualize', methods=['GET', 'POST'])
