@@ -122,12 +122,12 @@
                             are they lying?
                             <ul style="margin-left: 50px;">
                                 <li> <span style="color:red">VERY CORRECT (Score=5)</span>: Saying things like <i>My colleges are Northwestern, Williams, and Ohio State</i> and having
-                                    all the agent's friends attending these colleges
+                                    all the agent's friends attending these colleges. <strong>NOTE</strong>, assigning this score means every statement made by the agent is correct.
                                 </li>
                                 <li> <span style="color:red">SOMEWHAT CORRECT (Score=3)</span>: Saying things like <i>All friends studied biology</i> but one friend didn't study biology
                                 </li>
                                 <li> <span style="color:red">NOT VERY CORRECT (Score=1)</span>: Saying things like <i>I have a friend that studied biology</i> but none of their friends
-                            studied biology
+                            studied biology. <strong>NOTE</strong>, assigning this score means no statement made by the agent is correct.
                                 </li>
                             </ul>
                         </li><br>
@@ -234,9 +234,9 @@
         <div class="q">
            <p style="text-align:center;">How <strong>factually-correct</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_c">
-                <p style="float:left;">Not very correct</p>
-                <input type="range" id="correct" min="1" max="5" style="width:50%; margin-left:16%;" >
-                <p style="float:right;">Very correct</p>
+                <p style="float:left;">Not very correct (0%)</p>
+                <input type="range" id="correct" min="1" max="5" style="width:50%; margin-left:9%;" >
+                <p style="float:right;">Very correct (100%)</p>
             </form>
         </div>
 
@@ -257,7 +257,7 @@
             <p style="text-align:center;">How <strong>cooperative</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_co">
                 <p style="float:left;">Not very cooperative</p>
-                <input type="range" id="cooperative" min="1" max="5" style="width:50%; margin-left:13%" >
+                <input type="range" id="cooperative" min="1" max="5" style="width:50%; margin-left:11%" >
                 <p style="float:right;">Very cooperative</p>
             </form>
         </div>
