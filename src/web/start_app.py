@@ -207,7 +207,7 @@ if __name__ == "__main__":
 
     if 'skip_chat_enabled' not in params.keys():
         params['skip_chat_enabled'] = False
-        
+
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
     add_scenarios_to_db(db_file, scenario_db, systems)
 
@@ -229,6 +229,5 @@ if __name__ == "__main__":
     print "App setup complete"
 
     server = WSGIServer(('', args.port), app)
-    signal(SIGTERM, lambda signum, stack_frame: sys.exit(1))
     atexit.register(cleanup, flask_app=app)
     server.serve_forever()
