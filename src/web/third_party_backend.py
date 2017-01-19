@@ -89,7 +89,6 @@ class BackendConnection(object):
                 cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, agent_mapping, userid, agent_id, results["humanlike"],
                                                                                       results["correct"], results["strategic"], results["cooperative"],
                                                                                       results["fluent"]))
-
                 if agent_id == 0:
                     num_agent0_evals += 1
                 else:
@@ -103,7 +102,8 @@ class BackendConnection(object):
                 if num_agent0_evals >= app.config["num_evals_per_dialogue"] and num_agent1_evals >= app.config["num_evals_per_dialogue"]:
                     cursor.execute("INSERT INTO CompletedDialogues VALUES (?,?,?,?,?,?)",
                                    (results["dialogue_id"], scenario_id, agent_mapping, num_agent0_evals, num_agent1_evals, now))
-                    cursor.execute("DELETE FROM ActiveDialogues WHERE scenario_id=?", (scenario_id,))
+                    print "dialogue removed: ", results["dialogue_id"]
+                    cursor.execute("DELETE FROM ActiveDialogues WHERE dialogue_id=?", (results["dialogue_id"],))
                 else:
                     # Update number of evals completed for dialogue
                     cursor.execute("UPDATE ActiveDialogues SET num_agent0_evals=?, num_agent1_evals=? WHERE dialogue_id=?", (num_agent0_evals, num_agent1_evals, results["dialogue_id"]))
