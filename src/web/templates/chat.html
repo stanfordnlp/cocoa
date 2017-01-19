@@ -262,7 +262,7 @@
 					minutesSpan.innerHTML = t.minutes+':';
 					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
 					console.log(t.total/1000);
-					if (t.total/1000 <= {{ quit_enabled|int }}) {
+					if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
 						$("#leave").css("display", "inline-block");
 					}
 					if (t.total <= 0) {

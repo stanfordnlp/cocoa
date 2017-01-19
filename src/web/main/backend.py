@@ -59,13 +59,14 @@ class NoSuchUserException(Exception):
 
 
 class Messages(object):
-    ChatExpired = 'You ran out of time! Please note that you will only get credit for this HIT if you made a good attempt to complete the chat.'
+    ChatExpired = 'You ran out of time!'
     PartnerConnectionTimeout = "Your partner's connection has timed out! Waiting for a new chat..."
     ConnectionTimeout = "Your connection has timed out!"
-    YouLeftRoom = 'You skipped the chat. Please note that you will only get credit for this HIT if you made a good attempt to complete the chat.'
-    PartnerLeftRoom = 'Your partner has left the chat! Please note that you will only get credit for this HIT if you made a good attempt to complete the chat.'
+    YouLeftRoom = 'You skipped the chat. '
+    PartnerLeftRoom = 'Your partner has left the chat!'
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"
     ChatCompleted = "Great, you've completed the chat!"
+    HITCompletionWarning = "Please note that you will only get credit for this HIT if you made a good attempt to complete the chat."
 
 
 def current_timestamp_in_seconds():
@@ -127,11 +128,10 @@ class BackendConnection(object):
 
     def _end_chat(self, cursor, userid):
         def _update_scenario_db():
-            if outcome['reward'] is None or outcome['reward'] == 0:
-                u = self._get_user_info_unchecked(cursor, userid)
-                sid = controller.scenario.uuid
-                partner_type = u.partner_type
-                self.decrement_completed_chat(cursor, sid, partner_type)
+            u = self._get_user_info_unchecked(cursor, userid)
+            sid = controller.scenario.uuid
+            partner_type = u.partner_type
+            self.decrement_active_chats(cursor, sid, partner_type)
 
         controller = self.controller_map[userid]
         outcome = controller.get_outcome()
@@ -212,9 +212,10 @@ class BackendConnection(object):
     def add_chat_to_db(self, chat_id, scenario_id, agent0_id, agent1_id, agent0_type, agent1_type):
         agents = json.dumps({0: agent0_type, 1: agent1_type})
         agent_ids = json.dumps({0: agent0_id, 1: agent1_id})
+        now = str(time.time())
         with self.conn:
             cursor = self.conn.cursor()
-            cursor.execute('''INSERT INTO chat VALUES (?,?,"",?,?)''', (chat_id, scenario_id, agent_ids, agents))
+            cursor.execute('''INSERT INTO chat VALUES (?,?,"",?,?,?)''', (chat_id, scenario_id, agent_ids, agents, now))
 
     def add_event_to_db(self, chat_id, event):
         def _create_row(chat_id,event):
@@ -301,13 +302,13 @@ class BackendConnection(object):
             db_scenarios = cursor.fetchall()
             scenario_dialogues = defaultdict(lambda: defaultdict(int))
 
-            for (scenario_id, partner_type, num_complete) in db_scenarios:
+            for (scenario_id, partner_type, num_complete, num_active) in db_scenarios:
                 # map from scenario ID -> partner type -> # of completed dialogues with that partner
                 if scenario_id not in scenario_dialogues:
                     scenario_dialogues[scenario_id] = {}
-                scenario_dialogues[scenario_id][partner_type] = num_complete
+                scenario_dialogues[scenario_id][partner_type] = num_complete + num_active
 
-            # find "active" scenarios (scenarios for which at least one agent type has no dialogues)
+            # find "active" scenarios (scenarios for which at least one agent type has no completed or active dialogues)
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
@@ -317,7 +318,7 @@ class BackendConnection(object):
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
             # just select a random scenario and agent type
             if len(active_scenarios.keys()) == 0:
-                sid = np.random.choice(active_scenarios.keys())
+                sid = np.random.choice(scenario_dialogues.keys())
                 p = np.random.choice(all_partners)
                 return self.scenario_db.get(sid), p
 
@@ -327,14 +328,12 @@ class BackendConnection(object):
             return self.scenario_db.get(sid), p
 
         def _update_used_scenarios(scenario_id, partner_type):
+            # cursor.execute('''SELECT active FROM scenario WHERE scenario_id? AND''')
             cursor.execute(
-                '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
-                VALUES (
-                ?,
-                ?,
-                COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) + 1, 1)
-                )''',
-                (scenario_id, partner_type, scenario_id, partner_type))
+                '''UPDATE scenario
+                SET active=active+1
+                WHERE scenario_id=? AND partner_type=?''',
+                (scenario_id, partner_type))
         try:
             with self.conn:
                 cursor = self.conn.cursor()
@@ -347,8 +346,8 @@ class BackendConnection(object):
                 if partner_type == HumanSystem.name():
                     if len(others) == 0:
                         return None
-                    _update_used_scenarios(scenario_id, partner_type)
                     partner_id = np.random.choice(others)
+                    _update_used_scenarios(scenario_id, HumanSystem.name())
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(), HumanSystem.name())
                     else:
@@ -366,15 +365,10 @@ class BackendConnection(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
-    def decrement_completed_chat(self, cursor, scenario_id, partner_type):
+    def decrement_active_chats(self, cursor, scenario_id, partner_type):
         cursor.execute(
-            '''INSERT OR REPLACE INTO scenario (scenario_id, partner_type, complete)
-            VALUES (
-            ?,
-            ?,
-            COALESCE((SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?) - 1, 1)
-            )''',
-            (scenario_id, partner_type, scenario_id, partner_type)
+            '''UPDATE scenario SET active = active - 1 WHERE scenario_id=? AND partner_type=?''',
+            (scenario_id, partner_type)
         )
 
     def user_finished(self, cursor, userid, message=Messages.ChatCompleted):
@@ -388,12 +382,22 @@ class BackendConnection(object):
         self._end_chat(cursor, userid)
         self.user_finished(cursor, userid, message)
 
-    def end_chat_and_transition_to_waiting(self, cursor, userid, message):
+    def timeout_chat_and_finish(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
+        self.end_chat_and_finish(cursor, userid)
+        if partner_id is not None and not self.is_user_partner_bot(cursor, userid):
+            self.user_finished(cursor, partner_id, message)
+
+    def end_chat_and_transition_to_waiting(self, cursor, userid, message, partner_id=None):
         self._end_chat(cursor, userid)
         self._update_user(cursor, userid,
                           status=Status.Waiting,
                           connected_status=1,
                           message=message)
+        if partner_id is not None and not self.is_user_partner_bot(cursor, userid):
+            self._update_user(cursor, partner_id,
+                              status=Status.Waiting,
+                              connected_status=0,
+                              message=message)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         if self.is_game_over(userid):
@@ -610,7 +614,9 @@ class BackendConnection(object):
                     if self.skip_chat_enabled:
                         self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
                     else:
-                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
+                        self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
+                        # self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning)
+                        # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired, partner_id=u.partner_id)
                     return False
                 except ConnectionTimeoutException:
                     return False
@@ -628,7 +634,8 @@ class BackendConnection(object):
                         if self.skip_chat_enabled:
                             self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
                         else:
-                            self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
+                            self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
+                            # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
                         self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerConnectionTimeout)
@@ -742,10 +749,24 @@ class BackendConnection(object):
             logger.info("Updating user %s to status FINISHED from status survey" % userid)
             self._update_user(cursor, userid, status=Status.Finished)
 
+        def _update_scenario_db(chat_id, partner_type):
+            cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (chat_id,))
+            scenario_id = cursor.fetchone()[0]
+            # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
+            cursor.execute('''
+                UPDATE scenario
+                SET complete = complete + 1
+                WHERE scenario_id=? AND partner_type=?
+                AND (SELECT COUNT(survey.name)
+                    FROM survey
+                    WHERE survey.chat_id=?) = 0;
+            ''', (scenario_id, partner_type, chat_id))
+
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
+                _update_scenario_db(user_info.chat_id, user_info.partner_type)
                 cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?)',
                                (userid, user_info.chat_id, user_info.partner_type,
                                 data['fluent'], data['correct'], data['cooperative'],
