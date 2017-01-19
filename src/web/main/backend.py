@@ -383,7 +383,7 @@ class BackendConnection(object):
         self.user_finished(cursor, userid, message)
 
     def timeout_chat_and_finish(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
-        self.end_chat_and_finish(cursor, userid)
+        self.end_chat_and_finish(cursor, userid, message)
         if partner_id is not None and not self.is_user_partner_bot(cursor, userid):
             self.user_finished(cursor, partner_id, message)
 
@@ -615,8 +615,6 @@ class BackendConnection(object):
                         self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
                     else:
                         self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
-                        # self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning)
-                        # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired, partner_id=u.partner_id)
                     return False
                 except ConnectionTimeoutException:
                     return False
@@ -632,7 +630,7 @@ class BackendConnection(object):
                         return False
                     except StatusTimeoutException:
                         if self.skip_chat_enabled:
-                            self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
+                            self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning)
                         else:
                             self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
                             # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)

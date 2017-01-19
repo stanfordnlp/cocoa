@@ -7,8 +7,8 @@ import os
 import shutil
 import warnings
 import atexit
-import threading
-import time
+from signal import signal, SIGTERM
+import sys
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
@@ -26,59 +26,6 @@ __author__ = 'anushabala'
 DB_FILE_NAME = 'chat_state.db'
 LOG_FILE_NAME = 'log.out'
 TRANSCRIPTS_DIR = 'transcripts'
-
-
-class DBCleaner(threading.Thread):
-    def __init__(self, db_file, chat_timeout=100):
-        super(DBCleaner, self).__init__()
-        self.db_file = db_file
-        self.chat_timeout = chat_timeout
-        self.cleaned_chats = set()
-        self.stop = threading.Event()
-
-    def cancel(self):
-        self.stop.set()
-
-    def _stopped(self):
-        return self.stop.isSet()
-
-    def run(self):
-        print "[Cleaner] Starting execution"
-        while not self._stopped():
-            try:
-                conn = sqlite3.connect(self.db_file)
-                with conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''SELECT * FROM chat WHERE outcome=""''')
-                    # Select all incomplete chats (with empty outcomes)
-                    incomplete_chats = cursor.fetchall()
-                    for chat_info in incomplete_chats:
-                        chat_id, sid, outcome, _, agent_types, start_time = chat_info
-                        now = time.time()
-
-                        if (now - float(start_time)) >= self.chat_timeout and chat_id not in self.cleaned_chats:
-                            # if it's been longer than chat_timeout seconds since the chat started, and the chat
-                            # wasn't previously cleaned up, update the scenario DB
-
-                            agent_types = json.loads(agent_types)
-                            partner_type = agent_types['0'] if agent_types['1'] == HumanSystem.name() else agent_types['1']
-                            print "[Cleaner] Cleaned up chat with ID={}, partner_type={}, scenario_id={}".format(
-                                chat_id, partner_type, sid
-                            )
-                            cursor.execute('''
-                            UPDATE scenario SET active=active-1 WHERE partner_type=? AND scenario_id=?
-                            ''', (partner_type, sid))
-
-                            self.cleaned_chats.add(chat_id)
-                        else:
-                            print "[Cleaner] Chat with ID %s hasn't timed out" % chat_id
-
-                    print "[Cleaner] Sleeping for 30 seconds"
-                    time.sleep(30)
-
-            except sqlite3.IntegrityError:
-                print("WARNING: Rolled back transaction")
-        print "[Cleaner] Stopped execution"
 
 
 def add_website_arguments(parser):
@@ -176,9 +123,7 @@ def add_systems(config_dict, schema, lexicon):
     return systems, pairing_probabilities
 
 
-def cleanup(flask_app, cleanup_thread):
-    print "Trying to cleanup.."
-    cleanup_thread.cancel()
+def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     log_transcripts_to_json(flask_app.config['scenario_db'], db_path, transcript_path, None)
@@ -281,9 +226,6 @@ if __name__ == "__main__":
     print "App setup complete"
 
     server = WSGIServer(('', args.port), app)
-    cleaner = DBCleaner(db_file, chat_timeout=params['status_params']['chat']['num_seconds'] + 30)
-
-    atexit.register(cleanup, flask_app=app, cleanup_thread=cleaner)
-
-    cleaner.start()
+    signal(SIGTERM, lambda signum, stack_frame: sys.exit(1))
+    atexit.register(cleanup, flask_app=app)
     server.serve_forever()
