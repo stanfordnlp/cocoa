@@ -80,7 +80,6 @@ class DBCleaner():
                     disconnected_chats.append(chat_info)
             return disconnected_chats
 
-        print "[Cleaner] Trying to clean up DB"
         try:
             conn = sqlite3.connect(db_file)
             with conn:
