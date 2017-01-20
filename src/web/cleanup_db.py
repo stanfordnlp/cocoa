@@ -31,9 +31,9 @@ class DBCleaner():
 
                     agent_types = json.loads(agent_types)
                     partner_type = agent_types['0'] if agent_types['1'] == HumanSystem.name() else agent_types['1']
-                    # print "[Cleaner] Cleaned up chat with ID={}, partner_type={}, scenario_id={}".format(
-                    #     chat_id, partner_type, sid
-                    # )
+                    print "[Cleaner] Cleaned up chat with ID={}, partner_type={}, scenario_id={}".format(
+                        chat_id, partner_type, sid
+                    )
                     cursor.execute('''
                     UPDATE scenario SET active=active-1 WHERE partner_type=? AND scenario_id=?
                     ''', (partner_type, sid))
