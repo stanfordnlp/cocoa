@@ -21,6 +21,10 @@ class DBCleaner():
 
     @staticmethod
     def cleanup(db_file, chat_timeout, user_timeout, cleaned_chats, sleep_time, q):
+        def _cleanup_corrupt_counts():
+            # this should never happen!
+            cursor.execute('''UPDATE scenario SET active=0 WHERE active < 0''')
+
         def _update_inactive_chats(chats):
             for chat_info in chats:
                 chat_id, sid, outcome, _, agent_types, start_time = chat_info
@@ -92,6 +96,7 @@ class DBCleaner():
                     chats = f()
                     _update_inactive_chats(chats)
 
+                _cleanup_corrupt_counts()
                 q.put(cleaned_chats)
 
                 # print "[Cleaner] Sleeping for %d seconds" % sleep_time
