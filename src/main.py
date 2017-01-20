@@ -21,6 +21,7 @@ from src.model.evaluate import Evaluator
 from src.model.graph import Graph, GraphMetadata, add_graph_arguments
 from src.model.graph_embedder import add_graph_embed_arguments
 from src.basic.tagger import Tagger
+from src.basic.executor import Executor
 from src.lib import logstats
 
 if __name__ == '__main__':
@@ -87,21 +88,24 @@ if __name__ == '__main__':
     print '%.2f s'% (time.time() - start)
 
     # Dataset
-    use_kb = False if model_args.model == 'encdec' else True
+    use_kb = False if model_args.model in ('encdec', 'tagger-encdec') else True
     copy = True if model_args.model == 'attn-copy-encdec' else False
     if model_args.model == 'attn-copy-encdec':
         model_args.entity_target_form = 'graph'
     if model_args.model == 'tagger-encdec':
         type_attribute_mappings = {v: k for (k, v) in schema.get_attributes().items()}
         tagger = Tagger(type_attribute_mappings)
+        executor = Executor(type_attribute_mappings)
     else:
         tagger = None
+        executor = None
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend, tagger=tagger)
+    tagged = (tagger is not None)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy, tagged)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy, tagged)
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
 
@@ -127,7 +131,7 @@ if __name__ == '__main__':
 
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
-        evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
+        evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose, executor=executor)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
@@ -149,6 +153,6 @@ if __name__ == '__main__':
                 print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                 logstats.add(split, {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss})
     else:
-        evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
+        evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose, executor=executor)
         learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
         learner.learn(args, config, args.stats_file, ckpt)

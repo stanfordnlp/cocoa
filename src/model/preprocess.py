@@ -9,7 +9,6 @@ from src.model.vocab import Vocabulary, is_entity
 from src.model.graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
-from src.basic.ngram_model import NgramModel
 import copy
 
 def add_preprocess_arguments(parser):
@@ -19,7 +18,7 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--prepend', default=False, action='store_true', help='Prepend entities to decoder utterance')
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='[select]', PAD='<pad>')
+markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>')
 
 def tokenize(utterance):
     '''
@@ -42,6 +41,10 @@ def normalize_number(token):
 def item_to_entity(id_):
     item_str = item_to_str(id_)
     return (item_str, (item_str, 'item'))
+
+def dict_item_to_entity(kb, item):
+    item_id = kb.get_item_id(item)
+    return item_to_entity(item_id)
 
 def build_schema_mappings(schema, num_items):
     entity_map = Vocabulary(unk=True)
@@ -68,7 +71,7 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
 
     def _add_entity(entity):
         for entity_form in entity_forms:
-            # If copy entity embedding from the graph embedding, don't need entity in vocab
+            # If copy entity from the graph embedding, don't need entity in vocab
             if entity_form != 'graph':
                 word = Preprocessor.get_entity_form(entity, entity_form)
                 vocab.add_word(word)
@@ -101,6 +104,7 @@ class TextIntMap(object):
     '''
     Map between text and int for visualizing results.
     '''
+
     def __init__(self, vocab, entity_map, preprocessor):
         self.vocab = vocab
         self.entity_map = entity_map
@@ -158,14 +162,12 @@ class TextIntMap(object):
         '''
         if stage is not None:
             use_entity_map = self.setting[stage]
-            tokens = self.preprocessor.process_utterance(utterance, stage)
-            if not use_entity_map:
-                return [self.vocab.to_ind(token) for token in tokens]
-            else:
-                offset = self.vocab.size
-                return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token) + offset for token in tokens]
         else:
-            tokens = self.preprocessor.process_utterance(utterance)
+            use_entity_map = True
+        tokens = self.preprocessor.process_utterance(utterance, stage)
+        if not use_entity_map:
+            return [self.vocab.to_ind(token) for token in tokens]
+        else:
             offset = self.vocab.size
             return [self.vocab.to_ind(token) if not is_entity(token) else self.entity_map.to_ind(token) + offset for token in tokens]
 
@@ -202,6 +204,21 @@ class Dialogue(object):
         self.agents = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
+        self.tagged_history = None
+
+    def tagged_to_entity_tokens(self, tagged_sequence, kbs):
+        entity_tokens = []
+        agent, tagged_sequence = tagged_sequence
+        kb = kbs[agent]
+        for token in tagged_sequence:
+            if is_entity(token):
+                surface, (canonical, type_, features) = token
+                # Dict item to str
+                if isinstance(surface, dict):
+                    entity_tokens.append(dict_item_to_entity(kb, surface))
+                else:
+                    entity_tokens.append((surface, (canonical, type_)))
+        return entity_tokens
 
     @classmethod
     def get_correct_item(cls, kbs):
@@ -270,6 +287,10 @@ class Dialogue(object):
                         utterance.append(markers.EOS)
                     self.token_turns[i][j] = [x for x in chain.from_iterable(turn)]
 
+        if self.tagged_history is not None:
+            assert len(self.tagged_history[0]) == len(self.token_turns[0])
+            assert len(self.tagged_history[0]) == len(self.tagged_history[1])
+
         self.flattened = True
 
     def pad_turns(self, num_turns):
@@ -322,6 +343,12 @@ class DialogueBatch(object):
                 [dialogue.turns[i][j] for dialogue in self.dialogues])
                 for j in xrange(self.num_turns)])
         return turn_batches
+
+    def _get_tagged_batch(self, agents):
+        return [[dialogue.tagged_history[agent][:i] for agent, dialogue in izip(agents, self.dialogues)] for i in xrange(self.num_turns)]
+
+    def _empty_tagged_batch(self):
+        return [[] for dialogue in self.dialogues]
 
     def _get_agent_batch(self, i):
         return [dialogue.agents[i] for dialogue in self.dialogues]
@@ -402,7 +429,7 @@ class DialogueBatch(object):
             return None
         # Return None for padded turns
         return [dialogue.token_turns[stage][i] if i < len(dialogue.token_turns[stage]) else ''
-                for dialogue in self.dialogues]
+            for dialogue in self.dialogues]
 
     def create_batches(self):
         self._normalize_dialogue()
@@ -420,6 +447,29 @@ class DialogueBatch(object):
             # Add agents and kbs
             agents = self._get_agent_batch(1 - start_encode)  # Decoding agent
             kbs = self._get_kb_batch(agents)
+            # Tagged sequence information
+            if self.tagged:
+                def get_token_turn(i, agents):
+                    return [dialogue.tagged_to_entity_tokens(dialogue.tagged_history[agent][i], dialogue.kbs) if i < len(dialogue.tagged_history[agent]) else ''
+                        for agent, dialogue in izip(agents, self.dialogues)]
+                # Tagging history (up to the encoding turn)
+                tagged_batches = self._get_tagged_batch(agents)
+                seq_tagged_batches = [tagged_batches[i] for i in encode_turn_ids]
+                # Ground truth tokens. NOTE: token_turns only include the type and features.
+                # We need to get the entities from tagged history.
+                seq_enc_token_turns = [get_token_turn(i, agents) for i in encode_turn_ids]
+                seq_dec_token_turns = [get_token_turn(i+1, agents) for i in encode_turn_ids]
+                if start_encode == 1:
+                    seq_tagged_batches.insert(0, self._empty_tagged_batch())
+                    seq_enc_token_turns.insert(0, None)
+                    seq_dec_token_turns.insert(0, get_token_turn(0, agents))
+                assert len(seq_tagged_batches) == len(batch_seq)
+                assert len(seq_dec_token_turns) == len(batch_seq)
+                assert len(seq_enc_token_turns) == len(batch_seq)
+                for i, batch in enumerate(batch_seq):
+                    batch['tagged_history'] = seq_tagged_batches[i]
+                    batch['encoder_tokens'] = seq_enc_token_turns[i]
+                    batch['decoder_tokens'] = seq_dec_token_turns[i]
             matched_items = self._get_matched_item_batch(agents)
             batch = {
                      'agent': agents,
@@ -451,6 +501,7 @@ class Preprocessor(object):
     def get_entity_form(cls, entity, form):
         '''
         An entity is represented as (surface_form, (canonical_form, type)).
+        If tagger is used though, an entity is represented as (surface_form, (canonical_form, type, feature_tuple)). (see tagger.py)
         '''
         assert len(entity) == 2
         if form == 'surface':
@@ -461,6 +512,7 @@ class Preprocessor(object):
             return entity[1]
         elif form == 'graph':
             return entity[1]
+            return (type_, tuple(features))
         else:
             raise ValueError('Unknown entity form %s' % form)
 
@@ -478,18 +530,18 @@ class Preprocessor(object):
         dialogue = Dialogue(kbs, ex.uuid)
 
         mentioned_entities = set()
-        tagged_history = []
+        tagged_history = {0: [], 1: []}
         for e in ex.events:
-            tagger_param = [ex.scenario, e.agent, tagged_history]
+            tagger_param = [ex.scenario, e.agent, tagged_history] if self.tagger else None
             utterances = self.process_event(e, kbs[e.agent], mentioned_entities, tagger_param=tagger_param)
             if utterances:
-                if self.tagger:
-                    tagged_history.append((e.agent, utterances[0]))
-                    utterances = [NgramModel.preprocess_tagged_tokens(u) for u in utterances]
                 dialogue.add_utterance(e.agent, utterances, self.prepend)
-                for token in utterances[0]:
-                    if is_entity(token):
-                        mentioned_entities.add(token[1][0])
+                if e.action != 'select':
+                    for token in utterances[0]:
+                        if is_entity(token):
+                            mentioned_entities.add(token[1][0])
+        if self.tagger:
+            dialogue.tagged_history = tagged_history
         return dialogue
 
     def item_to_entities(self, item, attrs):
@@ -517,16 +569,38 @@ class Preprocessor(object):
         assert item_id is not None
         return item_id
 
-    def tag_utterance(self, tagger, tagger_param, entity_tokens):
-        scenario, agent, tagged_history = tagger_param
-        return tagger.tag_utterance(entity_tokens, scenario, agent, tagged_history)
+    @classmethod
+    def tag_to_str(cls, tokens):
+        for i, token in enumerate(tokens):
+            if is_entity(token):
+                surface, (canonical, type_, features) = token
+                tokens[i] = str((type_, tuple(features)))
+        return tokens
 
-    def tag_selection(self, tagger, tagger_param, item):
+    def _tag(self, tagger, entity_tokens, scenario, agent, tagged_history, select=False):
+        if select:
+            item = entity_tokens
+            assert isinstance(item, dict)
+            return tagger.tag_selection(agent, scenario, (None, item))
+        else:
+            return tagger.tag_utterance(entity_tokens, scenario, agent, tagged_history)
+
+    def tag_utterance(self, tagger, tagger_param, entity_tokens, select=False):
+        def append_history(history, agent, msg):
+            msg = msg + [markers.EOS]
+            if len(history) == 0 or history[-1][0] != agent:
+                history.append((agent, msg))
+            else:
+                history[-1][1].extend(msg)
         scenario, agent, tagged_history = tagger_param
-        # Fake preprocessed_tokens: (None, item)
-        tagged = tagger.tag_selection(agent, scenario, (None, item))
-        # Remove EOS because we will add it later
-        return tagged[:-1]
+        partner = 1 - agent
+        # Encoding: from partner's perspective
+        enc_tokens = self._tag(tagger, entity_tokens, scenario, partner, tagged_history[partner], select)
+        append_history(tagged_history[partner], agent, enc_tokens)
+        # Decoding: from agent's perspective
+        dec_tokens = self._tag(tagger, entity_tokens, scenario, agent, tagged_history[agent], select)
+        append_history(tagged_history[agent], agent, dec_tokens)
+        return self.tag_to_str(enc_tokens), self.tag_to_str(dec_tokens)
 
     def process_event(self, e, kb, mentioned_entities=None, known_kb=True, tagger_param=None):
         '''
@@ -540,17 +614,16 @@ class Preprocessor(object):
             #print e.data
             #print entity_tokens
             entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
-            if self.tagger and entity_tokens:
-                entity_tokens = self.tag_utterance(tagger, tagger_param, entity_tokens)
-            if entity_tokens:
-                # NOTE: have two copies because we might change it given decoding/encoding
-                return (entity_tokens, copy.copy(entity_tokens))
-            else:
+            if not entity_tokens:
                 return None
+            # NOTE: have two copies because we might change it given decoding/encoding
+            if self.tagger:
+                return self.tag_utterance(self.tagger, tagger_param, entity_tokens, select=False)
+            else:
+                return (entity_tokens, copy.copy(entity_tokens))
         elif e.action == 'select':
             if self.tagger:
-                entity_tokens = self.tag_selection(tagger, tagger_param, e.data)
-                return (entity_tokens, copy.copy(entity_tokens))
+                return self.tag_utterance(self.tagger, tagger_param, e.data, select=True)
             else:
                 # Convert an item to item-id (wrt to the speaker)
                 item_id = self.get_item_id(kb, e.data)
@@ -586,7 +659,7 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, num_items, mappings=None, use_kb=False, copy=False):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, num_items, mappings=None, use_kb=False, copy=False, tagged=False):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.use_kb = use_kb  # Whether to generate graph
@@ -595,6 +668,7 @@ class DataGenerator(object):
 
         DialogueBatch.use_kb = use_kb
         DialogueBatch.copy = copy
+        DialogueBatch.tagged = tagged
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
 

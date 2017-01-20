@@ -1,6 +1,6 @@
 from itertools import izip, izip_longest
 import numpy as np
-from src.model.preprocess import markers
+from src.model.preprocess import markers, dict_item_to_entity
 from src.model.graph import Graph
 from src.lib.bleu import compute_bleu
 from src.lib.bleu import bleu_stats as get_bleu_stats
@@ -24,7 +24,28 @@ def remove_entities(entity_tokens):
         find_entities(eoe_ind)
     return [x for i, x in enumerate(entity_tokens) if i not in to_remove], [x for i, x in enumerate(entity_tokens) if i in to_remove]
 
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None):
+def execute(tokens, executor, tagger_params):
+    executed_tokens = []
+    agent, kb, tagged_history = tagger_params
+    for raw_token in tokens:
+        try:
+            token = eval(raw_token)
+        except SyntaxError:
+            token = raw_token
+        if is_entity(token):
+            candidates = executor.get_candidate_entities(token, agent, None, tagged_history, kb)
+            if not candidates:
+                entity = raw_token
+            else:
+                entity = np.random.choice(candidates)
+            if isinstance(entity, dict):
+                kb.dump()
+                print entity
+                entity = dict_item_to_entity(kb, entity)
+            executed_tokens.append(entity)
+    return executed_tokens
+
+def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None, tagger_params=None, executor=None):
     '''
     Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
@@ -51,10 +72,12 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
             entities.append(prepended_entities)
         else:
             tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
+    if executor is not None:
+        tokens = [execute(s, executor, params) for s, params in izip(tokens, tagger_params)]
     return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(object):
-    def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
+    def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True, executor=None):
         self.model = model
         self.batch_size = batch_size
         self.data = data
@@ -62,6 +85,7 @@ class Evaluator(object):
         self.verbose = verbose
         self.copy = data.copy
         self.prepend = data.prepend
+        self.executor = executor
 
         # Prepare dataset
         self.eval_data = {split: data.generator(split, self.batch_size, shuffle=False) for split in splits}
@@ -96,10 +120,11 @@ class Evaluator(object):
             else:
                 graphs = None
             utterances = None
+            agent = dialogue_batch['agent']
+            kb = dialogue_batch['kb']
             for batch in dialogue_batch['batch_seq']:
                 targets = batch['targets']
                 max_len = targets.shape[1] + 10
-                #preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
                 output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
                 preds = output_dict['preds']
                 true_final_state = output_dict['true_final_state']
@@ -111,7 +136,13 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents)
+                tagged_history = batch['tagged_history']
+                assert len(agent) == len(kb) and len(kb) == len(tagged_history)
+                tagger_params = [(a, k, h) for a, k, h in izip(agent, kb, tagged_history)]
+                #print 'history:'
+                #for a, msg in tagged_history:
+                #    print a, msg
+                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents, tagger_params=tagger_params, executor=self.executor)
 
                 # Compute BLEU
                 references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]

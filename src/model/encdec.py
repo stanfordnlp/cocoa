@@ -69,7 +69,7 @@ def build_model(schema, mappings, args):
         update_graph = True
         node_embed_in_rnn_inputs = True
 
-    if args.model == 'encdec':
+    if args.model == 'encdec' or args.model == 'tagger-encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select, reward)
         model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select)

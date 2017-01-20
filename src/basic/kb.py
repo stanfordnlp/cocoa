@@ -32,6 +32,12 @@ class KB(object):
     def get_item(self, idx):
         return self.items[idx]
 
+    def get_item_id(self, item):
+        for i, it in enumerate(self.items):
+            if item == it:
+                return i
+        return None
+
     def get_ordered_item(self, item):
         ordered_item = [(attr.name, item[attr.name]) for attr in self.attributes]
         return ordered_item

@@ -52,7 +52,7 @@ class Executor(object):
         # else return all possible candidates (all items in KB)
         return kb.items
 
-    def get_candidate_entities(self, tagged_token, agent, scenario, tagged_history=[]):
+    def get_candidate_entities(self, tagged_token, agent, scenario, tagged_history=[], kb=None):
         """
         Returns a candidate set of entities that can be generated given the features for the current token and a
         tagged history of the dialogue so far.
@@ -65,7 +65,8 @@ class Executor(object):
         features (e.g. mention features).
         :return: A list of candidate entities based on the entity type and features.
         """
-        kb = scenario.get_kb(agent)
+        if not kb:
+            kb = scenario.get_kb(agent)
         entity_type, features = tagged_token
 
         found_features = {feature_tuple[0]: feature_tuple[1] for feature_tuple in features}
