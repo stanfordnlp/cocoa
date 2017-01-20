@@ -10,7 +10,7 @@ import multiprocessing
 
 
 class DBCleaner():
-    SLEEP_TIME = 30
+    SLEEP_TIME = 15
 
     def __init__(self, db_file, chat_timeout, user_timeout):
         self.db_file = db_file
@@ -74,6 +74,7 @@ class DBCleaner():
                 for idx in human_idxes:
                     userid = agent_ids[idx]
                     if _is_connection_timed_out(userid):
+                        # print "User %s connection timeout" % userid
                         clean = True
 
                 if clean:
