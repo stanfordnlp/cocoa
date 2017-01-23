@@ -193,8 +193,8 @@
         </thead>
         {% for row in kb %}
         <tr>
-            {% for name, value in row.items()%}
-            <td> {{value}}</td>
+            {% for name in column_names%}
+            <td> {{row[name]}}</td>
             {% endfor %}
         </tr>
         {% endfor %}

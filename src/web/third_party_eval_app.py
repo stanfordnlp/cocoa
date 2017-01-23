@@ -102,6 +102,8 @@ def init_dialogues(db_path):
             c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
                 (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
                 json.dumps(agent1_kb), 0, 0))
+        else:
+            print "Skipped: ", dialogue_id
 
     conn.commit()
     conn.close()
