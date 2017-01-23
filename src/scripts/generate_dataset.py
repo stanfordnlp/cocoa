@@ -16,7 +16,6 @@ from src.basic.systems.ngram_system import NgramSystem
 from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
 from src.basic.lexicon import Lexicon
-from src.basic.entity_ranker import EntityRanker
 from src.lib import logstats
 import numpy as np
 
@@ -43,11 +42,11 @@ if args.random_seed:
 
 schema = Schema(args.schema_path, domain=args.domain)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-if args.ranker_data:
-    entity_ranker = EntityRanker(None, args.scenarios_path, args.ranker_data, args.transcripts)
-    lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path)
-else:
-    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
+# if args.ranker_data:
+#     entity_ranker = EntityRanker(None, args.scenarios_path, args.ranker_data, args.transcripts)
+#     lexicon = Lexicon(schema, learned_lex=True, entity_ranker=entity_ranker, scenarios_json=args.scenarios_path)
+# else:
+lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
 
 def get_system(name):
     if name == 'simple':

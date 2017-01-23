@@ -13,7 +13,7 @@ class NgramSystem(System):
     """
     This class trains an ngram model from a set of training examples
     """
-    def __init__(self, transcripts_path, scenarios_path, lexicon, schema, n=7, attribute_specific=True):
+    def __init__(self, transcripts_path, scenarios_path, lexicon, schema, n=11, attribute_specific=True):
         super(NgramSystem, self).__init__()
         transcripts = json.load(open(transcripts_path, 'r'))
         # transcripts = transcripts[:100]
