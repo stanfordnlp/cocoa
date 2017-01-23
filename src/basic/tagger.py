@@ -232,12 +232,13 @@ if __name__ == "__main__":
 
     transcripts_path = 'web_output/friends-random-large-11k/transcripts/transcripts.json'
     transcripts = json.load(open(transcripts_path, 'r'))
-    transcripts = transcripts[:100]
+    transcripts = transcripts[:10]
     examples = []
     for raw_ex in transcripts:
         ex = Example.from_dict(scenario_db, raw_ex)
         for agent in [0]:
             tagged_ex = dataset_tagger.tag_example(ex, agent)
+            # print tagged_ex
             for (a_idx, tagged_message), event in zip(tagged_ex, ex.events):
                 event.metadata = tagged_message
         examples.append(ex)

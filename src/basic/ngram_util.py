@@ -1,3 +1,5 @@
+from src.basic.event import Event
+
 __author__ = 'anushabala'
 from src.model.preprocess import tokenize, markers
 import json
@@ -12,8 +14,9 @@ def preprocess_events(events, agent):
     """
     messages = [preprocess_event(e) for e in events]
 
-    if len(messages) > 0 and agent == messages[0][0]:
-        messages.insert(0, (1-agent, [markers.GO, markers.EOS]))
+    # if len(messages) > 0 and agent == messages[0][0]:
+    #     events.insert(0, Event(action='message', time=0, agent=1-agent, data="%s %s" % (markers.GO, markers.EOS)))
+    #     messages.insert(0, (1-agent, [markers.GO, markers.EOS]))
 
     return messages
 

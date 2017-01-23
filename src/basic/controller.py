@@ -40,7 +40,7 @@ class Controller(object):
                 if event.action == 'select':
                     self.selections[agent] = event.data
 
-                print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+                # print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)
