@@ -760,8 +760,9 @@ def print_strategy_stats(stats):
     for u, frac in utterances:
         print '%s, %s: %.3f' % (u[0], u[1], frac)
 
-    k = 10
     print "-----------------------------------"
+    print "Number of linguistic templates: %d" % len(template_counts.keys())
+    k = 10
     print 'Top %d linguistic templates' % k
     top_templates = get_top_k_from_counts(k, template_counts)
     for template, v in top_templates:
