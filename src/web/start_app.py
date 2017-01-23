@@ -19,7 +19,8 @@ from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
 from gevent.wsgi import WSGIServer
-from src.basic.lexicon import Lexicon
+from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.basic.inverse_lexicon import InverseLexicon
 
 __author__ = 'anushabala'
 
@@ -85,7 +86,7 @@ def add_scenarios_to_db(db_file, scenario_db, systems):
     conn.close()
 
 
-def add_systems(config_dict, schema, lexicon):
+def add_systems(config_dict, schema, lexicon, realizer):
     """
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
@@ -102,14 +103,13 @@ def add_systems(config_dict, schema, lexicon):
     for (sys_name, info) in config_dict.iteritems():
         if info["active"]:
             type = info["type"]
+            # TODO: add realizer to simple system
             if type == SimpleSystem.name():
-                model = SimpleSystem(lexicon, timed_session=True)
-            #elif type == HeuristicSystem.name():
-            #    model = HeuristicSystem()
+                model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
             elif type == NeuralSystem.name():
                 path = info["path"]
                 decoding = info["decoding"].split()
-                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True)
+                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True, realizer=realizer, consecutive_entity=False)
             else:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -152,6 +152,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     add_website_arguments(parser)
     add_scenario_arguments(parser)
+    add_lexicon_arguments(parser)
     args = parser.parse_args()
 
     params_file = args.config
@@ -194,8 +195,11 @@ if __name__ == "__main__":
 
     schema = Schema(schema_path, domain=args.domain)
     # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, learned_lex=False, scenarios_json=args.scenarios_path)
-    # lexicon = None
+    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    if args.inverse_lexicon:
+        realizer = InverseLexicon(schema, args.inverse_lexicon)
+    else:
+        realizer = None
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
@@ -208,7 +212,8 @@ if __name__ == "__main__":
     if 'skip_chat_enabled' not in params.keys():
         params['skip_chat_enabled'] = False
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon)
+    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
+
     add_scenarios_to_db(db_file, scenario_db, systems)
 
     app.config['systems'] = systems

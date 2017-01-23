@@ -25,10 +25,11 @@ def tokenize(utterance):
     'hi there!' => ['hi', 'there', '!']
     '''
     utterance = utterance.encode('utf-8').lower()
+    # Remove '-' to match lexicon preprocess
+    for s in (' - ', '-'):
+        utterance = utterance.replace(s, ' ')
     # Split on punctuation
-    tokens = re.findall(r"[\w']+|[.,!?;]", utterance)
-    # Remove punctuation
-    #tokens = [x for x in tokens if x not in '.,!?;']
+    tokens = re.findall(r"[\w']+|[.,!?;&-]", utterance)
     return tokens
 
 word_to_num = {'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'}
@@ -48,7 +49,9 @@ def build_schema_mappings(schema, num_items):
     # Add item nodes
     for i in xrange(num_items):
         entity_map.add_word(item_to_entity(i)[1])
-    # TODO: add attribute nodes
+    # Add attr nodes
+    #for attr in schema.attributes:
+    #    entity_map.add_word((attr.name.lower(), 'attr'))
 
     relation_map = Vocabulary(unk=False)
     attribute_types =  schema.get_attributes()  # {attribute_name: value_type}
@@ -471,10 +474,15 @@ class Preprocessor(object):
         '''
         kbs = ex.scenario.kbs
         dialogue = Dialogue(kbs, ex.uuid)
+
+        mentioned_entities = set()
         for e in ex.events:
-            utterances = self.process_event(e, kbs[e.agent])
+            utterances = self.process_event(e, kbs[e.agent], mentioned_entities)
             if utterances:
                 dialogue.add_utterance(e.agent, utterances, self.prepend)
+                for token in utterances[0]:
+                    if is_entity(token):
+                        mentioned_entities.add(token[1][0])
         return dialogue
 
     def item_to_entities(self, item, attrs):
@@ -502,13 +510,15 @@ class Preprocessor(object):
         assert item_id is not None
         return item_id
 
-    def process_event(self, e, kb):
+    def process_event(self, e, kb, mentioned_entities=None, known_kb=True):
         '''
         Convert event to two lists of tokens and entities for encoding and decoding.
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
+            #print e.data
+            #print entity_tokens
             entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 # NOTE: have two copies because we might change it given decoding/encoding
@@ -539,7 +549,8 @@ class Preprocessor(object):
         dialogues = []
         for ex in examples:
             d = self._process_example(ex)
-            if len(d.agents) < 2:
+            # Skip incomplete chats
+            if len(d.agents) < 2 or ex.outcome['reward'] == 0:
                 continue
                 print 'Removing dialogue %s' % d.uuid
                 for event in ex.events:
@@ -560,6 +571,7 @@ class DataGenerator(object):
         DialogueBatch.copy = copy
 
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
+
         for fold, dialogues in self.dialogues.iteritems():
             print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
 

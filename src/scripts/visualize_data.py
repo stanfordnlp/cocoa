@@ -26,7 +26,7 @@ def get_html_for_transcript(chat, agent=None, partner_type='Human'):
     elif agent == 1:
         chat_html.append("<b>Agent 0 (Partner: %s)</b></td><td width=\"50%%\"><b>Agent 1 (You)</b></td></tr><tr><td width=\"50%%\">" % partner_type)
     else:
-        chat_html.append("<b>Agent 0</b></td><td width=\"50%%\"><b>Agent 1</b></td></tr><tr><td width=\"50%%\">")
+        chat_html.append("<b>Agent 0 (%s) </b></td><td width=\"50%%\"><b>Agent 1 (%s) </b></td></tr><tr><td width=\"50%%\">" % (chat['agents']['0'], chat['agents']['1']))
 
     current_user = 0
 

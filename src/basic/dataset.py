@@ -33,7 +33,10 @@ class Example(object):
         events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
         ex_id = raw['uuid']
-        agents = raw['agents']
+        if 'agents' in raw:
+            agents = raw['agents']
+        else:
+            agents = None
         return Example(scenario, uuid, events, outcome, ex_id, agents)
 
     def to_dict(self):
