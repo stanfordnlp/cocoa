@@ -11,6 +11,7 @@ import random
 from nltk.corpus import stopwords
 import matplotlib.pyplot as plt
 from itertools import izip
+import numpy as np
 
 
 def is_question(tokens):
@@ -93,12 +94,15 @@ def get_kb_strategy(kbs, dialog):
         sorted_unique_vals = list(sorted(list({t for t in num_unique_vals.values()})))
         pos = sorted_unique_vals.index(num_unique_vals[attr_type])
         label = 'medium'
-        if pos == 0:
-            label = 'least_uniform'
-        elif pos == len(kbs[agent].attributes) - 1:
-            label = 'most_uniform'
+        if len(sorted_unique_vals) > 0:
+            if pos == 0:
+                label = 'least_uniform'
+            elif pos == len(kbs[agent].attributes) - 1:
+                label = 'most_uniform'
         labeled_order.append(label)
 
+    if len(labeled_order) == 0:
+        print 'Empty labeled order', dialog
     return labeled_order
 
 def abstract_entity(dialog):
@@ -244,6 +248,11 @@ def update_ngram_counts(counts, utterance):
 def dd():
     return defaultdict(int)
 
+NO_ALPHA_MENTION = 'no_mention'
+alpha_labels_to_values = {NO_ALPHA_MENTION: 0., 'least_uniform': 1., 'medium': 2., 'most_uniform': 3.}
+alpha_values_to_labels = {0: NO_ALPHA_MENTION, 1: 'least_uniform', 2: 'medium', 3: 'most_uniform'}
+
+
 def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
@@ -255,6 +264,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     ngram_counts = defaultdict(dd)
     template_summary_map = {'total': 0.}
     speech_act_sequence_summary_map = {'total': 0.}
+    alpha_stats = {}
 
     total_events = 0
 
@@ -303,6 +313,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
         get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
 
         orders = tuple(get_kb_strategy(kbs, dialog))
+
         if len(orders) not in kb_strategy_summary_map.keys():
             kb_strategy_summary_map[len(orders)] = {}
 
@@ -310,12 +321,31 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             kb_strategy_summary_map[len(orders)][orders] = 0.0
 
         kb_strategy_summary_map[len(orders)][tuple(orders)] += 1.0
+        alphas = ex.scenario.alphas
+        if len(alphas) not in alpha_stats.keys():
+            alpha_stats[len(alphas)] = {}
+        var = np.var(alphas)
+        if var not in alpha_stats[len(alphas)].keys():
+            alpha_stats[len(alphas)][var] = [0., 0.]
+
+        if len(orders) > 0:
+            first_mentioned = orders[0]
+        else:
+            first_mentioned = NO_ALPHA_MENTION
+
+        # print "First mentioned attribute alpha:", first_mentioned, alpha_labels_to_values[first_mentioned]
+        alpha_stats[len(alphas)][var][0] += alpha_labels_to_values[first_mentioned]
+        alpha_stats[len(alphas)][var][1] += 1.
+
 
     if fout:
         fout.close()
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
+    print alpha_stats
+    alpha_stats = dict((k1, dict((k2, v2[0]/v2[1]) for (k2, v2) in v1.items())) for (k1, v1) in alpha_stats.items())
+    print alpha_stats
     dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
     dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
     return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
@@ -327,8 +357,23 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             'ngram_counts': ngram_counts,
             'linguistic_templates': template_summary_map,
             'speech_act_sequences': speech_act_sequence_summary_map,
-            'correct': fact_summary_map['correct']['mean']
+            'correct': fact_summary_map['correct']['mean'],
+            'alpha_stats': alpha_stats
             }
+
+
+def plot_alpha_stats(alpha_stats, save_path):
+    for num_attrs in alpha_stats.keys():
+        sorted_x = sorted(alpha_stats[num_attrs].keys())
+        sorted_y = [alpha_stats[num_attrs][x] for x in sorted_x]
+        plt.plot(sorted_x, sorted_y, label='%d Attributes' % num_attrs)
+
+    plt.xlabel('Variance in alpha values')
+    plt.ylabel('Average alpha of first mentioned attribute')
+    y_labels_ord = sorted(alpha_values_to_labels.keys())
+    plt.yticks(y_labels_ord, (alpha_values_to_labels[y] for y in y_labels_ord), rotation=45)
+    plt.legend(loc='best')
+    plt.savefig(save_path)
 
 
 def get_cross_talk(all_chats):

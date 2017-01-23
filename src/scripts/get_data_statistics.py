@@ -18,6 +18,9 @@ def add_statistics_arguments(parser):
     parser.add_argument('--plot-item-stats', type=str, default=None,
                         help='If provided, and if --item-stats is specified, plots the relationship between # of items '
                              'and various stats to the provided path.')
+    parser.add_argument('--plot-alpha-stats', type=str, default=None,
+                        help='If provided, plots the relationship between alpha values '
+                             'strategy stats to the provided path.')
     parser.add_argument('--lm', help='Path to LM (.arpa)')
 
 
@@ -37,6 +40,7 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
         print "Getting statistics grouped by alpha values...."
         stats["by_alpha"] = stats_by_alpha = get_statistics_by_alpha(transcripts, scenario_db)
         print_stats(stats_by_alpha, stats_type="alphas")
+
     if args.item_stats:
         print "-----------------------------------"
         print "-----------------------------------"
@@ -69,6 +73,8 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
     write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
+    if args.plot_alpha_stats is not None:
+        plot_alpha_stats(strategy_stats["alpha_stats"], args.plot_alpha_stats)
     json.dump(stats, statsfile)
     statsfile.close()
 
