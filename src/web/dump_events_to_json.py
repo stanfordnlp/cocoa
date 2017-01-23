@@ -71,43 +71,6 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
 
     examples = []
     for chat_id in ids:
-        # chat_id is a tuple   (id,)
-        # try:
-        #     cursor.execute('SELECT agent, action, time, data, start_time FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
-        #     logged_events = cursor.fetchall()
-        # except sqlite3.OperationalError:
-        #     cursor.execute('SELECT agent, action, time, data FROM event WHERE chat_id=? ORDER BY time ASC', chat_id)
-        #     logged_events = cursor.fetchall()
-        #     events = []
-        #     for i, (agent, action, time, data) in enumerate(logged_events):
-        #         events.append((agent, action, time, data, time))
-        #     logged_events = events
-        # cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', chat_id)
-        # (uuid, outcome) = cursor.fetchone()
-        # try:
-        #     outcome = json.loads(outcome)
-        # except ValueError:
-        #     outcome = {'reward': 0}
-        #
-        # try:
-        #     cursor.execute('SELECT agent_types FROM chat WHERE chat_id=?', chat_id)
-        #     agent_types, _ = cursor.fetchone()
-        #     agent_types = json.loads(agent_types)
-        # except sqlite3.OperationalError:
-        #     agent_types = {0: HumanSystem.name(), 1: HumanSystem.name()}
-        #
-        # chat_events = []
-        # for (agent, action, time, data, start_time) in logged_events:
-        #     if action == 'join' or action == 'leave':
-        #         continue
-        #     if action == 'select':
-        #         data = KB.string_to_item(data)
-        #
-        #     time = convert_time_format(time)
-        #     start_time = convert_time_format(start_time)
-        #     event = Event(agent, time, action, data, start_time)
-        #     chat_events.append(event)
-        # ex = Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id[0], agent_types)
         ex = convert_events_to_json(chat_id[0], cursor, scenario_db)
         examples.append(ex)
 
@@ -115,6 +78,28 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
     json.dump([ex.to_dict() for ex in examples], outfile)
     outfile.close()
     conn.close()
+
+
+def log_surveys_to_json(db_path, surveys_file):
+    questions = ['fluent', 'correct', 'cooperative', 'humanlike', 'comments']
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute('''SELECT * FROM survey''')
+    logged_surveys = cursor.fetchall()
+    survey_data = {}
+    agent_types = {}
+
+    for survey in logged_surveys:
+        # print survey
+        (_, cid, _, fluent, correct, cooperative, humanlike, comments) = survey
+        responses = dict(zip(questions, [fluent, correct, cooperative, humanlike, comments]))
+        cursor.execute('''SELECT agent_types FROM chat WHERE chat_id=?''', (cid,))
+        agents = json.loads(cursor.fetchone()[0])
+        agent_types[cid] = agents
+        survey_data[cid] = responses
+
+    json.dump([agent_types, survey_data], open(surveys_file, 'w'))
+
 
 
 def convert_time_format(time):
@@ -142,8 +127,11 @@ if __name__ == "__main__":
                         choices=['MutualFriends', 'Matchmaking'])
     parser.add_argument('--output', type=str, required=True, help='File to write JSON examples to.')
     parser.add_argument('--uid', type=str, nargs='*', help='Only print chats from these uids')
+    parser.add_argument('--surveys', type=str, help='If provided, writes a file containing results from user surveys.')
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
 
     log_transcripts_to_json(scenario_db, args.db, args.output, args.uid)
+    if args.surveys:
+        log_surveys_to_json(args.db, args.surveys)
