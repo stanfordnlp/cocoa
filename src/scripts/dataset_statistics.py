@@ -78,6 +78,8 @@ def get_kb_strategy(kbs, dialog):
     kb_unique_vals = [get_unique_values(kbs[0]), get_unique_values(kbs[1])]
     kb_attributes = {attr.value_type for attr in kbs[0].attributes}
     attribute_agents = {}
+    attribute_mention_counts = {}
+    attribute_labels = {}
     attribute_order = []
     for agent, _, entities, _ in dialog:
         for token in entities:
@@ -85,6 +87,9 @@ def get_kb_strategy(kbs, dialog):
             if attr_type in kb_attributes and attr_type not in attribute_agents.keys():
                 attribute_agents[attr_type] = agent
                 attribute_order.append(attr_type)
+            if attr_type not in attribute_mention_counts.keys():
+                attribute_mention_counts[attr_type] = 0.
+            attribute_mention_counts[attr_type] += 1.
 
     labeled_order = []
     for attr_type in attribute_order:
@@ -100,10 +105,18 @@ def get_kb_strategy(kbs, dialog):
             elif pos == len(kbs[agent].attributes) - 1:
                 label = 'most_uniform'
         labeled_order.append(label)
+        attribute_labels[attr_type] = label
 
     if len(labeled_order) == 0:
         print 'Empty labeled order', dialog
-    return labeled_order
+
+    if len(attribute_mention_counts.items()) > 0:
+        most_mentioned = max(attribute_mention_counts.items(), key=lambda x: x[1])
+        most_mentioned_label = attribute_labels[most_mentioned[0]]
+    else:
+        most_mentioned_label = NO_ALPHA_MENTION
+
+    return labeled_order, most_mentioned_label
 
 def abstract_entity(dialog):
     #entity_map = {0: {}, 1: {}}
@@ -265,8 +278,11 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     template_summary_map = {'total': 0.}
     speech_act_sequence_summary_map = {'total': 0.}
     alpha_stats = {}
+    num_attrs_mentioned = 0.
+    most_mentioned_attrs = 0.
 
     total_events = 0
+    total_dialogues = 0.
 
     lm_summary_map = {}
     for raw in all_chats:
@@ -274,6 +290,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
         kbs = ex.scenario.kbs
         if ex.outcome is None or ex.outcome["reward"] == 0:
             continue  # skip incomplete dialogues
+        total_dialogues += 1.
         dialog = []
         mentioned_entities = set()
         for i, event in enumerate(ex.events):
@@ -312,7 +329,10 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
         get_dialog_stats(dialog_summary_map, utterance_counts, dialog)
         get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
 
-        orders = tuple(get_kb_strategy(kbs, dialog))
+        orders, most_mentioned_label = get_kb_strategy(kbs, dialog)
+        orders = tuple(orders)
+
+        most_mentioned_attrs += alpha_labels_to_values[most_mentioned_label]
 
         if len(orders) not in kb_strategy_summary_map.keys():
             kb_strategy_summary_map[len(orders)] = {}
@@ -322,11 +342,14 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
 
         kb_strategy_summary_map[len(orders)][tuple(orders)] += 1.0
         alphas = ex.scenario.alphas
+
         if len(alphas) not in alpha_stats.keys():
             alpha_stats[len(alphas)] = {}
         var = np.var(alphas)
         if var not in alpha_stats[len(alphas)].keys():
             alpha_stats[len(alphas)][var] = [0., 0.]
+
+        num_attrs_mentioned += len(orders)/len(alphas)
 
         if len(orders) > 0:
             first_mentioned = orders[0]
@@ -358,7 +381,9 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             'linguistic_templates': template_summary_map,
             'speech_act_sequences': speech_act_sequence_summary_map,
             'correct': fact_summary_map['correct']['mean'],
-            'alpha_stats': alpha_stats
+            'alpha_stats': alpha_stats,
+            'avg_mentioned_attrs': num_attrs_mentioned/total_dialogues,
+            'most_mentioned_alpha': most_mentioned_attrs/total_dialogues
             }
 
 
@@ -821,7 +846,10 @@ def print_strategy_stats(stats):
         print '[%s]: %.3f' % (" ".join([str(t) for t in template]), v)
 
     print "-----------------------------------"
+    print "Average number of mentioned attributes: %2.3f" % stats['avg_mentioned_attrs']
+    print "Average alpha of most mentioned attributes: %2.3f" % stats['most_mentioned_alpha']
     print "KB attribute-based strategy statistics:"
+
     for num_attrs, v in kb_strategy_stats.items():
         print "Number of attributes mentioned: %d" % num_attrs
         for order, frac in sorted([(a, b) for a, b in v.items()], key=lambda x: x[1], reverse=True):
