@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.schema import Schema
 from src.basic.event import Event
+import numpy as np
 import json
 
 
@@ -60,6 +61,20 @@ def get_html_for_transcript(chat, agent=None, partner_type='Human'):
 
     return completed, chat_html
 
+def render_response(response):
+    html = ["<div>"]
+    html.append('<table style=\"width:50%\">')
+    html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in ('Question', 'Response', 'Median', 'Mean')])))
+    for question, scores in response.iteritems():
+        if question != 'comments':
+            html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in (question, ' / '.join([str(x) for x in scores]), np.median(scores), np.mean(scores))])))
+    if 'comments' in response:
+        comment_str = response['comments'][0]
+        if len(comment_str) > 0:
+            html.append('<tr><th>%s</th><th>%s</th><th></th><th></th></tr>' % ('comments', comment_str))
+    html.append('</table>')
+    html.append('</div>')
+    return html
 
 def render_scenario(scenario):
     html = ["<div>"]
@@ -88,7 +103,7 @@ def render_scenario(scenario):
     return html
 
 
-def visualize_chat(chat, scenario_db, agent=None, partner_type='Human'):
+def visualize_chat(chat, scenario_db, agent=None, partner_type='Human', responses=None, id_=None):
     completed, chat_html = get_html_for_transcript(chat, agent, partner_type)
     if chat_html is None:
         return False, None
@@ -98,13 +113,22 @@ def visualize_chat(chat, scenario_db, agent=None, partner_type='Human'):
     html_lines = []
     html_lines.append('<h4>Scenario</h4>')
     html_lines.extend(scenario_html)
-    html_lines.append('<h4>Dialogue</h4>')
+    if id_ is not None:
+        html_lines.append('<h4>Dialogue %s</h4>' % str(id_))
+    else:
+        html_lines.append('<h4>Dialogue</h4>')
     html_lines.extend(chat_html)
+    if responses:
+        dialogue_id = chat['uuid']
+        for agent, response in responses[dialogue_id].iteritems():
+            html_lines.append('<h4>Response to %s</h4>' % agent)
+            response_html = render_response(response)
+            html_lines.extend(response_html)
 
     return completed, html_lines
 
 
-def aggregate_chats(transcripts, scenario_db):
+def aggregate_chats(transcripts, scenario_db, responses=None):
     html = ['<!DOCTYPE html>','<html>',
             '<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
             'tr:nth-child(n) { border: solid thin;}</style></head><body>']
@@ -113,7 +137,7 @@ def aggregate_chats(transcripts, scenario_db):
     total = 0
     num_completed = 0
     for (idx, chat) in enumerate(transcripts):
-        completed, chat_html = visualize_chat(chat, scenario_db)
+        completed, chat_html = visualize_chat(chat, scenario_db, responses=responses, id_=idx)
         if completed:
             num_completed += 1
             completed_chats.extend(chat_html)
@@ -135,11 +159,11 @@ def aggregate_chats(transcripts, scenario_db):
     return html
 
 
-def visualize_transcripts(args, scenario_db, transcripts):
+def visualize_transcripts(args, scenario_db, transcripts, responses=None):
     if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
         os.makedirs(os.path.dirname(args.html_output))
 
-    html_lines = aggregate_chats(transcripts, scenario_db)
+    html_lines = aggregate_chats(transcripts, scenario_db, responses)
 
     outfile = open(args.html_output, 'w')
     for line in html_lines:
