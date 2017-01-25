@@ -30,7 +30,7 @@ def execute(tokens, executor, tagger_params):
     for raw_token in tokens:
         try:
             token = eval(raw_token)
-        except SyntaxError:
+        except (SyntaxError, NameError) as e:
             token = raw_token
         if is_entity(token):
             candidates = executor.get_candidate_entities(token, agent, None, tagged_history, kb)
@@ -39,10 +39,12 @@ def execute(tokens, executor, tagger_params):
             else:
                 entity = np.random.choice(candidates)
             if isinstance(entity, dict):
-                kb.dump()
-                print entity
+                #kb.dump()
+                #print entity
                 entity = dict_item_to_entity(kb, entity)
             executed_tokens.append(entity)
+        else:
+            executed_tokens.append(token)
     return executed_tokens
 
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None, tagger_params=None, executor=None):
@@ -136,9 +138,12 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                tagged_history = batch['tagged_history']
-                assert len(agent) == len(kb) and len(kb) == len(tagged_history)
-                tagger_params = [(a, k, h) for a, k, h in izip(agent, kb, tagged_history)]
+                if 'tagged_history' in batch:
+                    tagged_history = batch['tagged_history']
+                    assert len(agent) == len(kb) and len(kb) == len(tagged_history)
+                    tagger_params = [(a, k, h) for a, k, h in izip(agent, kb, tagged_history)]
+                else:
+                    tagger_params = None
                 #print 'history:'
                 #for a, msg in tagged_history:
                 #    print a, msg

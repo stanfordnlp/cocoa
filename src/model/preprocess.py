@@ -218,6 +218,8 @@ class Dialogue(object):
                     entity_tokens.append(dict_item_to_entity(kb, surface))
                 else:
                     entity_tokens.append((surface, (canonical, type_)))
+            else:
+                entity_tokens.append(token)
         return entity_tokens
 
     @classmethod
@@ -348,7 +350,7 @@ class DialogueBatch(object):
         return [[dialogue.tagged_history[agent][:i] for agent, dialogue in izip(agents, self.dialogues)] for i in xrange(self.num_turns)]
 
     def _empty_tagged_batch(self):
-        return [[] for dialogue in self.dialogues]
+        return [[] for _ in self.dialogues]
 
     def _get_agent_batch(self, i):
         return [dialogue.agents[i] for dialogue in self.dialogues]
@@ -461,7 +463,7 @@ class DialogueBatch(object):
                 seq_dec_token_turns = [get_token_turn(i+1, agents) for i in encode_turn_ids]
                 if start_encode == 1:
                     seq_tagged_batches.insert(0, self._empty_tagged_batch())
-                    seq_enc_token_turns.insert(0, None)
+                    seq_enc_token_turns.insert(0, [[''] for _ in self.dialogues])
                     seq_dec_token_turns.insert(0, get_token_turn(0, agents))
                 assert len(seq_tagged_batches) == len(batch_seq)
                 assert len(seq_dec_token_turns) == len(batch_seq)
@@ -512,7 +514,6 @@ class Preprocessor(object):
             return entity[1]
         elif form == 'graph':
             return entity[1]
-            return (type_, tuple(features))
         else:
             raise ValueError('Unknown entity form %s' % form)
 
