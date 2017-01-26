@@ -84,6 +84,7 @@ class NgramSession(Session):
             if not self.is_token_valid(token) and retries < retry_limit:
                 # print "[Agent %d] [will retry] Invalid token:" % self.agent, token
                 self.undo_generated_utterance()
+                generated_tokens = []
                 retries += 1
             elif token == markers.SELECT and len(generated_tokens) >= 1:
                 if retries < retry_limit:
