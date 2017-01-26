@@ -48,8 +48,8 @@ class NgramSession(Session):
         return models[self.DEFAULT_MODEL]
 
     def send(self):
-        if len(self.history) == 0:
-            self.update_history(1 - self.agent, [markers.GO, markers.EOS])
+        # if len(self.history) == 0:
+        #     self.update_history(1 - self.agent, [markers.GO, markers.EOS])
         generated = self.generate()
         # print "Generated tagged tokens:", generated
         event = self.convert_generated_tokens_to_event(generated)
@@ -126,7 +126,10 @@ class NgramSession(Session):
         """
         indices = xrange(len(self.history)-1, -1, -1)
         gen = it.izip(indices, reversed(self.history))
-        pos = next(i for i, value in gen if value == markers.EOS)
+        try:
+            pos = next(i for i, value in gen if value == markers.EOS)
+        except StopIteration:
+            pos = -1
         self.history = self.history[:pos+1]
         print 'UNDO HISTORY:'
         print self.history
@@ -209,7 +212,7 @@ class NgramSession(Session):
             self.entity_scores[attr_name][mentioned_entity] = 0.
 
     def receive(self, event):
-        if event is None or event.data is None:
+        if event is not None and event.data is not None:
             agent, tokens = preprocess_event(event)
             # print "Received (event=%s)" % event.action
             # print "Received tokens: ", tokens

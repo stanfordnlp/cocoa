@@ -17,7 +17,8 @@ class ConditionalProbabilityTable(object):
 
     def sample(self, k1):
         tokens = self.data[k1].keys()
-        # print k1, tokens
+        # print k1
+        # print tokens
         probs = [self.data[k1][k2] for k2 in tokens]
         print 'SAMPLE:'
         print [(t, p) for t, p in zip(tokens, probs)]
@@ -79,9 +80,11 @@ class NgramModel(object):
             if (attributes is not None and ex_attributes == attributes) or attributes is None:
                 processed_dialog = self.preprocess_tagged_dialog(dialog)
                 msg_sequence = dialog_to_message_sequence(processed_dialog)
-
+                # print "----------"
+                # print msg_sequence
                 for i in range(len(msg_sequence)):
                     for j in range(max(0, i - self.n), i+1):
+                        # print tuple(msg_sequence[j:i])
                         self.cpt[tuple(msg_sequence[j:i])][msg_sequence[i]] += 1
 
         print "Number of keys in n-gram model: %d" % len(self.cpt.data.keys())
@@ -107,8 +110,14 @@ class NgramModel(object):
         print 'HISTORY:', history
         for i in np.arange(min(self.n, len(history)), 0, -1):
             key = tuple(history[max_tokens-i:max_tokens])
+<<<<<<< HEAD
             print 'KEY:', key
+=======
+            # print key
+>>>>>>> FETCH_HEAD
             if self.cpt[key] is not None and len(self.cpt[key]) > 0:
+                # print "final key: ", key
                 break
+
         return self.cpt.sample(key)
 

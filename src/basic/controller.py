@@ -42,10 +42,14 @@ class Controller(object):
                 if event.action == 'select':
                     self.selections[agent] = event.data
 
+<<<<<<< HEAD
                 print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 num_turns += 1
                 if num_turns >= max_turns:
                     timeup = True
+=======
+                # print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+>>>>>>> FETCH_HEAD
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)

@@ -151,7 +151,9 @@ if __name__ == "__main__":
     add_scenario_arguments(parser)
     add_visualization_arguments(parser)
     parser.add_argument('--transcripts', type=str, default='transcripts.json', help='Path to directory containing transcripts')
-
+    parser.add_argument('--tagged-data', action='store_true',
+                        help='If true, script assumes that the dataset to visualize is tagged, so event metadata '
+                             'rather than raw event data is visualized')
     args = parser.parse_args()
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
