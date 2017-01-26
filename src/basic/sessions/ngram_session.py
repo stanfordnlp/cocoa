@@ -58,6 +58,8 @@ class NgramSession(Session):
 
     def convert_generated_tokens_to_event(self, generated_tokens):
         timestamp = (datetime.now() - datetime.fromtimestamp(0)).total_seconds()
+        if not generated_tokens:
+            return None
         if generated_tokens[0] == markers.SELECT:
             item = generated_tokens[1][0]
             return Event.SelectionEvent(self.agent, item, timestamp, metadata=generated_tokens)
@@ -79,18 +81,19 @@ class NgramSession(Session):
         token = None
         generated_tokens = []
         retries = 0
-        while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS:
+        while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS and retries < retry_limit:
             token = self.model.generate(self.history, preprocess=True)
-            if not self.is_token_valid(token) and retries < retry_limit:
+            if not self.is_token_valid(token):
                 # print "[Agent %d] [will retry] Invalid token:" % self.agent, token
                 self.undo_generated_utterance()
+                generated_tokens = []
                 retries += 1
             elif token == markers.SELECT and len(generated_tokens) >= 1:
                 if retries < retry_limit:
                     # print "[Agent %d] [will retry] Tried to select in middle of utterance" % self.agent
                     retries += 1
                 else:
-                    retries = 0
+                    #retries = 0
                     # print "[Agent %d] Tried to select in middle of utterance and exceeded limit; " \
                     #       "stopping before selection" % self.agent
                     token = markers.EOS
@@ -110,7 +113,7 @@ class NgramSession(Session):
                     #     print "[Agent %d] Retried %d times and gave up" % (self.agent, retries)
                     # elif retries > 0:
                     #     print "[Agent %d] Retried %d times and successfully regenerated" % (self.agent, retries)
-                    retries = 0
+                    #retries = 0
                     token_with_entity = token
                     if is_entity(token):
                         token_with_entity = self.add_entity(token, candidates)
@@ -131,8 +134,6 @@ class NgramSession(Session):
         except StopIteration:
             pos = -1
         self.history = self.history[:pos+1]
-        print 'UNDO HISTORY:'
-        print self.history
 
     def is_token_valid(self, token):
         if is_entity(token):
