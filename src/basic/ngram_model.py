@@ -110,11 +110,7 @@ class NgramModel(object):
         print 'HISTORY:', history
         for i in np.arange(min(self.n, len(history)), 0, -1):
             key = tuple(history[max_tokens-i:max_tokens])
-<<<<<<< HEAD
             print 'KEY:', key
-=======
-            # print key
->>>>>>> FETCH_HEAD
             if self.cpt[key] is not None and len(self.cpt[key]) > 0:
                 # print "final key: ", key
                 break
