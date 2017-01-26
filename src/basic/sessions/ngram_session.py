@@ -72,26 +72,31 @@ class NgramSession(Session):
                     raw_tokens.append(raw)
             else:
                 raw_tokens.append(token)
-        # print raw_tokens
         return Event.MessageEvent(self.agent, " ".join(raw_tokens), timestamp, metadata=generated_tokens)
 
-    def generate(self, retry_limit=20):
+    def generate(self, retry_limit=10):
         token = None
         generated_tokens = []
         retries = 0
-        while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS:
+        while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS and retries < retry_limit:
             token = self.model.generate(self.history, preprocess=True)
             if not self.is_token_valid(token) and retries < retry_limit:
-                # print "[Agent %d] [will retry] Invalid token:" % self.agent, token
+                print "[Agent %d] [will retry] Invalid token:" % self.agent, token
                 self.undo_generated_utterance()
                 generated_tokens = []
                 retries += 1
+            elif isinstance(token, dict):
+                if len(generated_tokens) == 0 or generated_tokens[-1] != markers.SELECT:
+                    print self.history
+                    self.undo_generated_utterance()
+                    generated_tokens = []
+                    retries += 1
             elif token == markers.SELECT and len(generated_tokens) >= 1:
                 if retries < retry_limit:
                     # print "[Agent %d] [will retry] Tried to select in middle of utterance" % self.agent
                     retries += 1
                 else:
-                    retries = 0
+                    # retries = 0
                     # print "[Agent %d] Tried to select in middle of utterance and exceeded limit; " \
                     #       "stopping before selection" % self.agent
                     token = markers.EOS
@@ -111,7 +116,7 @@ class NgramSession(Session):
                     #     print "[Agent %d] Retried %d times and gave up" % (self.agent, retries)
                     # elif retries > 0:
                     #     print "[Agent %d] Retried %d times and successfully regenerated" % (self.agent, retries)
-                    retries = 0
+                    # retries = 0
                     token_with_entity = token
                     if is_entity(token):
                         token_with_entity = self.add_entity(token, candidates)
