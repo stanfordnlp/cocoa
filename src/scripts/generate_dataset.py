@@ -29,6 +29,7 @@ parser.add_argument('--scenario-offset', default=0, type=int, help='Number of sc
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
+parser.add_argument('--ngram-scenarios-path', help='Path to training data (used for ngram model)')
 parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
@@ -65,7 +66,7 @@ def get_system(name):
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
     elif name == 'ngram':
-        return NgramSystem(args.transcripts, args.scenarios_path, lexicon, schema, attribute_specific=False, n=11)
+        return NgramSystem(args.transcripts, args.ngram_scenarios_path, lexicon, schema, attribute_specific=False, n=11)
     # elif name == 'cmd':
     #     return CmdSystem()
     else:
@@ -83,7 +84,12 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     num_failed = 0
     for i in range(max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
-        sessions = [agents[0].new_session(0, scenario.kbs[0], scenario.uuid), agents[1].new_session(1, scenario.kbs[1], scenario.uuid)]
+        # TODO: hacky code to prevent ngram_session from breaking
+        # The sessions should not have access to a scenario, but only a kb
+        if args.agents == ['ngram', 'ngram']:
+            sessions = [agents[0].new_session(0, scenario.kbs[0], scenario.uuid), agents[1].new_session(1, scenario.kbs[1], scenario.uuid)]
+        else:
+            sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
         controller = Controller(scenario, sessions)
         ex = controller.simulate(max_turns)
         if ex.outcome['reward'] == 0:

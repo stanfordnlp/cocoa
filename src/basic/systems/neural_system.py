@@ -4,11 +4,13 @@ import os
 import argparse
 import tensorflow as tf
 from src.basic.systems.system import System
-from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession
+from src.basic.sessions.neural_session import RNNNeuralSession, GraphNeuralSession, TaggerNeuralSession
 from src.basic.sessions.timed_session import TimedSessionWrapper
 from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
+from src.basic.tagger import Tagger
+from src.basic.executor import Executor
 from collections import namedtuple
 from src.model.evaluate import FactEvaluator
 from src.lib import logstats
@@ -65,16 +67,26 @@ class NeuralSystem(System):
         saver.restore(tf_session, ckpt.model_checkpoint_path)
 
         self.model_name = args.model
+
         if self.model_name == 'attn-copy-encdec':
             args.entity_target_form = 'graph'
             copy = True
         else:
             copy = False
+
+        if self.model_name == 'tagger-encdec':
+            type_attribute_mappings = {v: k for (k, v) in schema.get_attributes().items()}
+            tagger = Tagger(type_attribute_mappings)
+            executor = Executor(type_attribute_mappings)
+        else:
+            tagger = None
+            executor = None
+
         preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form, args.prepend)
         textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator', 'prepend', 'consecutive_entity', 'realizer'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator() if fact_check else None, prepend=args.prepend, consecutive_entity=self.consecutive_entity, realizer=realizer)
+        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator', 'prepend', 'consecutive_entity', 'realizer', 'tagger', 'executor'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator() if fact_check else None, prepend=args.prepend, consecutive_entity=self.consecutive_entity, realizer=realizer, tagger=tagger, executor=executor)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:
@@ -87,6 +99,8 @@ class NeuralSystem(System):
     def new_session(self, agent, kb):
         if self.model_name == 'encdec':
             session = RNNNeuralSession(agent , kb, self.env)
+        elif self.model_name == 'tagger-encdec':
+            session = TaggerNeuralSession(agent , kb, self.env)
         else:
             session = GraphNeuralSession(agent, kb, self.env)
         if self.timed_session:

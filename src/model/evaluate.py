@@ -24,28 +24,44 @@ def remove_entities(entity_tokens):
         find_entities(eoe_ind)
     return [x for i, x in enumerate(entity_tokens) if i not in to_remove], [x for i, x in enumerate(entity_tokens) if i in to_remove]
 
+def str_to_tagged(raw_token):
+    '''
+    Tagged entities were converted to string and treated as a regular word during training.
+    Now converted it back, e.g. "(a, (b, c)" -> (a, (b, c))
+    '''
+    try:
+        token = eval(raw_token)
+        # If we didn't eval to a tuple, e.g. an int, undo it.
+        if not isinstance(token, tuple):
+            token = raw_token
+    except (SyntaxError, NameError) as e:
+        token = raw_token
+    return token
+
 def execute(tokens, executor, tagger_params):
     executed_tokens = []
     agent, kb, tagged_history = tagger_params
-    for raw_token in tokens:
-        try:
-            token = eval(raw_token)
-        except (SyntaxError, NameError) as e:
-            token = raw_token
+    success = True
+    for token in tokens:
         if is_entity(token):
+            entity_type, _ = token
             candidates = executor.get_candidate_entities(token, agent, None, tagged_history, kb)
             if not candidates:
-                entity = raw_token
+                entity = entity_type
+                success = False
             else:
                 entity = np.random.choice(candidates)
             if isinstance(entity, dict):
                 #kb.dump()
                 #print entity
-                entity = dict_item_to_entity(kb, entity)
+                entity = dict_item_to_entity(kb, entity)[1]
+            else:
+                # NOTE: the executor only returns entity name
+                entity = (entity, entity_type)
             executed_tokens.append(entity)
         else:
             executed_tokens.append(token)
-    return executed_tokens
+    return executed_tokens, success
 
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None, tagger_params=None, executor=None):
     '''
@@ -75,7 +91,8 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
         else:
             tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
     if executor is not None:
-        tokens = [execute(s, executor, params) for s, params in izip(tokens, tagger_params)]
+        # TODO: handle failure
+        tokens = [execute([str_to_tagged(x) for x in s], executor, params)[0] for s, params in izip(tokens, tagger_params)]
     return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(object):

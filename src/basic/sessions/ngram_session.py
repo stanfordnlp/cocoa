@@ -128,6 +128,8 @@ class NgramSession(Session):
         gen = it.izip(indices, reversed(self.history))
         pos = next(i for i, value in gen if value == markers.EOS)
         self.history = self.history[:pos+1]
+        print 'UNDO HISTORY:'
+        print self.history
 
     def is_token_valid(self, token):
         if is_entity(token):

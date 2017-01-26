@@ -572,19 +572,20 @@ class Preprocessor(object):
 
     @classmethod
     def tag_to_str(cls, tokens):
+        str_tokens = []
         for i, token in enumerate(tokens):
             if is_entity(token):
                 surface, (canonical, type_, features) = token
-                tokens[i] = str((type_, tuple(features)))
-        return tokens
+                str_tokens.append(str((type_, tuple(features))))
+        return str_tokens
 
-    def _tag(self, tagger, entity_tokens, scenario, agent, tagged_history, select=False):
+    def _tag(self, tagger, entity_tokens, scenario, agent, tagged_history, select=False, kb=None):
         if select:
             item = entity_tokens
             assert isinstance(item, dict)
-            return tagger.tag_selection(agent, scenario, (None, item))
+            return tagger.tag_selection(agent, scenario, (None, item), kb=kb)
         else:
-            return tagger.tag_utterance(entity_tokens, scenario, agent, tagged_history)
+            return tagger.tag_utterance(entity_tokens, scenario, agent, tagged_history, kb=kb)
 
     def tag_utterance(self, tagger, tagger_param, entity_tokens, select=False):
         def append_history(history, agent, msg):
@@ -603,6 +604,14 @@ class Preprocessor(object):
         append_history(tagged_history[agent], agent, dec_tokens)
         return self.tag_to_str(enc_tokens), self.tag_to_str(dec_tokens)
 
+    def process_raw_utterance(self, raw, kb, mentioned_entities, known_kb):
+        # Lower, tokenize, link entity
+        entity_tokens = self.lexicon.link_entity(tokenize(raw), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
+        #print raw
+        #print entity_tokens
+        entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
+        return entity_tokens
+
     def process_event(self, e, kb, mentioned_entities=None, known_kb=True, tagger_param=None):
         '''
         Convert event to two lists of tokens and entities for encoding and decoding.
@@ -610,11 +619,7 @@ class Preprocessor(object):
         if self.tagger:
             assert tagger_param is not None
         if e.action == 'message':
-            # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities, known_kb=known_kb)
-            #print e.data
-            #print entity_tokens
-            entity_tokens = [normalize_number(x) if not is_entity(x) else x for x in entity_tokens]
+            entity_tokens = self.process_raw_utterance(e.data, kb, mentioned_entities, known_kb)
             if not entity_tokens:
                 return None
             # NOTE: have two copies because we might change it given decoding/encoding

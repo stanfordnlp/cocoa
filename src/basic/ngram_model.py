@@ -19,6 +19,8 @@ class ConditionalProbabilityTable(object):
         tokens = self.data[k1].keys()
         # print k1, tokens
         probs = [self.data[k1][k2] for k2 in tokens]
+        print 'SAMPLE:'
+        print [(t, p) for t, p in zip(tokens, probs)]
         idx = np.random.choice(xrange(len(tokens)), p=probs)
 
         return tokens[idx]
@@ -102,8 +104,10 @@ class NgramModel(object):
             history = self.preprocess_tagged_tokens(history)
         max_tokens = len(history)
         key = tuple()
+        print 'HISTORY:', history
         for i in np.arange(min(self.n, len(history)), 0, -1):
             key = tuple(history[max_tokens-i:max_tokens])
+            print 'KEY:', key
             if self.cpt[key] is not None and len(self.cpt[key]) > 0:
                 break
         return self.cpt.sample(key)

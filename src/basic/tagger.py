@@ -58,7 +58,7 @@ class Tagger(object):
         """
         self.type_attribute_mappings = type_attribute_mappings
 
-    def tag_utterance(self, linked_tokens, scenario, agent, tagged_history=[], get_features=True):
+    def tag_utterance(self, linked_tokens, scenario, agent, tagged_history=[], get_features=True, kb=None):
         """
         Adds entity type as well as additional history and KB-based features to each token.
         e.g. Given empty tagged history, the linked tokens ['do', 'you', 'know', 'anyone', 'from',
@@ -92,7 +92,8 @@ class Tagger(object):
         this case, this feature indicates that the entity in question doesn't match any items in the KB of the current
         agent.
         """
-        kb = scenario.get_kb(agent)
+        # If kb is input, just use it
+        kb = scenario.get_kb(agent) if not kb else kb
         tagged_utterance = []
         for token in linked_tokens:
             # if isinstance(token, list):
@@ -112,12 +113,12 @@ class Tagger(object):
 
         return tagged_utterance
 
-    def tag_selection(self, agent, scenario, preprocessed_tokens):
+    def tag_selection(self, agent, scenario, preprocessed_tokens, kb=None):
         # print "In tag_selection"
         # print preprocessed_tokens
         # print str_item
         item = preprocessed_tokens[1]
-        kb = scenario.get_kb(agent)
+        kb = scenario.get_kb(agent) if not kb else kb
         features = [self.get_selection_features(item, kb)]
         return [markers.SELECT, (item, (item, self.SELECTION_TYPE, features)), markers.EOS]
 

@@ -3,7 +3,9 @@ from session import Session
 from src.model.graph import Graph, GraphBatch
 from src.model.preprocess import markers, word_to_num
 from src.model.vocab import is_entity, Vocabulary
-from src.model.evaluate import pred_to_token
+from src.model.evaluate import pred_to_token, str_to_tagged
+from src.basic.tagger import Tagger
+from src.basic.executor import Executor
 import numpy as np
 import random
 import re
@@ -33,6 +35,8 @@ class NeuralSession(Session):
 
         self.capitalize = random.choice([True, False])
         self.numerical = random.choice([True, False])
+
+        self.retry_limit = 1
 
     def encode(self, entity_tokens):
         raise NotImplementedError
@@ -103,7 +107,7 @@ class NeuralSession(Session):
             return None
         if self.matched_item is not None:
             return self.select(self.matched_item)
-        for i in xrange(1):
+        for i in xrange(self.retry_limit):
             tokens = self.decode()
             if tokens is not None:
                 break
@@ -258,6 +262,96 @@ class RNNNeuralSession(NeuralSession):
             if it == item:
                 return it
         return None
+
+class TaggerNeuralSession(RNNNeuralSession):
+    def __init__(self, agent, kb, env):
+        super(TaggerNeuralSession, self).__init__(agent, kb, env)
+        self.executor = env.executor.new_session_executor(kb, random=True)
+        self.tagger = env.tagger
+        self.tagged_history = []
+        self.retry_limit = 5
+
+    # NOTE: Currently the process of tagging utterances is not very modular because in process_event
+    # we need both kbs with is not available at test time
+    def receive(self, event):
+        #self.log.write('receive event:%s\n' % str(event.to_dict()))
+        # Reset status
+        self.sent_entity = False
+        # Parse utterance
+        if event.action == 'select':
+            self.matched_item = self._match(event.data)
+            if self.matched_item is None:
+                entity_tokens = [markers.SELECT] + self.env.preprocessor.item_to_entities(event.data, self.kb.attributes)
+            else:
+                # Got a match; we're done.
+                return
+        elif event.action == 'message':
+            entity_tokens = self.env.preprocessor.process_raw_utterance(event.data, self.kb, mentioned_entities=self.mentioned_entities, known_kb=False)
+            # Empty message
+            if entity_tokens is None:
+                return
+            print entity_tokens
+        else:
+            raise ValueError('Unknown event action %s.' % event.action)
+        for token in entity_tokens:
+            if is_entity(token):
+                self.mentioned_entities.add(token[1][0])
+
+        # Tagging
+        select = (event.action == 'select')
+        entity_tokens = self.env.preprocessor._tag(self.tagger, event.data if select else entity_tokens, None, event.agent, self.tagged_history, select=select, kb=self.kb)
+        self.tagged_history.append((event.agent, entity_tokens))
+        #self.executor.update_scores(entity_tokens)
+        entity_tokens = self.env.preprocessor.tag_to_str(entity_tokens)
+
+        entity_tokens += [markers.EOS]
+
+        self.encode(entity_tokens)
+
+    def decode(self):
+        entity_tokens = super(TaggerNeuralSession, self).decode()
+        if not entity_tokens:
+            return None
+        tagged_tokens = [str_to_tagged(x) for x in entity_tokens]
+        entity_tokens = self.executor.execute(tagged_tokens, self.agent, self.tagged_history)
+
+        # Add to tagging history
+        tagged_entity_tokens = []
+        for token, tag in izip(entity_tokens, tagged_tokens):
+            if is_entity(token):
+                name, type_ = token
+                _, feature = tag
+                if type_ == 'item':
+                    item_id = int(token[0].split('-')[1])
+                    tagged_entity_token = (self.kb.items[item_id], ('item', type_, feature))
+                else:
+                    tagged_entity_token = (name, (name, type_, feature))
+                tagged_entity_tokens.append(tagged_entity_token)
+            else:
+                tagged_entity_tokens.append(token)
+        self.tagged_history.append((self.agent, tagged_entity_tokens))
+
+        #self.executor.update_mentioned(entity_tokens)
+        return entity_tokens
+
+    def _is_type_valid(self, token):
+        if is_entity(token):
+            entity_type, features = token
+            return entity_type in [attr.value_type for attr in self.kb.attributes] or entity_type == Tagger.SELECTION_TYPE
+        return True
+
+    def _is_valid(self, tokens):
+        if not tokens:
+            return False
+        if Vocabulary.UNK in tokens:
+            return False
+        tagged_tokens = [str_to_tagged(x) for x in tokens]
+        for token in tagged_tokens:
+            if is_entity(token) and not self._is_type_valid(token):
+                return False
+        #entity_tokens = self.executor.execute(tagged_tokens, self.agent, self.tagged_history)
+        return True
+
 
 class GraphNeuralSession(RNNNeuralSession):
     def __init__(self, agent, kb, env):
