@@ -89,5 +89,6 @@ if __name__ == "__main__":
     schema = Schema(parsed_args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(parsed_args.scenarios_path))
     transcripts = json.load(open(parsed_args.transcripts, 'r'))
+    transcripts = transcripts[:100]
     lexicon = Lexicon(schema, False, scenarios_json=parsed_args.scenarios_path, stop_words=parsed_args.stop_words)
     compute_statistics(parsed_args, lexicon, schema, scenario_db, transcripts)

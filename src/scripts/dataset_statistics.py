@@ -9,9 +9,13 @@ from itertools import izip
 from src.model.preprocess import word_to_num
 import random
 from nltk.corpus import stopwords
+import matplotlib
 import matplotlib.pyplot as plt
 from itertools import izip
 import numpy as np
+
+font_size = 15
+matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize',    'ytick.labelsize', 'legend.fontsize')})
 
 
 def is_question(tokens):
@@ -99,11 +103,13 @@ def get_kb_strategy(kbs, dialog):
         sorted_unique_vals = list(sorted(list({t for t in num_unique_vals.values()})))
         pos = sorted_unique_vals.index(num_unique_vals[attr_type])
         label = 'medium'
-        if len(sorted_unique_vals) > 0:
+        if len(sorted_unique_vals) > 1:
             if pos == 0:
                 label = 'least_uniform'
             elif pos == len(kbs[agent].attributes) - 1:
                 label = 'most_uniform'
+        else:
+            label = 'least_uniform'
         labeled_order.append(label)
         attribute_labels[attr_type] = label
 
@@ -327,7 +333,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             dialog.append((event.agent, speech_act, entities, utterance))
 
         get_dialog_stats(dialog_summary_map, utterance_counts, dialog)
-        get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
+        get_speech_act_histograms(speech_act_sequence_summary_map, dialog, collapsed=True)
 
         orders, most_mentioned_label = get_kb_strategy(kbs, dialog)
         orders = tuple(orders)
@@ -388,11 +394,13 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
 
 
 def plot_alpha_stats(alpha_stats, save_path):
-    for num_attrs in alpha_stats.keys():
+    markers = [">","+"]
+    for (num_attrs, m) in zip(alpha_stats.keys(), markers):
         sorted_x = sorted(alpha_stats[num_attrs].keys())
         sorted_y = [alpha_stats[num_attrs][x] for x in sorted_x]
-        plt.plot(sorted_x, sorted_y, label='%d Attributes' % num_attrs)
+        plt.scatter(sorted_x, sorted_y, s=80, marker=m, label='%d Attributes' % num_attrs)
 
+    plt.figure()
     plt.xlabel('Variance in alpha values')
     plt.ylabel('Average alpha of first mentioned attribute')
     y_labels_ord = sorted(alpha_values_to_labels.keys())
@@ -706,18 +714,31 @@ def print_stats(stats, stats_type="alphas"):
 
 def plot_num_items_stats(stats, save_path):
     x_values = sorted(stats.keys())
-    avg_times = [stats[x]['avg_time_taken'] for x in x_values]
+    avg_times = [stats[x]['avg_time_taken']/60. for x in x_values]
     avg_tokens = [stats[x]['avg_sentence_length'] for x in x_values]
     avg_utterances = [stats[x]['avg_turns'] for x in x_values]
     completed_ratio = [stats[x]['num_completed']/stats[x]['total'] for x in x_values]
-
+    ax1 = plt.subplot(221)
     plt.plot(x_values, avg_times, 'r--', label='Average time to complete dialogue')
-    plt.plot(x_values, avg_utterances, 'b-x', label='Average # of utterances')
-    plt.plot(x_values, avg_tokens, 'g-.', label='Average tokens/utterance')
-    plt.plot(x_values, completed_ratio, 'm-', label='Fraction of complete dialogues')
-    plt.xlabel('Number of items in scenario')
+    plt.ylabel('Avg. completion time (mins)')
+    # plt.legend(loc='best')
 
-    plt.legend(loc='best')
+    ax2 = plt.subplot(222, sharex=ax1)
+    plt.plot(x_values, avg_utterances, 'b-x', label='Average # of utterances')
+    plt.ylabel('Avg. # of utterances')
+    # plt.legend(loc='best')
+
+    ax3 = plt.subplot(223, sharex=ax1)
+    plt.plot(x_values, avg_tokens, 'g-.', label='Average tokens/utterance')
+    plt.ylabel('Avg. tokens/utterance')
+    # plt.legend(loc='best')
+
+    ax4 = plt.subplot(224, sharex=ax1)
+    plt.plot(x_values, completed_ratio, 'm-', label='Fraction of complete dialogues')
+    plt.ylabel('Fraction of complete dialogues')
+
+    plt.tight_layout()
+    # plt.legend(loc='best')
     plt.savefig(save_path)
 
 
