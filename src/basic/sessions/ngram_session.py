@@ -49,8 +49,8 @@ class NgramSession(Session):
         return models[self.DEFAULT_MODEL]
 
     def send(self):
-        # if len(self.history) == 0:
-        #     self.update_history(1 - self.agent, [markers.GO, markers.EOS])
+        if len(self.history) == 0:
+            self.update_history(1 - self.agent, [markers.GO, markers.EOS])
         generated = self.generate()
         # print "Generated tagged tokens:", generated
         event = self.convert_generated_tokens_to_event(generated)
