@@ -159,13 +159,13 @@ def aggregate_chats(transcripts, scenario_db, responses=None):
     return html
 
 
-def visualize_transcripts(args, scenario_db, transcripts, responses=None):
-    if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
-        os.makedirs(os.path.dirname(args.html_output))
+def visualize_transcripts(html_output, scenario_db, transcripts, responses=None):
+    if not os.path.exists(os.path.dirname(html_output)) and len(os.path.dirname(html_output)) > 0:
+        os.makedirs(os.path.dirname(html_output))
 
     html_lines = aggregate_chats(transcripts, scenario_db, responses)
 
-    outfile = open(args.html_output, 'w')
+    outfile = open(html_output, 'w')
     for line in html_lines:
         outfile.write(line+"\n")
     outfile.close()
