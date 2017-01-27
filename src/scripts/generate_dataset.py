@@ -30,7 +30,7 @@ parser.add_argument('--remove-fail', default=False, action='store_true', help='R
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
 parser.add_argument('--ngram-scenarios-path', help='Path to training data (used for ngram model)')
-parser.add_argument('--n', type=int, help='Value of N to use for n-gram models (used for n-gram agents)')
+parser.add_argument('--n', type=int, default=7, help='Value of N to use for n-gram models (used for n-gram agents)')
 parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')

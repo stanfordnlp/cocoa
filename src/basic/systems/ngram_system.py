@@ -16,7 +16,7 @@ class NgramSystem(System):
     def __init__(self, transcripts_path, scenarios_path, lexicon, schema, n=5, attribute_specific=True):
         super(NgramSystem, self).__init__()
         transcripts = json.load(open(transcripts_path, 'r'))
-        transcripts = transcripts[:2000]
+        #transcripts = transcripts[:100]
         scenarios = json.load(open(scenarios_path, 'r'))
         print 'Creating new NgramSystem: transcripts=%s, scenarios=%s, n=%d' % (transcripts_path, scenarios_path, n)
         self.scenario_db = ScenarioDB.from_dict(schema, scenarios)
