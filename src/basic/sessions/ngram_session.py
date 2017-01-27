@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime
+from src.basic.ngram_model import NgramModel
 from src.basic.tagger import Tagger
 
 __author__ = 'anushabala'
@@ -58,10 +59,10 @@ class NgramSession(Session):
 
     def convert_generated_tokens_to_event(self, generated_tokens):
         timestamp = (datetime.now() - datetime.fromtimestamp(0)).total_seconds()
-        if not generated_tokens:
-            return None
         if generated_tokens[0] == markers.SELECT:
+            # print generated_tokens
             item = generated_tokens[1][0]
+            # print item
             return Event.SelectionEvent(self.agent, item, timestamp, metadata=generated_tokens)
 
         raw_tokens = []
@@ -74,53 +75,81 @@ class NgramSession(Session):
                     raw_tokens.append(raw)
             else:
                 raw_tokens.append(token)
-        # print raw_tokens
         return Event.MessageEvent(self.agent, " ".join(raw_tokens), timestamp, metadata=generated_tokens)
 
-    def generate(self, retry_limit=20):
-        token = None
-        generated_tokens = []
-        retries = 0
-        while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS and retries < retry_limit:
-            token = self.model.generate(self.history, preprocess=True)
-            if not self.is_token_valid(token):
-                # print "[Agent %d] [will retry] Invalid token:" % self.agent, token
-                self.undo_generated_utterance()
-                generated_tokens = []
-                retries += 1
-            elif token == markers.SELECT and len(generated_tokens) >= 1:
-                if retries < retry_limit:
-                    # print "[Agent %d] [will retry] Tried to select in middle of utterance" % self.agent
-                    retries += 1
-                else:
-                    #retries = 0
-                    # print "[Agent %d] Tried to select in middle of utterance and exceeded limit; " \
-                    #       "stopping before selection" % self.agent
-                    token = markers.EOS
-                    generated_tokens.append(token)
-                    self.history.append(token)
-            else:
-                candidates = []
-                if is_entity(token):
-                    candidates = self.get_candidates(token)
+    def is_selection(self, token):
+        # print token
+        if is_entity(token):
+            entity_type, _ = token
+            return entity_type == Tagger.SELECTION_TYPE
+        return False
 
-                if candidates is None and retries < retry_limit:
-                    # invalid state, try to regenerate
-                    # print "[Agent %d] [will retry] Invalid state while getting candidates for token: " % self.agent, token
-                    retries += 1
-                else:
-                    # if retries >= retry_limit:
-                    #     print "[Agent %d] Retried %d times and gave up" % (self.agent, retries)
-                    # elif retries > 0:
-                    #     print "[Agent %d] Retried %d times and successfully regenerated" % (self.agent, retries)
-                    #retries = 0
-                    token_with_entity = token
-                    if is_entity(token):
-                        token_with_entity = self.add_entity(token, candidates)
-                    generated_tokens.append(token_with_entity)
-                    self.history.append(token_with_entity)
-        self.tagged_history.append((self.agent, generated_tokens))
-        return generated_tokens
+    def is_selection_valid(self, generated_tokens):
+        # If selection, generated tokens must be list of length 3 of form: [selection marker, selected item, EOS marker]
+        # selected item must be a dictionary
+        if len(generated_tokens) != 3:
+            return False
+
+        if generated_tokens[0] != markers.SELECT:
+            return False
+
+        if not self.is_selection(generated_tokens[1]):
+            return False
+
+        if generated_tokens[2] != markers.EOS:
+            return False
+
+        return True
+
+    def is_generation_valid(self, generated_tokens):
+        for (i, token) in enumerate(generated_tokens):
+            if not self.is_token_valid(token):
+                return False
+            if token == markers.SELECT:
+                return self.is_selection_valid(generated_tokens)
+            if self.is_selection(token):
+                return False
+
+            if is_entity(token):
+                candidates = self.get_candidates(token)
+                if candidates is None:
+                    return False
+
+        return True
+
+    def generate(self, retry_limit=10):
+        def _add_entities_to_utterance(tokens):
+            tagged_tokens = []
+            for t in tokens:
+                token_with_entity = t
+                if is_entity(t):
+                    candidates = self.get_candidates(t)
+                    token_with_entity = self.add_entity(t, candidates)
+                tagged_tokens.append(token_with_entity)
+            return tagged_tokens
+
+        retries = 0
+        generation_valid = False
+        generated_tokens = []
+        while retries < retry_limit and not generation_valid:
+            token = None
+            while token != markers.EOS and len(generated_tokens) <= self._MAX_TOKENS:
+                token = self.model.generate(self.history, preprocess=False)
+                generated_tokens.append(token)
+                self.history.append(token)
+
+            if self.is_generation_valid(generated_tokens):
+                generation_valid = True
+            else:
+                retries += 1
+                if retries < retry_limit:
+                    generated_tokens = []
+                    self.undo_generated_utterance()
+
+        tokens_with_entities = _add_entities_to_utterance(generated_tokens)
+        self.tagged_history.append((self.agent, tokens_with_entities))
+        # print tokens_with_entities
+        return tokens_with_entities
 
     def undo_generated_utterance(self):
         """
@@ -213,6 +242,7 @@ class NgramSession(Session):
             self.entity_scores[attr_name][mentioned_entity] = 0.
 
     def receive(self, event):
+
         if event is not None and event.data is not None:
             agent, tokens = preprocess_event(event)
             # print "Received (event=%s)" % event.action
@@ -227,5 +257,6 @@ class NgramSession(Session):
             self.update_scores(tagged_tokens)
 
     def update_history(self, agent_idx, tagged_tokens):
+        tokens_without_entities = NgramModel.preprocess_tagged_tokens(tagged_tokens)
         self.tagged_history.append((agent_idx, tagged_tokens))
-        self.history.extend(tagged_tokens)
+        self.history.extend(tokens_without_entities)

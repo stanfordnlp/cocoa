@@ -30,6 +30,7 @@ parser.add_argument('--remove-fail', default=False, action='store_true', help='R
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--transcripts', help='Path to training data (used for ngram model)')
 parser.add_argument('--ngram-scenarios-path', help='Path to training data (used for ngram model)')
+parser.add_argument('--n', type=int, help='Value of N to use for n-gram models (used for n-gram agents)')
 parser.add_argument('--domain', help='Domain', choices=['MutualFriends', 'Matchmaking'])
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
 parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
@@ -66,7 +67,7 @@ def get_system(name):
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding)
     elif name == 'ngram':
-        return NgramSystem(args.transcripts, args.ngram_scenarios_path, lexicon, schema, attribute_specific=False, n=11)
+        return NgramSystem(args.transcripts, args.ngram_scenarios_path, lexicon, schema, attribute_specific=False, n=args.n)
     # elif name == 'cmd':
     #     return CmdSystem()
     else:

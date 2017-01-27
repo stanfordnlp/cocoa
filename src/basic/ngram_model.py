@@ -16,7 +16,7 @@ class ConditionalProbabilityTable(object):
         return self.data[k1]
 
     def sample(self, k1):
-        tokens = self.data[k1].keys()
+        tokens = list(self.data[k1].keys())
         # print k1
         # print tokens
         probs = [self.data[k1][k2] for k2 in tokens]
@@ -32,13 +32,13 @@ class ConditionalProbabilityTable(object):
                 m[k2] = v
 
     def dump(self):
-        for k1, m in self.data.items():
+        for k1 in sorted(self.data.keys(), key=lambda x: len(x), reverse=True):
+            m = self.data[k1]
             for k2, v in sorted_candidates(m.items()):
                 print '%d\t%s\t%s\t%s' % (len(k1), k1, k2, v)
 
 
 class NgramModel(object):
-    SKIP_PROBABILITY = 0.1
     def __init__(self, tagged_data, n, attributes=None):
         self.n = n
 
