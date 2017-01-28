@@ -120,8 +120,8 @@ def visualize_chat(chat, scenario_db, agent=None, partner_type='Human', response
     html_lines.extend(chat_html)
     if responses:
         dialogue_id = chat['uuid']
-        for agent, response in responses[dialogue_id].iteritems():
-            html_lines.append('<h4>Response to %s</h4>' % agent)
+        for agent_id, response in responses[dialogue_id].iteritems():
+            html_lines.append('<h4>Response to %s</h4>' % agent_id)
             response_html = render_response(response)
             html_lines.extend(response_html)
 

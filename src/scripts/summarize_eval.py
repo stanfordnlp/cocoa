@@ -21,10 +21,18 @@ from src.lib import logstats
 def my_mode(x):
     return stats.mode(x)[0][0]
 
-def read_eval(trans, question_scores):
+def get_dialogue_ids(all_trans):
+    ids = []
+    for trans in all_trans:
+        ids.extend(trans[0].keys())
+    return ids
+
+def read_eval(trans, question_scores, mask=None):
     dialogue_agents = trans[0]
     dialogue_scores = trans[1]
     for dialogue_id, agent_dict in dialogue_agents.iteritems():
+        if mask and not dialogue_id in mask:
+            continue
         scores = dialogue_scores[dialogue_id]
         if isinstance(agent_dict, basestring):
             agent_dict = eval(agent_dict)
@@ -139,8 +147,8 @@ def visualize(html_output, question_scores, uuid_to_chat):
     dialogue_responses = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))
     for question, agent_scores in question_scores.iteritems():
         for agent, scores in agent_scores.iteritems():
-            for dialogue_id, _, response in scores:
-                dialogue_responses[dialogue_id][agent][question] = response
+            for dialogue_id, agent_id, response in scores:
+                dialogue_responses[dialogue_id][agent_id][question] = response
 
     responses = []
     chats = []
@@ -155,9 +163,23 @@ def visualize(html_output, question_scores, uuid_to_chat):
 
     visualize_transcripts(html_output, scenario_db, chats, dialogue_responses)
 
+def summarize(question_scores):
+    #for summary_stat in ('median', 'mean', 'mode'):
+    for summary_stat in ('mode',):
+        print '=========== %s ===========' % summary_stat
+        for question, agent_scores in question_scores.iteritems():
+            if question == 'comments':
+                continue
+            print '------------- %s ---------------' % question
+            results = [(agent, summarize_scores(scores, summary_stat), get_total(scores)) for agent, scores in agent_scores.iteritems()]
+            results = sorted(results, key=lambda x: x[1], reverse=True)
+            for agent, stat, total in results:
+                print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat, total)
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--eval-transcripts', nargs='+', help='Path to directory containing evaluation transcripts')
+    parser.add_argument('--compare-transcripts', nargs='+', help='Evals to compare with')
     parser.add_argument('--dialogue-transcripts', help='Path to directory containing dialogue transcripts')
     parser.add_argument('--html-output', default=None, help='Path to HTML output')
     parser.add_argument('--analyze', default=False, action='store_true', help='Analyze human ratings')
@@ -176,19 +198,19 @@ if __name__ == '__main__':
     for eval_ in raw_eval:
         read_eval(eval_, question_scores)
 
+    if args.compare_transcripts is not None:
+        dialogue_ids = get_dialogue_ids(raw_eval)
+        raw_eval2 = [read_json(trans) for trans in args.compare_transcripts]
+        dialogue_ids2 = get_dialogue_ids(raw_eval2)
+        question_scores2 = defaultdict(lambda : defaultdict(list))
+        for eval_ in raw_eval2:
+            read_eval(eval_, question_scores2, mask=set(dialogue_ids))
+
     # Median of median
     if args.summary:
-        #for summary_stat in ('median', 'mean', 'mode'):
-        for summary_stat in ('mode',):
-            print '=========== %s ===========' % summary_stat
-            for question, agent_scores in question_scores.iteritems():
-                if question == 'comments':
-                    continue
-                print '------------- %s ---------------' % question
-                results = [(agent, summarize_scores(scores, summary_stat), get_total(scores)) for agent, scores in agent_scores.iteritems()]
-                results = sorted(results, key=lambda x: x[1], reverse=True)
-                for agent, stat, total in results:
-                    print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat, total)
+        summarize(question_scores)
+        if args.compare_transcripts:
+            summarize(question_scores2)
 
     if args.analyze:
         schema = Schema(args.schema_path)
