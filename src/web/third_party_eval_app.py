@@ -16,7 +16,7 @@ app = Flask(__name__)
 parser = argparse.ArgumentParser()
 parser.add_argument("--scenarios", type=str, help="path to scenarios file")
 parser.add_argument("--examples", type=str, help="path to examples file")
-parser.add_argument("--port", type=int, help="port to launch app on")
+parser.add_argument("--port", type=int, default=5000, help="port to launch app on")
 parser.add_argument("--num-evals-per-worker", type=int, help="number of evaluations per worker before redeeming code")
 parser.add_argument("--num-evals-per-dialogue", type=int, help="number of evaluations per dialogue ")
 args = parser.parse_args()
@@ -31,10 +31,15 @@ def init_database(db_path):
     """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, agent_mapping text, user_id text, agent_id integer, humanlike text, correct text, strategic text, cooperative text, fluent text)""")
+    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, agent_mapping text, user_id text, agent_id integer, humanlike text, correct text, strategic text,
+              cooperative text, fluent text, humanlike_text text, correct_text text, strategic_text text, cooperative_text text, fluent_text text)""")
+
     c.execute("""CREATE TABLE ActiveDialogues (dialogue_id text unique, scenario_id text, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
+
     c.execute("""CREATE TABLE CompletedDialogues(dialogue_id text, scenario_id text, agent_mapping text, num_agent0_evals integer, num_agent1_evals integer, timestamp text)""")
+
     c.execute("""CREATE TABLE ActiveUsers (user_id text unique, agent0_dialogues_evaluated text, agent1_dialogues_evaluated text, num_evals_completed integer, timestamp text)""")
+
     c.execute("""CREATE TABLE CompletedUsers (user_id text, mturk_code text, timestep text, num_evals_completed integer)""")
     conn.commit()
     conn.close()
@@ -135,7 +140,7 @@ def userid():
 def handle_submit():
     results = request.get_json()
 
-    pprint.pprint(results)
+    #pprint.pprint(results)
 
     backend = get_backend()
     print "USER ID: ", userid()
@@ -159,9 +164,8 @@ def index():
         dialogue = backend.get_dialogue(userid(), app)
         # If no dialogue found
         if dialogue is None:
-            #mturk_code = backend.get_finished_info(userid())
             return render_template("third_party_eval_finished.html",
-                               mturk_code=str(random.randint(0,10000)),
+                               mturk_code=str(random.randint(0, 10000)),
                                finished_message="You have exceeded the allowed number of dialogues to be evaluated and hence can no longer do these HITs! If you believe this"
                                                 " message was given in error, please contact us.")
         else:

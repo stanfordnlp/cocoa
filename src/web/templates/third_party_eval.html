@@ -21,13 +21,21 @@
         strategicVal = $("#strategic").val();
         coopVal = $("#cooperative").val();
         humanVal = $("#humanlike").val();
-        //fluentVal = document.getElementById("#myRange").value
+
+        fluentTextVal = $("#fluent_text").val();
+        correctTextVal = $("#correct_text").val();
+        strategicTextVal = $("#strategic_text").val();
+        coopTextVal = $("#cooperative_text").val();
+        humanTextVal = $("#humanlike_text").val();
+
         console.log("FLUENT: " + fluentVal);
         console.log("FLUENT: " + correctVal);
         console.log("FLUENT: " + strategicVal);
         console.log("FLUENT: " + humanVal);
 
-        if (humanVal == null | correctVal == null | strategicVal == null | fluentVal == null | coopVal == null){
+        console.log("FLUENT TEXT: " + fluentTextVal);
+
+        if (humanVal == null | correctVal == null | strategicVal == null | fluentVal == null | coopVal == null | humanTextVal == "" | fluentTextVal == "" | correctTextVal == "" | strategicTextVal == "" | coopTextVal == ""){
             return false;
         }
         else{
@@ -36,6 +44,12 @@
             questionAnswers["strategic"] = strategicVal;
             questionAnswers["fluent"] = fluentVal;
             questionAnswers["cooperative"] = coopVal;
+
+            questionAnswers["humanlike_text"] = humanTextVal;
+            questionAnswers["correct_text"] = correctTextVal;
+            questionAnswers["strategic_text"] = strategicTextVal;
+            questionAnswers["fluent_text"] = fluentTextVal;
+            questionAnswers["cooperative_text"] = coopTextVal;
 
             return true;
         }
@@ -53,7 +67,6 @@
                 contentType: "application/json; charset=utf-8",
                 dataType: "json",
                 success: function(data){
-                    //alert("SUCCESS");
                     console.log(JSON.stringify(data));
                     window.location.reload(true);
                 },
@@ -62,7 +75,7 @@
                 }
                 })
             }else{
-                alert("You have not selected an answer for every question. Please do so before submitting the HIT.");
+                alert("You have not provided an answer for every question. Please do so before submitting the HIT.");
             }
 
         });
@@ -170,7 +183,9 @@
                        </li>
                    </ul> <br> <br>
 
-                <strong>NOTE</strong>: You will be evaluating <strong>5</strong> distinct dialogues for both agents. <br>
+                <strong>NOTE: </strong> Make sure to include examples for every question in the associated textboxes or <strong>YOUR WORK WILL NOT BE ACCEPTED</strong>. <br><br>
+
+                <strong>NOTE: </strong> You will be evaluating <strong>5</strong> distinct dialogues for both agents. <br>
 
         </header>
         <br>
@@ -232,6 +247,13 @@
         <br> <br>
 
         <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>fluent</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="fluent_text"></textarea>
+        </div>
+
+        <br><br>
+
+        <div class="q">
            <p style="text-align:center;">How <strong>factually-correct</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_c">
                 <p style="float:left;">Not very correct (0%)</p>
@@ -241,6 +263,13 @@
         </div>
 
         <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>factually correct</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="correct_text"></textarea>
+        </div>
+
+        <br><br>
 
         <div class="q">
             <p style="text-align:center;">How <strong>strategic</strong> is Agent {{agent_id + 1}}?</p> <br>
@@ -254,6 +283,13 @@
         <br> <br>
 
         <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>strategic</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="strategic_text"></textarea>
+        </div>
+
+        <br><br>
+
+        <div class="q">
             <p style="text-align:center;">How <strong>cooperative</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_co">
                 <p style="float:left;">Not very cooperative</p>
@@ -265,6 +301,13 @@
         <br> <br>
 
         <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>cooperative</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="cooperative_text"></textarea>
+        </div>
+
+        <br><br>
+
+        <div class="q">
             <p style="text-align:center;">How <strong>human-like</strong> is Agent {{agent_id + 1}}?</p> <br>
             <form id="q_h">
                 <p style="float:left;">Not very human-like</p>
@@ -273,9 +316,14 @@
             </form>
         </div>
 
-        <br>
+        <br><br>
 
-        <br>
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>humanlike</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="humanlike_text"></textarea>
+        </div>
+
+        <br><br>
 
 
         <div class="buttons" style="text-align:center;">
