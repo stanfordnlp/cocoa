@@ -18,36 +18,31 @@
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
         correctVal = $("#correct").val();
-        strategicVal = $("#strategic").val();
         coopVal = $("#cooperative").val();
         humanVal = $("#humanlike").val();
 
         fluentTextVal = $("#fluent_text").val();
         correctTextVal = $("#correct_text").val();
-        strategicTextVal = $("#strategic_text").val();
         coopTextVal = $("#cooperative_text").val();
         humanTextVal = $("#humanlike_text").val();
 
         console.log("FLUENT: " + fluentVal);
         console.log("FLUENT: " + correctVal);
-        console.log("FLUENT: " + strategicVal);
         console.log("FLUENT: " + humanVal);
 
         console.log("FLUENT TEXT: " + fluentTextVal);
 
-        if (humanVal == null | correctVal == null | strategicVal == null | fluentVal == null | coopVal == null | humanTextVal == "" | fluentTextVal == "" | correctTextVal == "" | strategicTextVal == "" | coopTextVal == ""){
+        if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null | humanTextVal == "" | fluentTextVal == "" | correctTextVal == "" | coopTextVal == ""){
             return false;
         }
         else{
             questionAnswers["humanlike"] = humanVal;
             questionAnswers["correct"] = correctVal;
-            questionAnswers["strategic"] = strategicVal;
             questionAnswers["fluent"] = fluentVal;
             questionAnswers["cooperative"] = coopVal;
 
             questionAnswers["humanlike_text"] = humanTextVal;
             questionAnswers["correct_text"] = correctTextVal;
-            questionAnswers["strategic_text"] = strategicTextVal;
             questionAnswers["fluent_text"] = fluentTextVal;
             questionAnswers["cooperative_text"] = coopTextVal;
 
@@ -121,7 +116,8 @@
                    each of the attributes we will be asking about, with examples of these attributes sorted from highest to lowest: <br> <br>
                    <ul style="margin-left: 30px;">
                         <li>
-                            <span style="color:blue"><strong>VERY FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent?
+                            <span style="color:blue"><strong>FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent? <strong>NOTE: </strong>
+                            Shorter, more informal sentences are okay as long as they are understandable.
                             <ul style="margin-left: 50px;">
                                 <li> <span style="color:red">FLUENT (Score=5)</span>: Saying things like <i>Most of my friends went to Ohio State</i>
                                 </li>
@@ -144,22 +140,6 @@
                                 </li>
                             </ul>
                         </li><br>
-                       <li>
-                            <span style="color:blue"><strong>STRATEGIC</strong></span>: How useful are the statements made by the agent? Since the two agents
-                           are trying to find their common friend as quickly as possible, how good do the questions asked by the agent
-                           seem, and how useful is the information they share about their friends to helping find the common friend as quickly as possible?
-                           <ul style="margin-left: 50px;">
-                                <li> <span style="color:red">VERY STRATEGIC (Score=5)</span>: If the agent has one friend that likes evenings and the rest like mornings,
-                                    and the agent says <i>I have only one evening</i>
-                                </li>
-                               <li> <span style="color:red">SOMEWHAT STRATEGIC (Score=3)</span>: If the agent
-                                just lists all the places that their friends go to school.
-                                </li>
-                                <li> <span style="color:red">NOT VERY STRATEGIC (Score=1)</span>: If the  agent
-                           has no friends that worked at McKinsey but they ask <i>How many of your friends worked at McKinsey?</i>
-                                </li>
-                            </ul>
-                       </li> <br>
                        <li>
                             <span style="color:blue"><strong>COOPERATIVE</strong></span>: How well does the agent interact with its partner? Since the two agents
                            are trying to find their common friend as quickly as possible, how well does the agent respond to questions asked by its partner?
@@ -271,23 +251,6 @@
 
         <br><br>
 
-        <div class="q">
-            <p style="text-align:center;">How <strong>strategic</strong> is Agent {{agent_id + 1}}?</p> <br>
-            <form id="q_s">
-                <p style="float:left;">Not very strategic</p>
-                <input type="range" id="strategic" min="1" max="5" style="width:50%; margin-left:13%" >
-                <p style="float:right;">Very strategic</p>
-            </form>
-        </div>
-
-        <br> <br>
-
-        <div class="q">
-            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>strategic</strong></p> <br>
-            <textarea style="width:100%;" rows="4" cols="50" id="strategic_text"></textarea>
-        </div>
-
-        <br><br>
 
         <div class="q">
             <p style="text-align:center;">How <strong>cooperative</strong> is Agent {{agent_id + 1}}?</p> <br>

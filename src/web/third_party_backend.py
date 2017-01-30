@@ -86,10 +86,10 @@ class BackendConnection(object):
 
 
                 # Record answers to evaluation
-                cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, agent_mapping, userid, agent_id, results["humanlike"],
-                                                                                      results["correct"], results["strategic"], results["cooperative"],
+                cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, agent_mapping, userid, agent_id, results["humanlike"],
+                                                                                      results["correct"], results["cooperative"],
                                                                                       results["fluent"], results["humanlike_text"], results["correct_text"],
-                                                                                      results["strategic_text"], results["cooperative_text"], results["fluent_text"]))
+                                                                                      results["cooperative_text"], results["fluent_text"]))
                 if agent_id == 0:
                     num_agent0_evals += 1
                 else:

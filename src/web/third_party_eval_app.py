@@ -31,8 +31,8 @@ def init_database(db_path):
     """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, agent_mapping text, user_id text, agent_id integer, humanlike text, correct text, strategic text,
-              cooperative text, fluent text, humanlike_text text, correct_text text, strategic_text text, cooperative_text text, fluent_text text)""")
+    c.execute("""CREATE TABLE Responses (dialogue_id text, scenario_id text, agent_mapping text, user_id text, agent_id integer, humanlike text, correct text,
+              cooperative text, fluent text, humanlike_text text, correct_text text, cooperative_text text, fluent_text text)""")
 
     c.execute("""CREATE TABLE ActiveDialogues (dialogue_id text unique, scenario_id text, events text, column_names text, agent_mapping text, agent0_kb text, agent1_kb text, num_agent0_evals integer, num_agent1_evals integer)""")
 
