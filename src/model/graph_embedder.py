@@ -107,13 +107,14 @@ class GraphEmbedder(object):
                     return self.pass_message(messages, node_paths, self.config.pad_path_id)
 
                 node_embeds = [initial_node_embed]
-                # NOTE: initial MP uses different parameters because the node_embed_size is different
-                with tf.variable_scope('InitialMP'):
-                    node_embeds.append(mp(node_embeds[-1]))
-                for i in xrange(self.config.mp_iters-1):
-                    if i > 0:
-                        tf.get_variable_scope().reuse_variables()
-                    node_embeds.append(mp(node_embeds[-1]))
+                if self.config.mp_iters > 0:
+                    # NOTE: initial MP uses different parameters because the node_embed_size is different
+                    with tf.variable_scope('InitialMP'):
+                        node_embeds.append(mp(node_embeds[-1]))
+                    for i in xrange(self.config.mp_iters-1):
+                        if i > 0:
+                            tf.get_variable_scope().reuse_variables()
+                        node_embeds.append(mp(node_embeds[-1]))
 
         context = tf.concat(2, node_embeds)
 

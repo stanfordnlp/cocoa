@@ -239,7 +239,8 @@ def index():
                                instructions=Markup(app.config['instructions']),
                                icon=app.config['task_icon'],
                                partner_kb=partner_kb,
-                               quit_enabled=app.config['user_params']['status_params']['chat']['num_seconds'] - app.config['user_params']['quit_after'])
+                               quit_enabled=app.config['user_params']['skip_chat_enabled'],
+                               quit_after=app.config['user_params']['status_params']['chat']['num_seconds'] - app.config['user_params']['quit_after'])
     elif status == Status.Survey:
         survey_info = backend.get_survey_info(userid())
         return render_template('task_survey.html',

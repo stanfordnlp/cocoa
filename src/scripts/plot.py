@@ -1,5 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
+font_size = 18
+matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 import argparse
 from src.basic.util import read_json, read_pickle
@@ -19,7 +21,8 @@ args = parser.parse_args()
 
 if args.ngram_freqs:
     stats = {}
-    stats_files = ['%s_ngram_counts.pkl' % x for x in args.stats]
+    #stats_files = ['%s_ngram_counts.pkl' % x for x in args.stats]
+    stats_files = args.stats
     for name, stats_file in izip(args.names, stats_files):
         stats[name] = read_pickle(stats_file)
     k = 10
@@ -44,11 +47,12 @@ if args.ngram_freqs:
         plt.legend(loc='best')
         plt.xlabel('Percentage')
         plt.tight_layout()
-        plt.savefig(os.path.join(args.output, '%d-gram.png' % n))
+        plt.savefig(os.path.join(args.output, '%d-gram.pdf' % n))
 
 if args.utterance_freqs:
     stats = {}
-    stats_files = ['%s_utterance_counts.pkl' % x for x in args.stats]
+    #stats_files = ['%s_utterance_counts.pkl' % x for x in args.stats]
+    stats_files = args.stats
     for name, stats_file in izip(args.names, stats_files):
         bigram_counts = read_pickle(stats_file)
         stats[name] = defaultdict(int, {(k1, k2): v for k1, d in bigram_counts.iteritems() for k2, v in d.iteritems()})
@@ -77,12 +81,14 @@ if args.utterance_freqs:
         plt.legend(loc='best')
         plt.xlabel('Percentage')
         plt.tight_layout()
-        plt.savefig(os.path.join(args.output, '%d-utterance.png' % n))
+        plt.savefig(os.path.join(args.output, '%d-utterance.pdf' % n))
 
 if args.completion:
     styles = ['r-o', 'b->', 'g-*', 'c-s', 'k-d', 'y-<']
-    assert len(args.stats) == len(args.names) and len(args.names) == len(styles)
-    stats_files = ['%s_stats.json' % x for x in args.stats]
+    assert len(args.stats) == len(args.names) and len(args.names) <= len(styles)
+    styles = styles[:len(args.stats)]
+    #stats_files = ['%s_stats.json' % x for x in args.stats]
+    stats_files = args.stats
 
     for name, stat_file, style in izip(args.names, stats_files, styles):
         data = read_json(stat_file)['total']['turns_vs_completed']
@@ -93,7 +99,7 @@ if args.completion:
     plt.xlabel('Number of turns')
     plt.ylabel('Cumulative completion rate')
     plt.legend(loc='best')
-    plt.savefig(os.path.join(args.output, 'turns.png'))
+    plt.savefig(os.path.join(args.output, 'turns.pdf'))
 
     plt.cla()
     for name, stat_file, style in izip(args.names, args.stats, styles):
@@ -106,4 +112,4 @@ if args.completion:
     plt.ylabel('Cumulative completion rate')
     plt.legend(loc='best')
     plt.tight_layout()
-    plt.savefig(os.path.join(args.output, 'select.png'))
+    plt.savefig(os.path.join(args.output, 'select.pdf'))

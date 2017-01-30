@@ -7,6 +7,8 @@ import os
 import shutil
 import warnings
 import atexit
+from signal import signal, SIGTERM
+import sys
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
@@ -14,10 +16,8 @@ from src.web.dump_events_to_json import log_transcripts_to_json
 from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.heuristic_system import HeuristicSystem
 from src.basic.systems.neural_system import NeuralSystem
 from src.basic.systems.human_system import HumanSystem
-from main import backend
 from gevent.wsgi import WSGIServer
 from src.basic.lexicon import Lexicon, add_lexicon_arguments
 from src.basic.inverse_lexicon import InverseLexicon
@@ -62,10 +62,11 @@ def init_database(db_file):
         '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
     )
     c.execute(
-        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text)'''
+        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
+        start_time text)'''
     )
     c.execute(
-        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer,
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer, active integer,
         PRIMARY KEY (scenario_id, partner_type))'''
     )
 
@@ -79,7 +80,7 @@ def add_scenarios_to_db(db_file, scenario_db, systems):
     for scenario in scenario_db.scenarios_list:
         sid = scenario.uuid
         for agent_type in systems.keys():
-            c.execute('''INSERT INTO scenario VALUES (?,?, 0)''', (sid, agent_type))
+            c.execute('''INSERT INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
 
     conn.commit()
     conn.close()
@@ -125,7 +126,7 @@ def add_systems(config_dict, schema, lexicon, realizer):
 def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
-    log_transcripts_to_json(app.config['scenario_db'], db_path, transcript_path, None)
+    log_transcripts_to_json(flask_app.config['scenario_db'], db_path, transcript_path, None)
 
 
 def init(output_dir):
@@ -145,6 +146,7 @@ def init(output_dir):
     os.makedirs(transcripts_dir)
 
     return db_file, log_file, transcripts_dir
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -204,9 +206,13 @@ if __name__ == "__main__":
     if 'models' not in params.keys():
         params['models'] = {}
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
     if 'quit_after' not in params.keys():
         params['quit_after'] = params['status_params']['chat']['num_seconds'] + 1
+
+    if 'skip_chat_enabled' not in params.keys():
+        params['skip_chat_enabled'] = False
+
+    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
 
     add_scenarios_to_db(db_file, scenario_db, systems)
 
@@ -224,8 +230,9 @@ if __name__ == "__main__":
         app.config['task_icon'] = 'handshake.jpg'
     else:
         app.config['task_icon'] = params['icon']
-    atexit.register(cleanup, flask_app=app)
+
     print "App setup complete"
 
     server = WSGIServer(('', args.port), app)
+    atexit.register(cleanup, flask_app=app)
     server.serve_forever()

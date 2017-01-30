@@ -8,7 +8,6 @@ from collections import defaultdict
 from itertools import izip
 from src.model.preprocess import word_to_num
 import random
-from nltk.corpus import stopwords
 import matplotlib
 import matplotlib.pyplot as plt
 from itertools import izip
@@ -272,7 +271,14 @@ alpha_labels_to_values = {NO_ALPHA_MENTION: 0., 'least_uniform': 1., 'medium': 2
 alpha_values_to_labels = {0: NO_ALPHA_MENTION, 1: 'least_uniform', 2: 'medium', 3: 'most_uniform'}
 
 
-def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
+def count_to_entropy(counts, vocab):
+    #print counts.keys()
+    total = float(sum(counts.values()))
+    probs = np.array([v / total for k, v in counts.iteritems()])
+    entropy = np.dot(np.log(probs), probs) * -1.
+    return entropy
+
+def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, vocab):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
@@ -286,6 +292,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     alpha_stats = {}
     num_attrs_mentioned = 0.
     most_mentioned_attrs = 0.
+    utterance_summary_map = {}
 
     total_events = 0
     total_dialogues = 0.
@@ -314,6 +321,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
                     for token in utterance:
                         if is_entity(token):
                             mentioned_entities.add(token[1][0])
+                    logstats.update_summary_map(dialog_summary_map, {'utterance_length': len(utterance)})
                     check_fact(fact_summary_map, utterance, kbs[event.agent])
                     if lm:
                         logstats.update_summary_map(lm_summary_map, {'score': lm.score(' '.join(entity_to_type(utterance)))})
@@ -377,6 +385,11 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     print alpha_stats
     dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
     dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
+
+    unigram_counts = {k[0]: v for k, v in ngram_counts[1].iteritems() if vocab.has(k[0])}
+    dialog_stats['vocab_size'] = len(unigram_counts)
+    dialog_stats['unigram_entropy'] = count_to_entropy(unigram_counts, vocab)
+
     return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
             'dialog_stats': dialog_stats,
@@ -456,8 +469,8 @@ def get_linguistic_template(template_summary_map, utterance):
         if is_entity(token):
             template.append('<%s>' % get_entity_type(token))
         else:
-            if token not in stopwords.words('english'):
-                template.append(token)
+            #if token not in stopwords.words('english'):
+            template.append(token)
 
     k = tuple(template)
     if k not in template_summary_map.keys():
@@ -576,6 +589,16 @@ def get_select_vs_completed(all_chats):
             logstats.update_summary_map(num_select_dict[num_select], {'complete': 1 if chat["outcome"]["reward"] == 1 else 0})
     return {k: v['complete']['sum'] for k, v in num_select_dict.iteritems()}
 
+def get_average_select(all_chats):
+    num_select = 0
+    num_chat = 0
+    for chat in all_chats:
+        if chat["outcome"] is not None:
+            events = [Event.from_dict(e) for e in chat["events"]]
+            num_select += len([e for e in events if e.action == 'select'])
+            num_chat += 1
+    return num_select / float(num_chat)
+
 def get_num_completed(all_chats, scenario_db, alphas=None, num_items=None):
     num_complete = 0.0
     for chat in all_chats:
@@ -638,6 +661,7 @@ def get_total_statistics(all_chats, scenario_db):
     stats = {
         'avg_time_taken': get_average_time_taken(all_chats, scenario_db),
         'avg_turns': get_average_sentences(all_chats, scenario_db),
+        'avg_select': get_average_select(all_chats),
         'turns_vs_completed': get_turns_vs_completed(all_chats),
         'select_vs_completed': get_select_vs_completed(all_chats),
         'avg_sentence_length': get_average_length(all_chats, scenario_db),
@@ -651,6 +675,8 @@ def get_total_statistics(all_chats, scenario_db):
     for t in stats['select_vs_completed']:
         stats['select_vs_completed'][t] /= total
     stats['completion_rate'] = stats['num_completed'] / total
+    stats['completion_per_turn'] = stats['completion_rate'] / stats['avg_turns']
+    stats['completion_per_select'] = stats['completion_rate'] / stats['avg_select']
     return stats
 
 
@@ -788,7 +814,6 @@ def get_top_k_from_counts(n, counts):
     #return {k: v for (k, v) in sorted_counts[:n]}
     return sorted_counts[:n]
 
-
 def print_strategy_stats(stats):
     speech_act_stats = stats['speech_act']
     dialogue_stats = stats['dialog_stats']
@@ -798,6 +823,11 @@ def print_strategy_stats(stats):
     ngram_counts = stats['ngram_counts']
     template_counts = stats['linguistic_templates']
     speech_act_sequences = stats['speech_act_sequences']
+
+    print "-----------------------------------"
+    print 'Vocabulary size:', dialogue_stats['vocab_size']
+    print 'Unigram entropy:', dialogue_stats['unigram_entropy']
+
 
     print "-----------------------------------"
     print 'Speech act statistics:'
@@ -858,6 +888,7 @@ def print_strategy_stats(stats):
     top_templates = get_top_k_from_counts(k, template_counts)
     for template, v in top_templates:
         print '%s: %.3f' % (" ".join(template), v)
+    print '# templates:', len(template_counts)
 
     k = 10
     print "-----------------------------------"
