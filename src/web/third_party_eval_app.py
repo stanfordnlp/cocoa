@@ -101,12 +101,22 @@ def init_dialogues(db_path):
                 event["data"] = new_data
                 msg_events.append(event)
 
+
+        try:
+            c.execute("SELECT dialogue_id FROM CompletedDialogues")
+            d_ids = set([d_id[0] for d_id in c.fetchall()])
+        except:
+            print "No Completed dialogues table"
+
         dialogue_id = ex["uuid"]
         agents_mapping = ex["agents"]
         if len(agents_present) == 2:
-            c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
-                (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
-                json.dumps(agent1_kb), 0, 0))
+            if dialogue_id not in d_ids:
+                c.execute("""INSERT OR IGNORE INTO ActiveDialogues VALUES (?,?,?,?,?,?,?,?,?) """,
+                    (dialogue_id, scenario_id, json.dumps(msg_events), json.dumps(column_names), json.dumps(agents_mapping), json.dumps(agent0_kb),
+                    json.dumps(agent1_kb), 0, 0))
+            else:
+                print "Skipping dialogue id: ", dialogue_id
         else:
             print "Skipped: ", dialogue_id
 

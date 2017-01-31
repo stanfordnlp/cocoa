@@ -95,9 +95,9 @@ class BackendConnection(object):
                 else:
                     num_agent1_evals += 1
 
-                print "Dialogue ID: ", results["dialogue_id"]
-                print "Num agent 0 evals: ", num_agent0_evals
-                print "Num agent 1 evals: ", num_agent1_evals
+                #print "Dialogue ID: ", results["dialogue_id"]
+                #print "Num agent 0 evals: ", num_agent0_evals
+                #print "Num agent 1 evals: ", num_agent1_evals
 
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
                 if num_agent0_evals >= app.config["num_evals_per_dialogue"] and num_agent1_evals >= app.config["num_evals_per_dialogue"]:
@@ -179,7 +179,7 @@ class BackendConnection(object):
                 print dialogues_evaluated
                 agent0_dialogues_evaluated = set(json.loads(dialogues_evaluated[0]))
                 agent1_dialogues_evaluated = set(json.loads(dialogues_evaluated[1]))
-                print "EVALUATED: ", agent0_dialogues_evaluated, "\t", agent1_dialogues_evaluated
+                #print "EVALUATED: ", agent0_dialogues_evaluated, "\t", agent1_dialogues_evaluated
                 selected = None
                 count = 0
                 while True:
