@@ -1,4 +1,8 @@
 __author__ = 'anushabala'
+import matplotlib
+matplotlib.use('Agg')
+font_size = 18
+matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 import numpy as np
@@ -22,7 +26,7 @@ def visualize(question, responses_tuples, titles, save_path):
 
     # add some text for labels, title and axes ticks
     ax.set_ylabel('Percentage')
-    ax.set_title('%s Percentages By Model' % question)
+    #ax.set_title('%s Percentages By Model' % question)
     ax.set_xticks(2*width + ind)
     ax.set_xticklabels(('Bad', 'Mediocre', 'Acceptable', 'Good', 'Excellent'))
 

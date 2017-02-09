@@ -61,13 +61,23 @@ def get_html_for_transcript(chat, agent=None, partner_type='Human'):
 
     return completed, chat_html
 
+questions = ['fluent', 'fluent_text', 'correct', 'correct_text', 'cooperative', 'cooperative_text', 'strategic', 'strategic_text', 'humanlike', 'humanlike_text', 'comments']
+
 def render_response(response):
     html = ["<div>"]
     html.append('<table style=\"width:50%\">')
     html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in ('Question', 'Response', 'Median', 'Mean')])))
-    for question, scores in response.iteritems():
+    #for question, scores in response.iteritems():
+    for question in questions:
+        if question not in response:
+            continue
+        else:
+            scores = response[question]
         if question != 'comments':
-            html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in (question, ' / '.join([str(x) for x in scores]), np.median(scores), np.mean(scores))])))
+            if question.endswith('text'):
+                html.append('<tr><td colspan=3>%s</td></tr>' % u'||</br>'.join(scores).encode('utf-8'))
+            else:
+                html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in (question, ' / '.join([str(x) for x in scores]), np.median(scores), np.mean(scores))])))
     if 'comments' in response:
         comment_str = response['comments'][0]
         if len(comment_str) > 0:
@@ -111,7 +121,7 @@ def visualize_chat(chat, scenario_db, agent=None, partner_type='Human', response
     scenario_html = render_scenario(scenario_db.get(chat["scenario_uuid"]))
 
     html_lines = []
-    html_lines.append('<h4>Scenario</h4>')
+    html_lines.append('<h4>Scenario %s</h4>' % chat["scenario_uuid"])
     html_lines.extend(scenario_html)
     if id_ is not None:
         html_lines.append('<h4>Dialogue %s</h4>' % str(id_))
