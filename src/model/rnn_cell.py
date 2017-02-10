@@ -96,9 +96,6 @@ class AttnRNNCell(object):
                 attns = activation(batch_linear(feature, attn_size, False))  # (batch_size, context_len, attn_size)
             with tf.variable_scope('Project'):
                 attns = tf.squeeze(batch_linear(attns, 1, False), [2])  # (batch_size, context_len)
-                #if self.checklist:
-                #    weight = tf.get_variable('cl_weight', [])
-                #    attns = attns - tf.scalar_mul(weight, tf.squeeze(checklist, [2]))
         return attns
 
     def _score_context_bilinear(self, h, context):
@@ -168,38 +165,4 @@ class AttnRNNCell(object):
             # Output
             new_output = self.output_with_attention(output, attn)
             return (new_output, attn_scores), (rnn_state, attn, prev_context)
-
-class PreselectAttnRNNCell(AttnRNNCell):
-    '''
-    Attention RNN cell that pre-selects a set of items from the context.
-    '''
-    def select(self, init_output, context):
-        context_len = tf.shape(context)[1]
-        init_state = tf.tile(tf.expand_dims(init_output, 1), [1, context_len, 1])  # (batch_size, context_len, rnn_size)
-        with tf.variable_scope('SelectEntity'):
-            selection = batch_linear(tf.concat(2, [init_state, context]), 1, True)  # (batch_size, context_len, 1)
-            selection_scores = tf.squeeze(selection, [2])
-            selection = tf.sigmoid(selection)
-            selected_context = tf.reduce_sum(tf.mul(selection, context), 1)  # (batch_size, context_size)
-            # Normalize
-            selected_context = tf.div(selected_context, (tf.reduce_sum(selection, 1) + EPS))
-        return selected_context, selection_scores
-
-    def init_state(self, rnn_state, rnn_output, context, checklist):
-        attn, scores = self.compute_attention(rnn_output, context, checklist)
-        selected_context, selection_scores = self.select(rnn_output, context[0])
-        return (rnn_state, attn, context, selected_context, selection_scores)
-
-    def __call__(self, inputs, state, scope=None):
-        with tf.variable_scope(scope or type(self).__name__):
-            prev_rnn_state, prev_attn, prev_context, selected_context, selection_scores = state
-            inputs, checklist = inputs
-            # RNN step
-            new_inputs = tf.concat(1, [inputs, prev_attn, selected_context])
-            output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
-            # No update in context inside an utterance
-            attn, attn_scores = self.compute_attention(output, prev_context, checklist)
-            # Output
-            new_output = self.output_with_attention(output, attn)
-            return (new_output, attn_scores), (rnn_state, attn, prev_context, selected_context, selection_scores)
 

@@ -87,7 +87,6 @@ class Learner(object):
             decoder_args['init_checklists'] = init_checklists
             encoder_args['entities'] = encoder_nodes
             decoder_args['entities'] = decoder_nodes
-            decoder_args['cheat_selection'] = decoder_nodes
             decoder_args['encoder_entities'] = encoder_nodes
 
         feed_dict = self.model.get_feed_dict(**kwargs)
@@ -127,21 +126,20 @@ class Learner(object):
             init_checklists = graphs.get_zero_checklists(1)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, graph_data, graphs, self.data.copy, init_checklists, graph_data['encoder_nodes'], graph_data['decoder_nodes'], matched_items)
             if test:
-                logits, final_state, utterances, loss, seq_loss, total_loss, sel_loss = sess.run(
+                logits, final_state, utterances, loss, seq_loss, total_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
-                         self.model.loss, self.model.seq_loss, self.model.total_loss, self.model.select_loss],
+                         self.model.loss, self.model.seq_loss, self.model.total_loss],
                         feed_dict=feed_dict)
             else:
-                _, logits, final_state, utterances, loss, seq_loss, sel_loss, gn = sess.run(
+                _, logits, final_state, utterances, loss, seq_loss, gn = sess.run(
                         [self.train_op,
                          self.model.decoder.output_dict['logits'],
                          self.model.decoder.output_dict['final_state'],
                          self.model.decoder.output_dict['utterances'],
                          self.model.loss,
                          self.model.seq_loss,
-                         self.model.select_loss,
                          self.grad_norm], feed_dict=feed_dict)
             # NOTE: final_state = (rnn_state, attn, context)
             encoder_init_state = final_state[0]
@@ -156,7 +154,6 @@ class Learner(object):
                 logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
             else:
                 logstats.update_summary_map(summary_map, {'loss': loss})
-                logstats.update_summary_map(summary_map, {'sel_loss': sel_loss})
                 logstats.update_summary_map(summary_map, {'grad_norm': gn})
 
     def _run_batch_basic(self, dialogue_batch, sess, summary_map, test=False):
@@ -266,8 +263,8 @@ class Learner(object):
                     print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
                     print '================== Sampling =================='
                     start_time = time.time()
-                    bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1), (pre_prec, pre_recall, pre_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
-                    print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f prepend_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, pre_prec, pre_recall, pre_f1, time.time() - start_time)
+                    bleu, (ent_prec, ent_recall, ent_f1) = self.evaluator.test_bleu(sess, test_data, num_batches)
+                    print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, time.time() - start_time)
 
                     # Start to record no improvement epochs
                     if split == 'dev' and epoch > args.min_epochs:

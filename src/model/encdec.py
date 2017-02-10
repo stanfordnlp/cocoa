@@ -1,13 +1,12 @@
 '''
-NN models that take a sequence of words and actions.
-Encode when action is read and decode when action is write.
+Encoder-decoder models.
 '''
 
 import tensorflow as tf
 import numpy as np
 from itertools import izip
 from tensorflow.python.util import nest
-from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell, PreselectAttnRNNCell
+from src.model.rnn_cell import AttnRNNCell, add_attention_arguments, build_rnn_cell
 from src.model.graph import Graph, GraphMetadata
 from src.model.graph_embedder import GraphEmbedder
 from src.model.graph_embedder_config import GraphEmbedderConfig
@@ -24,11 +23,7 @@ def add_model_arguments(parser):
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     parser.add_argument('--bow-utterance', default=False, action='store_true', help='Use sum of word embeddings as utterance embedding')
-    parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
-    parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
-    parser.add_argument('--preselect', default=False, action='store_true', help='Pre-select entities before decoding')
     parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
-    parser.add_argument('--reward', nargs='+', default=None, help='Reward for selection and success')
     parser.add_argument('--node-embed-in-rnn-inputs', default=False, action='store_true', help='Add node embedding of entities as inputs to the RNN')
     parser.add_argument('--no-graph-update', default=False, action='store_true', help='Do not update the KB graph during the dialogue')
 
@@ -52,26 +47,12 @@ def build_model(schema, mappings, args):
     else:
         raise('Unknown decoding method')
 
-    try:
-        if args.reward is not None:
-            reward = [float(x) for x in args.reward]
-        else:
-            reward = None
-    # TODO: (remove this) Compatible with old models
-    except AttributeError:
-        reward = None
-
-    try:
-        update_graph = (not args.no_graph_update)
-        node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
-    # TODO: (remove this) Compatible with old models
-    except AttributeError:
-        update_graph = True
-        node_embed_in_rnn_inputs = True
+    update_graph = (not args.no_graph_update)
+    node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select, reward)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select)
         model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
@@ -82,18 +63,10 @@ def build_model(schema, mappings, args):
         graph_embedder = GraphEmbedder(graph_embedder_config)
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         elif args.model == 'attn-copy-encdec':
-            if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
-                sup_gate = args.sup_gate
-            else:
-                if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
-                else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
-                sup_gate = False
-        model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, sup_gate)
+            decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+        model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select)
     else:
         raise ValueError('Unknown model')
     return model
@@ -108,7 +81,6 @@ class Sampler(object):
     '''
     def __init__(self, t, select=None):
         self.t = t  # Temperature
-        self.repeat_penalty = 2.
         # If select is not None, we will down weight <select> during sampling
         self.select = select
 
@@ -341,16 +313,10 @@ class GraphEncoder(BasicEncoder):
         return self.run(sess, ('final_state', 'final_output', 'utterances', 'context'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sample_t=0, sample_select=None, reward=None):
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sample_t=0, sample_select=None):
         super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.num_symbols = num_symbols
         self.sampler = Sampler(sample_t, sample_select)
-        if reward is not None:
-            self.add_reward = True
-            self.select_penalty = -1. * reward[0]
-            self.success_reward = 1. * reward[1]
-        else:
-            self.add_reward = False
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
@@ -379,44 +345,11 @@ class BasicDecoder(BasicEncoder):
         logits = tf.log(tf.clip_by_value(exp_logits, 1e-10, 1e10)) - tf.log(tf.clip_by_value((tf.cumsum(exp_logits, axis=1) - exp_logits), 1e-10, 1e10))
         return logits
 
-    # TODO: add a Loss class?
     def compute_loss(self, targets, pad, select):
         logits = self.output_dict['logits']
         loss, seq_loss, total_loss = self._compute_loss(logits, targets, pad)
-        if self.add_reward:
-            loss += self._compute_penalty(logits, targets, self.matched_items, pad, select, self.select_penalty, self.success_reward)
         # -1 is selection loss
         return loss, seq_loss, total_loss, tf.constant(-1)
-
-    @classmethod
-    def _compute_penalty(cls, logits, targets, matched_items, pad, select, select_penalty, success_reward):
-        '''
-        matched_items: (batch_size,) in the range of num_symbols
-        '''
-        batch_size = tf.shape(logits)[0]
-        num_symbols = tf.shape(logits)[2]
-        logprobs = tf.log(tf.nn.softmax(logits) + EPS)
-        pad_mask = tf.not_equal(targets, pad)
-
-        correct_items = tf.one_hot(matched_items, num_symbols, on_value=1, off_value=0)  # (batch_size, num_symbols)
-        # Pick correct select utterances
-        select_utterances = tf.equal(targets[:, 0], select)  # (batch_size,)
-        mask = tf.cast(tf.where(select_utterances, correct_items, tf.zeros_like(correct_items)), tf.bool)  # (batch_size, num_symbols)
-        item_logprobs = logprobs[:, 1, :]
-        correct_item_logprobs = tf.reduce_sum(tf.where(mask, item_logprobs, tf.zeros_like(item_logprobs)), 1)
-        success_loss = -1 * success_reward *  correct_item_logprobs
-
-        # Only penalize incorrect select
-        select_loss = logprobs[:, 0, select] * select_penalty  # (batch_size,)
-        mask = tf.logical_and(select_utterances, tf.equal(targets[:, 1], matched_items))
-        select_loss = tf.where(mask, tf.zeros_like(select_loss), select_loss)
-
-        success_loss = tf.where(mask, success_loss, tf.zeros_like(success_loss))
-
-        loss = select_loss + success_loss
-        loss = tf.where(pad_mask[:, 0], loss, tf.zeros_like(loss))
-
-        return tf.reduce_sum(loss) / tf.to_float(batch_size)
 
     @classmethod
     def _compute_loss(cls, logits, targets, pad):
@@ -479,15 +412,9 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None, node_embed_in_rnn_inputs=False, update_graph=True):
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, node_embed_in_rnn_inputs=False, update_graph=True):
         super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance, node_embed_in_rnn_inputs, update_graph)
         self.sampler = Sampler(sample_t, sample_select)
-        if reward is not None:
-            self.add_reward = True
-            self.select_penalty = -1. * reward[0]
-            self.success_reward = 1. * reward[1]
-        else:
-            self.add_reward = False
         self.num_symbols = num_symbols
         self.utterance_id = 1
         self.scorer = scoring
@@ -497,8 +424,6 @@ class GraphDecoder(GraphEncoder):
     def compute_loss(self, targets, pad, select):
         logits = self.output_dict['logits']
         loss, seq_loss, total_loss = BasicDecoder._compute_loss(logits, targets, pad)
-        if self.add_reward:
-            loss += BasicDecoder._compute_penalty(logits, targets, self.matched_items, pad, select, self.select_penalty, self.success_reward)
         # -1 is selection loss
         return loss, seq_loss, total_loss, tf.constant(-1)
 
@@ -702,81 +627,6 @@ class CopyGraphDecoder(GraphDecoder):
         preds = textint_map.pred_to_input(preds)
         return preds
 
-class PreselectCopyGraphDecoder(CopyGraphDecoder):
-    '''
-    Decoder that pre-selects a set of entities before generation.
-    '''
-    def _build_rnn_cell(self):
-        return PreselectAttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.keep_prob, self.scorer, self.output_combiner, self.num_layers, self.checklist)
-
-    def _get_all_entities(self, entities):
-        '''
-        entities: (batch_size, seq_len) node_id at each step in the sequence
-        Return indicator vector (batch_size, num_nodes) of all entities in the sequence
-        '''
-        all_entities = tf.cumsum(tf.one_hot(entities, self.num_nodes, on_value=1, off_value=0), axis=1)
-        return tf.greater(all_entities, 0)
-
-    def _build_output_dict(self, rnn_outputs, rnn_states):
-        final_state = self._get_final_state(rnn_states)
-        selection_scores = final_state[-1]
-        outputs, attn_scores = rnn_outputs
-        self.output_dict.update({'outputs': outputs, 'attn_scores': attn_scores, 'final_state': final_state, 'selection_scores': selection_scores})
-
-    def compute_loss(self, targets, pad, select):
-        loss, seq_loss, total_loss, _ = super(PreselectCopyGraphDecoder, self).compute_loss(targets, pad, select)
-
-        entity_targets = self.output_dict['checklists'][:, -1, :]
-        entity_logits = self.output_dict['selection_scores']
-        mask = self.context[1]
-        entity_loss = tf.where(mask, tf.nn.sigmoid_cross_entropy_with_logits(entity_logits, entity_targets), tf.zeros_like(entity_logits))
-        #weights = tf.where(tf.equal(entity_targets, 1),
-        #        tf.ones_like(entity_targets) * 1.,
-        #        tf.ones_like(entity_targets) * 1.)
-        #entity_loss = entity_loss * weights
-        entity_loss = tf.reduce_sum(entity_loss) / tf.to_float(self.batch_size) / tf.to_float(self.num_nodes)
-        loss += entity_loss
-
-        return loss, seq_loss, total_loss, entity_loss
-
-class GatedCopyGraphDecoder(GraphDecoder):
-    '''
-    Decoder with copy mechanism over the attention context, where there is an additional gating
-    function deciding whether to generate from the vocab or to copy from the graph.
-    '''
-    def build_model(self, encoder_word_embedder, decoder_word_embedder, input_dict, time_major=True, scope=None):
-        super(GatedCopyGraphDecoder, self).build_model(encoder_word_embedder, decoder_word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
-        logits, gate_logits = self.output_dict['logits']
-        self.output_dict['logits'] = logits
-        self.output_dict['gate_logits'] = gate_logits
-
-    def _build_output(self, output_dict):
-        vocab_logits = super(GatedCopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
-        attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
-        rnn_outputs = transpose_first_two_dims(output_dict['outputs'])  # (batch_size, seq_len, output_size)
-        with tf.variable_scope('Gating'):
-            prob_vocab = tf.sigmoid(batch_linear(rnn_outputs, 1, True))  # (batch_size, seq_len, 1)
-            prob_copy = 1 - prob_vocab
-            log_prob_vocab = tf.log(prob_vocab + EPS)
-            log_prob_copy = tf.log(prob_copy + EPS)
-        # Reweight the vocab and attn distribution and convert them to logits
-        vocab_logits = log_prob_vocab + vocab_logits - tf.reduce_logsumexp(vocab_logits, 2, keep_dims=True)
-        attn_logits = log_prob_copy + attn_scores - tf.reduce_logsumexp(attn_scores, 2, keep_dims=True)
-        return tf.concat(2, [vocab_logits, attn_logits]), tf.concat(2, [log_prob_vocab, log_prob_copy])
-
-    def compute_loss(self, targets, pad, select):
-        loss, seq_loss, total_loss, select_loss = super(GatedCopyGraphDecoder, self).compute_loss(targets, pad, select)
-
-        vocab_size = self.num_symbols
-        # 0: vocab 1: copy
-        targets = tf.cast(tf.greater_equal(targets, vocab_size), tf.int32)
-        gate_loss, gate_seq_loss, gate_total_loss  = self._compute_loss(output_dict['gate_logits'], targets)
-        loss += gate_loss
-        seq_loss += gate_seq_loss
-        total_loss += gate_total_loss
-
-        return loss, seq_loss, total_loss, select_loss
-
 class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
@@ -905,10 +755,8 @@ class BasicEncoderDecoder(object):
                     }
 
 class GraphEncoderDecoder(BasicEncoderDecoder):
-    def __init__(self, encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, sup_gate=None, scope=None):
+    def __init__(self, encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, scope=None):
         self.graph_embedder = graph_embedder
-        self.sup_gate = sup_gate
-        self.preselect = True if isinstance(decoder, PreselectCopyGraphDecoder) else False
         super(GraphEncoderDecoder, self).__init__(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, scope)
 
     def _decoder_input_dict(self, encoder_output_dict):
@@ -923,4 +771,3 @@ class GraphEncoderDecoder(BasicEncoderDecoder):
         feed_dict = super(GraphEncoderDecoder, self).get_feed_dict(**kwargs)
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs['graph_embedder'])
         return feed_dict
-

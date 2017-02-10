@@ -210,8 +210,6 @@ class RNNNeuralSession(NeuralSession):
             return None
         #self.log.write('decode:%s\n' % str(entity_tokens))
         self._update_states(sess, decoder_output_dict, entity_tokens)
-        if self.env.evaluator is not None:
-            self.env.evaluator.eval(self.kb, entity_tokens)
 
         # Text message
         if self.new_turn:
@@ -249,7 +247,7 @@ class RNNNeuralSession(NeuralSession):
     def _pred_to_token(self, preds):
         if self.env.copy:
             preds = self.graph.copy_preds(preds, self.env.vocab.size)
-        entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map, self.env.prepend)
+        entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
         entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
         return entity_tokens
 

@@ -237,14 +237,6 @@ class Lexicon(BaseLexicon):
                 best_match = (span, None)
             else:
                 best_match = (entity, type_)
-
-            #if score <= 5:
-            #    if span not in self.common_phrases:
-            #        best_match = (entity, type_)
-            #    else:
-            #        best_match = (span, None)
-            #else:
-            #    best_match = (span, None)
         else:
             # Use learned ranker
             entity_scores = []

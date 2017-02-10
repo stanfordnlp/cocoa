@@ -56,7 +56,7 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
         lm = None
 
     # Speech acts
-    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
+    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
     vocab = read_pickle(args.vocab)['vocab']
     strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm, vocab)
     print_strategy_stats(strategy_stats)
@@ -68,8 +68,6 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     stats["entity_mention"] = strategy_stats['entity_mention']
     stats['multi_speech_act'] = strategy_stats['multi_speech_act']
     outdir = os.path.dirname(args.stats_output)
-    #write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
-    #write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
     json.dump(stats, statsfile)
     statsfile.close()

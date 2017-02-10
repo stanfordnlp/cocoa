@@ -24,7 +24,7 @@ def remove_entities(entity_tokens):
         find_entities(eoe_ind)
     return [x for i, x in enumerate(entity_tokens) if i not in to_remove], [x for i, x in enumerate(entity_tokens) if i in to_remove]
 
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity, num_sents=None):
+def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None):
     '''
     Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
@@ -43,14 +43,7 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
     if num_sents is None:
         num_sents = [1 for _ in preds]
     for pred, n in izip(preds, num_sents):
-        if remove_entity:
-            #print 'raw pred:', textint_map.int_to_text(pred, 'target')
-            entity_tokens, prepended_entities = remove_entities(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)]], 'target'))
-            #tokens.append([x for x in entity_tokens if not x in (markers.EOS, markers.PAD)])
-            tokens.append([x for x in entity_tokens if not x in (markers.PAD,)])
-            entities.append(prepended_entities)
-        else:
-            tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
+        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
     return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(object):
@@ -61,7 +54,6 @@ class Evaluator(object):
         self.vocab = data.mappings['vocab']
         self.verbose = verbose
         self.copy = data.copy
-        self.prepend = data.prepend
 
         # Prepare dataset
         self.eval_data = {split: data.generator(split, self.batch_size, shuffle=False) for split in splits}
@@ -111,7 +103,7 @@ class Evaluator(object):
                 if self.copy:
                     preds = graphs.copy_preds(preds, self.vocab.size)
                 num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents)
+                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents)
 
                 # Compute BLEU
                 references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
@@ -119,10 +111,6 @@ class Evaluator(object):
                 bleu_scores = self.sentence_bleu_score(pred_tokens, references)
                 bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
                 self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
-                if 'selection_scores' in output_dict:
-                    self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :], 'select_')
-                if pred_entities is not None:
-                    self.update_entity_stats(summary_map, pred_entities, references, 'prepend_')
 
                 if self.verbose:
                     attn_scores = output_dict.get('attn_scores', None)
@@ -131,22 +119,7 @@ class Evaluator(object):
 
         entity_f1 = self.get_f1(summary_map, 'entity_')
         bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
-        selection_f1 = self.get_f1(summary_map, 'select_')
-        prepend_f1 = self.get_f1(summary_map, 'prepend_')
-        return bleu, entity_f1, selection_f1, prepend_f1
-
-    def update_selection_stats(self, summary_map, scores, targets, prefix=''):
-        # NOTE: targets are from ground truth response and many contain new entities.
-        # Ideally this would not happen as a mentioned entity is either from the agent's
-        # KB or from partner's mentions (which is added to the graph), so during decoding
-        # there shouldn't be new entities. However, the lexicon may "create" an entity.
-        batch_size, num_nodes = scores.shape
-        targets = targets[:, :num_nodes]
-
-        pos_pred = scores > 0
-        pos_target = targets == 1
-        tp = np.sum(np.logical_and(pos_pred, pos_target))
-        logstats.update_summary_map(summary_map, {prefix+'tp': tp, prefix+'pos_pred': np.sum(pos_pred), prefix+'pos_target': np.sum(pos_target)})
+        return bleu, entity_f1
 
     def get_f1(self, summary_map, prefix):
         pos_target = prefix + 'pos_target'
@@ -175,9 +148,6 @@ class Evaluator(object):
         actual utterances.
         '''
         targets = [token[1] if is_entity(token) else token for token in tokens]
-        if self.prepend:
-            targets, _ = remove_entities(targets)
-        #targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
         targets = [x for x in targets if x not in (markers.PAD,)]
         return targets
 
