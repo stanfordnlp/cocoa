@@ -150,8 +150,6 @@ def userid():
 def handle_submit():
     results = request.get_json()
 
-    #pprint.pprint(results)
-
     backend = get_backend()
     print "USER ID: ", userid()
     print "Scenario ID: ", results["scenario_id"]
@@ -194,9 +192,7 @@ def index():
                                finished_message="YOU HAVE FINISHED THE HIT!")
 
 
-
 db_path = "third_party_eval.db"
-
 # Init DB
 if os.path.exists(db_path):
     print "DB already exists"

@@ -88,16 +88,11 @@ class BackendConnection(object):
                 # Record answers to evaluation
                 cursor.execute("INSERT INTO Responses VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (results["dialogue_id"], scenario_id, agent_mapping, userid, agent_id, results["humanlike"],
                                                                                       results["correct"], results["cooperative"],
-                                                                                      results["fluent"], results["humanlike_text"], results["correct_text"],
                                                                                       results["cooperative_text"], results["fluent_text"]))
                 if agent_id == 0:
                     num_agent0_evals += 1
                 else:
                     num_agent1_evals += 1
-
-                #print "Dialogue ID: ", results["dialogue_id"]
-                #print "Num agent 0 evals: ", num_agent0_evals
-                #print "Num agent 1 evals: ", num_agent1_evals
 
                 # Dialogue has been evaluated requisite number of times so move to CompletedDialogues
                 if num_agent0_evals >= app.config["num_evals_per_dialogue"] and num_agent1_evals >= app.config["num_evals_per_dialogue"]:
@@ -145,13 +140,11 @@ class BackendConnection(object):
         if d[6] < app.config["num_evals_per_dialogue"]:
             # Found a dialogue not previously shown to user
             if d[0] not in agent0_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                print "AGENT 0!"
                 selected = {"agent_id": 0, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
                             "column_names": d[3], "kb": d[4]}
                 return selected
         if d[7] < app.config["num_evals_per_dialogue"]:
             if d[0] not in agent1_dialogues_evaluated and len(json.loads(d[2])) > 0:
-                print "AGENT 1!"
                 selected = {"agent_id": 1, "dialogue_id": d[0], "scenario_id": d[1], "events": d[2],
                             "column_names": d[3], "kb": d[5]}
                 return selected
@@ -166,7 +159,6 @@ class BackendConnection(object):
         :param userid:
         :return:
         """
-        # TODO: Add extra fields to prevent concurrency issues!
         with self.conn:
             cursor = self.conn.cursor()
 

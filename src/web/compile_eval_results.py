@@ -1,5 +1,4 @@
 import argparse
-import cPickle as pickle
 import json
 import numpy as np
 import sqlite3
@@ -11,6 +10,7 @@ from statsmodels.stats.inter_rater import fleiss_kappa
 parser = argparse.ArgumentParser()
 parser.add_argument("--db-path", type=str, help="path to db to output results from")
 args = vars(parser.parse_args())
+
 
 def bin(ratings):
     """
@@ -40,16 +40,24 @@ dialogue_to_stats = defaultdict(lambda : defaultdict(lambda : defaultdict(list))
 # Dialogue ID to agent mapping
 dialogue_to_agent_mapping = {}
 
+dialogue_to_scenario = {}
+
+
 # Aggregate response scores
 for r in responses:
-    dialogue_id, _, agent_mapping, _, agent_id, humanlike, correct, strategic, cooperative, fluent = r
+    dialogue_id, scenario_id, agent_mapping, _, agent_id, humanlike, correct, cooperative, fluent, humanlike_text, correct_text, cooperative_text, fluent_text = r
     dialogue_to_responses[dialogue_id][agent_id]["humanlike"].append(float(humanlike))
     dialogue_to_responses[dialogue_id][agent_id]["correct"].append(float(correct))
-    dialogue_to_responses[dialogue_id][agent_id]["strategic"].append(float(strategic))
     dialogue_to_responses[dialogue_id][agent_id]["cooperative"].append(float(cooperative))
     dialogue_to_responses[dialogue_id][agent_id]["fluent"].append(float(fluent))
 
+    dialogue_to_responses[dialogue_id][agent_id]["humanlike_text"].append(humanlike_text)
+    dialogue_to_responses[dialogue_id][agent_id]["correct_text"].append(correct_text)
+    dialogue_to_responses[dialogue_id][agent_id]["cooperative_text"].append(cooperative_text)
+    dialogue_to_responses[dialogue_id][agent_id]["fluent_text"].append(fluent_text)
+
     dialogue_to_agent_mapping[dialogue_id] = agent_mapping
+    dialogue_to_scenario[dialogue_id] = scenario_id
 
 
 # Compute mean/stddev
@@ -57,16 +65,17 @@ for dialogue_id, values in dialogue_to_responses.iteritems():
     for agent_id, question_responses in values.iteritems():
         question_arr = []
         for question, responses in question_responses.iteritems():
-            responses = np.array(responses[:5])
-            question_arr.append(bin(responses))
+            if question not in ["humanlike_text", "correct_text", "strategic_text", "cooperative_text", "fluent_text"]:
+                responses = np.array(responses[:5])
+                question_arr.append(bin(responses))
 
-            avg = responses.mean()
-            median = np.median(responses)
-            std = responses.std()
+                avg = responses.mean()
+                median = np.median(responses)
+                std = responses.std()
 
-            dialogue_to_stats[dialogue_id][agent_id][question].append(avg)
-            dialogue_to_stats[dialogue_id][agent_id][question].append(median)
-            dialogue_to_stats[dialogue_id][agent_id][question].append(std)
+                dialogue_to_stats[dialogue_id][agent_id][question].append(avg)
+                dialogue_to_stats[dialogue_id][agent_id][question].append(median)
+                dialogue_to_stats[dialogue_id][agent_id][question].append(std)
 
         question_arr = np.array(question_arr)
         kappa = fleiss_kappa(question_arr)
@@ -78,6 +87,12 @@ dialogue_eval_info.append(dialogue_to_agent_mapping)
 dialogue_eval_info.append(dialogue_to_responses)
 dialogue_eval_info.append(dialogue_to_stats)
 
+scenario_id_to_mappings = defaultdict(list)
+
+
+# Name of eval results file
+eval_results_file = None
+
 # Dump dialogue to average
-with open("dialogue_eval_info.json", "w") as f:
+with open(eval_results_file, "w") as f:
     json.dump(dialogue_eval_info, f)

@@ -2,14 +2,10 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 
-part1 = "/Users/mihaileric/Documents/Research/game-dialogue/src/web/eval_info/dialogue_eval_info_part1.json"
-part2 = "/Users/mihaileric/Documents/Research/game-dialogue/src/web/eval_info/dialogue_eval_info_part2.json"
-
+# Name of eval results file (output of make_eval_results.py)
+part1 = None
 with open(part1) as f:
     part1_results = json.load(f)
-
-with open(part2) as f:
-    part2_results = json.load(f)
 
 
 num_human_evals = 0
@@ -62,9 +58,8 @@ def get_question_type_percentages(dialogue_to_responses, dialogue_to_agent_mappi
                         dynamic_responses[r-1] += 1
                         num_dynamic_evals += 1
 
-# TODO: Hack for now because I have two results data files -- fix this!
-get_question_type_percentages(part1_results[1], part1_results[0], "humanlike")
-get_question_type_percentages(part2_results[1], part2_results[0], "humanlike")
+
+get_question_type_percentages(part1_results[1], part1_results[0], "correct")
 
 
 # Normalize
@@ -74,7 +69,6 @@ rule_responses /= num_rule_evals
 dynamic_responses /= num_dynamic_evals
 
 N = 5
-
 ind = np.arange(N)  # the x locations for the groups
 width = 0.15       # the width of the bars
 
@@ -89,12 +83,12 @@ rects4 = ax.bar(ind + 3*width, dynamic_responses, width, color='g')
 
 # add some text for labels, title and axes ticks
 ax.set_ylabel('Percentage')
-ax.set_title('Humanlike Percentages By Model')
+ax.set_title('Correctness Percentages By Model')
 ax.set_xticks(2*width + ind)
 ax.set_xticklabels(('Bad', 'Mediocre', 'Acceptable', 'Good', 'Excellent'))
 
 ax.legend((rects1[0], rects2[0], rects3[0], rects4[0]), ('Human', 'Rulebased', 'Static-Neural', 'Dynamic-Neural'), loc="upper left")
 
-plt.savefig("humanlike.png")
+plt.savefig("correct.png")
 plt.show()
 
