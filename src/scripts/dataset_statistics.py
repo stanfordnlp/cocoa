@@ -284,7 +284,7 @@ def get_entity_mention(summary_map, dialog, kbs):
         for k, v in attr_props.iteritems():
             summary_map['first'][k].append(v)
 
-def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, vocab):
+def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
     kb_strategy_summary_map = {}
@@ -359,7 +359,6 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
     dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
     dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
 
-    #unigram_counts = {k[0]: v for k, v in ngram_counts[1].iteritems() if vocab.has(k[0])}
     unigram_counts = {k[0]: v for k, v in ngram_counts[1].iteritems()}
     dialog_stats['vocab_size'] = len(unigram_counts)
     dialog_stats['unigram_entropy'] = count_to_entropy(unigram_counts)
