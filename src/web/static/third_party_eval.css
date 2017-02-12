@@ -33,7 +33,7 @@ header{
   margin-right:auto;
 }
 
-.text{
+.dialogue{
    border-style: solid;
   border-color: green;
   padding-left: 10px;
@@ -48,8 +48,15 @@ header{
 }
 
 .q{
+  align: center;
    border-style: solid;
-  border-color: lightgreen;
+  border-color: darkred;
+  border-width: 8px;
+}
+
+
+table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+				content: " \25B4\25BE"
 }
 
 #entities{
@@ -118,6 +125,7 @@ button {
 button:hover, button:focus {
   box-shadow: inset 0px 0px 10px rgba(255, 255, 255, 1);
   background: #0ae;
+  cursor: pointer;
 }
 
 button:active {
@@ -210,6 +218,11 @@ input[type=checkbox]:checked ~ aside {
 
 .clip p {
   cursor: pointer;
+}
+
+input[type=range]{
+  margin-left: 15%;
+  /*margin-right: 20%;*/
 }
 
 /* Adjustments for wider screens */
