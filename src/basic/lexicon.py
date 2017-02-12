@@ -61,11 +61,6 @@ class Lexicon(BaseLexicon):
                                    "start", "go", "school", "do", "know", "no", "work", "are",
                                    "he", "she"])
 
-        #if scenarios_json is not None:
-        #    self._process_kbs(scenarios_json)
-        #else:
-        #    raise Warning("No scenarios json provided!")
-
         # Ensure an entity ranker is provided for scoring (span, entity) pairs
         if learned_lex:
             assert entity_ranker is not None
@@ -258,8 +253,10 @@ class Lexicon(BaseLexicon):
 
         return best_match
 
-    # TODO: hacky fix.
     def combine_repeated_entity(self, entity_tokens):
+        '''
+        Remove false positives when a span for one entity is recognized multiple times.
+        '''
         is_entity = lambda x: not isinstance(x, basestring)
         prev_entity = None
         max_dist = 1
@@ -342,10 +339,6 @@ class Lexicon(BaseLexicon):
                     else:
                         candidate_entities = None
                         continue
-                    # else:
-                    #     i += l
-                    #     entities.append(candidate_entities)
-                    #     break
 
             if not candidate_entities or single_char:
                 linked.append(raw_tokens[i])

@@ -86,8 +86,6 @@ def summarize_scores(scores, stat):
         f = np.mean
     elif stat == 'mode':
         f = my_mode
-    elif stat == 'min':
-        f = np.min
     else:
         raise ValueError('Unknown stats')
     ex_scores = [f(ex_scores) for ex_scores in scores]
@@ -161,7 +159,6 @@ def analyze(question_scores, uuid_to_chat, preprocessor):
                 chat = uuid_to_chat[dialogue_id]
                 counts = get_stats(chat, int(agent_id), preprocessor)
                 for k, v in counts.iteritems():
-                    #examples[k][question].extend([(agent, v, s) for s in response])
                     examples[k][question].extend([(agent, v, np.mean(response))])
     # plot
     corr = []
@@ -235,10 +232,6 @@ def hist(question_scores, outdir, partner=False):
     #plt.cla()
     questions = ("fluent", "correct", 'cooperative', "humanlike")
     titles = ('Fluency', 'Correctness', 'Cooperation', 'Human-likeness')
-    #else:
-    #    questions = ("fluent", "correct", 'cooperative', 'strategic', "humanlike")
-    #    titles = ('Fluency', 'Correctness', 'Cooperation', 'Strategy', 'Human likeness')
-    #    ncol = 5
     agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural')
     legends = ('Human', 'Rule', 'StanoNet', 'DynoNet')
     #colors = ["r", "y", "b", "g"]
@@ -257,16 +250,11 @@ def hist(question_scores, outdir, partner=False):
 
     name = 'partner' if partner else 'third'
     axbox = axes.flat[2].get_position()
-    #if not partner:
-    #    plt.figlegend([r[0] for r in rects], legends, loc=(axbox.x0-.35, axbox.y0+.15), ncol=4, fontsize='small')
-    #else:
-    #    plt.figlegend([r[0] for r in rects], legends, loc=(axbox.x0+.1, axbox.y0-.1), ncol=4, fontsize='small')
     plt.tight_layout()
     #plt.savefig('%s/%s_rating.png' % (outdir, name))
     plt.savefig('%s/%s_rating.pdf' % (outdir, name))
 
 def summarize(question_scores):
-    #for summary_stat in ('median', 'mean', 'mode'):
     for summary_stat in ('mean',):
         print '=========== %s ===========' % summary_stat
         for question, agent_scores in question_scores.iteritems():
@@ -288,7 +276,6 @@ def summarize(question_scores):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--eval-transcripts', nargs='+', help='Path to directory containing evaluation transcripts')
-    parser.add_argument('--compare-transcripts', nargs='+', help='Evals to compare with')
     parser.add_argument('--dialogue-transcripts', help='Path to directory containing dialogue transcripts')
     parser.add_argument('--html-output', default=None, help='Path to HTML output')
     parser.add_argument('--analyze', default=False, action='store_true', help='Analyze human ratings')
@@ -313,27 +300,16 @@ if __name__ == '__main__':
     for eval_ in raw_eval:
         read_eval(eval_, question_scores, mask=dialogue_ids)
 
-    if args.compare_transcripts is not None:
-        dialogue_ids = get_dialogue_ids(raw_eval)
-        raw_eval2 = [read_json(trans) for trans in args.compare_transcripts]
-        dialogue_ids2 = get_dialogue_ids(raw_eval2)
-        question_scores2 = defaultdict(lambda : defaultdict(list))
-        for eval_ in raw_eval2:
-            read_eval(eval_, question_scores2, mask=set(dialogue_ids))
-
     if args.hist:
         hist(question_scores, args.outdir, partner=args.partner)
 
     if args.summary:
         summarize(question_scores)
-        if args.compare_transcripts:
-            print 'comapre with', args.compare_transcripts
-            summarize(question_scores2)
 
     if args.analyze:
         schema = Schema(args.schema_path)
         lexicon = Lexicon(schema, False, scenarios_json=args.scenarios_path, stop_words=args.stop_words)
-        preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
+        preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
         analyze(question_scores, uuid_to_chat, preprocessor)
 
     # Visualize
