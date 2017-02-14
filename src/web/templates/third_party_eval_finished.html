@@ -1,0 +1,25 @@
+<html>
+    <head>
+        <title>Thank You!</title>
+        <style>
+        #content > p{
+        font-size:24px;
+        }
+        </style>
+    </head>
+    <body>
+    <center><div id="content">
+        <h2>Evaluating Dialogues</h2>
+        {{ finished_message }}
+    </div></center>
+    <center>
+    <div id="mturk">
+        {% if mturk_code is not none %}
+        <hr>
+        <h3>Thanks for completing this HIT! Please copy and paste this code into the HIT on Mechanical Turk: {{ mturk_code }}</h3>
+        {% endif %}
+    </div>
+    </center>
+
+    </body>
+</html>

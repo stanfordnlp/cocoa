@@ -69,9 +69,11 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     stats["dialog_stats"] = strategy_stats['dialog_stats']
     stats["lm_score"] = strategy_stats['lm_score']
     stats["correct"] = strategy_stats['correct']
+    stats["entity_mention"] = strategy_stats['entity_mention']
+    stats['multi_speech_act'] = strategy_stats['multi_speech_act']
     outdir = os.path.dirname(args.stats_output)
-    write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
-    write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
+    #write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
+    #write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
     if args.plot_alpha_stats is not None:
         plot_alpha_stats(strategy_stats["alpha_stats"], args.plot_alpha_stats)

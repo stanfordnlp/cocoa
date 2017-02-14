@@ -1,6 +1,6 @@
 import matplotlib
 matplotlib.use('Agg')
-font_size = 18
+font_size = 16
 matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 import argparse
@@ -14,9 +14,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--stats', nargs='+', help='Path to files containing the stats of a transcript')
 parser.add_argument('--names', nargs='+', help='Names of systems corresponding to stats files')
 parser.add_argument('--output', default='.', help='Path to output figure')
+parser.add_argument('--attr', default=False, action='store_true', help='Plot mentioned attributes')
 parser.add_argument('--completion', default=False, action='store_true', help='Plot completion')
 parser.add_argument('--ngram-freqs', default=False, action='store_true', help='Plot ngram frequencies')
 parser.add_argument('--utterance-freqs', default=False, action='store_true', help='Plot utterance frequencies')
+parser.add_argument('--act-freqs', default=False, action='store_true', help='Plot speech act frequencies')
 args = parser.parse_args()
 
 if args.ngram_freqs:
@@ -82,6 +84,34 @@ if args.utterance_freqs:
         plt.xlabel('Percentage')
         plt.tight_layout()
         plt.savefig(os.path.join(args.output, '%d-utterance.pdf' % n))
+
+if args.attr:
+    #stats_files = ['%s_stats.json' % x for x in args.stats]
+    stats_files = args.stats
+    ncol = 1
+    nrow = len(stats_files)
+    #stats = ['max_count', 'max_min_ratio', 'max_count_normalize', 'max_min_ratio_normalize']
+    stats = ['max_min_ratio_normalize', 'entity_count']
+    stat_names = ['Skewness of the first mentioned attribute', 'Relative count of the first mentioned entity']
+    for stat, stat_name in izip(stats, stat_names):
+        plt.cla()
+        fig, axes = plt.subplots(nrows=nrow, ncols=ncol, sharex=True, sharey=True)
+        for i, (ax, stat_file, name) in enumerate(izip(axes, stats_files, args.names)):
+            all_stats = read_json(stat_file)
+            data = all_stats['entity_mention']['first'][stat]
+            background = all_stats['entity_mention']['all'][stat]
+            print name, stat_name, np.mean(data)
+            ax.hist(background, 30, edgecolor='g', normed=True, alpha=0.7, label='BG', fill=False, linewidth=3, histtype='step')
+            ax.hist(data, 30, edgecolor='r', normed=True, alpha=0.7, label='First', fill=False, linewidth=3, histtype='step')
+            if i == 0:
+                ax.legend(ncol=2, bbox_to_anchor=(1,1.5))
+            ax.set_yscale('log')
+            #ax.locator_params(nbins=4, axis='y')
+            ax.set_title(name, fontsize='x-large')
+        ax.set_xlabel(stat_name, fontsize='x-large')
+        axbox = axes[0].get_position()
+        plt.tight_layout()
+        plt.savefig('%s/first_attr_%s.pdf' % (args.output, stat))
 
 if args.completion:
     styles = ['r-o', 'b->', 'g-*', 'c-s', 'k-d', 'y-<']

@@ -184,18 +184,22 @@ def map_utterance(dialog):
 def get_dialog_stats(summary_map, utterance_counts, dialog):
     num_entities = 0
     num_entity_types = 0
+    num_attr_types = 0
+    all_ents = set()
     for agent, act, ents, utterance in dialog:
         num_ents = len(ents)
         num_types = len(set(ents))
         num_entities += num_ents
-        num_entity_types += num_types
+        all_ents.update(ents)
         if num_ents > 0:
             logstats.update_summary_map(summary_map, {'multi_entity_per_entity_utterance': 1 if num_types > 1 else 0})
             logstats.update_summary_map(summary_map, {'repeated_entity_per_entity_utterance': 1 if num_ents > num_types else 0})
             if num_ents > num_types:
                 examples['repeated_entity_per_entity_utterance'].append(utterance)
 
-    logstats.update_summary_map(summary_map, {'num_entity_per_dialog': num_entities, 'num_entity_type_per_dialog': num_entity_types})
+    logstats.update_summary_map(summary_map, {'num_entity_per_dialog': num_entities,
+        'num_entity_type_per_dialog': len(all_ents),
+        'num_attr_type_per_dialog': len(set([e[1] for e in all_ents]))})
 
     dialog = abstract_entity(dialog)
     int_utterances = map_utterance(dialog)
@@ -278,6 +282,93 @@ def count_to_entropy(counts, vocab):
     entropy = np.dot(np.log(probs), probs) * -1.
     return entropy
 
+def normalize(name, all_counts):
+    min_ = min(all_counts.values())
+    max_ = max(all_counts.values())
+    n = float(all_counts[name])
+    return (n - min_) / (max_ - min_ + 0.1)
+
+def get_attr_prop(attr_name, entity_name, kb):
+    attr_values = defaultdict(set)
+    entity_counts = defaultdict(int)
+    all_attrs = [attr.name for attr in kb.attributes]
+    for attr in all_attrs:
+        for item in kb.items:
+            attr_values[attr].add(item[attr])
+            entity_counts[item[attr].lower()] += 1
+    attr_uniq_value_counts = {k: len(v) for k, v in attr_values.iteritems()}
+    relative_domain_size = normalize(attr_name, attr_uniq_value_counts)
+    relative_entity_count = normalize(entity_name, entity_counts)
+    return {'relative_domain_size': relative_domain_size,
+            'relative_entity_count': relative_entity_count}
+
+def get_attr_prop_old(attr_name, entity_name, kb):
+    assert entity_name in kb.entity_set
+    num_items = float(len(kb.items))
+    attr_props = defaultdict(lambda : defaultdict(int))
+    all_attrs = [attr.name for attr in kb.attributes]
+    # Record distribution of props in the entire KB
+    all_props = {'entity_count': []}
+    entity_counts = defaultdict(int)
+    # For each attribute
+    for name in all_attrs:
+        value_counts = defaultdict(int)
+        # Count value freq
+        for item in kb.items:
+            value_counts[item[name].lower()] += 1
+            entity_counts[item[name].lower()] += 1
+        num_unique_values = len(value_counts) / num_items
+        max_count = max(value_counts.values()) / num_items
+        min_count = min(value_counts.values()) / num_items
+        # Only one value in the column
+        if min_count == num_items:
+            min_count = .5 / num_items
+        max_min_ratio = max_count / min_count
+        #attr_props['num_unique_values'][name] = num_unique_values
+        attr_props['max_count'][name] = max_count
+        #attr_props['min_count'][name] = min_count
+        attr_props['max_min_ratio'][name] = max_min_ratio
+        # Relative counts of all entities
+        all_props['entity_count'].extend([v / num_items for v in value_counts.values()])
+    # Normalize by maximum value across attrs
+    props = {}
+    props['entity_count'] = entity_counts[entity_name] / num_items
+    for k in attr_props:
+        max_value = float(max(attr_props[k].values()))
+        props[k+'_normalize'] = attr_props[k][attr_name] / max_value
+        props[k] = attr_props[k][attr_name]
+        # Record stats for all attrs
+        all_props[k+'_normalize'] = []
+        all_props[k] = []
+        for name in all_attrs:
+            all_props[k+'_normalize'].append(attr_props[k][name] / max_value)
+            all_props[k].append(attr_props[k][name])
+    return props, all_props
+
+def get_entity_mention(summary_map, dialog, kbs):
+    type_to_attr_name = {attr.value_type: attr.name for attr in kbs[0].attributes}
+    num_mention = defaultdict(int)
+    if 'first' not in summary_map:
+        summary_map['first'] = defaultdict(list)
+    if 'all' not in summary_map:
+        summary_map['all'] = defaultdict(list)
+    for i, (agent, _, entities, _) in enumerate(dialog):
+        for j, entity in enumerate(entities):
+            attr_name = type_to_attr_name[entity[1]]
+            if entity[0] not in kbs[agent].entity_set or entity[1] not in type_to_attr_name:
+                continue
+            if len(num_mention) == 0:
+                first_mentioned_attr = (attr_name, entity[0], kbs[agent])
+            num_mention[attr_name] += 1
+    if len(num_mention) > 0:
+        #most_mentioned_attr = sorted(num_mention.iteritems(), key=lambda x: x[1], reverse=True)[0][0]
+        #attr_props, all_props = get_attr_prop(*first_mentioned_attr)
+        attr_props = get_attr_prop(*first_mentioned_attr)
+        for k, v in attr_props.iteritems():
+            summary_map['first'][k].append(v)
+        #for k, v in all_props.iteritems():
+        #    summary_map['all'][k].extend(v)
+
 def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, vocab):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
@@ -293,6 +384,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
     num_attrs_mentioned = 0.
     most_mentioned_attrs = 0.
     utterance_summary_map = {}
+    entity_mention_summary_map = {}
 
     total_events = 0
     total_dialogues = 0.
@@ -306,6 +398,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
         total_dialogues += 1.
         dialog = []
         mentioned_entities = set()
+        agent_types = ex.agents
         for i, event in enumerate(ex.events):
             if event.action == 'select':
                 utterance = []
@@ -341,12 +434,8 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
             dialog.append((event.agent, speech_act, entities, utterance))
 
         get_dialog_stats(dialog_summary_map, utterance_counts, dialog)
-        get_speech_act_histograms(speech_act_sequence_summary_map, dialog, collapsed=True)
-
-        orders, most_mentioned_label = get_kb_strategy(kbs, dialog)
-        orders = tuple(orders)
-
-        most_mentioned_attrs += alpha_labels_to_values[most_mentioned_label]
+        get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
+        get_entity_mention(entity_mention_summary_map, dialog, kbs)
 
         if len(orders) not in kb_strategy_summary_map.keys():
             kb_strategy_summary_map[len(orders)] = {}
@@ -389,6 +478,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
     unigram_counts = {k[0]: v for k, v in ngram_counts[1].iteritems() if vocab.has(k[0])}
     dialog_stats['vocab_size'] = len(unigram_counts)
     dialog_stats['unigram_entropy'] = count_to_entropy(unigram_counts, vocab)
+    multi_speech_act = sum([speech_act_summary_map[k] for k in speech_act_summary_map if len(k) > 1]) / total
 
     return {'speech_act': {k: speech_act_summary_map[k] / total for k in speech_act_summary_map.keys()},
             'kb_strategy': {k1: {", ".join(k2): v2/kb_strategy_totals[k1] for k2, v2 in v1.items()} for k1, v1 in kb_strategy_summary_map.items()},
@@ -400,9 +490,8 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
             'linguistic_templates': template_summary_map,
             'speech_act_sequences': speech_act_sequence_summary_map,
             'correct': fact_summary_map['correct']['mean'],
-            'alpha_stats': alpha_stats,
-            'avg_mentioned_attrs': num_attrs_mentioned/total_dialogues,
-            'most_mentioned_alpha': most_mentioned_attrs/total_dialogues
+            'entity_mention': {k: np.mean(v) for k, v in entity_mention_summary_map['first'].iteritems()},
+            'multi_speech_act': multi_speech_act,
             }
 
 
@@ -833,6 +922,7 @@ def print_strategy_stats(stats):
     print 'Speech act statistics:'
     for act_type, frac in sorted([(a, b) for a,b in speech_act_stats.items()], key=lambda x:x[1], reverse=True):
         print '%% %s: %2.3f' % (act_type, frac)
+    print 'multi speech acts:', stats['multi_speech_act']
 
     print "-----------------------------------"
     print 'Dialogue statistics:'

@@ -1,7 +1,7 @@
 import matplotlib
 matplotlib.use('Agg')
-font_size = 18
-matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
+#font_size = 18
+#matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from src.basic.util import read_json
@@ -17,6 +17,9 @@ from collections import defaultdict
 import numpy as np
 from scipy import stats
 from src.lib import logstats
+from itertools import izip
+from scipy.stats import ttest_ind as ttest
+
 
 def my_mode(x):
     return stats.mode(x)[0][0]
@@ -26,6 +29,36 @@ def get_dialogue_ids(all_trans):
     for trans in all_trans:
         ids.extend(trans[0].keys())
     return ids
+
+def filter(raw_evals, filter_evals, uuid_to_chats):
+    scenario_to_agents = defaultdict(set)
+    scenario_to_chats = defaultdict(set)
+    filter_dialogue_ids = set(get_dialogue_ids(filter_evals))
+    for eval_ in raw_evals:
+        dialogue_agents = eval_[0]
+        dialogue_scores = eval_[1]
+        for dialogue_id, agent_dict in dialogue_agents.iteritems():
+            chat = uuid_to_chat[dialogue_id]
+            scenario_id = chat['scenario_uuid']
+            if isinstance(agent_dict, basestring):
+                agent_dict = eval(agent_dict)
+            scores = dialogue_scores[dialogue_id]
+            for agent_id, results in scores.iteritems():
+                if len(results) == 0:
+                    continue
+                agent_type = agent_dict[str(agent_id)]
+                scenario_to_agents[scenario_id].add(agent_type)
+                scenario_to_chats[scenario_id].add(dialogue_id)
+    good_dialogues = []  # with 4 agent types
+    print 'total scenarios:', len(scenario_to_agents)
+    print 'good scenarios:', sum([1 if len(a) == 4 else 0 for s, a in scenario_to_agents.iteritems()])
+    for scenario_id, agents in scenario_to_agents.iteritems():
+        if len(agents) == 4:
+            good_dialogues.extend(scenario_to_chats[scenario_id])
+            #assert len(scenario_to_chats[scenario_id]) >= 4
+    filtered_dialogues = set(good_dialogues).intersection(filter_dialogue_ids)
+    print 'after filter:', len(filtered_dialogues)
+    return filtered_dialogues
 
 def read_eval(trans, question_scores, mask=None):
     dialogue_agents = trans[0]
@@ -39,16 +72,11 @@ def read_eval(trans, question_scores, mask=None):
         for agent_id, results in scores.iteritems():
             agent_type = agent_dict[str(agent_id)]
             for question, ratings in results.iteritems():
+                #if question == 'comments' or question.endswith('text'):
+                #    continue
+                if not isinstance(ratings, list):
+                    ratings = (ratings,)
                 question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
-        #for question, ratings in scores.iteritems():
-        #    agent_types = dialogue_agents[dialogue_id]
-        #    if agent_types['0'] == 'human':
-        #        agent_type = agent_types['1']
-        #    else:
-        #        agent_type = agent_types['0']
-        #    if not isinstance(ratings, list):
-        #        ratings = (ratings,)
-        #    question_scores[question][agent_type].append((dialogue_id, ratings))
 
 def summarize_scores(scores, stat):
     scores = [x[2] for x in scores]
@@ -58,9 +86,12 @@ def summarize_scores(scores, stat):
         f = np.mean
     elif stat == 'mode':
         f = my_mode
+    elif stat == 'min':
+        f = np.min
     else:
         raise ValueError('Unknown stats')
-    return np.mean([f(ex_scores) for ex_scores in scores])
+    ex_scores = [f(ex_scores) for ex_scores in scores]
+    return np.mean(ex_scores), ex_scores
 
 def get_total(scores):
     scores = [x[2] for x in scores]
@@ -123,13 +154,15 @@ def analyze(question_scores, uuid_to_chat, preprocessor):
     # factor -> question -> (agent_type, scores)
     examples = defaultdict(lambda : defaultdict(list))
     for question, agent_scores in question_scores.iteritems():
+        if question == 'comments' or question.endswith('text'):
+            continue
         for agent, scores in agent_scores.iteritems():
             for dialogue_id, agent_id, response in scores:
                 chat = uuid_to_chat[dialogue_id]
                 counts = get_stats(chat, int(agent_id), preprocessor)
                 for k, v in counts.iteritems():
                     #examples[k][question].extend([(agent, v, s) for s in response])
-                    examples[k][question].extend([(agent, v, my_mode(response))])
+                    examples[k][question].extend([(agent, v, np.mean(response))])
     # plot
     corr = []
     for stat_name, question_scores in examples.iteritems():
@@ -148,33 +181,109 @@ def visualize(html_output, question_scores, uuid_to_chat):
     for question, agent_scores in question_scores.iteritems():
         for agent, scores in agent_scores.iteritems():
             for dialogue_id, agent_id, response in scores:
+                chat = uuid_to_chat[dialogue_id]
+                scenario_id = chat['scenario_uuid']
                 dialogue_responses[dialogue_id][agent_id][question] = response
 
-    responses = []
     chats = []
+    scenario_to_chats = defaultdict(set)
     for dialogue_id, agent_responses in dialogue_responses.iteritems():
-        for agent, response in agent_responses.iteritems():
-            chat = uuid_to_chat[dialogue_id]
-            scenario_id = chat['scenario_uuid']
-            chats.append((scenario_id, agent, chat))
-            responses.append((scenario_id, agent, response))
-    chats = [x[2] for x in sorted(chats, key=lambda x: (x[0], x[1]))]
-    responses = [x[1:] for x in sorted(responses, key=lambda x: (x[0], x[1]))]
+        chat = uuid_to_chat[dialogue_id]
+        scenario_id = chat['scenario_uuid']
+        chats.append((scenario_id, chat))
+        scenario_to_chats[scenario_id].add(dialogue_id)
+    #for s, c in scenario_to_chats.iteritems():
+    #    assert len(c) >= 4
+    chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
     visualize_transcripts(html_output, scenario_db, chats, dialogue_responses)
 
+def one_hist(ax, question, responses_tuples, agents, title, ylabel=False, legend=False):
+    N = 5
+    ind = np.arange(N)  # the x locations for the groups
+    width = 0.17       # the width of the bars
+    i = 0
+    all_rects = []
+    for (responses, color) in responses_tuples:
+        rects = ax.bar(ind + i * width, np.array(responses)*100, width, color=color)
+        all_rects.append(rects)
+        i += 1
+
+    #ax.set_aspect(0.1, adjustable='box-forced')
+
+    # add some text for labels, title and axes ticks
+    ax.set_title(title, fontsize='medium')
+    ax.set_xticks(2*width + ind)
+    #ax.set_xticklabels(('Bad', 'Mediocre', 'Acceptable', 'Good', 'Excellent'))
+    ax.set_xticklabels(('1', '2', '3', '4', '5'))
+
+    if ylabel:
+        ax.set_ylabel('Percentage')
+    if legend:
+        ax.legend([r[0] for r in all_rects], agents, fontsize='medium', loc='best')
+    return all_rects
+
+def hist(question_scores, outdir, partner=False):
+    question_responses = defaultdict(lambda : defaultdict(lambda : defaultdict(int)))
+    for question, agent_scores in question_scores.iteritems():
+        if question == 'comments' or question.endswith('text'):
+            continue
+        for agent, scores in agent_scores.iteritems():
+            for dialogue_id, agent_id, response in scores:
+                for r in response:
+                    question_responses[question][agent][r - 1] += 1.
+    #plt.cla()
+    questions = ("fluent", "correct", 'cooperative', "humanlike")
+    titles = ('Fluency', 'Correctness', 'Cooperation', 'Human-likeness')
+    #else:
+    #    questions = ("fluent", "correct", 'cooperative', 'strategic', "humanlike")
+    #    titles = ('Fluency', 'Correctness', 'Cooperation', 'Strategy', 'Human likeness')
+    #    ncol = 5
+    agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural')
+    legends = ('Human', 'Rule', 'StanoNet', 'DynoNet')
+    #colors = ["r", "y", "b", "g"]
+    colors = ["#33a02c", "#b2df8a", "#1f78b4", "#a6cee3"]
+    ncol, nrow = 2, 2
+    fig, axes = plt.subplots(nrows=nrow, ncols=ncol, sharey=True)
+    for i, (question, ax, title) in enumerate(izip(questions, axes.flat, titles)):
+        responses_tuples = []
+        for agent, c in izip(agents, colors):
+            ratings = question_responses[question][agent]
+            ratings = {k: v/sum(ratings.values()) for (k, v) in ratings.items()}
+            sorted_ratings = [ratings[k] for k in sorted(ratings.keys())]
+            responses_tuples.append((sorted_ratings, c))
+        legend = True if (i == 0) else False
+        rects = one_hist(ax, question, responses_tuples, legends, title, ylabel=(i==0 or i==2), legend=legend)
+
+    name = 'partner' if partner else 'third'
+    axbox = axes.flat[2].get_position()
+    #if not partner:
+    #    plt.figlegend([r[0] for r in rects], legends, loc=(axbox.x0-.35, axbox.y0+.15), ncol=4, fontsize='small')
+    #else:
+    #    plt.figlegend([r[0] for r in rects], legends, loc=(axbox.x0+.1, axbox.y0-.1), ncol=4, fontsize='small')
+    plt.tight_layout()
+    #plt.savefig('%s/%s_rating.png' % (outdir, name))
+    plt.savefig('%s/%s_rating.pdf' % (outdir, name))
+
 def summarize(question_scores):
     #for summary_stat in ('median', 'mean', 'mode'):
-    for summary_stat in ('mode',):
+    for summary_stat in ('mean',):
         print '=========== %s ===========' % summary_stat
         for question, agent_scores in question_scores.iteritems():
-            if question == 'comments':
+            if question == 'comments' or question.endswith('text'):
                 continue
             print '------------- %s ---------------' % question
             results = [(agent, summarize_scores(scores, summary_stat), get_total(scores)) for agent, scores in agent_scores.iteritems()]
-            results = sorted(results, key=lambda x: x[1], reverse=True)
+            results = sorted(results, key=lambda x: x[1][0], reverse=True)
+            agent_ratings = {}
             for agent, stat, total in results:
-                print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat, total)
+                agent_ratings[agent] = stat[1]
+                print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat[0], total)
+            # T-test
+            agents = ('human', 'rulebased', 'dynamic-neural', 'static-neural')
+            for i in range(len(agents)):
+                for j in range(i+1, len(agents)):
+                    print agents[i], agents[j], ttest(agent_ratings[agents[i]], agent_ratings[agents[j]])
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -184,19 +293,25 @@ if __name__ == '__main__':
     parser.add_argument('--html-output', default=None, help='Path to HTML output')
     parser.add_argument('--analyze', default=False, action='store_true', help='Analyze human ratings')
     parser.add_argument('--summary', default=False, action='store_true', help='Summarize human ratings')
+    parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
+    parser.add_argument('--outdir', default='.', help='Output dir')
+    parser.add_argument('--partner', default=False, action='store_true', help='Whether this is from partner survey')
+    parser.add_argument('--filter', nargs='+', default=[], help='Only take dialogues in the filter transcripts')
     add_scenario_arguments(parser)
     add_lexicon_arguments(parser)
     args = parser.parse_args()
 
     raw_eval = [read_json(trans) for trans in args.eval_transcripts]
+    filter_eval = [read_json(trans) for trans in args.filter]
     question_scores = defaultdict(lambda : defaultdict(list))
     raw_chats = read_json(args.dialogue_transcripts)
     uuid_to_chat = {chat['uuid']: chat for chat in raw_chats}
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    dialogue_ids = filter(raw_eval, filter_eval, uuid_to_chat)
 
     for eval_ in raw_eval:
-        read_eval(eval_, question_scores)
+        read_eval(eval_, question_scores, mask=dialogue_ids)
 
     if args.compare_transcripts is not None:
         dialogue_ids = get_dialogue_ids(raw_eval)
@@ -206,10 +321,13 @@ if __name__ == '__main__':
         for eval_ in raw_eval2:
             read_eval(eval_, question_scores2, mask=set(dialogue_ids))
 
-    # Median of median
+    if args.hist:
+        hist(question_scores, args.outdir, partner=args.partner)
+
     if args.summary:
         summarize(question_scores)
         if args.compare_transcripts:
+            print 'comapre with', args.compare_transcripts
             summarize(question_scores2)
 
     if args.analyze:
