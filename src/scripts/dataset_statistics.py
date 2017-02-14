@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from itertools import izip
 import numpy as np
 
-font_size = 15
+font_size = 12
 matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize',    'ytick.labelsize', 'legend.fontsize')})
 
 
@@ -84,12 +84,15 @@ def get_kb_strategy(kbs, dialog):
     attribute_mention_counts = {}
     attribute_labels = {}
     attribute_order = []
+    mentioned_attributes = []
     for agent, _, entities, _ in dialog:
         for token in entities:
             attr_type = token[1]
+            entity = token[0]
             if attr_type in kb_attributes and attr_type not in attribute_agents.keys():
                 attribute_agents[attr_type] = agent
                 attribute_order.append(attr_type)
+                mentioned_attributes.append((attr_type, entity, agent))
             if attr_type not in attribute_mention_counts.keys():
                 attribute_mention_counts[attr_type] = 0.
             attribute_mention_counts[attr_type] += 1.
@@ -121,7 +124,7 @@ def get_kb_strategy(kbs, dialog):
     else:
         most_mentioned_label = NO_ALPHA_MENTION
 
-    return labeled_order, most_mentioned_label
+    return labeled_order, mentioned_attributes, most_mentioned_label
 
 def abstract_entity(dialog):
     #entity_map = {0: {}, 1: {}}
@@ -271,8 +274,8 @@ def dd():
     return defaultdict(int)
 
 NO_ALPHA_MENTION = 'no_mention'
-alpha_labels_to_values = {NO_ALPHA_MENTION: 0., 'least_uniform': 1., 'medium': 2., 'most_uniform': 3.}
-alpha_values_to_labels = {0: NO_ALPHA_MENTION, 1: 'least_uniform', 2: 'medium', 3: 'most_uniform'}
+alpha_labels_to_values = {NO_ALPHA_MENTION: -1., 'least_uniform': 0., 'medium': 0.5, 'most_uniform': 1.}
+alpha_values_to_labels = {-1.: NO_ALPHA_MENTION, 0.: 'least_uniform', 0.5: 'medium', 1.: 'most_uniform'}
 
 
 def count_to_entropy(counts, vocab):
@@ -345,6 +348,7 @@ def get_attr_prop_old(attr_name, entity_name, kb):
             all_props[k].append(attr_props[k][name])
     return props, all_props
 
+
 def get_entity_mention(summary_map, dialog, kbs):
     type_to_attr_name = {attr.value_type: attr.name for attr in kbs[0].attributes}
     num_mention = defaultdict(int)
@@ -369,6 +373,7 @@ def get_entity_mention(summary_map, dialog, kbs):
         #for k, v in all_props.iteritems():
         #    summary_map['all'][k].extend(v)
 
+
 def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, vocab):
     fout = open(text_output, 'w') if text_output is not None else None
     speech_act_summary_map = defaultdict(int)
@@ -380,10 +385,10 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
     ngram_counts = defaultdict(dd)
     template_summary_map = {'total': 0.}
     speech_act_sequence_summary_map = {'total': 0.}
-    alpha_stats = {}
+    alpha_stats = []
+    num_items_stats = []
     num_attrs_mentioned = 0.
     most_mentioned_attrs = 0.
-    utterance_summary_map = {}
     entity_mention_summary_map = {}
 
     total_events = 0
@@ -398,7 +403,6 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
         total_dialogues += 1.
         dialog = []
         mentioned_entities = set()
-        agent_types = ex.agents
         for i, event in enumerate(ex.events):
             if event.action == 'select':
                 utterance = []
@@ -437,6 +441,10 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
         get_speech_act_histograms(speech_act_sequence_summary_map, dialog)
         get_entity_mention(entity_mention_summary_map, dialog, kbs)
 
+        orders, mentioned_attrs, most_mentioned_label = get_kb_strategy(kbs, dialog)
+        orders = tuple(orders)
+        most_mentioned_attrs += alpha_labels_to_values[most_mentioned_label]
+
         if len(orders) not in kb_strategy_summary_map.keys():
             kb_strategy_summary_map[len(orders)] = {}
 
@@ -446,32 +454,25 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
         kb_strategy_summary_map[len(orders)][tuple(orders)] += 1.0
         alphas = ex.scenario.alphas
 
-        if len(alphas) not in alpha_stats.keys():
-            alpha_stats[len(alphas)] = {}
-        var = np.var(alphas)
-        if var not in alpha_stats[len(alphas)].keys():
-            alpha_stats[len(alphas)][var] = [0., 0.]
-
         num_attrs_mentioned += len(orders)/len(alphas)
 
+        first_mentioned_label = NO_ALPHA_MENTION
         if len(orders) > 0:
-            first_mentioned = orders[0]
-        else:
-            first_mentioned = NO_ALPHA_MENTION
+            first_mentioned_label = orders[0]
 
+        if len(mentioned_attrs) > 0:
+            first_mentioned_type, first_mentioned_attr, first_agent = mentioned_attrs[0]
+            update_item_stats(num_items_stats, first_mentioned_type, first_mentioned_attr, kbs[first_agent])
+
+            if first_mentioned_label != NO_ALPHA_MENTION:
+                update_alpha_stats(alpha_stats, kbs[first_agent], first_mentioned_label,alphas)
         # print "First mentioned attribute alpha:", first_mentioned, alpha_labels_to_values[first_mentioned]
-        alpha_stats[len(alphas)][var][0] += alpha_labels_to_values[first_mentioned]
-        alpha_stats[len(alphas)][var][1] += 1.
-
 
     if fout:
         fout.close()
     # Summarize stats
     total = float(total_events)
     kb_strategy_totals = {k1: sum(v2 for v2 in v1.values()) for k1, v1 in kb_strategy_summary_map.items()}
-    print alpha_stats
-    alpha_stats = dict((k1, dict((k2, v2[0]/v2[1]) for (k2, v2) in v1.items())) for (k1, v1) in alpha_stats.items())
-    print alpha_stats
     dialog_stats = {k: dialog_summary_map[k]['mean'] for k in dialog_summary_map}
     dialog_stats['entity_type_token_ratio'] = dialog_summary_map['num_entity_type_per_dialog']['sum'] / float(dialog_summary_map['num_entity_per_dialog']['sum'])
 
@@ -492,23 +493,82 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm, voca
             'correct': fact_summary_map['correct']['mean'],
             'entity_mention': {k: np.mean(v) for k, v in entity_mention_summary_map['first'].iteritems()},
             'multi_speech_act': multi_speech_act,
+            'alpha_stats': alpha_stats,
+            'num_items_stats': num_items_stats
             }
 
 
-def plot_alpha_stats(alpha_stats, save_path):
-    markers = [">","+"]
-    for (num_attrs, m) in zip(alpha_stats.keys(), markers):
-        sorted_x = sorted(alpha_stats[num_attrs].keys())
-        sorted_y = [alpha_stats[num_attrs][x] for x in sorted_x]
-        plt.scatter(sorted_x, sorted_y, s=80, marker=m, label='%d Attributes' % num_attrs)
+def update_alpha_stats(alpha_stats, kb, first_mentioned_label, alphas):
 
+    num_items = len(kb.items)
+    first_mentioned_val = alpha_labels_to_values[first_mentioned_label]
+
+    alpha_stats.append((first_mentioned_val, num_items))
+
+
+def update_item_stats(item_stats_map, first_mentioned_type, first_mentioned_attribute, kb):
+    num_items = len(kb.items)
+    attr_type_to_name = dict((attr.value_type, attr.name) for attr in kb.attributes)
+    first_mentioned_name = attr_type_to_name[first_mentioned_type]
+    repeated_vals = {}
+    unique_vals = set()
+    for item in kb.items:
+        key = item[first_mentioned_name].lower()
+        unique_vals.add(key)
+        if key not in repeated_vals.keys():
+            repeated_vals[key] = 0.
+        repeated_vals[key] += 1.
+
+    occurrences_set = set(repeated_vals.values())
+    sorted_occurrences = list(sorted(list(occurrences_set)))
+    if first_mentioned_attribute in repeated_vals.keys():
+        pos = sorted_occurrences.index(repeated_vals[first_mentioned_attribute]) + 1
+        item_stats_map.append((float(pos)/float(len(sorted_occurrences)), num_items))
+
+
+def plot_alpha_stats(alpha_stats, ):
     plt.figure()
-    plt.xlabel('Variance in alpha values')
-    plt.ylabel('Average alpha of first mentioned attribute')
-    y_labels_ord = sorted(alpha_values_to_labels.keys())
-    plt.yticks(y_labels_ord, (alpha_values_to_labels[y] for y in y_labels_ord), rotation=45)
-    plt.legend(loc='best')
-    plt.savefig(save_path)
+    data_with_counts = {}
+    for key in alpha_stats:
+        if key not in data_with_counts.keys():
+            data_with_counts[key] = 0.
+
+        data_with_counts[key] += 1.
+
+    max_size = 2500
+    x_y = [x for x in data_with_counts.keys()]
+    x_vals = [x[1] for x in x_y]
+    y_vals = [x[0] for x in x_y]
+    total = len(alpha_stats)
+    sizes = [max_size * data_with_counts[key]/total for key in x_y]
+    plt.scatter(x_vals, y_vals, c='m', s=sizes, alpha=0.5)
+
+    sorted_x = [x for x in sorted(alpha_values_to_labels.keys()) if x != -1.]
+    plt.yticks(sorted_x, [alpha_values_to_labels[x] for x in sorted_x], rotation=45)
+    plt.ylabel("Uniformness of first mentioned attribute")
+    plt.xlabel("# of items in KB")
+    plt.savefig("web_output/friends-random-large-11k/attr_uniformness_stats_attrs.pdf")
+
+
+def plot_num_item_stats(item_stats_map):
+    plt.figure()
+
+    data_with_counts = {}
+    for (key, num_items) in item_stats_map:
+        if (key, num_items) not in data_with_counts.keys():
+            data_with_counts[(key, num_items)] = 0.0
+        data_with_counts[(key, num_items)] += 1.
+    max_size = 5000
+    x_y = [x for x in data_with_counts.keys()]
+    x_vals = [x[1] for x in x_y]
+    y_vals = [x[0] for x in x_y]
+    total = sum([data_with_counts[key] for key in x_y])
+    sizes = [max_size * data_with_counts[key]/total for key in x_y]
+    plt.scatter(x_vals, y_vals, c='m', s=sizes, alpha=0.5)
+    plt.yticks([0.05, 0.55, 1.0], ["least_frequent", "medium", "most_frequent"], rotation=45)
+    plt.ylabel("Frequency of first mentioned attribute")
+    plt.xlabel("# of items in KB")
+    plt.savefig("web_output/friends-random-large-11k/entity_ranking_stats_attrs.png" )
 
 
 def get_cross_talk(all_chats):
@@ -987,12 +1047,12 @@ def print_strategy_stats(stats):
     for template, v in top_speech_act_sequences:
         print '[%s]: %.3f' % (" ".join([str(t) for t in template]), v)
 
-    print "-----------------------------------"
-    print "Average number of mentioned attributes: %2.3f" % stats['avg_mentioned_attrs']
-    print "Average alpha of most mentioned attributes: %2.3f" % stats['most_mentioned_alpha']
-    print "KB attribute-based strategy statistics:"
-
-    for num_attrs, v in kb_strategy_stats.items():
-        print "Number of attributes mentioned: %d" % num_attrs
-        for order, frac in sorted([(a, b) for a, b in v.items()], key=lambda x: x[1], reverse=True):
-            print "\t%s: %2.3f" % (order, frac)
+    # print "-----------------------------------"
+    # print "Average number of mentioned attributes: %2.3f" % stats['avg_mentioned_attrs']
+    # print "Average alpha of most mentioned attributes: %2.3f" % stats['most_mentioned_alpha']
+    # print "KB attribute-based strategy statistics:"
+    #
+    # for num_attrs, v in kb_strategy_stats.items():
+    #     print "Number of attributes mentioned: %d" % num_attrs
+    #     for order, frac in sorted([(a, b) for a, b in v.items()], key=lambda x: x[1], reverse=True):
+    #         print "\t%s: %2.3f" % (order, frac)

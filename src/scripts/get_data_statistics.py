@@ -75,8 +75,9 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     #write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
     #write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
-    if args.plot_alpha_stats is not None:
-        plot_alpha_stats(strategy_stats["alpha_stats"], args.plot_alpha_stats)
+    plot_alpha_stats(strategy_stats["alpha_stats"])
+
+    plot_num_item_stats(strategy_stats["num_items_stats"])
     json.dump(stats, statsfile)
     statsfile.close()
 
@@ -91,6 +92,6 @@ if __name__ == "__main__":
     schema = Schema(parsed_args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(parsed_args.scenarios_path))
     transcripts = json.load(open(parsed_args.transcripts, 'r'))
-    transcripts = transcripts[:100]
+    # transcripts = transcripts[:100]
     lexicon = Lexicon(schema, False, scenarios_json=parsed_args.scenarios_path, stop_words=parsed_args.stop_words)
     compute_statistics(parsed_args, lexicon, schema, scenario_db, transcripts)
