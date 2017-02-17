@@ -192,6 +192,9 @@ def get_utterance(dialog):
 
 
 def get_dialog_stats(summary_map, utterance_counts, dialog):
+    '''
+    Count number of entities and attributes per dialogue.
+    '''
     num_entities = 0
     all_ents = set()
     for agent, act, ents, utterance in dialog:
@@ -296,6 +299,12 @@ def normalize(name, all_counts):
 
 
 def get_attr_prop(attr_name, entity_name, kb):
+    '''
+    Return properties of an attribute and an entity.
+    - relative_domain_size: number of unique entities for the attribute
+    - relative_entity_count: number of occurence of the entity
+    Both are normalized between 0 and 1.
+    '''
     attr_values = defaultdict(set)
     entity_counts = defaultdict(int)
     all_attrs = [attr.name for attr in kb.attributes]
@@ -310,6 +319,9 @@ def get_attr_prop(attr_name, entity_name, kb):
             'relative_entity_count': relative_entity_count}
 
 def get_entity_mention(summary_map, dialog, kbs):
+    '''
+    Get the first mentioned entity.
+    '''
     type_to_attr_name = {attr.value_type: attr.name for attr in kbs[0].attributes}
     num_mention = defaultdict(int)
     if 'first' not in summary_map:
