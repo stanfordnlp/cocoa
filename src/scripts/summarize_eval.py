@@ -30,10 +30,9 @@ def get_dialogue_ids(all_trans):
         ids.extend(trans[0].keys())
     return ids
 
-def filter(raw_evals, filter_evals, uuid_to_chats):
+def filter(raw_evals, uuid_to_chats):
     scenario_to_agents = defaultdict(set)
     scenario_to_chats = defaultdict(set)
-    filter_dialogue_ids = set(get_dialogue_ids(filter_evals))
     for eval_ in raw_evals:
         dialogue_agents = eval_[0]
         dialogue_scores = eval_[1]
@@ -56,8 +55,7 @@ def filter(raw_evals, filter_evals, uuid_to_chats):
         if len(agents) == 4:
             good_dialogues.extend(scenario_to_chats[scenario_id])
             #assert len(scenario_to_chats[scenario_id]) >= 4
-    filtered_dialogues = set(good_dialogues).intersection(filter_dialogue_ids)
-    print 'after filter:', len(filtered_dialogues)
+    filtered_dialogues = set(good_dialogues)
     return filtered_dialogues
 
 def read_eval(trans, question_scores, mask=None):
@@ -72,8 +70,6 @@ def read_eval(trans, question_scores, mask=None):
         for agent_id, results in scores.iteritems():
             agent_type = agent_dict[str(agent_id)]
             for question, ratings in results.iteritems():
-                #if question == 'comments' or question.endswith('text'):
-                #    continue
                 if not isinstance(ratings, list):
                     ratings = (ratings,)
                 question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
@@ -283,19 +279,17 @@ if __name__ == '__main__':
     parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
     parser.add_argument('--outdir', default='.', help='Output dir')
     parser.add_argument('--partner', default=False, action='store_true', help='Whether this is from partner survey')
-    parser.add_argument('--filter', nargs='+', default=[], help='Only take dialogues in the filter transcripts')
     add_scenario_arguments(parser)
     add_lexicon_arguments(parser)
     args = parser.parse_args()
 
     raw_eval = [read_json(trans) for trans in args.eval_transcripts]
-    filter_eval = [read_json(trans) for trans in args.filter]
     question_scores = defaultdict(lambda : defaultdict(list))
     raw_chats = read_json(args.dialogue_transcripts)
     uuid_to_chat = {chat['uuid']: chat for chat in raw_chats}
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    dialogue_ids = filter(raw_eval, filter_eval, uuid_to_chat)
+    dialogue_ids = filter(raw_eval, uuid_to_chat)
 
     for eval_ in raw_eval:
         read_eval(eval_, question_scores, mask=dialogue_ids)
