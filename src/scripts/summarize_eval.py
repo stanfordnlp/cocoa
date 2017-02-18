@@ -4,7 +4,7 @@ matplotlib.use('Agg')
 #matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from src.basic.util import read_json
+from src.basic.util import read_json, write_json
 from src.scripts.visualize_data import *
 from dataset_statistics import *
 from src.model.preprocess import Preprocessor
@@ -251,6 +251,7 @@ def hist(question_scores, outdir, partner=False):
     plt.savefig('%s/%s_rating.pdf' % (outdir, name))
 
 def summarize(question_scores):
+    summary = defaultdict(lambda : defaultdict(list))
     for summary_stat in ('mean',):
         print '=========== %s ===========' % summary_stat
         for question, agent_scores in question_scores.iteritems():
@@ -262,12 +263,22 @@ def summarize(question_scores):
             agent_ratings = {}
             for agent, stat, total in results:
                 agent_ratings[agent] = stat[1]
+                summary[question][agent] = [stat[0], '']
                 print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat[0], total)
             # T-test
             agents = ('human', 'rulebased', 'dynamic-neural', 'static-neural')
             for i in range(len(agents)):
                 for j in range(i+1, len(agents)):
-                    print agents[i], agents[j], ttest(agent_ratings[agents[i]], agent_ratings[agents[j]])
+                    result = ttest(agent_ratings[agents[i]], agent_ratings[agents[j]])
+                    print agents[i], agents[j], result
+                    t, p = result
+                    if p < 0.05:
+                        if t > 0:
+                            win_agent, lose_agent = agents[i], agents[j]
+                        else:
+                            win_agent, lose_agent = agents[j], agents[i]
+                        summary[question][win_agent][1] += lose_agent[0]
+    return summary
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -278,6 +289,7 @@ if __name__ == '__main__':
     parser.add_argument('--summary', default=False, action='store_true', help='Summarize human ratings')
     parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
     parser.add_argument('--outdir', default='.', help='Output dir')
+    parser.add_argument('--stats', default='stats.json', help='Path to stats file')
     parser.add_argument('--partner', default=False, action='store_true', help='Whether this is from partner survey')
     add_scenario_arguments(parser)
     add_lexicon_arguments(parser)
@@ -298,7 +310,8 @@ if __name__ == '__main__':
         hist(question_scores, args.outdir, partner=args.partner)
 
     if args.summary:
-        summarize(question_scores)
+        summary = summarize(question_scores)
+        write_json(summary, args.stats)
 
     if args.analyze:
         schema = Schema(args.schema_path)

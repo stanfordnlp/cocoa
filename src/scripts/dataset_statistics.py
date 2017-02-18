@@ -132,8 +132,8 @@ def get_kb_strategy(kbs, dialog):
         labeled_order.append(label)
         attribute_labels[attr_type] = label
 
-    if len(labeled_order) == 0:
-        print 'Empty labeled order', dialog
+    #if len(labeled_order) == 0:
+    #    print 'Empty labeled order', dialog
 
     if len(attribute_mention_counts.items()) > 0:
         most_mentioned = max(attribute_mention_counts.items(), key=lambda x: x[1])
@@ -426,7 +426,7 @@ def analyze_strategy(all_chats, scenario_db, preprocessor, text_output, lm):
             update_item_stats(num_items_stats, first_mentioned_type, first_mentioned_attr, kbs[first_agent])
 
             if first_mentioned_label != NO_ALPHA_MENTION:
-                update_alpha_stats(alpha_stats, kbs[first_agent], first_mentioned_label, alphas)
+                update_alpha_stats(alpha_stats, kbs[first_agent], first_mentioned_label)
                 # print "First mentioned attribute alpha:", first_mentioned, alpha_labels_to_values[first_mentioned]
 
     if fout:
