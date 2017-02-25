@@ -31,6 +31,9 @@ def get_dialogue_ids(all_trans):
     return ids
 
 def filter(raw_evals, uuid_to_chats):
+    '''
+    Only keep scenarios where all 4 agents are evaluated.
+    '''
     scenario_to_agents = defaultdict(set)
     scenario_to_chats = defaultdict(set)
     for eval_ in raw_evals:
