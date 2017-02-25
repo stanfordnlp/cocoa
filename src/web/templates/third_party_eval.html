@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="../static/third_party_eval.css">
+    <title>Third Party Evaluation</title>
+</head>
+
+<!-- JS for maneuvering text -->
+<script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+
+<script>
+
+    questionAnswers = {};
+
+    // Ensure all questions have a selected response
+    function ensureAllAnswered(){
+        fluentVal = $("#fluent").val();
+        correctVal = $("#correct").val();
+        coopVal = $("#cooperative").val();
+        humanVal = $("#humanlike").val();
+
+        fluentTextVal = $("#fluent_text").val();
+        correctTextVal = $("#correct_text").val();
+        coopTextVal = $("#cooperative_text").val();
+        humanTextVal = $("#humanlike_text").val();
+
+
+        if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null | humanTextVal == "" | fluentTextVal == "" | correctTextVal == "" | coopTextVal == ""){
+            return false;
+        }
+        else{
+            questionAnswers["humanlike"] = humanVal;
+            questionAnswers["correct"] = correctVal;
+            questionAnswers["fluent"] = fluentVal;
+            questionAnswers["cooperative"] = coopVal;
+
+            questionAnswers["humanlike_text"] = humanTextVal;
+            questionAnswers["correct_text"] = correctTextVal;
+            questionAnswers["fluent_text"] = fluentTextVal;
+            questionAnswers["cooperative_text"] = coopTextVal;
+
+            return true;
+        }
+    }
+
+    $(document).ready(function() {
+        $("#submit").click(function() {
+            allAnswered = ensureAllAnswered()
+            if (allAnswered){
+                console.log(questionAnswers);
+                $.ajax({
+                url: "/submit",
+                type: "POST",
+                data: JSON.stringify(questionAnswers),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    console.log(JSON.stringify(data));
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log(":(");
+                }
+                })
+            }else{
+                alert("You have not provided an answer for every question. Please do so before submitting the HIT.");
+            }
+
+        });
+    });
+
+
+    function formatDialogue(){
+        hiddenDialogue = $("#hiddendialogue").text();
+        console.log(hiddenDialogue);
+        statements = hiddenDialogue.split(";");
+        for(var idx = 0; idx < statements.length; idx++){
+            utterance = statements[idx];
+            colonIdx = utterance.indexOf(":");
+            agent = utterance.substring(0, colonIdx+1);
+            rest = utterance.substring(colonIdx+1);
+
+            $(".dialogue").append("<p>" + "<strong>" + agent + "</strong>" + rest + "</p>");
+        }
+    }
+
+    window.onload = function(){
+        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
+        console.log("AGENT: " + questionAnswers["agent_id"]);
+    }
+
+</script>
+
+
+<body >
+    <div class="wrapper" >
+        <header>
+            <h1><b>Instructions</b></h1> <br>
+               Below you will be given a dialogue that happened between two agents, <strong>Agent 1</strong> and <strong>Agent 2</strong>.
+                   In this dialogue, each agent has a private table of friends with one friend that is common to both agents.  The goal of their dialogue is to find the
+                    unique mutual friend as quickly as possible.<br> <br>
+
+                   Below you are also given the friends info from one of the agents. Your job is to answer the questions
+                   that follow the dialogue about this agent's behavior in the dialogue, by moving each slider appropriately. The agent's statements are highlighted in <strong><span style="color:darkred"> red</span></strong>. In
+                    the dialogue, a statement beginning with <span style="color:darkred">SELECT</span> indicates that an agent hypothesized this was the
+                    common friend between the two agents. The dialogue was successful if both agents selected the same friend. We present a short description of
+                   each of the attributes we will be asking about, with examples of these attributes sorted from highest to lowest: <br> <br>
+                   <ul style="margin-left: 30px;">
+                        <li>
+                            <span style="color:blue"><strong>FLUENT</strong></span>: How grammatical and well-formed are the statements made by the agent? <strong>NOTE: </strong>
+                            Shorter, more informal sentences are okay as long as they are understandable.
+                            <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">FLUENT (Score=5)</span>: Saying things like <i>Most of my friends went to Ohio State</i>
+                                </li>
+                                <li> <span style="color:red">SOMEWHAT FLUENT (Score=3)</span>: Saying things like <i>Many friend are USC </i>
+                                <li> <span style="color:red">NOT VERY FLUENT (Score=1)</span>: Saying things like <i>Freind the is collge</i>
+                                </li>
+                            </ul>
+                        </li><br>
+                        <li>
+                            <span style="color:blue"><strong>FACTUALLY-CORRECT</strong></span>: How consistent are the statements made by the agent with their friend information? In other words,
+                            are they lying?
+                            <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">VERY CORRECT (Score=5)</span>: Saying things like <i>My colleges are Northwestern, Williams, and Ohio State</i> and having
+                                    all the agent's friends attending these colleges. <strong>NOTE</strong>, assigning this score means every statement made by the agent is correct.
+                                </li>
+                                <li> <span style="color:red">SOMEWHAT CORRECT (Score=3)</span>: Saying things like <i>All friends studied biology</i> but one friend didn't study biology
+                                </li>
+                                <li> <span style="color:red">NOT VERY CORRECT (Score=1)</span>: Saying things like <i>I have a friend that studied biology</i> but none of their friends
+                            studied biology. <strong>NOTE</strong>, assigning this score means no statement made by the agent is correct.
+                                </li>
+                            </ul>
+                        </li><br>
+                       <li>
+                            <span style="color:blue"><strong>COOPERATIVE</strong></span>: How well does the agent interact with its partner? Since the two agents
+                           are trying to find their common friend as quickly as possible, how well does the agent respond to questions asked by its partner?
+                           If its partner offers some new piece of information, is the agent responding appropriately and relevantly?
+                           <ul style="margin-left: 50px;">
+                                <li> <span style="color:red">VERY COOPERATIVE (Score=5)</span>: If the agent's partner says <i>I have two evening friends</i> and
+                                    the agent responds <i>I also have one evening friend and they go to University of Washington</i>
+                                </li>
+                               <li> <span style="color:red">SOMEWHAT COOPERATIVE (Score=3)</span>: If the agent's parter says <i>I have one friend from Stanford. Any Stanford for you?</i>
+                                   and the agent responds <i>I have a Georgia Tech and one who works at Walmart</i>
+                                </li>
+                                <li> <span style="color:red">NOT VERY COOPERATIVE (Score=1)</span>: If the agent's partner says <i> I have two friends that went to UPenn. Any of your friends from UPenn?</i>
+                                    and the agent responds <i>3 that worked at Geico</i>
+                                </li>
+                            </ul>
+                       </li> <br>
+                       <li>
+                           <span style="color:blue"><strong>HUMAN-LIKE</strong></span>: If you were talking to this agent, would you be convinced that it is a human? Many
+                           of these dialogues were conducted between two Amazon Mechanical Turkers, so would you believe that the agent below
+                           is a Turker?
+                       </li>
+                   </ul> <br> <br>
+
+                <strong>NOTE: </strong> Make sure to include examples for every question in the associated textboxes or <strong>YOUR WORK WILL NOT BE ACCEPTED</strong>. <br><br>
+
+                <strong>NOTE: </strong> You will be evaluating <strong>5</strong> distinct dialogues for both agents. <br>
+
+        </header>
+        <br>
+        <br>
+
+        <!-- KBs for dialogue -->
+        <div class="kb">
+        <table align="middle" border="1" style="width: 100%" class="sortable">
+            {% if agent_id == 0 %}
+            <caption> <strong> Agent 1 Friends Info </strong></caption>
+            {% else %}
+            <caption> <strong> Agent 2 Friends Info </strong></caption>
+            {% endif %}
+        <thead>
+        <tr>
+            {% for name in column_names %}
+            <th>{{name}}</th>
+            {% endfor %}
+        </tr>
+        </thead>
+        {% for row in kb %}
+        <tr>
+            {% for name in column_names%}
+            <td> {{row[name]}}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+        </table>
+        </div>
+
+        <br> <br>
+
+
+        <!-- Fill in a dialogue here -->
+        <div class="dialogue">
+            {% for turn in dialogue %}
+                {% if turn.agent == agent_id %}
+                <p> <strong><span style="color:darkred">Agent {{turn.agent + 1}}:    {{turn.data}}</span> </strong></p>
+                {% else %}
+                <p> <span style="color:grey">Agent {{turn.agent + 1}}:    {{turn.data}} </span></p>
+                {% endif %}
+            {% endfor %}
+
+        </div>
+        <br> <br>
+
+        <!-- Agent questions -->
+
+         <div class="q">
+
+            <p style="text-align:center;">How <strong>fluent</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_f">
+                <p style="float:left;">Not very fluent  </p>
+                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:16%;" >
+                <p style="float:right;">Very fluent</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>fluent</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="fluent_text"></textarea>
+        </div>
+
+        <br><br>
+
+        <div class="q">
+           <p style="text-align:center;">How <strong>factually-correct</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_c">
+                <p style="float:left;">Not very correct (0%)</p>
+                <input type="range" id="correct" min="1" max="5" style="width:50%; margin-left:9%;" >
+                <p style="float:right;">Very correct (100%)</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>factually correct</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="correct_text"></textarea>
+        </div>
+
+        <br><br>
+
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>cooperative</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_co">
+                <p style="float:left;">Not very cooperative</p>
+                <input type="range" id="cooperative" min="1" max="5" style="width:50%; margin-left:11%" >
+                <p style="float:right;">Very cooperative</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>cooperative</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="cooperative_text"></textarea>
+        </div>
+
+        <br><br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>human-like</strong> is Agent {{agent_id + 1}}?</p> <br>
+            <form id="q_h">
+                <p style="float:left;">Not very human-like</p>
+                <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:11%;" >
+                <p style="float:right;">Very human-like</p>
+            </form>
+        </div>
+
+        <br><br>
+
+        <div class="q">
+            <p style="text-align:center;">Please give examples of how  Agent {{agent_id + 1}} is/is not <strong>humanlike</strong></p> <br>
+            <textarea style="width:100%;" rows="4" cols="50" id="humanlike_text"></textarea>
+        </div>
+
+        <br><br>
+
+
+        <div class="buttons" style="text-align:center;">
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
+
+    </div>
+
+
+</body>
+</html>
