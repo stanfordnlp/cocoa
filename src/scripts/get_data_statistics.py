@@ -17,7 +17,10 @@ def add_statistics_arguments(parser):
                         help='Get statistics grouped by number of items in scenarios')
     parser.add_argument('--plot-item-stats', type=str, default=None,
                         help='If provided, and if --item-stats is specified, plots the relationship between # of items '
-                             'and various stats to the provided path.')
+                             'and strategy stats to the provided path.')
+    parser.add_argument('--plot-alpha-stats', type=str, default=None,
+                        help='If provided, plots the relationship between alpha values and'
+                             'strategy stats to the provided path.')
     parser.add_argument('--lm', help='Path to LM (.arpa)')
     parser.add_argument('--vocab', type=str, help='Path to vocabulary')
 
@@ -31,22 +34,6 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     stats["total"] = total_stats = get_total_statistics(transcripts, scenario_db)
     print "Aggregated total dataset statistics"
     print_group_stats(total_stats)
-
-    if args.alpha_stats:
-        print "-----------------------------------"
-        print "-----------------------------------"
-        print "Getting statistics grouped by alpha values...."
-        stats["by_alpha"] = stats_by_alpha = get_statistics_by_alpha(transcripts, scenario_db)
-        print_stats(stats_by_alpha, stats_type="alphas")
-    if args.item_stats:
-        print "-----------------------------------"
-        print "-----------------------------------"
-        print "Getting statistics grouped by number of items..."
-        stats["by_num_items"] = stats_by_num_items = get_statistics_by_items(transcripts, scenario_db)
-        print_stats(stats_by_num_items, stats_type="number of items")
-
-        if args.plot_item_stats is not None:
-            plot_num_items_stats(stats_by_num_items, args.plot_item_stats)
 
     # LM
     if args.lm:
@@ -67,10 +54,12 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
     stats["correct"] = strategy_stats['correct']
     stats["entity_mention"] = strategy_stats['entity_mention']
     stats['multi_speech_act'] = strategy_stats['multi_speech_act']
-    outdir = os.path.dirname(args.stats_output)
-    #write_pickle(strategy_stats['ngram_counts'], os.path.join(outdir, 'ngram_counts.pkl'))
-    #write_pickle(strategy_stats['utterance_counts'], os.path.join(outdir, 'utterance_counts.pkl'))
 
+    if args.plot_alpha_stats:
+        plot_alpha_stats(strategy_stats["alpha_stats"], args.plot_alpha_stats)
+
+    if args.plot_item_stats:
+        plot_num_item_stats(strategy_stats["num_items_stats"], args.plot_item_stats)
     json.dump(stats, statsfile)
     statsfile.close()
 
@@ -85,5 +74,6 @@ if __name__ == "__main__":
     schema = Schema(parsed_args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(parsed_args.scenarios_path))
     transcripts = json.load(open(parsed_args.transcripts, 'r'))
+    # transcripts = transcripts[:100]
     lexicon = Lexicon(schema, False, scenarios_json=parsed_args.scenarios_path, stop_words=parsed_args.stop_words)
     compute_statistics(parsed_args, lexicon, schema, scenario_db, transcripts)

@@ -91,12 +91,17 @@ def log_surveys_to_json(db_path, surveys_file):
 
     for survey in logged_surveys:
         # print survey
-        (_, cid, _, fluent, correct, cooperative, humanlike, comments) = survey
+        (userid, cid, _, fluent, correct, cooperative, humanlike, comments) = survey
         responses = dict(zip(questions, [fluent, correct, cooperative, humanlike, comments]))
-        cursor.execute('''SELECT agent_types FROM chat WHERE chat_id=?''', (cid,))
-        agents = json.loads(cursor.fetchone()[0])
+        cursor.execute('''SELECT agent_types, agent_ids FROM chat WHERE chat_id=?''', (cid,))
+        chat_result = cursor.fetchone()
+        agents = json.loads(chat_result[0])
+        agent_ids = json.loads(chat_result[1])
         agent_types[cid] = agents
-        survey_data[cid] = responses
+        if cid not in survey_data.keys():
+            survey_data[cid] = {0: {}, 1: {}}
+        partner_idx = 0 if agent_ids['1'] == userid else 1
+        survey_data[cid][partner_idx] = responses
 
     json.dump([agent_types, survey_data], open(surveys_file, 'w'))
 
