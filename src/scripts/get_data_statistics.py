@@ -11,7 +11,7 @@ from src.basic.lexicon import Lexicon, add_lexicon_arguments
 
 def add_statistics_arguments(parser):
     parser.add_argument('--stats-output', type=str, required=True, help='Name of file to write JSON statistics to')
-    parser.add_argument('--text-output', type=str, help='Name of file to write sentences line by line')
+    parser.add_argument('--text-output', type=str, help='Name of file to write sentences line by line (for training a LM)')
     parser.add_argument('--alpha-stats', action='store_true', help='Get statistics grouped by alpha values')
     parser.add_argument('--item-stats', action='store_true',
                         help='Get statistics grouped by number of items in scenarios')
@@ -22,7 +22,6 @@ def add_statistics_arguments(parser):
                         help='If provided, plots the relationship between alpha values and'
                              'strategy stats to the provided path.')
     parser.add_argument('--lm', help='Path to LM (.arpa)')
-    parser.add_argument('--vocab', type=str, help='Path to vocabulary')
 
 
 def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
@@ -43,9 +42,8 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
         lm = None
 
     # Speech acts
-    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
-    vocab = read_pickle(args.vocab)['vocab']
-    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm, vocab)
+    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
+    strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm)
     print_strategy_stats(strategy_stats)
     stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}
     stats["kb_strategy"] = strategy_stats['kb_strategy']

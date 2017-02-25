@@ -26,8 +26,10 @@ def get_html_for_transcript(chat, agent=None, partner_type='Human'):
         chat_html.append("<b>Agent 0 (You)</b></td><td width=\"50%%\"><b>Agent 1 (Partner: %s)</b></td></tr><tr><td width=\"50%%\">" % partner_type)
     elif agent == 1:
         chat_html.append("<b>Agent 0 (Partner: %s)</b></td><td width=\"50%%\"><b>Agent 1 (You)</b></td></tr><tr><td width=\"50%%\">" % partner_type)
-    else:
+    elif 'agents' in chat:
         chat_html.append("<b>Agent 0 (%s) </b></td><td width=\"50%%\"><b>Agent 1 (%s) </b></td></tr><tr><td width=\"50%%\">" % (chat['agents']['0'], chat['agents']['1']))
+    else:
+        chat_html.append("<b>Agent 0 </b></td><td width=\"50%%\"><b>Agent 1 </b></td></tr><tr><td width=\"50%%\">")
 
     current_user = 0
 
@@ -191,4 +193,4 @@ if __name__ == "__main__":
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     transcripts = json.load(open(args.transcripts, 'r'))
 
-    visualize_transcripts(args, scenario_db, transcripts)
+    visualize_transcripts(args.html_output, scenario_db, transcripts)
