@@ -28,21 +28,21 @@ Here is an example dialogue (given KB of agent A):
 A: Hi! Most of my friends work for Google<br/>
 B: do you have anyone who went to columbia?<br/> 
 A: Hello?
-// *Cross talk*<br/>
 A: I have Jessica a friend of mine<br/>
 A: and Josh, both went to columbia<br/>
 B: or anyone working at apple?
-// *Cross talk*<br/>
 B: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 A: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 
 Human-human dialogues in this setting exhibit challenging lexical, semantic, and strategic elements,
 including cross-talk, coreference, correction, coordination, implicature, and so on.
 
-### Dataset
+### Resources
 
-We have collected 11K human-human dialogues through Amazon Mechanical Turk.
+We collected 11K human-human dialogues through Amazon Mechanical Turk.
 
-[Download](https://codalab.stanford.edu/bundles/0x1a3c6bde41544416996c11fa3ffb2dfc/) the dataset (split into train, dev, test sets).
+[Download](https://worksheets.codalab.org/bundles/0x5a4cefea7fd443cea15aa532bb8fcd67/) the dataset.
 
-[Browse](https://codalab.stanford.edu/rest/bundles/0xc9d7f5b32f80457b9c05db63bc788f4b/contents/blob/chat.html) the dataset in html.
+[Browse](https://worksheets.codalab.org/rest/bundles/0xebbaddf18b524be69e66ac6c40a82428/contents/blob/chat_viewer/chat.html) the dataset.
+
+Code is available soon!
