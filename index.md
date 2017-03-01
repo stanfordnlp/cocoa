@@ -27,10 +27,10 @@ Here is an example dialogue (given KB of agent A):
 <br/>
 A: Hi! Most of my friends work for Google<br/>
 B: do you have anyone who went to columbia?<br/> 
-A: Hello?
+A: Hello?<br/>
 A: I have Jessica a friend of mine<br/>
 A: and Josh, both went to columbia<br/>
-B: or anyone working at apple?
+B: or anyone working at apple?<br/>
 B: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 A: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 
