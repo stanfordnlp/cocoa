@@ -1,25 +1,37 @@
-Initialize:
+# CoCoA (Collaborative Communicating Agents)                                                    
+We build Collaborative Communicating Agents (CoCoA) that collaborate with humans through natural language communication. We focus on the symmetric collaborative dialogue setting, where two agents, each with private knowledge, must communicate to achieve a common goal.
 
-    mkdir output
+This branch contains code for the paper "Learning Symmetric Collaborative Dialogue Agents with Dynamic Knowledge Graph Embeddings".
 
-Generate schema:
+## Dependencies
+The following Python packages are required.
+- General: Python 2.7, NumPy 1.11, Tensorflow r0.12
+- Lexicon: fuzzywuzzy, editdistance
+- Web server: TODO
 
-    mkdir data/cache
-    python src/scripts/generate_schema.py --schema-path data/friends-schema-large.json --cache-path data/cache
-
+## Data collection
+### Scenario generation
+Generate the schema:
+```
+mkdir data/cache
+python src/scripts/generate_schema.py --schema-path data/schema.json --cache-path data/cache
+```
 Generate scenarios from the schema:
+TODO
 
-    python src/scripts/generate_scenarios.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --num-items 5 --num-scenarios 10
+### Set up the web server
+TODO
 
-Generate dataset of dialogues:
+## Model
+### Training
 
-    python src/scripts/generate_dataset.py --schema-path data/friends-schema.json --scenarios-path output/friends-scenarios.json --train-examples-paths output/friends-train-examples.json --test-examples-paths output/friends-test-examples.json --train-max-examples 10
+### Evaluation 
 
-Train a model:
 
-    TODO
-    
-Evaluate lexicon on annotated examples:
 
-    python src/scripts/eval_lexicon.py --schema <schema_path> --transcripts-path <transcripts_path> --scenarios-json <scenarios_path> --annotated-examples-path <annotated-examples-path>
+
+
+
+
+
 
