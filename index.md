@@ -39,10 +39,8 @@ including cross-talk, coreference, correction, coordination, implicature, and so
 
 ### Resources
 
-We collected 11K human-human dialogues through Amazon Mechanical Turk.
+We collected 11K human-human dialogues through Amazon Mechanical Turk.<br/>
+[Download](https://worksheets.codalab.org/bundles/0x5a4cefea7fd443cea15aa532bb8fcd67/) the dataset.<br/>
+[Browse](https://worksheets.codalab.org/rest/bundles/0xebbaddf18b524be69e66ac6c40a82428/contents/blob/chat_viewer/chat.html) the dataset.<br/>
 
-[Download](https://worksheets.codalab.org/bundles/0x5a4cefea7fd443cea15aa532bb8fcd67/) the dataset.
-
-[Browse](https://worksheets.codalab.org/rest/bundles/0xebbaddf18b524be69e66ac6c40a82428/contents/blob/chat_viewer/chat.html) the dataset.
-
-Code is available soon!
+[Code](https://github.com/stanfordnlp/cocoa/tree/cocoa-0.1)
