@@ -52,8 +52,8 @@ def filter(raw_evals, uuid_to_chats):
                 scenario_to_agents[scenario_id].add(agent_type)
                 scenario_to_chats[scenario_id].add(dialogue_id)
     good_dialogues = []  # with 4 agent types
-    print 'total scenarios:', len(scenario_to_agents)
-    print 'good scenarios:', sum([1 if len(a) == 4 else 0 for s, a in scenario_to_agents.iteritems()])
+    print 'Total scenarios:', len(scenario_to_agents)
+    print 'Good scenarios:', sum([1 if len(a) == 4 else 0 for s, a in scenario_to_agents.iteritems()])
     for scenario_id, agents in scenario_to_agents.iteritems():
         if len(agents) == 4:
             good_dialogues.extend(scenario_to_chats[scenario_id])
@@ -172,7 +172,7 @@ def analyze(question_scores, uuid_to_chat, preprocessor):
     for x in corr:
         print x
 
-def visualize(html_output, question_scores, uuid_to_chat):
+def visualize(viewer_mode, html_output, question_scores, uuid_to_chat):
     dialogue_responses = defaultdict(lambda : defaultdict(lambda : defaultdict(list)))
     for question, agent_scores in question_scores.iteritems():
         for agent, scores in agent_scores.iteritems():
@@ -192,7 +192,10 @@ def visualize(html_output, question_scores, uuid_to_chat):
     #    assert len(c) >= 4
     chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
-    visualize_transcripts(html_output, scenario_db, chats, dialogue_responses)
+    if viewer_mode:
+        write_viewer_data(html_output, chats, dialogue_responses)
+    else:
+        visualize_transcripts(html_output, chats, dialogue_responses)
 
 def one_hist(ax, question, responses_tuples, agents, title, ylabel=False, legend=False):
     N = 5
@@ -254,48 +257,58 @@ def hist(question_scores, outdir, partner=False):
     plt.savefig('%s/%s_rating.pdf' % (outdir, name))
 
 def summarize(question_scores):
-    summary = defaultdict(lambda : defaultdict(list))
+    summary = defaultdict(lambda : defaultdict(lambda : defaultdict()))
     for summary_stat in ('mean',):
-        print '=========== %s ===========' % summary_stat
+        #print '=========== %s ===========' % summary_stat
         for question, agent_scores in question_scores.iteritems():
             if question == 'comments' or question.endswith('text'):
                 continue
-            print '------------- %s ---------------' % question
             results = [(agent, summarize_scores(scores, summary_stat), get_total(scores)) for agent, scores in agent_scores.iteritems()]
             results = sorted(results, key=lambda x: x[1][0], reverse=True)
             agent_ratings = {}
-            for agent, stat, total in results:
+            for i, (agent, stat, total) in enumerate(results):
                 agent_ratings[agent] = stat[1]
-                summary[question][agent] = [stat[0], '']
-                print '{:<15s} {:<10.1f} {:<10d}'.format(agent, stat[0], total)
+                summary[question][agent]['score'] = stat[0]
+                summary[question][agent]['total'] = total
+                summary[question][agent]['ttest'] = ''
             # T-test
-            agents = ('human', 'rulebased', 'dynamic-neural', 'static-neural')
+            agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural')
             for i in range(len(agents)):
                 for j in range(i+1, len(agents)):
                     result = ttest(agent_ratings[agents[i]], agent_ratings[agents[j]])
-                    print agents[i], agents[j], result
+                    #print agents[i], agents[j], result
                     t, p = result
                     if p < 0.05:
                         if t > 0:
                             win_agent, lose_agent = agents[i], agents[j]
                         else:
                             win_agent, lose_agent = agents[j], agents[i]
-                        summary[question][win_agent][1] += lose_agent[0]
+                        summary[question][win_agent]['ttest'] += lose_agent[0]
+        # Print
+        agent_labels = ('Human', 'Rule-based', 'StanoNet', 'DynoNet')
+        for question, agent_stats in summary.iteritems():
+            print '============= %s ===============' % question.upper()
+            print '{:<12s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', '#score', 'win')
+            print '---------------------------------------'
+            for i, agent in enumerate(agents):
+                stats = agent_stats[agent]
+                print '{:<12s} {:<10.1f} {:<10d} {:<10s}'.format(agent_labels[i], stats['score'], stats['total'], stats['ttest'])
     return summary
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--eval-transcripts', nargs='+', help='Path to directory containing evaluation transcripts')
     parser.add_argument('--dialogue-transcripts', help='Path to directory containing dialogue transcripts')
-    parser.add_argument('--html-output', default=None, help='Path to HTML output')
     parser.add_argument('--analyze', default=False, action='store_true', help='Analyze human ratings')
     parser.add_argument('--summary', default=False, action='store_true', help='Summarize human ratings')
     parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
+    parser.add_argument('--visualize', action='store_true', help='Output html files')
     parser.add_argument('--outdir', default='.', help='Output dir')
     parser.add_argument('--stats', default='stats.json', help='Path to stats file')
     parser.add_argument('--partner', default=False, action='store_true', help='Whether this is from partner survey')
     add_scenario_arguments(parser)
     add_lexicon_arguments(parser)
+    add_visualization_arguments(parser)
     args = parser.parse_args()
 
     raw_eval = [read_json(trans) for trans in args.eval_transcripts]
@@ -323,8 +336,6 @@ if __name__ == '__main__':
         analyze(question_scores, uuid_to_chat, preprocessor)
 
     # Visualize
-    if args.html_output is not None:
-        if not os.path.exists(os.path.dirname(args.html_output)) and len(os.path.dirname(args.html_output)) > 0:
-            os.makedirs(os.path.dirname(args.html_output))
-        visualize(args.html_output, question_scores, uuid_to_chat)
+    if args.html_output:
+        visualize(args.viewer_mode, args.html_output, question_scores, uuid_to_chat)
 

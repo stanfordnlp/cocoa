@@ -814,5 +814,5 @@ class BackendConnection(object):
             agent_index = _get_agent_index()
             partner_type = _get_agent_type(1-agent_index)
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db)
-            _, html = visualize_chat(ex.to_dict(), self.scenario_db, agent=agent_index, partner_type=partner_type)
+            _, html = visualize_chat(ex.to_dict(), agent=agent_index, partner_type=partner_type)
             return html
