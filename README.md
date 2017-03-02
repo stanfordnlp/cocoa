@@ -8,6 +8,7 @@ The following Python packages are required.
 - General: Python 2.7, NumPy 1.11, Tensorflow r0.12
 - Lexicon: fuzzywuzzy, editdistance
 - Web server: flask, gevent, sqlite3
+
 You can also use the docker image `hhexiy/cocoa:0.2`.
 
 ## Data collection
