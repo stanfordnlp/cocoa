@@ -17,7 +17,6 @@
 	    }
     },
 
-    "scenarios_json_file": "/home/hehe/game-dialogue/data/test-scenarios.json",
     "connection_timeout_num_seconds": 3,
     "templates_dir": "/home/hehe/game-dialogue/src/web/templates",
     "end_survey": 1,

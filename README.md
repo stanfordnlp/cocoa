@@ -18,10 +18,43 @@ mkdir data/cache
 python src/scripts/generate_schema.py --schema-path data/schema.json --cache-path data/cache
 ```
 Generate scenarios from the schema:
-TODO
+```
+python src/scripts/generate_scenarios.py --schema-path data/schema.json --scenarios-path data/scenarios.json --num-scenarios 500 --random-attributes --random-items --alphas 0.3 1 3 
+```
+Some of the parameters used;
+- `--random-attributes`: For each scenario, select a random number and subset of attributes from the provided schema (if not provided, the script always includes all the attributes in the schema in each scenario)
+- `--min-attributes`: If `--random-attributes` is provided, specifies the minimum number of attributes to be chosen per scenario
+- `--max-attributes`: If `--random-attributes` is provided, specifies the maximum number of attributes to be chosen per scenario
+- `--random-items`: For each scenario, select a random number of items. If this parameter is not provided, the `--num-items` argument can be used to set the number of items per scenario.
+- `--min-items`: If `--random-items` is provided, specifies the minimum number of items to be chosen per scenario
+- `--max-items`: If `--random-items` is provided, specifies the maximum number of items to be chosen per scenario
+- `--alphas`: A list of alpha values to select from for each attribute in each scenario (the alpha value specifies the uniformness of the distribution that the attribute values are sampled from; higher alpha values imply that attribute values will be more unique.)
+      This parameter is only used if `--random-attributes` is provided. 
 
 ### Set up the web server
-TODO
+The website provides a basic infrastructure to allow to users to chat with each other, or allow a user to randomly chat with a bot.
+ When users first enter the website, they wait until they are paired up with another user (or a bot), and are then allowed to chat for a specified time, to complete the MutualFriends task, before the task times out. 
+ Users can then be directed to either a survey or a 'finished' page with a Mechanical Turk code. 
+ To set up the website, follow these instructions:
+1) Modify the website parameters in `data/web/app_params.json`:
+  `status_params`: Specifies how long the user is allowed to stay in different "states" before the task times out. These parameters don't need to be modified for the MutualFriends task.
+  `templates_dir` and `instructions`: Modify these paths to point to `src/web/templates` and `data/web/mutual-friends-instructions.html`
+  `models`: You can specify any number of bots that users can chat with here. Currently, only the simple rule-based bot and the neural bot (backed by DynoNet) are supported.
+    `models` must be a dictionary of unique bot names mapping to a bot definition. The bot definition must be a dictionary with the following fields:
+      `active`: true or false, depending on whether the bot should be active or not when the website is started. If false, the bot will not be loaded and users will not be paired with it.
+       `type`: "simple" or "neural", depending on the bot type
+       `path`: (for neural bots only) the location of the model checkpoint
+       `decoding`: (for neural bots only) The type of decoding to use for the DynoNet (see its documentation)
+       `prob`: (optional) The probability that a human is paired with the bot. By default, this probability is 1/(N+1), where N is the number of active bots, since humans can be paired with other humans on the website by default. 
+       To completely disable human-human pairings, you can manually set the probabilities of all active bots such that they sum to 1.0. In general, if the probability of any one bot is specified, the probability of all 
+       other bots with unspecified probabilities (and of human pairings) is computed by dividing the remaining probability equally among all partner types. For example, if you specify two active bots A and B, with prob=0.4 for A,
+       and unspecified for B, then the remaining probability of 0.6 is divided equally among B and human, such that p(A) = 0.4, P(B) = P(human) = 0.3.
+       
+  By default, the website code ensures that at least one complete chat is collected per scenario, per partner type (assuming that there is enough traffic to the website). So, for example, if you provide 200 scenarios
+  and 3 bot types (for a total of 4 partner types, including humans), the website will attempt to collect at least 200*4=800 completed chats.
+       
+2) Run the website:
+```python src/web/start_app.py --port 5000 --schema-path data/friends-schema.json --scenarios-path data/scenarios.json --config data/web/app_params.json```
 
 ## Model
 Main code for the Dynamic Knowledge Graph Network (DynoNet) is in `src/model`. Specifically,
