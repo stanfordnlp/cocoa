@@ -11,7 +11,14 @@ class KB(object):
     def __init__(self, attributes, items):
         self.attributes = attributes
         self.items = items
-        self.entity_set = set([value.lower() for item in items for value in item.values()])
+        #self.entity_set = set([value.lower() for item in items for value in item.values()])
+        self.entity_set = set()
+        for item in items:
+            for value in item.values():
+                if isinstance(value, tuple):
+                    self.entity_set.update((x for x in value))
+                else:
+                    self.entity_set.update(value)
         self.entity_type_set = set([attr.value_type for attr in self.attributes])
 
     @staticmethod

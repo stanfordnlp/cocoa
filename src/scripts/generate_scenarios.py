@@ -55,7 +55,6 @@ def generate_scenario(schema):
     num_items = args.num_items
     if args.random_items:
         num_items = np.random.choice(xrange(args.min_items, args.max_items+1))
-    alphas = schema.alphas
     random_attributes = args.random_attributes
     scenario_attributes = schema.attributes
     if random_attributes:
@@ -170,6 +169,5 @@ for i in range(min(100, len(scenario_db.scenarios_list))):
     print "Scenario id: %s" % scenario.uuid
     print "Alphas: [%s]" % ", ".join(["%2.1f" % alpha for alpha in scenario.alphas])
     for agent in (0, 1):
-
         kb = scenario.kbs[agent]
         kb.dump()

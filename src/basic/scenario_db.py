@@ -6,8 +6,42 @@ def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
     parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
 
+class BaseScenario(object):
+    '''
+    A scenario represents a situation
+    '''
+    def __init__(self, uuid):
+        self.uuid = uuid
 
-class Scenario(object):
+    @staticmethod
+    def from_dict(schema, raw):
+        raise NotImplementedError
+
+    def to_dict(self):
+        raise NotImplementedError
+
+class NegotiationScenario(BaseScenario):
+    def __init__(self, uuid, attributes, kbs, targets):
+        self.uuid = uuid
+        self.attributes = attributes
+        self.kbs = kbs
+        self.targets = targets
+
+    @staticmethod
+    def from_dict(raw):
+        return NegotiationScenario(raw['uuid'], [KB.from_dict(raw['attributes'], kb) for kb in raw['kbs']])
+
+    def to_dict(self):
+        return {'uuid': self.uuid,
+                'attributes': [attr.to_json() for attr in self.attributes],
+                'kbs': [kb.to_dict() for kb in self.kbs]
+                }
+
+    def get_kb(self, agent):
+        return self.kbs[agent]
+
+# TODO: rename this MutualFriendsScenario
+class Scenario(BaseScenario):
     '''
     A scenario represents a situation to be played out where each agent has a private KB.
     '''
