@@ -7,16 +7,18 @@ from itertools import izip
 
 
 class Attribute(object):
-    def __init__(self, name, value_type, unique=False, multivalued=False):
+    def __init__(self, name, value_type, unique=False, multivalued=False, entity=True):
         self.name = name
         self.value_type = value_type
         self.unique = unique
         self.multivalued = multivalued
+        # Whether the value of this attribute is an entity
+        self.entity = entity
     @staticmethod
     def from_json(raw):
-        return Attribute(raw['name'], raw['value_type'], raw.get('unique', False), raw.get('multivalued', False))
+        return Attribute(raw['name'], raw['value_type'], raw.get('unique', False), raw.get('multivalued', False), raw.get('entity', True))
     def to_json(self):
-        return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique, 'multivalued': self.multivalued}
+        return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique, 'multivalued': self.multivalued, 'entity': self.entity}
 
 
 class Schema(object):

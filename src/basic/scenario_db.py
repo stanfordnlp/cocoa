@@ -21,11 +21,10 @@ class BaseScenario(object):
         raise NotImplementedError
 
 class NegotiationScenario(BaseScenario):
-    def __init__(self, uuid, attributes, kbs, targets):
+    def __init__(self, uuid, attributes, kbs):
         self.uuid = uuid
         self.attributes = attributes
         self.kbs = kbs
-        self.targets = targets
 
     @staticmethod
     def from_dict(raw):

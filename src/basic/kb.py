@@ -3,7 +3,6 @@ from sample_utils import sorted_candidates
 import csv
 import json
 
-
 class KB(object):
     '''
     Represents an agent's knowledge.
@@ -14,11 +13,13 @@ class KB(object):
         #self.entity_set = set([value.lower() for item in items for value in item.values()])
         self.entity_set = set()
         for item in items:
-            for value in item.values():
-                if isinstance(value, tuple):
-                    self.entity_set.update((x for x in value))
-                else:
-                    self.entity_set.update(value)
+            for attr in attributes:
+                if attr.entity:
+                    value = item[attr.name]
+                    if attr.multivalued:
+                        self.entity_set.update((x for x in value))
+                    else:
+                        self.entity_set.update(value)
         self.entity_type_set = set([attr.value_type for attr in self.attributes])
 
     @staticmethod
@@ -56,3 +57,4 @@ class KB(object):
         # Convert the string representation of an item back to an ordered item (a tuple)
         # e.g. string representation: "{\"name\": \"Claire\", \"school\": \"Stanford University\",..}"
         return json.loads(str_data)
+
