@@ -62,7 +62,7 @@ def generate_scenario(schema):
         num_attributes = min(np.random.choice(xrange(args.min_attributes, args.max_attributes)), len(schema.attributes))
         scenario_attributes = np.random.choice(schema.attributes, num_attributes, replace=False)
         scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
-        alphas = select_alphas(scenario_attributes)
+    alphas = select_alphas(scenario_attributes)
 
     # Generate the profile of the two agents
     agents = (0, 1)

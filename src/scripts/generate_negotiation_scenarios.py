@@ -3,6 +3,8 @@
 import argparse
 import random
 import numpy as np
+import copy
+from itertools import izip
 from src.basic.schema import Schema
 from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
 from src.basic.util import generate_uuid, write_json
@@ -11,6 +13,8 @@ from src.basic.kb import KB
 def generate_kb(schema):
     item = {}
     for attr in schema.attributes:
+        if attr.name in ('Role', 'Target'):
+            continue
         value_set = schema.values[attr.value_type]
         if attr.multivalued:
             num_values = np.random.randint(1, 4)  # 1 to 3 values
@@ -32,8 +36,12 @@ def generate_targets(base, intersections):
 
 def generate_scenario(schema, base, intersections):
     kb = generate_kb(schema)
+    kbs = [kb, copy.deepcopy(kb)]
     targets = generate_targets(base, intersections)
-    return NegotiationScenario(generate_uuid('S'), schema.attributes, [kb, kb], targets)
+    for i, (role, price) in enumerate(targets.iteritems()):
+        kbs[i].items[0]['Role'] = role
+        kbs[i].items[0]['Target'] = price
+    return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -60,7 +68,6 @@ if __name__ == '__main__':
         print '---------------------------------------------------------------------------------------------'
         scenario = scenario_db.scenarios_list[i]
         print "Scenario id: %s" % scenario.uuid
-        print "Targets: %s" % scenario.targets
         for agent in (0, 1):
             kb = scenario.kbs[agent]
             kb.dump()
