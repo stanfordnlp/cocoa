@@ -78,7 +78,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     for i in range(max_examples):
         scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
-        controller = Controller(scenario, sessions)
+        controller = Controller.get_controller(scenario, sessions)
         ex = controller.simulate(max_turns)
         if ex.outcome['reward'] == 0:
             num_failed += 1
