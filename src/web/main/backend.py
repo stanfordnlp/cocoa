@@ -96,7 +96,6 @@ class BackendConnection(object):
         self.lexicon = lexicon
 
         self.do_survey = True if "end_survey" in params.keys() and params["end_survey"] == 1 else False
-        self.skip_chat_enabled = True if "skip_chat_enabled" in params.keys() and params["skip_chat_enabled"] else False
         self.scenario_db = scenario_db
         self.schema = schema
         self.systems = systems
@@ -237,7 +236,7 @@ class BackendConnection(object):
             my_session = self.systems[HumanSystem.name()].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1-my_index, scenario.get_kb(1-my_index))
 
-            controller = Controller(scenario, [my_session, partner_session], chat_id=chat_id, debug=False)
+            controller = Controller.get_controller(scenario, [my_session, partner_session], chat_id=chat_id, debug=False)
 
             return controller, my_session, partner_session
 
@@ -611,10 +610,7 @@ class BackendConnection(object):
                 except StatusTimeoutException:
                     u = self._get_user_info_unchecked(cursor, userid)
                     logger.debug("User {} had status timeout.".format(u.name[:6]))
-                    if self.skip_chat_enabled:
-                        self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired)
-                    else:
-                        self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
+                    self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
                     return False
                 except ConnectionTimeoutException:
                     return False
@@ -623,17 +619,11 @@ class BackendConnection(object):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
                     except UnexpectedStatusException:
-                        if self.skip_chat_enabled:
-                            self.end_chat_and_finish(cursor, userid, message=Messages.PartnerLeftRoom)
-                        else:
-                            self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
+                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
-                        if self.skip_chat_enabled:
-                            self.end_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning)
-                        else:
-                            self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
-                            # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
+                        self.timeout_chat_and_finish(cursor, userid, message=Messages.ChatExpired + " " + Messages.HITCompletionWarning, partner_id=u.partner_id)
+                        # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
                         self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerConnectionTimeout)
