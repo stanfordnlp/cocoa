@@ -3,10 +3,9 @@ from util import generate_uuid
 from dataset import Example
 from threading import Lock
 
-
-class Controller(object):
+class BaseController(object):
     """
-    The controller takes two systems and can run them to generate a dialgoue.
+    Interface of the controller: takes two systems and can run them to generate a dialgoue.
     """
     def __init__(self, scenario, sessions, chat_id=None, debug=True):
 
@@ -18,51 +17,48 @@ class Controller(object):
         if debug:
             for agent in (0, 1):
                 self.scenario.kbs[agent].dump()
-        self.selections = [None, None]
-        self.reward = 0
         self.events = []
 
+    def event_callback(self, event):
+        raise NotImplementedError
+
+    def get_outcome(self):
+        raise NotImplementedError
+
     def simulate(self, max_turns=100):
-        '''Simulate the dialogue.'''
+        '''
+        Simulate a dialogue.
+        '''
         self.events = []
         time = 0
-        self.selections = [None, None]
-        self.reward = 0
         num_turns = 0
-        timeup = False
-        while True:
+        while not (self.game_over() or num_turns >= max_turns):
             for agent, session in enumerate(self.sessions):
                 event = session.send()
                 time += 1
                 if not event:
                     continue
-                event.time = time
-                self.events.append(event)
 
-                if event.action == 'select':
-                    self.selections[agent] = event.data
+                event.time = time
+                self.event_callback(event)
+                self.events.append(event)
 
                 print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 num_turns += 1
-                if num_turns >= max_turns:
-                    timeup = True
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)
 
-                # Game is over when the two selections are the same
-                if self.game_over():
-                    self.reward = 1
-                    break
-            if self.game_over() or timeup:
-                break
-
         uuid = generate_uuid('E')
-        outcome = {'reward': self.reward}
+        outcome = self.get_outcome()
         print 'outcome: %s' % outcome
+        # TODO: add configurable names to systems and sessions
         return Example(self.scenario, uuid, self.events, outcome, uuid, None)
 
     def step(self, backend=None):
+        '''
+        Called by the web backend.
+        '''
         with self.lock:
             # try to send messages from one session to the other(s)
             for agent, session in enumerate(self.sessions):
@@ -73,23 +69,15 @@ class Controller(object):
                 event = session.send()
                 if event is None:
                     continue
-                self.events.append(event)
 
+                self.event_callback(event)
+                self.events.append(event)
                 if backend is not None:
                     backend.add_event_to_db(self.get_chat_id(), event)
-                if event.action == 'select':
-                    self.selections[agent] = event.data
-                    if self.game_over():
-                        self.reward = 1
+
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)
-
-    def game_over(self):
-        return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
-
-    def get_outcome(self):
-        return {'reward': self.reward}
 
     def inactive(self):
         """
@@ -122,9 +110,52 @@ class Controller(object):
     def get_chat_id(self):
         return self.chat_id
 
-    def dump(self, path):
-        self.events = sorted(self.events, key=lambda x:x.time)
+class Controller(object):
+    '''
+    Factory of controllers.
+    '''
+    @staticmethod
+    def get_controller(scenario, sessions, chat_id=None, debug=True):
+        import src.config as config
+        if config.task == 'mutualfriends':
+            return MutualFriendsController(scenario, sessions, chat_id, debug)
+        else:
+            raise ValueError('Unknown task: %s.' % config.task)
 
-        outcome = self.get_outcome()
-        ex = Example(self.scenario, self.scenario.uuid, self.events, outcome)
-        json.dump(ex.to_dict(), open(path, 'w'))
+class MutualFriendsController(BaseController):
+    def __init__(self, scenario, sessions, chat_id=None, debug=True):
+        super(MutualFriendsController, self).__init__(scenario, sessions, chat_id, debug)
+        self.selections = [None, None]
+
+    def event_callback(self, event):
+        if event.action == 'select':
+            self.selections[event.agent] = event.data
+
+    def get_outcome(self):
+        if self.selections[0] is not None and self.selections[0] == self.selections[1]:
+            reward = 1
+        else:
+            reward = 0
+        return {'reward': reward}
+
+    def game_over(self):
+        return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
+
+class NegotiationController(BaseController):
+    def __init__(self, scenario, sessions, chat_id=None, debug=True):
+        super(NegotiationController, self).__init__(scenario, sessions, chat_id, debug)
+        self.prices = [None, None]
+
+    def event_callback(self, event):
+        if event.action == 'offer':
+            self.prices[event.agent] = float(event.data)
+
+    def get_outcome(self):
+        if self.prices[0] is not None and self.prices[0] == self.prices[1]:
+            reward = 1
+        else:
+            reward = 0
+        return {'reward': reward}
+
+    def game_over(self):
+        return not self.inactive() and self.prices[0] is not None and self.prices[0] == self.prices[1]

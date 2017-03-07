@@ -8,27 +8,16 @@ def add_scenario_arguments(parser):
 
 class BaseScenario(object):
     '''
-    A scenario represents a situation
+    A scenario represents a situation to be played out where each agent has a KB.
     '''
-    def __init__(self, uuid):
-        self.uuid = uuid
-
-    @staticmethod
-    def from_dict(schema, raw):
-        raise NotImplementedError
-
-    def to_dict(self):
-        raise NotImplementedError
-
-class NegotiationScenario(BaseScenario):
     def __init__(self, uuid, attributes, kbs):
         self.uuid = uuid
         self.attributes = attributes
         self.kbs = kbs
 
     @staticmethod
-    def from_dict(raw):
-        return NegotiationScenario(raw['uuid'], [KB.from_dict(raw['attributes'], kb) for kb in raw['kbs']])
+    def from_dict(schema, raw):
+        raise NotImplementedError
 
     def to_dict(self):
         return {'uuid': self.uuid,
@@ -39,15 +28,28 @@ class NegotiationScenario(BaseScenario):
     def get_kb(self, agent):
         return self.kbs[agent]
 
-# TODO: rename this MutualFriendsScenario
-class Scenario(BaseScenario):
+class Scenario(object):
     '''
-    A scenario represents a situation to be played out where each agent has a private KB.
+    Factory of scenarios.
     '''
+    @staticmethod
+    def get_scenario(*args):
+        import src.config as config
+        if config.task == 'mutualfriends':
+            return MutualFriendsScenario(*args)
+        elif config.task == 'negotiation':
+            return NegotiationScenario(*args)
+        else:
+            raise ValueError('Unknown task: %s.' % config.task)
+
+class NegotiationScenario(BaseScenario):
+    @staticmethod
+    def from_dict(raw):
+        return NegotiationScenario(raw['uuid'], [KB.from_dict(raw['attributes'], kb) for kb in raw['kbs']])
+
+class MutualFriendsScenario(BaseScenario):
     def __init__(self, uuid, attributes, kbs, alphas=[]):
-        self.uuid = uuid
-        self.attributes = attributes
-        self.kbs = kbs
+        super(MutualFriendsScenario, self).__init__(uuid, attributes, kbs)
         self.alphas = alphas
 
     @staticmethod
@@ -62,16 +64,12 @@ class Scenario(BaseScenario):
             attributes = [Attribute.from_json(raw_attr) for raw_attr in raw['attributes']]
         if 'alphas' in raw:
             alphas = raw['alphas']
-        return Scenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']], alphas)
+        return MutualFriendsScenario(raw['uuid'], attributes, [KB.from_dict(attributes, kb) for kb in raw['kbs']], alphas)
 
     def to_dict(self):
-        return {'uuid': self.uuid,
-                'attributes': [attr.to_json() for attr in self.attributes],
-                'kbs': [kb.to_dict() for kb in self.kbs],
-                'alphas': self.alphas}
-
-    def get_kb(self, agent):
-        return self.kbs[agent]
+        d = super(MutualFriendsScenario, self).to_dict()
+        d['alphas'] = self.alphas
+        return d
 
 
 class ScenarioDB(object):

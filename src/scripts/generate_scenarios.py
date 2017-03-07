@@ -147,7 +147,7 @@ def generate_scenario(schema):
 
     # Create the scenario
     kbs = [KB(scenario_attributes, items) for items in agent_items]
-    scenario = Scenario(generate_uuid('S'), scenario_attributes, kbs, [alphas[attr] for attr in scenario_attributes])
+    scenario = Scenario.get_scenario(generate_uuid('S'), scenario_attributes, kbs, [alphas[attr] for attr in scenario_attributes])
     return scenario
 
 # Generate scenarios

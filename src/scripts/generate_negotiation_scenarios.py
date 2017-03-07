@@ -6,7 +6,7 @@ import numpy as np
 import copy
 from itertools import izip
 from src.basic.schema import Schema
-from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
+from src.basic.scenario_db import Scenario, ScenarioDB, add_scenario_arguments
 from src.basic.util import generate_uuid, write_json
 from src.basic.kb import KB
 
@@ -41,7 +41,7 @@ def generate_scenario(schema, base, intersections):
     for i, (role, price) in enumerate(targets.iteritems()):
         kbs[i].items[0]['Role'] = role
         kbs[i].items[0]['Target'] = price
-    return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
+    return Scenario.get_scenario(generate_uuid('S'), schema.attributes, kbs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
