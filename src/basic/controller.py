@@ -141,3 +141,21 @@ class MutualFriendsController(BaseController):
     def game_over(self):
         return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
+class NegotiationController(BaseController):
+    def __init__(self, scenario, sessions, chat_id=None, debug=True):
+        super(NegotiationController, self).__init__(scenario, sessions, chat_id, debug)
+        self.prices = [None, None]
+
+    def event_callback(self, event):
+        if event.action == 'offer':
+            self.prices[event.agent] = float(event.data)
+
+    def get_outcome(self):
+        if self.prices[0] is not None and self.prices[0] == self.prices[1]:
+            reward = 1
+        else:
+            reward = 0
+        return {'reward': reward}
+
+    def game_over(self):
+        return not self.inactive() and self.prices[0] is not None and self.prices[0] == self.prices[1]
