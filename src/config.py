@@ -1,1 +1,5 @@
-task = 'mutualfriends'
+Negotation = 'negotiation'
+MutualFriends = 'mutualfriends'
+
+
+task = Negotation

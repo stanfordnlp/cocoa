@@ -35,9 +35,9 @@ class Scenario(object):
     @staticmethod
     def get_scenario(*args):
         import src.config as config
-        if config.task == 'mutualfriends':
+        if config.task == config.MutualFriends:
             return MutualFriendsScenario(*args)
-        elif config.task == 'negotiation':
+        elif config.task == config.Negotation:
             return NegotiationScenario(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
@@ -45,9 +45,9 @@ class Scenario(object):
     @staticmethod
     def from_dict(schema, raw):
         import src.config as config
-        if config.task == 'mutualfriends':
+        if config.task == config.MutualFriends:
             return MutualFriendsScenario.from_dict(schema, raw)
-        elif config.task == 'negotiation':
+        elif config.task == config.Negotation:
             return NegotiationScenario.from_dict(schema, raw)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
