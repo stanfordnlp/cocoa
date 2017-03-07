@@ -215,8 +215,8 @@ if __name__ == "__main__":
         raise ValueError("No schema file found at %s" % schema_path)
 
     schema = Schema(schema_path, domain=args.domain)
-    # todo in the future would we want individual models to have different lexicons?
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    # lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    lexicon = None
     if args.inverse_lexicon:
         realizer = InverseLexicon(schema, args.inverse_lexicon)
     else:
