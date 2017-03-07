@@ -42,6 +42,16 @@ class Scenario(object):
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
+    @staticmethod
+    def from_dict(raw, schema=None):
+        import src.config as config
+        if config.task == 'mutualfriends':
+            return MutualFriendsScenario.from_dict(schema, raw)
+        elif config.task == 'negotiation':
+            return NegotiationScenario.from_dict(raw)
+        else:
+            raise ValueError('Unknown task: %s.' % config.task)
+
 class NegotiationScenario(BaseScenario):
     @staticmethod
     def from_dict(raw):

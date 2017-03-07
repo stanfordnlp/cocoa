@@ -8,9 +8,9 @@ import time
 from flask import jsonify, render_template, request, redirect, url_for, Markup
 from flask import current_app as app
 
-from . import main
-from web_utils import get_backend
-from backend import Status
+from .. import main
+from src.web.main.web_utils import get_backend
+from src.web.main.backend import Status
 from src.basic.event import Event
 
 logger = logging.getLogger(__name__)
