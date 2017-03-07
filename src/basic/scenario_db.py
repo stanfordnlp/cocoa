@@ -55,7 +55,12 @@ class Scenario(object):
 class NegotiationScenario(BaseScenario):
     @staticmethod
     def from_dict(schema, raw):
-        return NegotiationScenario(raw['uuid'], [KB.from_dict(raw['attributes'], kb) for kb in raw['kbs']])
+
+        scenario_attributes = schema.attributes
+        if 'attributes' in raw.keys():
+            scenario_attributes = [Attribute.from_json(a) for a in raw['attributes']]
+        return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']])
+
 
 class MutualFriendsScenario(BaseScenario):
     def __init__(self, uuid, attributes, kbs, alphas=[]):

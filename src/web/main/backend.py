@@ -15,7 +15,7 @@ from src.basic.event import Event
 from flask import Markup
 from uuid import uuid4
 from collections import defaultdict
-from web_utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
+from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 
 m = hashlib.md5()
@@ -701,7 +701,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
-                self.send(userid, Event.SelectionEvent(u.agent_index,
+                self.send(userid, Event.OfferEvent(u.agent_index,
                                                        amt,
                                                        str(time.time())))
         except sqlite3.IntegrityError:

@@ -1,0 +1,12 @@
+{
+  "values": {
+    "major": ["Computer Science", "Physics", "Math", "Economics", "Linguistics"],
+    "school": ["Stanford", "Columbia", "University of Pennsylvania", "University of California - Berkeley"],
+    "company": ["Google", "Facebook", "Apple", "Uber", "Amazon"]
+  },
+  "attributes": [
+    {"name": "Major", "value_type": "major", "unique": false},
+    {"name": "School", "value_type": "school", "unique": false},
+    {"name": "Company", "value_type": "company", "unique": false}
+  ]
+}

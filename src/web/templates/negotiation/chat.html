@@ -106,7 +106,7 @@
             		data: {"uid": "{{ uid }}" },
             		dataType: "json"
             	});
-
+				
             	$.ajax({
             		url: BASE_URL + '/_join_chat/',
             		type: "get",
@@ -116,7 +116,7 @@
             			displayText(response['message']);
             		}
             	});
-		
+				
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
 				window.onbeforeunload = disconnect;
@@ -137,31 +137,37 @@
 				});
                 
                 $('#price').on('keyup blur', function () { // fires on every keyup & blur
-                    var price = parseInt($('#price').val())
-                    if (price % 50 == 0) {
-                        $('#submit').prop('disabled', false);        // enables button
-                    } else {
-                        $('#submit').prop('disabled', 'disabled');   // disables button
-                    }
+                	var priceStr = $('#price').val()
+                	if (isNaN(priceStr)) { // ensure that string entered is a valid number 
+                		$('#submit').prop('disabled', 'disabled'); 
+                	} else {
+                		var price = parseInt(priceStr)
+	                    if (price % 50 == 0) {
+	                        $('#submit').prop('disabled', false);        // enables button
+	                    } else {
+	                        $('#submit').prop('disabled', 'disabled');   // disables button
+	                    }
+                	}
+                    
                 });
 
 			});
 
-			function makeSelection(selected) {
-				if(selectTime == null) {
-					// if no selection has been made before, log selection and save selection time
-					selectTime = new Date();
-					select(selected);
-				}
-				else {
-					var currentTime = new Date();
-					// check if last selection was more than 10 seconds ago; selections can only be made > 10 seconds apart.
-					// If the last selection was made < 10 seconds ago, do nothing (no selection event is logged).
-					if ((currentTime - selectTime) > 10000) {
-						select(selected);
-						selectTime = currentTime;
-					} // otherwise do nothing
-				}
+			function makeOffer() {
+				var price = parseInt($('#price').val())
+				$.ajax({
+					url: BASE_URL + '/_offer/',
+					type: "get",
+					data: { 
+						"uid": "{{ uid }}",
+						"offer": price
+					},
+					dataType: "json",
+					success: function(response) {
+						displayText(response['message']);
+					}
+
+				});
 			}
 			
 			function displayText(message) {
@@ -184,21 +190,7 @@
 					}
 				});
 			}
-			function select(selection) {
-				$.ajax({
-					url: BASE_URL + '/_select_option/',
-					type: "get",
-					data: { 
-						"uid": "{{ uid }}",
-						"selection": selection
-					},
-					dataType: "json",
-					success: function(response) {
-						displayText(response['message']);
-					}
 
-				});
-			}
 			function checkInbox() {
 				$.ajax({
 					url: BASE_URL + '/_check_inbox/',
@@ -278,7 +270,6 @@
 					var t = getTimeRemaining(endtime);
 					minutesSpan.innerHTML = t.minutes+':';
 					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-					console.log(t.total/1000);
 					if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
 						$("#leave").css("display", "inline-block");
 					}
@@ -356,7 +347,7 @@
             <h3>Offer</h3>
             <p>Enter your price (should be a multitude of $50):</p>
             <input id="price" pattern="\d+"/>
-            <button id="submit">Submit</button>
+            <button onclick="makeOffer()" id="submit">Submit</button>
         </div>
         {% if partner_kb %}
         <div id="peek">

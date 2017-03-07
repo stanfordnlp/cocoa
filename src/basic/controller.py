@@ -117,8 +117,10 @@ class Controller(object):
     @staticmethod
     def get_controller(scenario, sessions, chat_id=None, debug=True):
         import src.config as config
-        if config.task == 'mutualfriends':
+        if config.task == config.MutualFriends:
             return MutualFriendsController(scenario, sessions, chat_id, debug)
+        elif config.task == config.Negotation:
+            return NegotiationController(scenario, sessions, chat_id, debug)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 

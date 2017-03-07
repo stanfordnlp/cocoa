@@ -1,0 +1,27 @@
+{
+    "status_params": {
+	    "waiting": {
+	        "num_seconds": 180
+	    },
+
+	    "chat": {
+	        "num_seconds": 300
+	    },
+
+	    "finished": {
+	        "num_seconds": 15
+	    },
+
+        "survey": {
+	        "num_seconds": -1
+	    }
+    },
+    "connection_timeout_num_seconds": 3,
+    "templates_dir": "/Users/anushabala/projects/game-dialogue/src/web/templates/negotiation",
+    "instructions": "/Users/anushabala/projects/game-dialogue/data/web/negotiation/instructions.html",
+    "task_title": "Let's Negotiate!",
+    "icon": "handshake.jpg",
+    "end_survey": 0,
+    "skip_chat_enabled": false
+}
+
