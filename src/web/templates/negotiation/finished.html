@@ -1,0 +1,35 @@
+<html>
+    <head>
+        <title>Thank You!</title>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
+        <style>
+            #content > p {
+                font-size:18px;
+            }
+        </style>
+        <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+        	var BASE_URL = 'http://' + document.domain + ':' + location.port;
+        	function visualize() {
+        		window.location.href = BASE_URL +'/visualize?uid={{uid}}';
+        	}
+        </script>
+    </head>
+    <body>
+    <div id="content">
+        <h2>Who's Our Mutual Friend?</h2>
+        <h4>{{ finished_message }}</h4>
+	</div>
+	<div id="mturk">
+		{% if mturk_code is not none %}
+		<hr>	
+		<h3>Thanks for completing this HIT! Please copy and paste this code into the HIT on Mechanical Turk: {{ mturk_code }}</h3>
+		{% endif %}
+		<hr>
+		{% if visualize %}
+		<h4><a href="javascript:visualize();">Click here</a> to visualize the dialogue you just completed</h4>
+		{% endif %}
+	</div>
+
+    </body>
+</html>
