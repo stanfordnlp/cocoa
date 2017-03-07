@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="../static/survey.css">
+    <title>Who's Our Mutual Friend?</title>
+</head>
+
+<!-- JS for maneuvering text -->
+<script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+
+<script>
+
+    questionAnswers = {};
+
+    // Ensure all questions have a selected response
+    function ensureAllAnswered(){
+        fluentVal = $("#fluent").val();
+        correctVal = $("#correct").val();
+        coopVal = $("#cooperative").val();
+        humanVal = $("#humanlike").val();
+        comments = $("#comments").val();
+        //fluentVal = document.getElementById("#myRange").value
+        console.log("FLUENT: " + fluentVal);
+        console.log("HONEST: " + correctVal);
+        console.log("COOPERATIVE: " + coopVal);
+        console.log("HUMAN-LIKE: " + humanVal);
+
+        if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null){
+            return false;
+        }
+        else{
+            questionAnswers["humanlike"] = humanVal;
+            questionAnswers["correct"] = correctVal;
+            questionAnswers["fluent"] = fluentVal;
+            questionAnswers["cooperative"] = coopVal;
+            if(comments == null) {
+            	comments = "";
+            }
+            questionAnswers["comments"] = comments;
+            return true;
+        }
+    }
+
+    $(document).ready(function() {
+    	$.ajax({
+			url: '/_connect/',
+			type: "get",
+			data: {"uid": "{{ uid }}" },
+			dataType: "json"
+		});
+		
+        $("#submit").click(function() {
+            allAnswered = ensureAllAnswered()
+            if (allAnswered){
+            	response = {"uid": "{{ uid }}", "response": questionAnswers};
+                console.log(questionAnswers);
+                $.ajax({
+                url: "/_submit_survey/",
+                type: "POST",
+                data: JSON.stringify(response),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    disconnect();
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log(":(");
+                }
+                })
+            }else{
+                alert("You have not selected an answer for every question. Please do so before submitting the HIT.");
+            }
+
+        });
+        
+        function disconnect() {
+			$.ajax({
+				url: '/_disconnect/',
+				type: "get",
+				data: {"uid": "{{ uid }}" },
+				dataType: "json"
+			});
+		}
+    });
+
+    window.onload = function(){
+        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
+        console.log("AGENT: " + questionAnswers["agent_id"]);
+    }
+
+</script>
+
+
+<body >
+    <div class="wrapper" >
+        <header>
+        	<h2><b>Instructions</b></h2> <br>
+        	<b>{{ message }}</b> In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.
+        </header>
+         
+        <br>
+        <br>
+
+         <div class="q">
+
+            <p style="text-align:center;">How <strong>fluent</strong> was your partner?</p> <br>
+            <form id="q_f">
+                <p style="float:left;">Not very fluent  </p>
+                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:16%;" >
+                <p style="float:right;">Very fluent</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+           <p style="text-align:center;">How <strong>honest</strong> do you think your partner was?</p> <br>
+            <form id="q_c">
+                <p style="float:left;">Not very honest</p>
+                <input type="range" id="correct" min="1" max="5" style="width:50%; margin-left:16%;" >
+                <p style="float:right;">Very honest</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>cooperative</strong> was your partner?</p> <br>
+            <form id="q_s">
+                <p style="float:left;">Not very cooperative</p>
+                <input type="range" id="cooperative" min="1" max="5" style="width:50%; margin-left:13%" >
+                <p style="float:right;">Very cooperative</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>human-like</strong> was your partner?</p> <br>
+            <form id="q_h">
+                <p style="float:left;">Not very human-like</p>
+                <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:11%;" >
+                <p style="float:right;">Very human-like</p>
+            </form>
+        </div>
+        
+        <br> <br>
+        
+        <div class="q">
+        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
+        	<form id="q_comm">
+        	<textarea id="comments" cols="100" rows="5"></textarea>
+        	</form>
+        </div>
+
+        <br>
+
+        <br>
+
+
+        <div class="buttons" style="text-align:center;">
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
+
+    </div>
+
+
+</body>
+</html>
