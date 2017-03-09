@@ -324,18 +324,26 @@
 		<div id="facts">
             <h3>Goal</h3>
             {% if kb[0]['Role'] == 'buyer' %}
-                <p>You are the potential <b>tenant</b>. Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b> but lower is better.</p>
+                <p>You are the potential <b>tenant</b>.
+                Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b>
+                but you can accept <b>{{ "$%d."|format(kb[0]['Bottomline']) }}</b>.
+                The lower the better.</p>
             {% else %}
-                <p>You are the <b>landlord</b>. Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b> but higher is better.</p>
+                <p>You are the <b>landlord</b>.
+                Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b>
+                but you can accept <b>{{ "$%d."|format(kb[0]['Bottomline']) }}</b>.
+                The higher the better.</p>
             {% endif %}
             <h3>Basic facts</h3>
 			<table>
             <tbody>
-			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target') %}
+			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
                     <tr>
                         <td><b>{{attr}}</b></td>
                     {% set value = kb[0][attr] %}
-                    {% if value is string %}
+                    {% if value is none %}
+                        <td>{{ ? }}</td> 
+                    {% elif value is string %}
 					    <td>{{ value }}</td>
                     {% else %}
 					    <td>{{ value|join(', ') }}</td>
