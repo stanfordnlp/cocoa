@@ -11,6 +11,8 @@ from src.basic.util import generate_uuid, write_json
 from src.basic.kb import NegotiationKB
 
 private_attr = ['Laundry', 'Pet', 'Built data', 'Neighborhood']
+BUYER = NegotiationScenario.BUYER
+SELLER = NegotiationScenario.SELLER
 
 def generate_kbs(schema):
     buyer_item, seller_item = {}, {}
@@ -28,11 +30,11 @@ def generate_kbs(schema):
             buyer_item[attr.name] = None
         else:
             buyer_item[attr.name] = value
-    seller_kb = NegotiationKB(schema.attributes, [seller_item])
-    buyer_kb = NegotiationKB(schema.attributes, [buyer_item])
+    seller_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'seller'}, 'item': seller_item})
+    buyer_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'buyer'}, 'item': buyer_item})
     kbs = [None, None]
-    kbs[NegotiationScenario.BUYER] = buyer_kb
-    kbs[NegotiationScenario.SELLER] = seller_kb
+    kbs[BUYER] = buyer_kb
+    kbs[SELLER] = seller_kb
     return kbs
 
 def generate_price_range(base, intersections):
@@ -45,18 +47,15 @@ def generate_price_range(base, intersections):
     buyer_bottomline = base + diff
     seller_target = buyer_bottomline + 100
     buyer_target = seller_bottomline - 100
-    return {'seller': {'Bottomline': seller_bottomline, 'Target': seller_target},
-            'buyer': {'Bottomline': buyer_bottomline, 'Target': buyer_target}
+    return {SELLER: {'Bottomline': seller_bottomline, 'Target': seller_target},
+            BUYER: {'Bottomline': buyer_bottomline, 'Target': buyer_target}
             }
 
 def generate_scenario(schema, base, intersections):
     kbs = generate_kbs(schema)
     ranges = generate_price_range(base, intersections)
-    for i, (role, price) in enumerate(ranges.iteritems()):
-        item = kbs[i].items[0]
-        item['Role'] = role
-        for k, v in price.iteritems():
-            item[k] = v
+    kbs[BUYER].facts['personal'].update(ranges[BUYER])
+    kbs[SELLER].facts['personal'].update(ranges[SELLER])
     return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
 
 if __name__ == '__main__':
