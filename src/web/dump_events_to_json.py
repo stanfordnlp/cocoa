@@ -45,7 +45,7 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
         if action == 'join' or action == 'leave':
             continue
         if action == 'select':
-            data = KB.string_to_item(data)
+            data = json.loads(data)
 
         time = convert_time_format(time)
         start_time = convert_time_format(start_time)
