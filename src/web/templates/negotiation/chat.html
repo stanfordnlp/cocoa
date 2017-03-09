@@ -325,13 +325,13 @@
             <h3>Goal</h3>
             {% if kb[0]['Role'] == 'buyer' %}
                 <p>You are the potential <b>tenant</b>.
-                Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b>
-                but you can accept <b>{{ "$%d."|format(kb[0]['Bottomline']) }}</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
                 The lower the better.</p>
             {% else %}
                 <p>You are the <b>landlord</b>.
-                Try to negotiate <b>{{ "$%d."|format(kb[0]['Target']) }}</b>
-                but you can accept <b>{{ "$%d."|format(kb[0]['Bottomline']) }}</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
                 The higher the better.</p>
             {% endif %}
             <h3>Basic facts</h3>
@@ -342,7 +342,7 @@
                         <td><b>{{attr}}</b></td>
                     {% set value = kb[0][attr] %}
                     {% if value is none %}
-                        <td>{{ ? }}</td> 
+                        <td>?</td> 
                     {% elif value is string %}
 					    <td>{{ value }}</td>
                     {% else %}
@@ -353,7 +353,7 @@
             </tbody>
 			</table>
             <h3>Offer</h3>
-            <p>Enter your price (should be a multitude of $50):</p>
+            <p>Enter your price (must be a multitude of $50):</p>
             <input id="price" pattern="\d+"/>
             <button onclick="makeOffer()" id="submit">Submit</button>
         </div>
