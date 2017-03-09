@@ -6,14 +6,16 @@ import numpy as np
 import copy
 from itertools import izip
 from src.basic.schema import Schema
-from src.basic.scenario_db import Scenario, ScenarioDB, add_scenario_arguments
+from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
 from src.basic.util import generate_uuid, write_json
-from src.basic.kb import KB
+from src.basic.kb import NegotiationKB
 
-def generate_kb(schema):
-    item = {}
+private_attr = ['Laundry', 'Pet', 'Built data', 'Neighborhood']
+
+def generate_kbs(schema):
+    buyer_item, seller_item = {}, {}
     for attr in schema.attributes:
-        if attr.name in ('Role', 'Target'):
+        if attr.name in ('Role', 'Target', 'Bottomline'):
             continue
         value_set = schema.values[attr.value_type]
         if attr.multivalued:
@@ -21,27 +23,41 @@ def generate_kb(schema):
             value = tuple(np.random.choice(value_set, num_values, replace=False))
         else:
             value = random.choice(value_set)
-        item[attr.name] = value
-    return KB(schema.attributes, [item])
+        seller_item[attr.name] = value
+        if attr.name in private_attr and random.random() < 0.5:
+            buyer_item[attr.name] = None
+        else:
+            buyer_item[attr.name] = value
+    seller_kb = NegotiationKB(schema.attributes, [seller_item])
+    buyer_kb = NegotiationKB(schema.attributes, [buyer_item])
+    kbs = [None, None]
+    kbs[NegotiationScenario.BUYER] = buyer_kb
+    kbs[NegotiationScenario.SELLER] = seller_kb
+    return kbs
 
-def generate_targets(base, intersections):
+def generate_price_range(base, intersections):
     '''
     base: seller's bottom line
     intersections: a set of possible intersections with the buyer's best price
     '''
     diff = random.choice(intersections)
-    return {'seller': base,
-            'buyer': base + diff,
+    seller_bottomline = base
+    buyer_bottomline = base + diff
+    seller_target = buyer_bottomline + 100
+    buyer_target = seller_bottomline - 100
+    return {'seller': {'Bottomline': seller_bottomline, 'Target': seller_target},
+            'buyer': {'Bottomline': buyer_bottomline, 'Target': buyer_target}
             }
 
 def generate_scenario(schema, base, intersections):
-    kb = generate_kb(schema)
-    kbs = [kb, copy.deepcopy(kb)]
-    targets = generate_targets(base, intersections)
-    for i, (role, price) in enumerate(targets.iteritems()):
-        kbs[i].items[0]['Role'] = role
-        kbs[i].items[0]['Target'] = price
-    return Scenario.get_scenario(generate_uuid('S'), schema.attributes, kbs)
+    kbs = generate_kbs(schema)
+    ranges = generate_price_range(base, intersections)
+    for i, (role, price) in enumerate(ranges.iteritems()):
+        item = kbs[i].items[0]
+        item['Role'] = role
+        for k, v in price.iteritems():
+            item[k] = v
+    return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

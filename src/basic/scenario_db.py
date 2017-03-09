@@ -1,6 +1,7 @@
 from kb import KB
 import numpy as np
 from schema import Attribute
+import src.config as config
 
 def add_scenario_arguments(parser):
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
@@ -34,7 +35,6 @@ class Scenario(object):
     '''
     @staticmethod
     def get_scenario(*args):
-        import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsScenario(*args)
         elif config.task == config.Negotation:
@@ -44,7 +44,6 @@ class Scenario(object):
 
     @staticmethod
     def from_dict(schema, raw):
-        import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsScenario.from_dict(schema, raw)
         elif config.task == config.Negotation:
@@ -53,6 +52,9 @@ class Scenario(object):
             raise ValueError('Unknown task: %s.' % config.task)
 
 class NegotiationScenario(BaseScenario):
+    # Agent ids
+    BUYER = 0
+    SELLER = 1
     @staticmethod
     def from_dict(schema, raw):
 
