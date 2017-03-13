@@ -9,7 +9,7 @@ from itertools import izip
 from src.model.preprocess import word_to_num
 import random
 import matplotlib
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from itertools import izip
 import numpy as np
 
