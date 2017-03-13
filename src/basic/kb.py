@@ -60,6 +60,26 @@ class NegotiationKB(BaseKB):
             if attr.name not in ('Role', 'Bottomline', 'Target'):
                 print '{name:<{width}s} {value}'.format(width=width, name=attr.name, value=str(self.facts['item'][attr.name]))
 
+class PartyKB(BaseKB):
+    def __init__(self, attributes, disc_params):
+        """
+        disc_params: Includes discussion constraints which might be expanded to include topics, events etc.
+        """
+        super(PartyKB, self).__init__(attributes)
+        self.disc_params = disc_params
+
+    def to_dict(self):
+        return self.disc_params
+
+    @staticmethod
+    def from_dict(attributes, raw):
+        return PartyKB(attributes, raw)
+
+    def dump(self):
+        print '----------------'
+        width = max([len(str(attr.name)) for attr in self.attributes])
+        for attr in self.attributes:
+            print '{name:<{width}s} {value}'.format(width=width, name=attr.name, value=str(self.disc_params[attr.name]))
 
 class MutualFriendsKB(BaseKB):
     def __init__(self, attributes, items):
