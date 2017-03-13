@@ -25,6 +25,7 @@ def create_app(debug=False, templates_dir='templates'):
     app = Flask(__name__, template_folder=templates_dir)
     app.debug = debug
     app.config['SECRET_KEY'] = 'gjr39dkjn344_!67#'
+    app.config['PROPAGATE_EXCEPTIONS'] = True
 
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)

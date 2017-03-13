@@ -1,0 +1,87 @@
+<html>
+    <head>
+        <title>{{title}}</title>
+        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
+        <style>
+    		#timer{
+    		color: #000;
+    		display: inline-block;
+    		text-align: center;
+    		}
+
+    		#timer > div{
+    			display: inline-block;
+    			font-size: 20px;
+    		}
+
+    		#timer div > span{
+    			font-weight: bolder;
+    			font-size: 20px;	
+    			display: inline-block;
+    		}
+    		
+    		#timer div > .seconds{
+    			margin-left:-3px;
+    		}
+        </style>
+        
+        <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var pollInterval;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
+            $(document).ready(function(){
+            	$.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+          		pollInterval = setInterval(pollServer, 1000);
+                window.onbeforeunload = disconnect;
+            });
+    
+            function pollServer() {
+            	$.ajax({
+            		url: BASE_URL +'/_check_status_change/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}", "assumed_status": "waiting"},
+            		dataType: "json",
+            		success: function(response) {
+            			if (response['status_change']) {
+            				disconnect();
+            				window.location.reload(true);
+                    	}
+            		}
+            	});
+            }
+
+            function disconnect() {
+            	clearInterval(pollInterval);
+            	$.ajax({
+            		url: BASE_URL + '/_disconnect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+            }
+
+        </script>
+    </head>
+    <body>
+    <div id="content">
+        <div>
+             <div style="float:left; margin: 0px 20px 0px 10px;">
+                <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+            </div>
+            <div style="float:left">
+                <h2>{{title}}</h2>
+                <h3>{{ waiting_message }}</h3>
+
+                <h4>Make sure you have read the instructions carefully, as the task is timed and the clock will start immediately once you are paired. </h4>
+            </div>
+        </div>
+    </div>
+
+    </body>
+</html>

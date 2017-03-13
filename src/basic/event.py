@@ -40,3 +40,7 @@ class Event(object):
     @staticmethod
     def LeaveEvent(agent, userid=None, time=None):
         return Event(agent, time, 'leave', userid)
+
+    @staticmethod
+    def OfferEvent(agent, data, time=None):
+        return Event(agent, time, 'offer', data)

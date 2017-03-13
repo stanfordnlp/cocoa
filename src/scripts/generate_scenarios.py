@@ -55,7 +55,6 @@ def generate_scenario(schema):
     num_items = args.num_items
     if args.random_items:
         num_items = np.random.choice(xrange(args.min_items, args.max_items+1))
-    alphas = schema.alphas
     random_attributes = args.random_attributes
     scenario_attributes = schema.attributes
     if random_attributes:
@@ -63,7 +62,7 @@ def generate_scenario(schema):
         num_attributes = min(np.random.choice(xrange(args.min_attributes, args.max_attributes)), len(schema.attributes))
         scenario_attributes = np.random.choice(schema.attributes, num_attributes, replace=False)
         scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
-        alphas = select_alphas(scenario_attributes)
+    alphas = select_alphas(scenario_attributes)
 
     # Generate the profile of the two agents
     agents = (0, 1)
@@ -148,7 +147,7 @@ def generate_scenario(schema):
 
     # Create the scenario
     kbs = [KB(scenario_attributes, items) for items in agent_items]
-    scenario = Scenario(generate_uuid('S'), scenario_attributes, kbs, [alphas[attr] for attr in scenario_attributes])
+    scenario = Scenario.get_scenario(generate_uuid('S'), scenario_attributes, kbs, [alphas[attr] for attr in scenario_attributes])
     return scenario
 
 # Generate scenarios
@@ -170,6 +169,5 @@ for i in range(min(100, len(scenario_db.scenarios_list))):
     print "Scenario id: %s" % scenario.uuid
     print "Alphas: [%s]" % ", ".join(["%2.1f" % alpha for alpha in scenario.alphas])
     for agent in (0, 1):
-
         kb = scenario.kbs[agent]
         kb.dump()

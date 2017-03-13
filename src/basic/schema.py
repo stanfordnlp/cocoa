@@ -3,20 +3,22 @@ A schema specifies information about a domain (types, entities, relations).
 '''
 
 import json
-import numpy as np
 from itertools import izip
 
 
 class Attribute(object):
-    def __init__(self, name, value_type, unique):
+    def __init__(self, name, value_type, unique=False, multivalued=False, entity=True):
         self.name = name
         self.value_type = value_type
         self.unique = unique
+        self.multivalued = multivalued
+        # Whether the value of this attribute is an entity
+        self.entity = entity
     @staticmethod
     def from_json(raw):
-        return Attribute(raw['name'], raw['value_type'], raw['unique'])
+        return Attribute(raw['name'], raw['value_type'], raw.get('unique', False), raw.get('multivalued', False), raw.get('entity', True))
     def to_json(self):
-        return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique}
+        return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique, 'multivalued': self.multivalued, 'entity': self.entity}
 
 
 class Schema(object):
@@ -31,43 +33,9 @@ class Schema(object):
         attributes = [Attribute.from_json(a) for a in raw['attributes']]
         self.attr_names = [attr.name for attr in attributes]
 
-        def _get_subset(attr_names):
-            subset_attributes = [attr for attr in attributes if attr.name in attr_names]
-            subset_values = {}
-            for attr in subset_attributes:
-                k = attr.value_type
-                subset_values[k] = values[k]
-            return subset_attributes, subset_values
-
-        if domain == 'Matchmaking':
-            attr_names = ['Time Preference', 'Location Preference', 'Hobby']
-            self.attributes, self.values = _get_subset(attr_names)
-        elif domain == 'MutualFriends':
-            attr_names = ['Name', 'School', 'Major', 'Company']
-            self.attributes, self.values = _get_subset(attr_names)
-        elif domain is None:
-            # Use all attributes in the schema
-            self.values = values
-            self.attributes = attributes
-        else:
-            raise ValueError('Unknown domain.')
+        self.values = values
+        self.attributes = attributes
         self.domain = domain
-
-        # Dirichlet alphas for scenario generation
-        if domain == 'Matchmaking':
-            alphas = [1.] * len(self.attributes)
-        else:
-            alphas = list(np.linspace(1, 0.1, len(self.attributes)))
-        self.alphas = dict((attr, alpha) for (attr, alpha) in izip(self.attributes, alphas))
-        for i, attr in enumerate(self.attributes):
-            if attr.name == 'Name':
-                self.alphas[attr] = 2
-            elif attr.name == 'Hobby':
-                self.alphas[attr] = 0.5
-            elif attr.name == 'Time Preference':
-                self.alphas[attr] = 1.0
-            elif attr.name == 'Location Preference':
-                self.alphas[attr] = 1.0
 
     def get_attributes(self):
         '''

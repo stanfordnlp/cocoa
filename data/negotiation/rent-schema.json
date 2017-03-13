@@ -1,0 +1,25 @@
+{
+    "values": {
+        "size": ["small", "medium", "large"],
+        "parking": ["on street", "garage"],
+        "laundry": ["in unit", "shared"],
+        "pet": ["no", "cat", "dog"],
+        "date": ["1920", "1950", "1980", "2010"],
+        "features": ["fireplace", "patio", "yard", "granite countertop", "ceiling fan", "cable ready"],
+        "neighborhood": ["school", "playground", "restaurant", "grocery", "highway", "hospital"],
+        "boolean": ["yes", "no"]
+    },
+    "attributes": [
+      {"name": "Role", "value_type": "role", "multivalued": false, "entity": false},
+      {"name": "Bottomline", "value_type": "price", "multivalued": false, "entity": false},
+      {"name": "Target", "value_type": "price", "multivalued": false, "entity": false},
+      {"name": "Size", "value_type": "size", "multivalued": false, "entity": true},
+      {"name": "Utility included", "value_type": "boolean", "multivalued": false, "entity": false},
+      {"name": "Parking", "value_type": "parking", "multivalued": false, "entity": true},
+      {"name": "Features", "value_type": "features", "multivalued": true, "entity": true},
+      {"name": "Laundry", "value_type": "laundry", "multivalued": false, "entity": true},
+      {"name": "Pet", "value_type": "pet", "multivalued": false, "entity": true},
+      {"name": "Built date", "value_type": "date", "multivalued": false, "entity": true},
+      {"name": "Neighborhood", "value_type": "neighborhood", "multivalued": true, "entity": true}
+    ]
+}
