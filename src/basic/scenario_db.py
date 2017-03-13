@@ -39,6 +39,8 @@ class Scenario(object):
             return MutualFriendsScenario(*args)
         elif config.task == config.Negotation:
             return NegotiationScenario(*args)
+        elif config.task == config.Party:
+            return PartyScenario(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
@@ -48,6 +50,8 @@ class Scenario(object):
             return MutualFriendsScenario.from_dict(schema, raw)
         elif config.task == config.Negotation:
             return NegotiationScenario.from_dict(schema, raw)
+        elif config.task == config.Party:
+            return PartyScenario.from_dict(schema, raw)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
@@ -62,6 +66,15 @@ class NegotiationScenario(BaseScenario):
         if 'attributes' in raw.keys():
             scenario_attributes = [Attribute.from_json(a) for a in raw['attributes']]
         return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']])
+
+
+class PartyScenario(BaseScenario):
+    @staticmethod
+    def from_dict(schema, raw):
+        scenario_attributes = schema.attributes
+        if 'attributes' in raw.keys():
+            scenario_attributes = [Attribute.from_json(a) for a in raw['attributes']]
+        return PartyScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']])
 
 
 class MutualFriendsScenario(BaseScenario):

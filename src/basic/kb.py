@@ -24,6 +24,8 @@ class KB(object):
             return MutualFriendsKB(*args)
         elif config.task == config.Negotation:
             return NegotiationKB(*args)
+        elif config.task == config.Party:
+            return PartyKB(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
@@ -33,6 +35,8 @@ class KB(object):
             return MutualFriendsKB.from_dict(attributes, raw)
         elif config.task == config.Negotation:
             return NegotiationKB.from_dict(attributes, raw)
+        elif config.task == config.Party:
+            return PartyKB.from_dict(attributes, raw)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
