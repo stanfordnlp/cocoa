@@ -194,6 +194,7 @@ def index():
         partner_kb = None
         if peek:
             partner_kb = chat_info.partner_kb.to_dict()
+        print chat_info.kb.to_dict()
         return render_template('chat.html',
                                uid=userid(),
                                kb=chat_info.kb.to_dict(),

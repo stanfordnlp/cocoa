@@ -323,15 +323,15 @@
 		</div>
 		<div id="facts">
             <h3>Goal</h3>
-            {% if kb[0]['Role'] == 'buyer' %}
+            {% if kb['personal']['Role'] == 'buyer' %}
                 <p>You are the potential <b>tenant</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The lower the better.</p>
             {% else %}
                 <p>You are the <b>landlord</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The higher the better.</p>
             {% endif %}
             <h3>Basic facts</h3>
@@ -340,7 +340,7 @@
 			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
                     <tr>
                         <td><b>{{attr}}</b></td>
-                    {% set value = kb[0][attr] %}
+                    {% set value = kb['item'][attr] %}
                     {% if value is none %}
                         <td>?</td> 
                     {% elif value is string %}
