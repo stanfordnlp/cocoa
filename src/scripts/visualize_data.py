@@ -13,6 +13,7 @@ import json
 import datetime
 from itertools import izip
 from collections import defaultdict
+import src.config as config
 
 def add_visualization_arguments(parser):
     parser.add_argument('--html-output', help='Name of directory to write HTML report to')
@@ -58,11 +59,16 @@ def render_chat(chat, agent=None, partner_type='human'):
             s = event.data
         elif event.action == 'select':
             s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
+        elif event.action == 'offer':
+            s = 'OFFER $%.1f' % float(event.data)
+        else:
+            continue
         row = '<tr class=\"agent%d\">\
                 <td class=\"time\">%s</td>\
                 <td class=\"agent\">%s</td>\
                 <td class=\"message\">%s</td>\
                </tr>' % (event.agent, t, a, s)
+
         chat_html.append(row)
 
     chat_html.extend(['</table>', '</div>'])
@@ -147,9 +153,9 @@ def _render_response(response, agent_id, agent):
     html.append('</table>')
     return html
 
-def render_scenario(scenario):
-    html = ["<div class=\"scenario\">"]
-    html.append('<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid)
+
+def _render_mutualfriends_scenario(scenario):
+    html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
     for (idx, kb) in enumerate(scenario.kbs):
         kb_dict = kb.to_dict()
         attributes = [attr.name for attr in scenario.attributes]
@@ -174,6 +180,42 @@ def render_scenario(scenario):
 
     html.append("</div>")
     return html
+
+
+def _render_negotiation_scenario(scenario):
+    html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
+    for (idx, kb) in enumerate(scenario.kbs):
+        kb_dict = kb.to_dict()
+        html.append("<div class=\"kb%d\"><table><tr>"
+                    "<td colspan=\"2\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, idx))
+
+        html.append("<tr><th colspan=\"2\">Personal Attributes</th></tr>")
+
+        for attr in kb_dict['personal'].keys():
+            html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, kb_dict['personal'][attr]))
+
+        html.append("<tr><th colspan=\"2\">Apartment Attributes</th></tr>")
+        for attr in kb_dict['item'].keys():
+            entity = kb_dict['item'][attr]
+            if entity is None:
+                entity = "?"
+            elif isinstance(entity, list):
+                entity = ", ".join([str(x) for x in entity])
+            html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, entity))
+        html.append("</table></div>")
+
+    html.append("</div>")
+    return html
+
+
+def render_scenario(scenario):
+    if config.task == config.MutualFriends:
+        return _render_mutualfriends_scenario(scenario)
+    elif config.task == config.Negotiation:
+        return _render_negotiation_scenario(scenario)
+    else:
+        raise ValueError("Unknown task %s in config.py" % config.task)
+
 
 def render_response(responses, agent_dict):
     html_lines = ["<div class=\"survey\">"]
