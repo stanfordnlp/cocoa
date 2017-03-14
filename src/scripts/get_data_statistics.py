@@ -42,7 +42,7 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts):
         lm = None
 
     # Speech acts
-    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
+    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
     strategy_stats = analyze_strategy(transcripts, scenario_db, preprocessor, args.text_output, lm)
     print_strategy_stats(strategy_stats)
     stats["speech_act"] = {k[0]: v for k, v in strategy_stats['speech_act'].iteritems() if len(k) == 1}

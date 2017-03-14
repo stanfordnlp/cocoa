@@ -17,6 +17,7 @@ from collections import defaultdict
 def add_visualization_arguments(parser):
     parser.add_argument('--html-output', help='Name of directory to write HTML report to')
     parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
+    parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
 
 #questions = ['fluent', 'fluent_text', 'correct', 'correct_text', 'cooperative', 'cooperative_text', 'strategic', 'strategic_text', 'humanlike', 'humanlike_text', 'comments']
 QUESTIONS = ['fluent', 'correct', 'cooperative', 'humanlike']
@@ -206,10 +207,19 @@ def visualize_chat(chat, agent=None, partner_type='Human', responses=None, id_=N
     return completed, html_lines
 
 
-def aggregate_chats(transcripts, responses=None):
+def aggregate_chats(transcripts, responses=None, css_file=None):
     html = ['<!DOCTYPE html>','<html>',
             '<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
             'tr:nth-child(n) { border: solid thin;}</style></head><body>']
+
+    # inline css
+    if css_file:
+        html.append('<style>')
+        with open(css_file, 'r') as fin:
+            for line in fin:
+                html.append(line.strip())
+        html.append('</style>')
+
     completed_chats = []
     incomplete_chats = []
     total = 0
@@ -237,11 +247,11 @@ def aggregate_chats(transcripts, responses=None):
     return html
 
 
-def visualize_transcripts(html_output, transcripts, responses=None):
+def visualize_transcripts(html_output, transcripts, responses=None, css_file=None):
     if not os.path.exists(os.path.dirname(html_output)) and len(os.path.dirname(html_output)) > 0:
         os.makedirs(os.path.dirname(html_output))
 
-    html_lines = aggregate_chats(transcripts, responses)
+    html_lines = aggregate_chats(transcripts, responses, css_file)
 
     outfile = open(html_output, 'w')
     for line in html_lines:
@@ -259,7 +269,6 @@ def write_chat_htmls(transcripts, outdir, responses=None):
         if not chat_html:
             continue
         with open(os.path.join(outdir, dialogue_id+'.html'), 'w') as fout:
-        #with open(os.path.join(outdir, 'test.html'), 'w') as fout:
             # For debugging: write complete html file
             #fout.write("<!DOCTYPE html>\
             #        <html>\
@@ -315,6 +324,8 @@ if __name__ == "__main__":
     html_output = args.html_output
 
     if args.viewer_mode:
+        # External js and css
         write_viewer_data(html_output, transcripts)
     else:
-        visualize_transcripts(html_output, transcripts)
+        # Inline style
+        visualize_transcripts(html_output, transcripts, css_file=args.css_file)
