@@ -2,13 +2,44 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <link rel="stylesheet" type="text/css" href="../static/survey.css">
     <title>Who's Our Mutual Friend?</title>
-</head>
+    <style>
+        td {
+            padding: 0 15px 0 15px;
+        }
 
-<!-- JS for maneuvering text -->
-<script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
-<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
+        #instructions > p,li {
+            font-size:15px;
+        }
+
+        table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+            content: " \25B4\25BE"
+        }
+
+        table.sortable {
+            color:#004d00;
+        }
+
+        table { 
+            border-collapse: collapse; 
+        }
+
+        #facts {
+            font-size: 18px;
+        }
+
+        tr:nth-child(n) { 
+            border: solid thin;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="../static/survey.css">
+    <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+</head>
 
 <script>
 
@@ -17,24 +48,36 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        correctVal = $("#correct").val();
-        coopVal = $("#cooperative").val();
-        humanVal = $("#humanlike").val();
+        honestVal = null;
+        if($("#honest").length != 0) {
+            honestVal = $("#honest").val();    
+        }
+        
+        persuasiveVal = $("#persuasive").val();
+        fairVal = $("#fair").val();
         comments = $("#comments").val();
         //fluentVal = document.getElementById("#myRange").value
         console.log("FLUENT: " + fluentVal);
-        console.log("HONEST: " + correctVal);
-        console.log("COOPERATIVE: " + coopVal);
-        console.log("HUMAN-LIKE: " + humanVal);
+        console.log("HONEST: " + honestVal);
+        console.log("PERSUASIVE: " + persuasiveVal);
+        console.log("FAIR: " + fairVal);
 
-        if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null){
+        if (fluentVal == null || 
+            (honestVal == null && "{{kb['personal']['Role']}}" == 'buyer') || 
+            persuasiveVal == null || 
+            fairVal == null) {
             return false;
         }
         else{
-            questionAnswers["humanlike"] = humanVal;
-            questionAnswers["correct"] = correctVal;
             questionAnswers["fluent"] = fluentVal;
-            questionAnswers["cooperative"] = coopVal;
+            if ("{{kb['personal']['Role']}}" == 'buyer') {
+                questionAnswers["honest"] = honestVal;    
+            } else {
+                questionAnswers["honest"] = "null";
+            }
+            
+            questionAnswers["persuasive"] = persuasiveVal;
+            questionAnswers["fair"] = fairVal;
             if(comments == null) {
             	comments = "";
             }
@@ -112,42 +155,70 @@
 
             <p style="text-align:center;">How <strong>fluent</strong> was your partner?</p> <br>
             <form id="q_f">
-                <p style="float:left;">Not very fluent  </p>
+                <p style="float:left;">Not fluent at all</p>
                 <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:16%;" >
                 <p style="float:right;">Very fluent</p>
             </form>
         </div>
 
         <br> <br>
-
+        {% if kb['personal']['Role'] == 'buyer' %}
         <div class="q">
-           <p style="text-align:center;">How <strong>honest</strong> do you think your partner was?</p> <br>
+           <p style="text-align:center;">Here are all the facts that your partner, the landlord, could see, including those that were hidden from you.</p>
+           <table style="margin:1em auto;"">
+           <tbody>
+               {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
+                   <tr>
+                   {% set myval = kb['item'][attr] %}
+                   {% if myval is none %}
+                   {% set color = "#c42d07" %}
+                   {% else %}
+                   {% set color = "#000000" %}
+                   {% endif %}
+                   <td style="color: {{color}}"><b>{{attr}}</b></td>
+                   {% set value = partner_kb['item'][attr] %}
+                   
+                   
+                   {% if value is string %}
+                       <td style="color: {{color}}">{{ value }}</td>
+                   {% else %}
+                       <td style="color: {{color}}">{{ value|join(', ') }}</td>
+                   {% endif %}
+                   </tr>
+               {% endfor %}
+           </tbody>
+           </table> 
+           <p style="text-align:center;">How <strong>honest</strong> was your partner?</p> <br>
             <form id="q_c">
-                <p style="float:left;">Not very honest</p>
-                <input type="range" id="correct" min="1" max="5" style="width:50%; margin-left:16%;" >
+                <p style="float:left;">Not honest at all</p>
+                <input type="range" id="honest" min="1" max="5" style="width:50%; margin-left:16%;" >
                 <p style="float:right;">Very honest</p>
             </form>
         </div>
-
         <br> <br>
+        {% endif %}
+        
+
+        
 
         <div class="q">
-            <p style="text-align:center;">How <strong>cooperative</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>persuasive</strong> was your partner?</p> <br>
             <form id="q_s">
-                <p style="float:left;">Not very cooperative</p>
-                <input type="range" id="cooperative" min="1" max="5" style="width:50%; margin-left:13%" >
-                <p style="float:right;">Very cooperative</p>
+                <p style="float:left;">Not persuasive</p>
+                <input type="range" id="persuasive" min="1" max="5" style="width:50%; margin-left:13%" >
+                <p style="float:right;">Very persuasive</p>
             </form>
         </div>
 
         <br> <br>
 
         <div class="q">
-            <p style="text-align:center;">How <strong>human-like</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>fair</strong> was the final price that you agreed on?</p> <br>
+
             <form id="q_h">
-                <p style="float:left;">Not very human-like</p>
-                <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:11%;" >
-                <p style="float:right;">Very human-like</p>
+                <p style="float:left;">Not fair at all</p>
+                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:11%;" >
+                <p style="float:right;">Very fair</p>
             </form>
         </div>
         

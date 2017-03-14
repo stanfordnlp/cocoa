@@ -81,7 +81,15 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
 
 
 def log_surveys_to_json(db_path, surveys_file):
-    questions = ['fluent', 'correct', 'cooperative', 'humanlike', 'comments']
+    import src.config as config
+
+    if config.task == config.MutualFriends:
+        questions = ['fluent', 'correct', 'cooperative', 'humanlike', 'comments']
+    elif config.task == config.Negotiation:
+        questions = ['fluent', 'honest', 'persuasive', 'fair', 'comments']
+    else:
+        raise ValueError("Unknown task %s" % config.task)
+
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute('''SELECT * FROM survey''')
@@ -90,9 +98,9 @@ def log_surveys_to_json(db_path, surveys_file):
     agent_types = {}
 
     for survey in logged_surveys:
-        # print survey
-        (userid, cid, _, fluent, correct, cooperative, humanlike, comments) = survey
-        responses = dict(zip(questions, [fluent, correct, cooperative, humanlike, comments]))
+        # todo this is pretty lazy - support variable # of questions per task eventually..
+        (userid, cid, _, q1, q2, q3, q4, comments) = survey
+        responses = dict(zip(questions, [q1, q2, q3, q4, comments]))
         cursor.execute('''SELECT agent_types, agent_ids FROM chat WHERE chat_id=?''', (cid,))
         chat_result = cursor.fetchone()
         agents = json.loads(chat_result[0])
@@ -104,7 +112,6 @@ def log_surveys_to_json(db_path, surveys_file):
         survey_data[cid][partner_idx] = responses
 
     json.dump([agent_types, survey_data], open(surveys_file, 'w'))
-
 
 
 def convert_time_format(time):

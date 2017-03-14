@@ -18,8 +18,11 @@ class WaitingState(object):
 
 
 class SurveyState(object):
-    def __init__(self, message):
+    def __init__(self, message, kb, partner_kb, attributes):
         self.message = message
+        self.kb = kb
+        self.partner_kb = partner_kb
+        self.attributes = attributes
 
 
 class UserChatState(object):

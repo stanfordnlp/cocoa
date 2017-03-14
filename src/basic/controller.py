@@ -119,7 +119,7 @@ class Controller(object):
         import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsController(scenario, sessions, chat_id, debug)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationController(scenario, sessions, chat_id, debug)
         else:
             raise ValueError('Unknown task: %s.' % config.task)

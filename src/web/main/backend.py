@@ -28,7 +28,7 @@ class BackendConnection(object):
         import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsBackend(*args)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationBackend(*args)
         else:
             raise ValueError('[Backend] Unknown task: %s' % config.task)
@@ -429,7 +429,9 @@ class BaseBackend(object):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info(cursor, userid, assumed_status=Status.Survey)
-                return SurveyState(u.message)
+                scenario = self.scenario_db.get(u.scenario_id)
+                return SurveyState(u.message, scenario.get_kb(u.agent_index), scenario.get_kb(1 - u.agent_index),
+                                   scenario.attributes)
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -707,3 +709,33 @@ class NegotiationBackend(BaseBackend):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
             return None
+
+    def submit_survey(self, userid, data):
+        def _user_finished(userid):
+            self._update_user(cursor, userid, status=Status.Finished)
+
+        def _update_scenario_db(chat_id, partner_type):
+            cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (chat_id,))
+            scenario_id = cursor.fetchone()[0]
+            # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
+            cursor.execute('''
+                UPDATE scenario
+                SET complete = complete + 1
+                WHERE scenario_id=? AND partner_type=?
+                AND (SELECT COUNT(survey.name)
+                    FROM survey
+                    WHERE survey.chat_id=?) = 0;
+            ''', (scenario_id, partner_type, chat_id))
+
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                user_info = self._get_user_info_unchecked(cursor, userid)
+                _update_scenario_db(user_info.chat_id, user_info.partner_type)
+                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?)',
+                               (userid, user_info.chat_id, user_info.partner_type,
+                                data['fluent'], data['honest'], data['persuasive'],
+                                data['fair'], data['comments']))
+                _user_finished(userid)
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")

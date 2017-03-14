@@ -194,7 +194,6 @@ def index():
         partner_kb = None
         if peek:
             partner_kb = chat_info.partner_kb.to_dict()
-        print chat_info.kb.to_dict()
         return render_template('chat.html',
                                uid=userid(),
                                kb=chat_info.kb.to_dict(),
@@ -213,6 +212,9 @@ def index():
                                title=app.config['task_title'],
                                uid=userid(),
                                icon=app.config['task_icon'],
+                               kb=survey_info.kb.to_dict(),
+                               partner_kb=survey_info.partner_kb.to_dict(),
+                               attributes=[attr.name for attr in survey_info.attributes],
                                message=survey_info.message)
 
 

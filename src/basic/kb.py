@@ -22,7 +22,7 @@ class KB(object):
     def get_kb(*args):
         if config.task == config.MutualFriends:
             return MutualFriendsKB(*args)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationKB(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
@@ -31,7 +31,7 @@ class KB(object):
     def from_dict(attributes, raw):
         if config.task == config.MutualFriends:
             return MutualFriendsKB.from_dict(attributes, raw)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationKB.from_dict(attributes, raw)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
