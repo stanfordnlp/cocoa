@@ -121,10 +121,3 @@ class Controller(object):
 
     def get_chat_id(self):
         return self.chat_id
-
-    def dump(self, path):
-        self.events = sorted(self.events, key=lambda x:x.time)
-
-        outcome = self.get_outcome()
-        ex = Example(self.scenario, self.scenario.uuid, self.events, outcome)
-        json.dump(ex.to_dict(), open(path, 'w'))
