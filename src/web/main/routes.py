@@ -90,9 +90,30 @@ def check_inbox():
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),
                                      True)
         elif event.action == 'offer':
-            message = format_message("Your partner offered: %d" % event.data, True)
-        return jsonify(message=message, received=True)
-    return jsonify(received=False)
+            message = format_message("Your partner offered: $%d" % event.data, True)
+        elif event.action == 'typing':
+            if event.data == 'started':
+                message = "Your partner is typing..."
+            else:
+                message = ""
+            return jsonify(message=message, status=True, received=True)
+        return jsonify(message=message, status=False, received=True)
+    return jsonify(status=False, received=False)
+
+
+@main.route('/_typing_event/', methods=['GET'])
+def typing_event():
+    backend = get_backend()
+    action = request.args.get('action')
+
+    uid = userid()
+    chat_info = backend.get_chat_info(uid)
+    backend.send(uid,
+                 Event.TypingEvent(chat_info.agent_index,
+                                   action,
+                                   str(time.time())))
+
+    return jsonify(success=True)
 
 
 @main.route('/_send_message/', methods=['GET'])
@@ -212,6 +233,9 @@ def index():
                                title=app.config['task_title'],
                                uid=userid(),
                                icon=app.config['task_icon'],
+                               kb=survey_info.kb.to_dict(),
+                               partner_kb=survey_info.partner_kb.to_dict(),
+                               attributes=[attr.name for attr in survey_info.attributes],
                                message=survey_info.message)
 
 
