@@ -391,17 +391,22 @@
 			<table>
             <tbody>
 			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
-                    <tr>
-                        <td><b>{{attr}}</b></td>
-                    {% set value = kb['item'][attr] %}
-                    {% if value is none %}
-                        <td>?</td> 
-                    {% elif value is string %}
-					    <td>{{ value }}</td>
+                    {% if attr == 'Title' %}
+                        <tr><td><b>{{ kb['item'][attr] }}</b></td></tr>
+                    {% elif attr == 'Description' %}
+                        <tr><td>{{ kb['item'][attr] }}</td></tr>
                     {% else %}
-					    <td>{{ value|join(', ') }}</td>
-				    {% endif %}
-                    </tr>
+                        <tr>
+                            <td><b>{{attr}}</b></td>
+                        {% set value = kb['item'][attr] %}
+                        {% if value is none %}
+                            <td>?</td> 
+                        {% elif value is string %}
+					        <td>{{ value }}</td>
+                        {% else %}
+					        <td>{{ value|join(', ') }}</td>
+				        {% endif %}
+                        </tr>
 				{% endfor %}
             </tbody>
 			</table>
