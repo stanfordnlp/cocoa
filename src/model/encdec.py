@@ -238,7 +238,7 @@ class BasicEncoder(object):
         results = sess.run([self.output_dict[x] for x in fetches], feed_dict=feed_dict)
         return {k: results[i] for i, k in enumerate(fetches)}
 
-    def encode(self, sess, **kwargs):
+    def run_encode(self, sess, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
         return self.run(sess, ('final_state',), feed_dict)
 
@@ -336,7 +336,7 @@ class GraphEncoder(BasicEncoder):
         optional_add(feed_dict, self.update_entities, kwargs.pop('update_entities', None))
         return feed_dict
 
-    def encode(self, sess, **kwargs):
+    def run_encode(self, sess, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs['graph_data'])
         return self.run(sess, ('final_state', 'final_output', 'utterances', 'context'), feed_dict)
@@ -458,7 +458,7 @@ class BasicDecoder(BasicEncoder):
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
-    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+    def run_decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
@@ -590,7 +590,7 @@ class GraphDecoder(GraphEncoder):
     def pred_to_entity(self, pred, graphs, vocab):
         return graphs.pred_to_entity(pred, vocab.size)
 
-    def decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+    def run_decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
@@ -842,7 +842,7 @@ class BasicEncoderDecoder(object):
             encoder_args['entities'] = graph_data['encoder_nodes']
             encoder_args['utterances'] = graph_data['utterances']
             encoder_args['graph_data'] = graph_data
-        encoder_output_dict = self.encoder.encode(sess, **encoder_args)
+        encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
         decoder_args = {'inputs': decoder_inputs[:, [0]],
@@ -863,7 +863,7 @@ class BasicEncoderDecoder(object):
             decoder_args['entities'] = entities
             decoder_args['graphs'] = graphs
             decoder_args['vocab'] = vocab
-        decoder_output_dict = self.decoder.decode(sess, max_len, batch_size, **decoder_args)
+        decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
         decoder_args['inputs'] = decoder_inputs

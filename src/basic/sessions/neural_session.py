@@ -203,7 +203,7 @@ class RNNNeuralSession(NeuralSession):
         inputs = np.reshape(self.env.textint_map.text_to_int([start_symbol], 'decoding'), [1, 1])
 
         decoder_args = self._decoder_args(init_state, inputs)
-        decoder_output_dict = self.model.decoder.decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
+        decoder_output_dict = self.model.decoder.run_decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
 
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])[0]
         if not self._is_valid(entity_tokens):
@@ -242,7 +242,7 @@ class RNNNeuralSession(NeuralSession):
     def encode(self, entity_tokens):
         encoder_args = self._encoder_args(entity_tokens)
         #self.log.write('encode:%s\n' % str(entity_tokens))
-        self.encoder_output_dict = self.model.encoder.encode(self.env.tf_session, **encoder_args)
+        self.encoder_output_dict = self.model.encoder.run_encode(self.env.tf_session, **encoder_args)
         self.encoder_state = self.encoder_output_dict['final_state']
         self.new_turn = True
 
