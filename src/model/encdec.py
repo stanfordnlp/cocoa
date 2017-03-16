@@ -295,7 +295,8 @@ class GraphEncoder(BasicEncoder):
         word_embeddings = word_embedder.embed(self.inputs, zero_pad=True)
         self.word_embeddings = word_embeddings
         if self.node_embed_in_rnn_inputs:
-            entity_embeddings = self._get_node_embedding(self.context[0], self.entities)
+            # stop_gradien: tLook up node embeddings but don't back propogate (would be recursive)
+            entity_embeddings = tf.stop_gradient(self._get_node_embedding(self.context[0], self.entities))
             inputs = tf.concat(2, [word_embeddings, entity_embeddings])
         else:
             inputs = word_embeddings
