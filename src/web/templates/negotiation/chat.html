@@ -416,7 +416,7 @@
             <h3>Offer</h3>
             <p>Enter your price (must be a multitude of $100):</p>
             <input id="price" pattern="\d+"/>
-            <button onclick="makeOffer()" id="submit">Submit</button>
+            <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
         </div>
         {% if partner_kb %}
         <div id="peek">
