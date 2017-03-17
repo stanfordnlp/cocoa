@@ -39,6 +39,8 @@
 			}
 
 			td {
+                white-space: pre-wrap;
+                word-wrap: break-word;
 				padding: 0 15px 0 15px;
 			}
 
@@ -339,7 +341,7 @@
 		</script>
     </head>
     
-    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false">
+    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
       <div class="clearfix">
     <div id="chat_container">
     <div id="instructions">
@@ -377,12 +379,12 @@
 		<div id="facts">
             <h3>Goal</h3>
             {% if kb['personal']['Role'] == 'buyer' %}
-                <p>You are the potential <b>tenant</b>.
+                <p>You are the potential <b>buyer</b>.
                 Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
                 but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The lower the better.</p>
             {% else %}
-                <p>You are the <b>landlord</b>.
+                <p>You are the <b>seller</b>.
                 Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
                 but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The higher the better.</p>
@@ -394,7 +396,7 @@
                     {% if attr == 'Title' %}
                         <tr><td><b>{{ kb['item'][attr] }}</b></td></tr>
                     {% elif attr == 'Description' %}
-                        <tr><td>{{ kb['item'][attr] }}</td></tr>
+                        <tr><td>{{ kb['item'][attr]|replace("\\n", "<br/>") }}</td></tr>
                     {% else %}
                         <tr>
                             <td><b>{{attr}}</b></td>
