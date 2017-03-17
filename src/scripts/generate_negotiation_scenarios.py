@@ -61,12 +61,11 @@ def discretize(price, price_unit):
     price = int(price / price_unit)
     return price
 
-def generate_price_range(base_price, price_unit, intersections):
+def generate_price_range(base_price, price_unit, intersections, flexibility=0.2):
     '''
     base: a middle point to generate the range
     intersections: percentage of intersection relative to the range
     '''
-    flexibility = 0.2
     base_price = discretize(base_price, price_unit)
     seller_range = (int(base_price * (1. - flexibility)),
             int(base_price * (1. + flexibility)))
@@ -81,14 +80,14 @@ def generate_price_range(base_price, price_unit, intersections):
                     'Target': buyer_range[0] * price_unit}
             }
 
-def generate_scenario(schema, base_price, price_unit, intersections, listings):
+def generate_scenario(schema, base_price, price_unit, intersections, flexibility, listings):
     if listings:
         listing = random.choice(listings)
         base_price = int(listing['price'])
     else:
         listing = None
     kbs = generate_kbs(schema, listing)
-    ranges = generate_price_range(base_price, price_unit, intersections)
+    ranges = generate_price_range(base_price, price_unit, intersections, flexibility)
     kbs[BUYER].facts['personal'].update(ranges[BUYER])
     kbs[SELLER].facts['personal'].update(ranges[SELLER])
     return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
@@ -98,6 +97,7 @@ if __name__ == '__main__':
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=1)
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.8], help="Intersection of buyer and seller's price range")
+    parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
     parser.add_argument('--text', help="JSON file containing text listings")
     parser.add_argument('--price-unit', default=100, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
     scenario_list = []
     for i in xrange(args.num_scenarios):
-        s = generate_scenario(schema, base_price, args.price_unit, args.intersections, listings)
+        s = generate_scenario(schema, base_price, args.price_unit, args.intersections, args.flexibility, listings)
         scenario_list.append(s)
     scenario_db = ScenarioDB(scenario_list)
     write_json(scenario_db.to_dict(), args.scenarios_path)
