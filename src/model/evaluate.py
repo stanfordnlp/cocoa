@@ -104,7 +104,7 @@ class Evaluator(object):
                 preds = output_dict['preds']
                 true_final_state = output_dict['true_final_state']
                 if graphs:
-                    encoder_init_state = true_final_state[0]
+                    encoder_init_state = true_final_state
                     utterances = output_dict['utterances']
                 else:
                     encoder_init_state = true_final_state

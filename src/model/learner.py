@@ -129,7 +129,7 @@ class Learner(object):
             if test:
                 logits, final_state, utterances, loss, seq_loss, total_loss, sel_loss = sess.run(
                         [self.model.decoder.output_dict['logits'],
-                         self.model.decoder.output_dict['final_state'],
+                         self.model.final_state,
                          self.model.decoder.output_dict['utterances'],
                          self.model.loss, self.model.seq_loss, self.model.total_loss, self.model.select_loss],
                         feed_dict=feed_dict)
@@ -137,14 +137,13 @@ class Learner(object):
                 _, logits, final_state, utterances, loss, seq_loss, sel_loss, gn = sess.run(
                         [self.train_op,
                          self.model.decoder.output_dict['logits'],
-                         self.model.decoder.output_dict['final_state'],
+                         self.model.final_state,
                          self.model.decoder.output_dict['utterances'],
                          self.model.loss,
                          self.model.seq_loss,
                          self.model.select_loss,
                          self.grad_norm], feed_dict=feed_dict)
-            # NOTE: final_state = (rnn_state, attn, context)
-            encoder_init_state = final_state[0]
+            encoder_init_state = final_state
 
             if self.verbose:
                 preds = np.argmax(logits, axis=2)
@@ -170,14 +169,14 @@ class Learner(object):
             if test:
                 logits, final_state, loss, seq_loss, total_loss = sess.run([
                     self.model.decoder.output_dict['logits'],
-                    self.model.decoder.output_dict['final_state'],
+                    self.model.final_state,
                     self.model.loss, self.model.seq_loss, self.model.total_loss],
                     feed_dict=feed_dict)
             else:
                 _, logits, final_state, loss, seq_loss, gn = sess.run([
                     self.train_op,
                     self.model.decoder.output_dict['logits'],
-                    self.model.decoder.output_dict['final_state'],
+                    self.model.final_state,
                     self.model.loss, self.model.seq_loss,
                     self.grad_norm], feed_dict=feed_dict)
             encoder_init_state = final_state
