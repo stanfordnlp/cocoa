@@ -23,7 +23,6 @@ def add_model_arguments(parser):
     parser.add_argument('--dropout', type=float, default=0, help='Dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
-    parser.add_argument('--bow-utterance', default=False, action='store_true', help='Use sum of word embeddings as utterance embedding')
     parser.add_argument('--re-encode', default=False, action='store_true', help='Re-encode the decoded sequence')
     parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
     parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
@@ -53,22 +52,13 @@ def build_model(schema, mappings, args):
     else:
         raise('Unknown decoding method')
 
-    try:
-        if args.reward is not None:
-            reward = [float(x) for x in args.reward]
-        else:
-            reward = None
-    # TODO: (remove this) Compatible with old models
-    except AttributeError:
+    if args.reward is not None:
+        reward = [float(x) for x in args.reward]
+    else:
         reward = None
 
-    try:
-        update_graph = (not args.no_graph_update)
-        node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
-    # TODO: (remove this) Compatible with old models
-    except AttributeError:
-        update_graph = True
-        node_embed_in_rnn_inputs = True
+    update_graph = (not args.no_graph_update)
+    node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
@@ -76,23 +66,23 @@ def build_model(schema, mappings, args):
         model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=args.re_encode)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
-        utterance_size = args.word_embed_size if args.bow_utterance else args.rnn_size
+        utterance_size = args.rnn_size
         graph_metadata = GraphMetadata(schema, mappings['entity'], mappings['relation'], utterance_size, args.max_num_entities, max_degree=max_degree, entity_hist_len=args.entity_hist_len, max_num_items=args.num_items)
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation, learned_decay=args.learned_utterance_decay)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, bow_utterance=args.bow_utterance, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs)
                 sup_gate = False
         model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, re_encode=args.re_encode, sup_gate=sup_gate)
     else:
@@ -270,13 +260,12 @@ class GraphEncoder(BasicEncoder):
     '''
     RNN encoder that update knowledge graph at the end.
     '''
-    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, node_embed_in_rnn_inputs=False, update_graph=True):
+    def __init__(self, rnn_size, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, node_embed_in_rnn_inputs=False, update_graph=True):
         super(GraphEncoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.graph_embedder = graph_embedder
         self.context_size = self.graph_embedder.config.context_size
         # Id of the utterance matrix to be updated: 0 is encoder utterances, 1 is decoder utterances
         self.utterance_id = 0
-        self.bow_utterance = bow_utterance
         self.node_embed_in_rnn_inputs = node_embed_in_rnn_inputs
         self.update_graph = update_graph
 
@@ -351,7 +340,6 @@ class GraphEncoder(BasicEncoder):
         # Variable space is GraphEncoderDecoder
         # Use the final encoder state as the utterance embedding
         final_output = self._get_final_state(self.output_dict['outputs'])
-        self.utterance_embedding = final_output
         new_utterances = self.graph_embedder.update_utterance(self.update_entities, final_output, self.utterances, self.utterance_id)
         if not self.update_graph:
             new_utterances = self.utterances
@@ -361,8 +349,6 @@ class GraphEncoder(BasicEncoder):
         self.output_dict['utterances'] = new_utterances
         self.output_dict['context'] = context
         self.output_dict['final_output'] = final_output
-        # TODO: remove word_embedding (bow_utterance)
-        self.output_dict['utterance_embedding'] = self.utterance_embedding
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(GraphEncoder, self).get_feed_dict(**kwargs)
@@ -521,8 +507,8 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, bow_utterance=False, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None, node_embed_in_rnn_inputs=False, update_graph=True):
-        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, bow_utterance, node_embed_in_rnn_inputs, update_graph)
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None, node_embed_in_rnn_inputs=False, update_graph=True):
+        super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, node_embed_in_rnn_inputs, update_graph)
         self.sampler = Sampler(sample_t, sample_select)
         if reward is not None:
             self.add_reward = True
@@ -652,20 +638,17 @@ class GraphDecoder(GraphEncoder):
         graphs = kwargs['graphs']
         vocab = kwargs['vocab']
         select = vocab.to_ind(markers.SELECT)
-        word_embeddings = 0
 
         for i in xrange(max_len):
-            # NOTE: since we're running for one step, utterance_embedding is essentially word_embedding
-            output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['utterance_embedding'], self.output_dict['attn_scores'], self.output_dict['probs'], self.output_dict['checklists']]
+            output_nodes = [self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['final_output'], self.output_dict['attn_scores'], self.output_dict['probs'], self.output_dict['checklists']]
             if 'selection_scores' in self.output_dict:
                 output_nodes.append(self.output_dict['selection_scores'])
 
             if 'selection_scores' in self.output_dict:
-                logits, final_state, final_output, utterance_embedding, attn_score, prob, cl, selection_scores = sess.run(output_nodes, feed_dict=feed_dict)
+                logits, final_state, final_output, attn_score, prob, cl, selection_scores = sess.run(output_nodes, feed_dict=feed_dict)
             else:
-                logits, final_state, final_output, utterance_embedding, attn_score, prob, cl = sess.run(output_nodes, feed_dict=feed_dict)
+                logits, final_state, final_output, attn_score, prob, cl = sess.run(output_nodes, feed_dict=feed_dict)
 
-            word_embeddings += utterance_embedding
             # attn_score: seq_len x batch_size x num_nodes, seq_len=1, so we take attn_score[0]
             attn_scores.append(attn_score[0])
             # probs: batch_size x seq_len x num_symbols
@@ -691,7 +674,7 @@ class GraphDecoder(GraphEncoder):
         # in batch mode -- it will be the state at max_len. This is fine since during test
         # we either run with batch_size=1 (real-time chat) or use the ground truth to update
         # the state (see generate()).
-        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'probs': probs, 'utterance_embedding': word_embeddings, 'checklists': cl}
+        output_dict = {'preds': preds, 'final_state': final_state, 'final_output': final_output, 'attn_scores': attn_scores, 'probs': probs, 'checklists': cl}
         if 'selection_scores' in self.output_dict:
             output_dict['selection_scores'] = selection_scores
         return output_dict
@@ -713,10 +696,9 @@ class GraphDecoder(GraphEncoder):
             if m:
                 print i, c
 
-    def update_context(self, sess, entities, final_output, utterance_embedding, utterances, graph_data):
+    def update_context(self, sess, entities, final_output, utterances, graph_data):
         feed_dict = {self.update_entities: entities,
                 self.output_dict['final_output']: final_output,
-                self.output_dict['utterance_embedding']: utterance_embedding,
                 self.utterances: utterances}
         feed_dict = self.graph_embedder.get_feed_dict(feed_dict=feed_dict, **graph_data)
         new_utterances, new_context = sess.run([self.output_dict['utterances'], self.output_dict['context']], feed_dict=feed_dict)
