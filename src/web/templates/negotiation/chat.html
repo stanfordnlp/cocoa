@@ -394,9 +394,9 @@
             <tbody>
 			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
                     {% if attr == 'Title' %}
-                        <tr><td><b>{{ kb['item'][attr] }}</b></td></tr>
+                        <p><b>{{ kb['item'][attr] }}</b></p>
                     {% elif attr == 'Description' %}
-                        <tr><td>{{ kb['item'][attr]|replace("\\n", "<br/>") }}</td></tr>
+                        <p>{{ kb['item'][attr]|replace("\\n", "<br/>")|safe }}</p>
                     {% else %}
                         <tr>
                             <td><b>{{attr}}</b></td>
