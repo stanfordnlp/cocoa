@@ -1,6 +1,6 @@
-Negotation = 'negotiation'
+Negotiation = 'negotiation'
 MutualFriends = 'mutualfriends'
 Party = 'party'
 
 
-task = Negotation
+task = Negotiation
