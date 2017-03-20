@@ -58,13 +58,16 @@ def build_model(schema, mappings, args):
     else:
         reward = None
 
+    separate_utterance_embedding = args.separate_utterance_embedding
+    re_encode = args.re_encode
+
     update_graph = (not args.no_graph_update)
     node_embed_in_rnn_inputs = args.node_embed_in_rnn_inputs
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select, reward)
-        model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=args.re_encode)
+        model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=re_encode)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
         utterance_size = args.rnn_size
@@ -72,20 +75,20 @@ def build_model(schema, mappings, args):
         graph_embedder_config = GraphEmbedderConfig(args.node_embed_size, args.edge_embed_size, graph_metadata, entity_embed_size=args.entity_embed_size, use_entity_embedding=args.use_entity_embedding, mp_iters=args.mp_iters, decay=args.utterance_decay, msg_agg=args.msg_aggregation, learned_decay=args.learned_utterance_decay)
         Graph.metadata = graph_metadata
         graph_embedder = GraphEmbedder(graph_embedder_config)
-        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=args.separate_utterance_embedding)
+        encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=args.separate_utterance_embedding, encoder=encoder)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=args.separate_utterance_embedding, encoder=encoder)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=args.separate_utterance_embedding, encoder=encoder)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=args.separate_utterance_embedding, encoder=encoder)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 sup_gate = False
-        model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, re_encode=args.re_encode, sup_gate=sup_gate)
+        model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, re_encode=re_encode, sup_gate=sup_gate)
     else:
         raise ValueError('Unknown model')
     return model
@@ -93,6 +96,13 @@ def build_model(schema, mappings, args):
 def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
+
+# TODO: move this to model
+tf_variables = set()
+def create(name):
+    tf_variables.add(name)
+def is_created(name):
+    return name in tf_variables
 
 class Sampler(object):
     '''
@@ -150,7 +160,6 @@ class BasicEncoder(object):
         self.dropout = dropout
         self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
         self.output_dict = {}
-        self.cell_initialized = False
 
     def _build_init_output(self, cell):
         '''
@@ -232,7 +241,6 @@ class BasicEncoder(object):
             inputs = self._build_rnn_inputs(time_major)
             with tf.variable_scope('encode'):
                 rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
-                self.cell_initialized = True
             self._build_output_dict(rnn_outputs, states)
 
     def _build_output_dict(self, rnn_outputs, rnn_states):
@@ -241,16 +249,13 @@ class BasicEncoder(object):
 
     def encode(self, time_major=False, **kwargs):
         '''
-        Used for additional encoding: the RNN shares weights with the encoder RNN (build_model)
+        Used for additional encoding.
         '''
-        with tf.variable_scope(type(self).__name__+'/encode'):
-            if self.cell_initialized:
-                tf.get_variable_scope().reuse_variables()
-            inputs = self._build_rnn_inputs(time_major, **kwargs)
-            init_state = self._build_init_state(self.cell, kwargs)
-            rnn_outputs, states = tf.scan(lambda a, x: self.cell(x, a[1]), inputs, initializer=(self._build_init_output(self.cell), init_state))
-            final_state = self._get_final_state(states, kwargs.get('last_inds', self.last_inds))
-            final_output = self._get_final_state(rnn_outputs, kwargs.get('last_inds', self.last_inds))
+        inputs = self._build_rnn_inputs(time_major, **kwargs)
+        init_state = self._build_init_state(self.cell, kwargs)
+        rnn_outputs, states = tf.scan(lambda a, x: self.cell(x, a[1]), inputs, initializer=(self._build_init_output(self.cell), init_state))
+        final_state = self._get_final_state(states, kwargs.get('last_inds', self.last_inds))
+        final_output = self._get_final_state(rnn_outputs, kwargs.get('last_inds', self.last_inds))
         return {'outputs': rnn_outputs, 'states': states, 'final_state': final_state, 'final_output': final_output}
 
     def get_feed_dict(self, **kwargs):
@@ -354,13 +359,16 @@ class GraphEncoder(BasicEncoder):
         # Variable space is type(self)
         super(GraphEncoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)
 
-        # Variable space is GraphEncoderDecoder
+        # Variable scope is GraphEncoderDecoder
         # Use the final encoder state as the utterance embedding
         final_output = self._get_final_state(self.output_dict['outputs'])
         if not self.separate_utterance_embedding:
             self.utterance_embedding = final_output
         else:
-            self.utterance_embedding = self._embed_utterance()
+            # TODO: better ways to share weights
+            with tf.variable_scope('UtteranceEmbed', reuse=is_created('UtteranceEmbed')):
+                self.utterance_embedding = self._embed_utterance()
+                create('UtteranceEmbed')
         new_utterances = self.graph_embedder.update_utterance(self.update_entities, self.utterance_embedding, self.utterances, self.utterance_id)
         if not self.update_graph:
             new_utterances = self.utterances
