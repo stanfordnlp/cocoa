@@ -97,13 +97,6 @@ def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
 
-# TODO: move this to model
-tf_variables = set()
-def create(name):
-    tf_variables.add(name)
-def is_created(name):
-    return name in tf_variables
-
 class Sampler(object):
     '''
     Return a symbol from output/logits (batch_size, seq_len, vocab_size).
@@ -222,7 +215,7 @@ class BasicEncoder(object):
             self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')
             self.last_inds = tf.placeholder(tf.int32, shape=[None], name='last_inds')
 
-    def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
@@ -352,12 +345,12 @@ class GraphEncoder(BasicEncoder):
     def _embed_utterance(self):
         return self.encode(time_major=False, **{'init_state': None})['final_output']
 
-    def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
         # Variable space is GraphEncoderDecoder
         self._build_graph_variables(input_dict)
 
         # Variable space is type(self)
-        super(GraphEncoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)
+        super(GraphEncoder, self).build_model(word_embedder, input_dict, tf_variables, time_major=time_major, scope=scope)
 
         # Variable scope is GraphEncoderDecoder
         # Use the final encoder state as the utterance embedding
@@ -366,9 +359,9 @@ class GraphEncoder(BasicEncoder):
             self.utterance_embedding = final_output
         else:
             # TODO: better ways to share weights
-            with tf.variable_scope('UtteranceEmbed', reuse=is_created('UtteranceEmbed')):
+            with tf.variable_scope('UtteranceEmbed', reuse=('UtteranceEmbed' in tf_variables)):
                 self.utterance_embedding = self._embed_utterance()
-                create('UtteranceEmbed')
+                tf_variables.add('UtteranceEmbed')
         new_utterances = self.graph_embedder.update_utterance(self.update_entities, self.utterance_embedding, self.utterances, self.utterance_id)
         if not self.update_graph:
             new_utterances = self.utterances
@@ -500,8 +493,8 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
-        super(BasicDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
+    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
+        super(BasicDecoder, self).build_model(word_embedder, input_dict, tf_variables, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(scope or type(self).__name__):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
@@ -632,8 +625,8 @@ class GraphDecoder(GraphEncoder):
         checklists = transpose_first_two_dims(checklists)  # (seq_len, batch_size, num_nodes)
         return inputs, checklists
 
-    def build_model(self, word_embedder, input_dict, time_major=True, scope=None):
-        super(GraphDecoder, self).build_model(word_embedder, input_dict, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
+    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
+        super(GraphDecoder, self).build_model(word_embedder, input_dict, tf_variables, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(scope or type(self).__name__):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
@@ -855,6 +848,7 @@ class BasicEncoderDecoder(object):
         self.encoder = encoder
         self.decoder = decoder
         self.re_encode = re_encode
+        self.tf_variables = set()
         self.build_model(encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope)
 
     def compute_loss(self, output_dict, targets):
@@ -875,12 +869,12 @@ class BasicEncoderDecoder(object):
             # Encoding
             with tf.name_scope('Encoder'):
                 encoder_input_dict = self._encoder_input_dict()
-                encoder.build_model(encoder_word_embedder, encoder_input_dict, time_major=False)
+                encoder.build_model(encoder_word_embedder, encoder_input_dict, self.tf_variables, time_major=False)
 
             # Decoding
             with tf.name_scope('Decoder'):
                 decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
-                decoder.build_model(decoder_word_embedder, decoder_input_dict, time_major=False)
+                decoder.build_model(decoder_word_embedder, decoder_input_dict, self.tf_variables, time_major=False)
 
             # Re-encode decoded sequence
             # TODO: hierarchical
