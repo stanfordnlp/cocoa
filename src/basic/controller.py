@@ -25,14 +25,15 @@ class BaseController(object):
     def get_outcome(self):
         raise NotImplementedError
 
-    def simulate(self, max_turns=100):
+    def simulate(self, max_turns=None):
         '''
         Simulate a dialogue.
         '''
         self.events = []
         time = 0
         num_turns = 0
-        while not (self.game_over() or num_turns >= max_turns):
+        game_over = False
+        while not game_over:
             for agent, session in enumerate(self.sessions):
                 event = session.send()
                 time += 1
@@ -45,6 +46,10 @@ class BaseController(object):
 
                 print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 num_turns += 1
+                if self.game_over() or (max_turns and num_turns >= max_turns):
+                    game_over = True
+                    break
+
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)
