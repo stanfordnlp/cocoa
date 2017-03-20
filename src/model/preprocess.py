@@ -363,7 +363,8 @@ class DialogueBatch(object):
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
         decoder_inputs = np.copy(decode_turn)
-        decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
+        #decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
+        decoder_inputs = decoder_inputs[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
         # Process entities. NOTE: change turns in place!
