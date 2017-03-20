@@ -251,6 +251,7 @@ class GraphBatch(object):
         max_num_paths = self._max_num_paths()
         max_num_paths_per_node = self._max_num_paths_per_node()
         # TODO: entities -> update_entities
+        # *_nodes: for looking up entity embeddings
         batch = {
                  'node_ids': self._batch_node_ids(max_num_nodes),
                  'mask': self._batch_mask(max_num_nodes),
