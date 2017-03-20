@@ -229,7 +229,10 @@ if __name__ == "__main__":
         raise ValueError("No schema file found at %s" % schema_path)
 
     schema = Schema(schema_path)
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    if len(schema.values) == 0:
+        lexicon = None
+    else:
+        lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
     if args.inverse_lexicon:
         realizer = InverseLexicon(schema, args.inverse_lexicon)
     else:

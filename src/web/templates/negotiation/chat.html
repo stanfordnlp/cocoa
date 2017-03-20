@@ -39,6 +39,8 @@
 			}
 
 			td {
+                white-space: pre-wrap;
+                word-wrap: break-word;
 				padding: 0 15px 0 15px;
 			}
 
@@ -159,7 +161,7 @@
                 		$('#submit').prop('disabled', 'disabled'); 
                 	} else {
                 		var price = parseInt(priceStr)
-	                    if (price % 50 == 0) {
+	                    if (price % 100 == 0) {
 	                        $('#submit').prop('disabled', false);        // enables button
 	                    } else {
 	                        $('#submit').prop('disabled', 'disabled');   // disables button
@@ -339,7 +341,7 @@
 		</script>
     </head>
     
-    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false">
+    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
       <div class="clearfix">
     <div id="chat_container">
     <div id="instructions">
@@ -377,12 +379,12 @@
 		<div id="facts">
             <h3>Goal</h3>
             {% if kb['personal']['Role'] == 'buyer' %}
-                <p>You are the potential <b>tenant</b>.
+                <p>You are the potential <b>buyer</b>.
                 Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
                 but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The lower the better.</p>
             {% else %}
-                <p>You are the <b>landlord</b>.
+                <p>You are the <b>seller</b>.
                 Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
                 but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The higher the better.</p>
@@ -392,9 +394,9 @@
             <tbody>
 			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
                     {% if attr == 'Title' %}
-                        <tr><td><b>{{ kb['item'][attr] }}</b></td></tr>
+                        <p><b>{{ kb['item'][attr] }}</b></p>
                     {% elif attr == 'Description' %}
-                        <tr><td>{{ kb['item'][attr] }}</td></tr>
+                        <p>{{ kb['item'][attr]|replace("\\n", "<br/>")|safe }}</p>
                     {% else %}
                         <tr>
                             <td><b>{{attr}}</b></td>
@@ -407,13 +409,14 @@
 					        <td>{{ value|join(', ') }}</td>
 				        {% endif %}
                         </tr>
+				    {% endif %}
 				{% endfor %}
             </tbody>
 			</table>
             <h3>Offer</h3>
-            <p>Enter your price (must be a multitude of $50):</p>
+            <p>Enter your price (must be a multitude of $100):</p>
             <input id="price" pattern="\d+"/>
-            <button onclick="makeOffer()" id="submit">Submit</button>
+            <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
         </div>
         {% if partner_kb %}
         <div id="peek">
