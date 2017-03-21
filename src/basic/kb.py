@@ -58,7 +58,11 @@ class NegotiationKB(BaseKB):
         width = max([len(str(attr.name)) for attr in self.attributes])
         for attr in self.attributes:
             if attr.name not in ('Role', 'Bottomline', 'Target'):
-                print '{name:<{width}s} {value}'.format(width=width, name=attr.name, value=str(self.facts['item'][attr.name]))
+                if attr.name == 'Description':
+                    value = '\n' + '\n'.join(self.facts['item'][attr.name]).encode('utf8')
+                else:
+                    value = self.facts['item'][attr.name].encode('utf8')
+                print '{name:<{width}s} {value}'.format(width=width, name=attr.name, value=value)
 
 
 class MutualFriendsKB(BaseKB):

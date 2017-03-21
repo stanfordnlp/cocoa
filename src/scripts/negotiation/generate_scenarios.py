@@ -4,6 +4,8 @@ import argparse
 import random
 import numpy as np
 import copy
+import re
+import langdetect
 from itertools import izip
 from src.basic.schema import Schema
 from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
@@ -37,13 +39,42 @@ def generate_simulated_kbs(schema):
     kbs[SELLER] = seller_kb
     return kbs
 
+def is_valid(line):
+    if 'contact' in line.lower():
+        return False
+    if not re.search(r'\.|\!|\,', line) and len(line.split()) > 15:
+        return False
+    if re.search(r'\$\s*\d+', line):
+        return False
+    try:
+        if langdetect.detect(line) != 'en':
+            return False
+    except langdetect.lang_detect_exception.LangDetectException:
+        return True
+    return True
+
+def process_listings(listings):
+    new_listings = []
+    for listing in listings:
+        if listing['price'] < 3000:
+            continue
+        lines = []
+        for line in listing['description']:
+            if not is_valid(line):
+                continue
+            lines.append(line)
+        if len(lines) > 0:
+            listing['description'] = lines
+            new_listings.append(listing)
+    return new_listings
+
 def generate_scraped_kbs(schema, listing):
     buyer_item, seller_item = {}, {}
     for attr in schema.attributes:
         if attr.name in ('Role', 'Target', 'Bottomline'):
             continue
-        buyer_item[attr.name] = listing[attr.name]
-        seller_item[attr.name] = listing[attr.name]
+        buyer_item[attr.name] = listing[attr.name.lower()]
+        seller_item[attr.name] = listing[attr.name.lower()]
     seller_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'seller'}, 'item': seller_item})
     buyer_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'buyer'}, 'item': buyer_item})
     kbs = [None, None]
@@ -110,7 +141,7 @@ if __name__ == '__main__':
 
     if args.text:
         # Real data
-        listings = read_json(args.text)
+        listings = process_listings(read_json(args.text))
         base_price = None
     else:
         # Simulated data
