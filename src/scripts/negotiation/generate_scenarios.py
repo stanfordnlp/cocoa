@@ -39,7 +39,7 @@ def generate_simulated_kbs(schema):
     kbs[SELLER] = seller_kb
     return kbs
 
-def is_valid(line):
+def is_valid_line(line):
     if 'contact' in line.lower():
         return False
     if not re.search(r'\.|\!|\,', line) and len(line.split()) > 15:
@@ -53,20 +53,23 @@ def is_valid(line):
         return True
     return True
 
-def process_listings(listings):
-    new_listings = []
-    for listing in listings:
-        if listing['price'] < 3000:
+def process_listing(listing):
+    if listing['category'] == 'car' and listing['price'] < 3000:
+        return None
+
+    lines = []
+    for line in listing['description']:
+        if not is_valid_line(line):
             continue
-        lines = []
-        for line in listing['description']:
-            if not is_valid(line):
-                continue
-            lines.append(line)
-        if len(lines) > 0:
-            listing['description'] = lines
-            new_listings.append(listing)
-    return new_listings
+        lines.append(line)
+
+    num_words = sum([len(line.split()) for line in lines])
+    if num_words < 20 or num_words > 200:
+        return None
+
+    listing['description'] = lines
+
+    return listing
 
 def generate_scraped_kbs(schema, listing):
     buyer_item, seller_item = {}, {}
@@ -112,16 +115,15 @@ def generate_price_range(base_price, price_unit, intersections, flexibility=0.2)
             }
 
 def generate_scenario(schema, base_price, price_unit, intersections, flexibility, listings):
-    if listings:
-        listing = random.choice(listings)
-        base_price = int(listing['price'])
-    else:
-        listing = None
-    kbs = generate_kbs(schema, listing)
-    ranges = generate_price_range(base_price, price_unit, intersections, flexibility)
-    kbs[BUYER].facts['personal'].update(ranges[BUYER])
-    kbs[SELLER].facts['personal'].update(ranges[SELLER])
-    return NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
+    for listing in listings:
+        listing = process_listing(listing)
+        if listing:
+            base_price = int(listing['price'])
+            kbs = generate_kbs(schema, listing)
+            ranges = generate_price_range(base_price, price_unit, intersections, flexibility)
+            kbs[BUYER].facts['personal'].update(ranges[BUYER])
+            kbs[SELLER].facts['personal'].update(ranges[SELLER])
+            yield NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -129,7 +131,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=1)
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
-    parser.add_argument('--text', help="JSON file containing text listings")
+    parser.add_argument('--text', required=True, help="JSON file containing text listings")
     parser.add_argument('--price-unit', default=100, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
     args = parser.parse_args()
@@ -139,18 +141,14 @@ if __name__ == '__main__':
 
     schema = Schema(args.schema_path)
 
-    if args.text:
-        # Real data
-        listings = process_listings(read_json(args.text))
-        base_price = None
-    else:
-        # Simulated data
-        listings = None
-        base_price = 500
+    listings = read_json(args.text)
+    base_price = None
 
     scenario_list = []
-    for i in xrange(args.num_scenarios):
-        s = generate_scenario(schema, base_price, args.price_unit, args.intersections, args.flexibility, listings)
+    scenario_generator = generate_scenario(schema, base_price, args.price_unit, args.intersections, args.flexibility, listings)
+    for i, s in enumerate(scenario_generator):
+        if i == args.num_scenarios:
+            break
         scenario_list.append(s)
     scenario_db = ScenarioDB(scenario_list)
     write_json(scenario_db.to_dict(), args.scenarios_path)
@@ -163,3 +161,5 @@ if __name__ == '__main__':
         for agent in (0, 1):
             kb = scenario.kbs[agent]
             kb.dump()
+
+    print '%d scenarios generated' % len(scenario_list)
