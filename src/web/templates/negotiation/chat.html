@@ -134,10 +134,10 @@
 					var code = e.keyCode || e.which;
 					if ($('#text').val().length == 0) {
 						messageStartTime = Date.now() / 1000.0;
-						startedTyping();
+						//startedTyping();
 					}
 					if (code == 13) {
-						stoppedTyping();
+						//stoppedTyping();
 						text = $('#text').val();
 						$('#text').val('');
 						var currentTime = Date.now() / 1000.0;
@@ -148,12 +148,12 @@
 					}
 				});
                 
-                $('#text').focus().keyup(
-                	function(e) {
-                		if(e.keyCode == 8 && $('#text').val().length == 0) {
-                			stoppedTyping();
-                		}
-                	})
+                //$('#text').focus().keyup(
+                //	function(e) {
+                //		if(e.keyCode == 8 && $('#text').val().length == 0) {
+                //			stoppedTyping();
+                //		}
+                //	})
 
                 $('#price').on('keyup blur', function () { // fires on every keyup & blur
                 	var priceStr = $('#price').val()

@@ -9,13 +9,8 @@ from src.basic.util import read_json
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
-from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
-from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.cmd_system import CmdSystem
-from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
 from src.basic.controller import Controller
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
-from src.basic.inverse_lexicon import InverseLexicon
+from src.basic.system import add_system_arguments
 from src.lib import logstats
 import numpy as np
 
@@ -27,12 +22,9 @@ parser.add_argument('--scenario-offset', default=0, type=int, help='Number of sc
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
-parser.add_argument('--fact-check', default=False, action='store_true', help='Check if the utterance is true given the KB. Only work for simulated data.')
 add_scenario_arguments(parser)
-add_lexicon_arguments(parser)
 add_dataset_arguments(parser)
-add_neural_system_arguments(parser)
-add_heuristic_system_arguments(parser)
+add_system_arguments(parser)
 args = parser.parse_args()
 logstats.init(args.stats_file)
 if args.random_seed:
@@ -41,7 +33,6 @@ if args.random_seed:
 
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
 if args.inverse_lexicon:
     realizer = InverseLexicon(schema, args.inverse_lexicon)
 else:
@@ -53,8 +44,8 @@ if args.test_max_examples is None:
     args.test_max_examples = scenario_db.size
 
 def get_system(name):
-    if name == 'simple':
-        return SimpleSystem(lexicon, realizer=realizer)
+    if name == 'rulebased':
+        return RulebasedSystem(lexicon, realizer=realizer)
     elif name == 'heuristic':
         return HeuristicSystem(args.joint_facts, args.ask)
     elif name == 'neural':
@@ -66,7 +57,7 @@ def get_system(name):
         raise ValueError('Unknown system %s' % name)
 
 if not args.agents:
-    args.agents = ['simple', 'simple']
+    args.agents = ['rulebased', 'rulebased']
 agents = [get_system(name) for name in args.agents]
 num_examples = args.scenario_offset
 
