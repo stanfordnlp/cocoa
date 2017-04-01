@@ -116,12 +116,6 @@ def add_systems(args, config_dict, schema):
             name = info["type"]
             try:
                 model = get_system(name, args)
-            #if type == SimpleSystem.name():
-            #    model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
-            #elif type == NeuralSystem.name():
-            #    path = info["path"]
-            #    decoding = info["decoding"].split()
-            #    model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True, realizer=realizer, consecutive_entity=False)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -250,7 +244,6 @@ if __name__ == "__main__":
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
     app.config['schema'] = schema
-    #app.config['lexicon'] = lexicon
     app.config['user_params'] = params
     app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)

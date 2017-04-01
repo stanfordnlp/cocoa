@@ -45,6 +45,7 @@ class BaseRulebasedSession(Session):
                 'offered': False,
                 'partner_offered': False,
                 'final_called': False,
+                'num_utterance_sent': 0,
                 }
 
     def receive(self, event):
@@ -70,6 +71,7 @@ class BaseRulebasedSession(Session):
         else:
             self.state['partner_price_change'] = False
             self.state['num_partner_insist'] += 1
+        self.state['num_utterance_sent'] = 0
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
@@ -138,6 +140,10 @@ class BaseRulebasedSession(Session):
         raise NotImplementedError
 
     def send(self):
+        if self.state['num_utterance_sent'] > 0:
+            return None
+        self.state['num_utterance_sent'] += 1
+
         if not self.state['said_hi']:
             self.state['said_hi'] = True
             # We might skip greeting
