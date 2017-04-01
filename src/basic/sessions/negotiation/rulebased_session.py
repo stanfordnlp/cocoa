@@ -46,6 +46,7 @@ class BaseRulebasedSession(Session):
                 'partner_offered': False,
                 'final_called': False,
                 'num_utterance_sent': 0,
+                'last_utterance': None,
                 }
 
     def receive(self, event):
@@ -139,6 +140,14 @@ class BaseRulebasedSession(Session):
     def final_call(self):
         raise NotImplementedError
 
+    def sample_templates(self, s):
+        for i in xrange(10):
+            u = random.choice(s)
+            if u != self.state['last_utterance']:
+                break
+        self.state['last_utterance'] = u
+        return u
+
     def send(self):
         if self.state['num_utterance_sent'] > 0:
             return None
@@ -157,7 +166,12 @@ class BaseRulebasedSession(Session):
                 return self.intro()
 
         if self.state['final_called']:
-            self.offer(self.bottomline)
+            return self.offer(self.bottomline)
+
+        if self.state['partner_offered']:
+            if not self.no_deal(self.partner_price):
+                return self.offer(self.partner_price)
+            return self.offer(self.my_price)
 
         if self.state['num_partner_insist'] > 2:
             return self.compromise()
@@ -211,7 +225,9 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "Go a little higher and we'll talk",
                 "That's your best offer??",
             )
-        return self.message(random.choice(s))
+        u = random.choice(s)
+        self.state['last_utterance'] = u
+        return self.message(u)
 
     def final_call(self):
         s = (
@@ -247,7 +263,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 "That's way too expensive!",
                 "I'm on a tight budget.",
             )
-        return self.message(random.choice(s))
+        return self.message(self.sample_templates(s))
 
     def final_call(self):
         s = (
