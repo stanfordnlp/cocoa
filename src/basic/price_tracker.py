@@ -1,0 +1,47 @@
+# TODO: combine this with the Lexicon
+
+class PriceTracker(object):
+    @classmethod
+    def _get_price_range(cls, kb, partner_kb):
+        if kb is not None:
+            b = kb['personal']['Bottomline']
+            t = kb['personal']['Target']
+        elif partner_kb is not None:
+            b = partner_kb['personal']['Bottomline']
+            t = partner_kb['personal']['Target']
+            # Approximate range
+            if partner_kb['personal']['Role'] == 'buyer':
+                # [target, bottomline]
+                b = b + (t - b)
+            else:
+                # [bottomline, target]
+                b = max(0, b - (t - b))
+        else:
+            raise Exception('No KB is provided')
+        if b < t:
+            price_range = (b, t)
+        else:
+            price_range = (t, b)
+        return price_range
+
+    def link_entity(self, raw_tokens, kb=None, partner_kb=None):
+        '''
+        Detect numbers:
+            ['how', 'about', '1000'] => ['how', 'about', ('1000', (1000, 'price'))]
+        '''
+        # We must know at least one KB
+        assert kb or partner_kb
+        price_range = self._get_price_range(kb, partner_kb)
+        entity_tokens = []
+        for token in raw_tokens:
+            try:
+                number = float(token)
+                if number >= price_range[0] and number <= price_range[1]:
+                    new_token = (token, (number, 'price'))
+                else:
+                    new_token = token
+            except ValueError:
+                new_token = token
+            entity_tokens.append(new_token)
+        return entity_tokens
+

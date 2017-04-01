@@ -4,7 +4,7 @@ from src.basic.sessions.mutualfriends.rulebased_session import RulebasedSession
 class RulebasedSystem(BaseRulebasedSystem):
 
     def __init__(self, lexicon, timed_session=False, consecutive_entity=True, realizer=None):
-        super(MutualFriendsRulebasedSystem, self).__init__(timed_session)
+        super(RulebasedSystem, self).__init__(timed_session)
         self.lexicon = lexicon
         self.consecutive_entity = consecutive_entity
         self.realizer = realizer

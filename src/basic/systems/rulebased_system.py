@@ -1,7 +1,3 @@
-'''
-Rule-based systems.
-'''
-
 __author__ = 'anushabala'
 from system import System
 from src.basic.sessions.timed_session import TimedSessionWrapper
