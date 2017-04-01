@@ -115,7 +115,8 @@ def add_systems(args, config_dict, schema):
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args)
+                # TODO: debug mode timed=False
+                model = get_system(name, args, timed=True)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
