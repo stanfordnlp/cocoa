@@ -24,6 +24,13 @@ class PriceTracker(object):
             price_range = (t, b)
         return price_range
 
+    @classmethod
+    def process_string(cls, token):
+        token = token.replace('$', '')
+        token = token.replace(',', '')
+        token = token.replace('K', '000')
+        return token
+
     def link_entity(self, raw_tokens, kb=None, partner_kb=None):
         '''
         Detect numbers:
@@ -35,7 +42,7 @@ class PriceTracker(object):
         entity_tokens = []
         for token in raw_tokens:
             try:
-                number = float(token)
+                number = float(self.process_string(token))
                 if number >= price_range[0] and number <= price_range[1]:
                     new_token = (token, (number, 'price'))
                 else:
