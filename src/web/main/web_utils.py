@@ -16,6 +16,5 @@ def get_backend():
                                                  app.config["systems"],
                                                  app.config["sessions"],
                                                  app.config["controller_map"],
-                                                 app.config["pairing_probabilities"],
-                                                 app.config["lexicon"])
+                                                 app.config["pairing_probabilities"])
     return backend

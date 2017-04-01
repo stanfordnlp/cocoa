@@ -114,14 +114,15 @@ def add_systems(args, config_dict, schema):
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
             name = info["type"]
-            model = get_system(name, args)
+            try:
+                model = get_system(name, args)
             #if type == SimpleSystem.name():
             #    model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
             #elif type == NeuralSystem.name():
             #    path = info["path"]
             #    decoding = info["decoding"].split()
             #    model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True, realizer=realizer, consecutive_entity=False)
-            else:
+            except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
                     '{}. Ignoring configuration.'.format(info, sys_name))
