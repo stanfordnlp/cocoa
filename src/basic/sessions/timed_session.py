@@ -44,10 +44,10 @@ class TimedSessionWrapper(Session):
             self.last_message_timestamp + random.uniform(1, self.PATIENCE) > time.time()):
             return None
 
-	    if len(self.queued_event) == 0:
-                self.queued_event.append(self.session.send())
+        if len(self.queued_event) == 0:
+            self.queued_event.append(self.session.send())
 
-	    event = self.queued_event[0]
+        event = self.queued_event[0]
         if event is None:
             return self.queued_event.popleft()
         if event.action == 'message':
