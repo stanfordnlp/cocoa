@@ -121,6 +121,7 @@ class BaseRulebasedSession(Session):
     def agree(self):
         self.my_price = self.partner_price
         # TODO: agree in words
+        self.state['offered'] = True
         return self.offer(self.my_price)
 
     def deal(self, price):
@@ -155,6 +156,9 @@ class BaseRulebasedSession(Session):
         return u
 
     def send(self):
+        if self.state['offered']:
+            return None
+
         if self.state['num_utterance_sent'] > 0:
             return None
         self.state['num_utterance_sent'] += 1
@@ -172,9 +176,11 @@ class BaseRulebasedSession(Session):
                 return self.intro()
 
         if self.state['final_called']:
+            self.state['offered'] = True
             return self.offer(self.bottomline)
 
         if self.state['partner_offered']:
+            self.state['offered'] = True
             if not self.no_deal(self.partner_price):
                 return self.offer(self.partner_price)
             return self.offer(self.my_price)
