@@ -49,11 +49,13 @@ class BaseRulebasedSession(Session):
                 'last_utterance': None,
                 }
 
+
     def receive(self, event):
         self.state['num_utterance_sent'] = 0
         if event.action == 'message':
             raw_utterance = event.data
             entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), partner_kb=self.kb)
+            #print 'entity tokens:', entity_tokens
             # Randomly choose one of the prices
             prices = [x[1][0] for x in entity_tokens if is_entity(x)]
             if len(prices) > 0:
@@ -66,13 +68,14 @@ class BaseRulebasedSession(Session):
             self.state['partner_offered'] = True
         else:
             return
-        if price != self.partner_price:
-            self.partner_price = price
-            self.state['partner_price_change'] = True
-            self.state['num_partner_insist'] = 0
+        if self.partner_price is not None and \
+            self.inc*price >= self.inc*self.partner_price:
+                self.state['num_partner_insist'] += 1
         else:
-            self.state['partner_price_change'] = False
-            self.state['num_partner_insist'] += 1
+            self.state['num_partner_insist'] = 0
+        if price is not None:
+            self.partner_price = price
+        #print 'partner price:', self.partner_price
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
@@ -104,7 +107,10 @@ class BaseRulebasedSession(Session):
 
     def compromise(self):
         self.my_price = self._compromise(self.my_price)
+        # Don't keep compromise
+        self.state['num_partner_insist'] = 1
         if self.inc*self.my_price <= self.inc*self.bottomline:
+            # TODO: move this the final_call
             self.state['final_called'] = True
             return self.final_call()
         return self.propose(self.my_price)
@@ -195,6 +201,7 @@ class BaseRulebasedSession(Session):
             else:
                 return self.persuade()
 
+        raise Exception('Uncatched case')
 
 class SellerRulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon):
@@ -258,12 +265,18 @@ class BuyerRulebasedSession(BaseRulebasedSession):
 
     def persuade(self):
         # TODO: depend on price
-        s = (
+        s_price = (
                 "Can you go a little lower?",
                 "That's way too expensive!",
-                "I'm on a tight budget.",
             )
-        return self.message(self.sample_templates(s))
+        s_no_price = (
+                "I'm on a tight budget.",
+                "I'm a poor student...",
+            )
+        if self.partner_price is None:
+            return self.message(self.sample_templates(s_no_price))
+        else:
+            return self.message(self.sample_templates(s_price))
 
     def final_call(self):
         s = (
