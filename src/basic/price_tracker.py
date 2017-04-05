@@ -12,7 +12,7 @@ class PriceTracker(object):
             # Approximate range
             if partner_kb['personal']['Role'] == 'buyer':
                 # [target, bottomline]
-                b = b + (t - b)
+                b = b + (b - t)
             else:
                 # [bottomline, target]
                 b = max(0, b - (t - b))
@@ -39,10 +39,12 @@ class PriceTracker(object):
         # We must know at least one KB
         assert kb or partner_kb
         price_range = self._get_price_range(kb, partner_kb)
+        print 'price range:', price_range
         entity_tokens = []
         for token in raw_tokens:
             try:
                 number = float(self.process_string(token))
+                print 'number:', number
                 if number >= price_range[0] and number <= price_range[1]:
                     new_token = (token, (number, 'price'))
                 else:
