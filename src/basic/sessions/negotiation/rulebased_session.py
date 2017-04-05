@@ -50,6 +50,7 @@ class BaseRulebasedSession(Session):
                 }
 
     def receive(self, event):
+        self.state['num_utterance_sent'] = 0
         if event.action == 'message':
             raw_utterance = event.data
             entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), partner_kb=self.kb)
@@ -72,7 +73,6 @@ class BaseRulebasedSession(Session):
         else:
             self.state['partner_price_change'] = False
             self.state['num_partner_insist'] += 1
-        self.state['num_utterance_sent'] = 0
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
