@@ -10,6 +10,8 @@ class CmdSession(Session):
         tokens = message.split()
         if len(tokens) >= 2 and tokens[0] == '<select>':
             return self.select(self.kb.items[int(tokens[1])])
+        if len(tokens) >= 2 and tokens[0] == '<offer>':
+            return self.offer(int(tokens[1]))
         return self.message(message)
 
     def receive(self, event):

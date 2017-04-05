@@ -13,12 +13,9 @@ from src.basic.schema import Schema
 from src.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
 from src.basic.util import read_json
 from src.web import create_app
-from src.basic.systems.simple_system import SimpleSystem
-from src.basic.systems.neural_system import NeuralSystem
+from src.basic.systems import get_system, add_system_arguments
 from src.basic.systems.human_system import HumanSystem
 from gevent.wsgi import WSGIServer
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
-from src.basic.inverse_lexicon import InverseLexicon
 
 __author__ = 'anushabala'
 
@@ -97,7 +94,7 @@ def add_scenarios_to_db(db_file, scenario_db, systems):
     conn.close()
 
 
-def add_systems(config_dict, schema, lexicon, realizer):
+def add_systems(args, config_dict, schema):
     """
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
@@ -116,15 +113,11 @@ def add_systems(config_dict, schema, lexicon, realizer):
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
-            type = info["type"]
-            # TODO: add realizer to simple system
-            if type == SimpleSystem.name():
-                model = SimpleSystem(lexicon, timed_session=True, realizer=realizer, consecutive_entity=False)
-            elif type == NeuralSystem.name():
-                path = info["path"]
-                decoding = info["decoding"].split()
-                model = NeuralSystem(schema, lexicon, path, False, decoding, timed_session=True, realizer=realizer, consecutive_entity=False)
-            else:
+            name = info["type"]
+            try:
+                # TODO: debug mode timed=False
+                model = get_system(name, args, timed=True)
+            except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
                     '{}. Ignoring configuration.'.format(info, sys_name))
@@ -187,7 +180,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     add_website_arguments(parser)
     add_scenario_arguments(parser)
-    add_lexicon_arguments(parser)
+    add_system_arguments(parser)
     args = parser.parse_args()
 
     params_file = args.config
@@ -229,11 +222,6 @@ if __name__ == "__main__":
         raise ValueError("No schema file found at %s" % schema_path)
 
     schema = Schema(schema_path)
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
-    if args.inverse_lexicon:
-        realizer = InverseLexicon(schema, args.inverse_lexicon)
-    else:
-        realizer = None
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     app.config['scenario_db'] = scenario_db
 
@@ -249,7 +237,7 @@ if __name__ == "__main__":
     if 'end_survey' not in params.keys() :
         params['end_survey'] = 0
 
-    systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
+    systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
     add_scenarios_to_db(db_file, scenario_db, systems)
 
@@ -257,7 +245,6 @@ if __name__ == "__main__":
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
     app.config['schema'] = schema
-    app.config['lexicon'] = lexicon
     app.config['user_params'] = params
     app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)

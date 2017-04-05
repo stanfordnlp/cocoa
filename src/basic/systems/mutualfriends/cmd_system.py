@@ -1,4 +1,4 @@
-from system import System
+from src.basic.systems.system import System
 from src.basic.sessions.cmd_session import CmdSession
 
 class CmdSystem(System):
