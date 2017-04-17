@@ -60,6 +60,11 @@ class NegotiationScenario(BaseScenario):
         super(NegotiationScenario, self).__init__(uuid, attributes, kbs)
         self.intersection = intersection
 
+    def to_dict(self):
+        d = super(NegotiationScenario, self).to_dict()
+        d['intersection'] = self.intersection
+        return d
+
     @staticmethod
     def from_dict(schema, raw):
         scenario_attributes = None
@@ -72,7 +77,7 @@ class NegotiationScenario(BaseScenario):
             raise ValueError("No scenario attributes found. "
                              "Either schema must not be None (and have valid attributes) or "
                              "scenario dict must have valid attributes field.")
-        return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']])
+        return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']], raw['intersection'])
 
 
 class MutualFriendsScenario(BaseScenario):
