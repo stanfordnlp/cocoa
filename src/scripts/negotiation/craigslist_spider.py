@@ -15,8 +15,8 @@ class CraigslistSpider(Spider):
 
     def __init__(self, num_result_pages=1, num_item_per_page=120, cache_dir=None, category='car', from_cache=False, *args, **kwargs):
         super(CraigslistSpider, self).__init__(*args, **kwargs)
-        self.num_result_pages = num_result_pages
-        self.num_item_per_page = num_item_per_page
+        self.num_result_pages = int(num_result_pages)
+        self.num_item_per_page = int(num_item_per_page)
         self.cache_dir = cache_dir
         self.from_cache = from_cache == 'True'
         self.category = category
@@ -75,11 +75,12 @@ class CraigslistSpider(Spider):
             if not os.path.exists(path):
                 with open(path, 'w') as fout:
                     fout.write(response.body)
+            # TODO: download images later. too slow now.
             # Save images
-            for i, url in enumerate(image_urls):
-                path = os.path.join(dir_, '%d.jpg' % i)
-                if not os.path.exists(path):
-                    urllib.urlretrieve(url, path)
+            #for i, url in enumerate(image_urls):
+            #    path = os.path.join(dir_, '%d.jpg' % i)
+            #    if not os.path.exists(path):
+            #        urllib.urlretrieve(url, path)
 
         yield {
                 'category': self.category,

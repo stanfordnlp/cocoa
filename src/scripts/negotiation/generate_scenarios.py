@@ -128,7 +128,7 @@ def generate_scenario(schema, base_price, price_unit, intersections, flexibility
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
-    parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=1)
+    parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=-1)
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
     parser.add_argument('--text', required=True, help="JSON file containing text listings")
