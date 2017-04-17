@@ -55,6 +55,11 @@ class NegotiationScenario(BaseScenario):
     # Agent ids
     BUYER = 0
     SELLER = 1
+
+    def __init__(self, uuid, attributes, kbs, intersection):
+        super(NegotiationScenario, self).__init__(uuid, attributes, kbs)
+        self.intersection = intersection
+
     @staticmethod
     def from_dict(schema, raw):
         scenario_attributes = None

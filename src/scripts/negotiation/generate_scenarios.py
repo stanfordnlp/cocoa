@@ -101,38 +101,40 @@ def generate_price_range(base_price, price_unit, intersections, flexibility=0.2)
     intersections: percentage of intersection relative to the range
     '''
     base_price = discretize(base_price, price_unit)
-    seller_range = (int(base_price * (1. - flexibility)),
-            int(base_price * (1. + flexibility)))
+    seller_range = (base_price * (1. - flexibility),
+            base_price * (1. + flexibility))
     range_size = seller_range[1] - seller_range[0]
-    intersection = int(random.choice(intersections) * range_size)
-    buyer_upperbound = seller_range[0] + intersection
-    buyer_range = (buyer_upperbound - range_size, buyer_upperbound)
+    for i in intersections:
+        intersection = i * range_size
+        buyer_upperbound = seller_range[0] + intersection
+        buyer_range = (buyer_upperbound - range_size, buyer_upperbound)
 
-    return {SELLER: {'Bottomline': seller_range[0] * price_unit,
-                     'Target': seller_range[1] * price_unit},
-            BUYER: {'Bottomline': buyer_range[1] * price_unit,
-                    'Target': buyer_range[0] * price_unit}
-            }
+        yield {SELLER: {'Bottomline': int(seller_range[0]) * price_unit,
+                         'Target': int(seller_range[1]) * price_unit},
+                BUYER: {'Bottomline': int(buyer_range[1]) * price_unit,
+                        'Target': int(buyer_range[0]) * price_unit},
+                'intersection': i,
+              }
 
 def generate_scenario(schema, base_price, price_unit, intersections, flexibility, listings):
     for listing in listings:
         listing = process_listing(listing)
         if listing:
             base_price = int(listing['price'])
-            kbs = generate_kbs(schema, listing)
-            ranges = generate_price_range(base_price, price_unit, intersections, flexibility)
-            kbs[BUYER].facts['personal'].update(ranges[BUYER])
-            kbs[SELLER].facts['personal'].update(ranges[SELLER])
-            yield NegotiationScenario(generate_uuid('S'), schema.attributes, kbs)
+            for ranges in generate_price_range(base_price, price_unit, intersections, flexibility):
+                kbs = generate_kbs(schema, listing)
+                kbs[BUYER].facts['personal'].update(ranges[BUYER])
+                kbs[SELLER].facts['personal'].update(ranges[SELLER])
+                yield NegotiationScenario(generate_uuid('S'), schema.attributes, kbs, ranges['intersection'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=-1)
-    parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.8], help="Intersection of buyer and seller's price range")
+    parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.6, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
     parser.add_argument('--text', required=True, help="JSON file containing text listings")
-    parser.add_argument('--price-unit', default=100, help="Unit for discretizing prices")
+    parser.add_argument('--price-unit', default=50, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
     args = parser.parse_args()
 
@@ -157,7 +159,7 @@ if __name__ == '__main__':
         print '---------------------------------------------------------------------------------------------'
         print '---------------------------------------------------------------------------------------------'
         scenario = scenario_db.scenarios_list[i]
-        print "Scenario id: %s" % scenario.uuid
+        print "Scenario id: %s" % scenario.uuid, scenario.intersection
         for agent in (0, 1):
             kb = scenario.kbs[agent]
             kb.dump()
