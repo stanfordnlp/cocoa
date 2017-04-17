@@ -2,6 +2,7 @@ import json
 from util import generate_uuid
 from dataset import Example
 from threading import Lock
+import src.config as config
 
 class BaseController(object):
     """
@@ -121,7 +122,6 @@ class Controller(object):
     '''
     @staticmethod
     def get_controller(scenario, sessions, chat_id=None, debug=True):
-        import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsController(scenario, sessions, chat_id, debug)
         elif config.task == config.Negotiation:

@@ -2,7 +2,7 @@ import random
 import re
 from collections import defaultdict
 from src.basic.sample_utils import sample_candidates
-from session import Session
+from src.basic.sessions.session import Session
 from src.model.preprocess import tokenize, word_to_num
 from src.model.vocab import is_entity
 from src.basic.lexicon import Lexicon
@@ -11,7 +11,7 @@ from itertools import izip
 
 num_to_word = {v: k for k, v in word_to_num.iteritems()}
 
-class SimpleSession(Session):
+class RulebasedSession(Session):
     '''
     The simple system implements a bot that
     - greets
@@ -23,7 +23,7 @@ class SimpleSession(Session):
     greetings = ['hi', 'hello', 'hey', 'hiya']
 
     def __init__(self, agent, kb, lexicon, realizer=None, consecutive_entity=True):
-        super(SimpleSession, self).__init__(agent)
+        super(RulebasedSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
         self.attr_type = {attr.name: attr.value_type for attr in kb.attributes}
