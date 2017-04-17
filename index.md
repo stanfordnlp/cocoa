@@ -10,11 +10,25 @@ homepage: true
 We build **Co**llaborative **Co**mmunicating **A**gents (CoCoA) that
 collaborate with humans through natural language communication.
 In a *symmetric collaborative dialogue* setting, two agents,
-each with private knowledge, must communicate to achieve a common goal.
+each with private knowledge, must communicate to achieve a common goal. 
 
-### Environment
-We set up a **MutualFriends** task.
-In this task, two agents, A and B, each has a private knowledge base (KB).
+## Setting and Framework
+
+In the symmetric collaborative dialogue setting, each dialogue is centered around a **scenario**,
+which provides private knowledge to each agent and optional shared knowledge available to both agents.
+Two agents communicate using dialogue to achieve a common goal and complete a **task** based on 
+the information in the scenario. 
+
+Our CoCoA framework provides tools to:
+
+1. Create scenarios for new task types in this setting
+2. Use Mechanical Turk to collect human-human dialogues centered around generated scenarios
+3. Train bots that can participate in dialogues with humans, using the collected data
+4. Deploy the trained bots and test their effectiveness against humans on Mechanical Turk (including by collecting reviews from Turkers)
+
+### MutualFriends Task
+We used the CoCoA framework to create a **MutualFriends** task.
+In each **scenario** in this task, two agents, A and B, each have a private knowledge base (KB).
 A KB contains a list of items (friends) with a value for each attribute (e.g., name, school, major, etc.).
 Here is an example dialogue (given KB of agent A):
 
@@ -34,8 +48,8 @@ B: or anyone working at apple?<br/>
 B: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 A: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 
-Human-human dialogues in this setting exhibit challenging lexical, semantic, and strategic elements,
-including cross-talk, coreference, correction, coordination, implicature, and so on.
+We used the CoCoA framework to collect 11K human-human dialogues from Mechanical Turk. Human-human dialogues in this setting exhibit challenging lexical, semantic, and strategic elements,
+including cross-talk, coreference, correction, coordination, implicature, and so on. We then trained **dynamic
 
 ### Resources
 
