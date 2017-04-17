@@ -49,7 +49,7 @@ B: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 A: SELECT (Jessica, Columbia, Computer Science, Google)<br/>
 
 We used the CoCoA framework to collect 11K human-human dialogues from Mechanical Turk. Human-human dialogues in this setting exhibit challenging lexical, semantic, and strategic elements,
-including cross-talk, coreference, correction, coordination, implicature, and so on. We then trained **dynamic
+including cross-talk, coreference, correction, coordination, implicature, and so on. We then trained a **dyn**amic knowledge graph neural **net**work (DynoNet) on the collected dialogues. We deployed conversational bots using this underlying model and asked Turkers on Mechanical Turk to chat with them to complete the MutualFriends task, and asked them to rate the bots.
 
 ### Resources
 
