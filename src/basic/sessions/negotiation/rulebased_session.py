@@ -110,8 +110,6 @@ class BaseRulebasedSession(Session):
         # Don't keep compromise
         self.state['num_partner_insist'] = 1
         if self.inc*self.my_price <= self.inc*self.bottomline:
-            # TODO: move this the final_call
-            self.state['final_called'] = True
             return self.final_call()
         return self.propose(self.my_price)
 
@@ -145,7 +143,7 @@ class BaseRulebasedSession(Session):
         return False
 
     def final_call(self):
-        raise NotImplementedError
+        self.state['final_called'] = True
 
     def sample_templates(self, s):
         for i in xrange(10):
@@ -232,17 +230,24 @@ class SellerRulebasedSession(BaseRulebasedSession):
 
     def persuade(self):
         # TODO: depend on price
-        s = (
+        s = [
+                "This is a steal!",
+                "This car runs pretty well.",
+                "I've been taking good care of it.",
+            ]
+        if self.partner_price is not None:
+            s.extend([
                 "Can you go a little higher?",
                 "There is no way I can sell at that price",
                 "Go a little higher and we'll talk",
                 "That's your best offer??",
-            )
-        u = random.choice(s)
+                ])
+        u = self.sample_templates(s)
         self.state['last_utterance'] = u
         return self.message(u)
 
     def final_call(self):
+        super(SellerRulebasedSession, self).final_call()
         s = (
                 "The absolute lowest I can do is %d" % self.bottomline,
                 "I cannot go any lower than %d" % self.bottomline,
@@ -271,20 +276,22 @@ class BuyerRulebasedSession(BaseRulebasedSession):
 
     def persuade(self):
         # TODO: depend on price
-        s_price = (
-                "Can you go a little lower?",
-                "That's way too expensive!",
-            )
-        s_no_price = (
+        s = [
                 "I'm on a tight budget.",
                 "I'm a poor student...",
-            )
-        if self.partner_price is None:
-            return self.message(self.sample_templates(s_no_price))
-        else:
-            return self.message(self.sample_templates(s_price))
+                "This is an old car...",
+                ]
+        if self.partner_price is not None:
+            s.extend([
+                "Can you go a little lower?",
+                "That's way too expensive!",
+                ])
+        u = self.sample_templates(s)
+        self.state['last_utterance'] = u
+        return self.message(u)
 
     def final_call(self):
+        super(BuyerRulebasedSession, self).final_call()
         s = (
                 "The absolute highest I can do is %d" % self.bottomline,
                 "I cannot go any higher than %d" % self.bottomline,
