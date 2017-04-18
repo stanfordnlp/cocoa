@@ -152,10 +152,13 @@ class NegotiationController(BaseController):
     def __init__(self, scenario, sessions, chat_id=None, debug=True):
         super(NegotiationController, self).__init__(scenario, sessions, chat_id, debug)
         self.prices = [None, None]
+        self.quit = False
 
     def event_callback(self, event):
         if event.action == 'offer':
             self.prices[event.agent] = float(event.data)
+        elif event.action == 'quit':
+            self.quit = True
 
     def get_outcome(self):
         offer = -1
@@ -167,4 +170,6 @@ class NegotiationController(BaseController):
         return {'reward': reward, 'offer': offer}
 
     def game_over(self):
-        return not self.inactive() and self.prices[0] is not None and self.prices[0] == self.prices[1]
+        return not self.inactive() and \
+                ((self.prices[0] is not None and self.prices[1] is not None) or \
+                self.quit)
