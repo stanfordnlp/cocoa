@@ -44,3 +44,7 @@ class Event(object):
     @staticmethod
     def OfferEvent(agent, data, time=None):
         return Event(agent, time, 'offer', data)
+
+    @staticmethod
+    def TypingEvent(agent, data, time=None):
+        return Event(agent, time, 'typing', data)

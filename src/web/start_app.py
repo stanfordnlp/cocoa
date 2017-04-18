@@ -7,12 +7,10 @@ import os
 import shutil
 import warnings
 import atexit
-from signal import signal, SIGTERM
-import sys
 
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.web.dump_events_to_json import log_transcripts_to_json
+from src.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
 from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems.simple_system import SimpleSystem
@@ -42,11 +40,24 @@ def add_website_arguments(parser):
                              'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '
                              'If the provided directory exists, all data in it is overwritten.')
-    parser.add_argument('--domain', type=str,
-                        choices=['MutualFriends', 'Matchmaking'])
+
+
+def add_survey_table(cursor):
+    import src.config as config
+    if config.task == config.MutualFriends:
+        cursor.execute(
+            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+            correct integer, cooperative integer, human_like integer, comments text)''')
+    elif config.task == config.Negotiation:
+        cursor.execute(
+            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+            honest integer, persuasive integer, fair integer, comments text)''')
+    else:
+        raise ValueError("Unknown task %s" % config.task)
 
 
 def init_database(db_file):
+
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     c.execute(
@@ -55,9 +66,7 @@ def init_database(db_file):
         partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
     )
     c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
-    c.execute(
-        '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-        correct integer, cooperative integer, human_like integer, comments text)''')
+
     c.execute(
         '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
     )
@@ -69,6 +78,8 @@ def init_database(db_file):
         '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer, active integer,
         PRIMARY KEY (scenario_id, partner_type))'''
     )
+
+    add_survey_table(c)
 
     conn.commit()
     conn.close()
@@ -148,6 +159,9 @@ def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     log_transcripts_to_json(flask_app.config['scenario_db'], db_path, transcript_path, None)
+    if flask_app.config['user_params']['end_survey'] == 1:
+        surveys_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'surveys.json')
+        log_surveys_to_json(db_path, surveys_path)
 
 
 def init(output_dir):
@@ -214,9 +228,11 @@ if __name__ == "__main__":
     if not os.path.exists(schema_path):
         raise ValueError("No schema file found at %s" % schema_path)
 
-    schema = Schema(schema_path, domain=args.domain)
-    # lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
-    lexicon = None
+    schema = Schema(schema_path)
+    if len(schema.values) == 0:
+        lexicon = None
+    else:
+        lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
     if args.inverse_lexicon:
         realizer = InverseLexicon(schema, args.inverse_lexicon)
     else:
@@ -233,6 +249,9 @@ if __name__ == "__main__":
     if 'skip_chat_enabled' not in params.keys():
         params['skip_chat_enabled'] = False
 
+    if 'end_survey' not in params.keys() :
+        params['end_survey'] = 0
+
     systems, pairing_probabilities = add_systems(params['models'], schema, lexicon, realizer)
 
     add_scenarios_to_db(db_file, scenario_db, systems)
@@ -247,6 +266,8 @@ if __name__ == "__main__":
     app.config['controller_map'] = defaultdict(None)
     app.config['instructions'] = instructions
     app.config['task_title'] = params['task_title']
+
+
     if 'icon' not in params.keys():
         app.config['task_icon'] = 'handshake.jpg'
     else:

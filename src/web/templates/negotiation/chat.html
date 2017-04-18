@@ -12,11 +12,11 @@
 
 			div#chat_container {
 				float:left;
-				width: 40%;
+				width: 45%;
 			}
 			
 			div#info_container {
-				margin-left: 42%;
+				margin-left: 47%;
 				color:#004d00;
 			}
 			
@@ -39,6 +39,8 @@
 			}
 
 			td {
+                white-space: pre-wrap;
+                word-wrap: break-word;
 				padding: 0 15px 0 15px;
 			}
 
@@ -46,6 +48,13 @@
 				font-size:15px;
 			}
 
+			#inner {
+				border: 1px solid #003305;
+				margin-top: 10px;
+				margin-bottom: 10px;
+				margin-left: 2px;
+				padding: 0px 5px 0px 5px;
+			}
 			table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
 				content: " \25B4\25BE"
 			}
@@ -88,9 +97,9 @@
 
 		</style>
         <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-        <link rel="stylesheet" href="/resources/demos/style.css">
 		<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
-		<script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
         <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 		<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
@@ -116,7 +125,8 @@
             			displayText(response['message']);
             		}
             	});
-				
+				$("#instructionCollapse").click();
+
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
 				window.onbeforeunload = disconnect;
@@ -124,8 +134,10 @@
 					var code = e.keyCode || e.which;
 					if ($('#text').val().length == 0) {
 						messageStartTime = Date.now() / 1000.0;
+						startedTyping();
 					}
 					if (code == 13) {
+						stoppedTyping();
 						text = $('#text').val();
 						$('#text').val('');
 						var currentTime = Date.now() / 1000.0;
@@ -136,13 +148,20 @@
 					}
 				});
                 
+                $('#text').focus().keyup(
+                	function(e) {
+                		if(e.keyCode == 8 && $('#text').val().length == 0) {
+                			stoppedTyping();
+                		}
+                	})
+
                 $('#price').on('keyup blur', function () { // fires on every keyup & blur
                 	var priceStr = $('#price').val()
                 	if (isNaN(priceStr)) { // ensure that string entered is a valid number 
                 		$('#submit').prop('disabled', 'disabled'); 
                 	} else {
                 		var price = parseInt(priceStr)
-	                    if (price % 50 == 0) {
+	                    if (price % 100 == 0) {
 	                        $('#submit').prop('disabled', false);        // enables button
 	                    } else {
 	                        $('#submit').prop('disabled', 'disabled');   // disables button
@@ -170,9 +189,35 @@
 				});
 			}
 			
+			function startedTyping() {
+				$.ajax({
+					url: BASE_URL + '/_typing_event/',
+					type: "get",
+					data: {
+						"uid": "{{ uid }}",
+						"action": "started"
+					}
+				});
+			}
+
+			function stoppedTyping() {
+				$.ajax({
+					url: BASE_URL + '/_typing_event/',
+					type: "get",
+					data: {
+						"uid": "{{ uid }}",
+						"action": "stopped"
+					}
+				});
+			}
+
 			function displayText(message) {
 				$('#chat').val($('#chat').val() + message + '\n');
 				$('#chat').scrollTop($('#chat')[0].scrollHeight);
+			}
+
+			function displayStatus(message) {
+				$('#status').val(message);
 			}
 
 			function sendMessage(message) {
@@ -199,7 +244,12 @@
 					dataType: "json",
 					success: function(response) {
 						if(response['received']	) {
-							displayText(response['message']);
+							if(response['status']) {
+								displayStatus(response['message'])
+							} else {
+								displayText(response['message']);
+							}
+							
 						}
 					}
 				});
@@ -291,12 +341,16 @@
 		</script>
     </head>
     
-    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false">
+    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
       <div class="clearfix">
     <div id="chat_container">
     <div id="instructions">
+    	
         <h1 style="color:#004d00">{{ title}}</h1>
+        <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
+        <div id="inner" class="collapse">
         {{ instructions }}
+        </div>
 	</div>
 
         <div id="clockdiv" align="right">
@@ -307,7 +361,8 @@
 	  </div>
 	</div>
 
-        <textarea readonly id="chat"></textarea><br><br>
+        <textarea readonly id="chat"></textarea>
+        <input readonly id="status" style="width:100%;"><br><br>
         <input id="text" placeholder="Enter your message here"><br><br>
 
     </div>
@@ -323,39 +378,45 @@
 		</div>
 		<div id="facts">
             <h3>Goal</h3>
-            {% if kb[0]['Role'] == 'buyer' %}
-                <p>You are the potential <b>tenant</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
+            {% if kb['personal']['Role'] == 'buyer' %}
+                <p>You are the potential <b>buyer</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The lower the better.</p>
             {% else %}
-                <p>You are the <b>landlord</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb[0]['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb[0]['Bottomline']) }}</b>.
+                <p>You are the <b>seller</b>.
+                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                 The higher the better.</p>
             {% endif %}
             <h3>Basic facts</h3>
 			<table>
             <tbody>
 			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
-                    <tr>
-                        <td><b>{{attr}}</b></td>
-                    {% set value = kb[0][attr] %}
-                    {% if value is none %}
-                        <td>?</td> 
-                    {% elif value is string %}
-					    <td>{{ value }}</td>
+                    {% if attr == 'Title' %}
+                        <p><b>{{ kb['item'][attr] }}</b></p>
+                    {% elif attr == 'Description' %}
+                        <p>{{ kb['item'][attr]|replace("\\n", "<br/>")|safe }}</p>
                     {% else %}
-					    <td>{{ value|join(', ') }}</td>
+                        <tr>
+                            <td><b>{{attr}}</b></td>
+                        {% set value = kb['item'][attr] %}
+                        {% if value is none %}
+                            <td>?</td> 
+                        {% elif value is string %}
+					        <td>{{ value }}</td>
+                        {% else %}
+					        <td>{{ value|join(', ') }}</td>
+				        {% endif %}
+                        </tr>
 				    {% endif %}
-                    </tr>
 				{% endfor %}
             </tbody>
 			</table>
             <h3>Offer</h3>
-            <p>Enter your price (must be a multitude of $50):</p>
+            <p>Enter your price (must be a multitude of $100):</p>
             <input id="price" pattern="\d+"/>
-            <button onclick="makeOffer()" id="submit">Submit</button>
+            <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
         </div>
         {% if partner_kb %}
         <div id="peek">

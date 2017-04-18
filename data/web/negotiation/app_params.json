@@ -21,7 +21,7 @@
     "instructions": "/Users/anushabala/projects/game-dialogue/data/web/negotiation/instructions.html",
     "task_title": "Let's Negotiate!",
     "icon": "handshake.jpg",
-    "end_survey": 0,
+    "end_survey": 1,
     "skip_chat_enabled": false
 }
 

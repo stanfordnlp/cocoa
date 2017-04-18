@@ -37,7 +37,7 @@ class Scenario(object):
     def get_scenario(*args):
         if config.task == config.MutualFriends:
             return MutualFriendsScenario(*args)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationScenario(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
@@ -46,7 +46,7 @@ class Scenario(object):
     def from_dict(schema, raw):
         if config.task == config.MutualFriends:
             return MutualFriendsScenario.from_dict(schema, raw)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationScenario.from_dict(schema, raw)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
@@ -55,12 +55,23 @@ class NegotiationScenario(BaseScenario):
     # Agent ids
     BUYER = 0
     SELLER = 1
+
+    def __init__(self, uuid, attributes, kbs, intersection):
+        super(NegotiationScenario, self).__init__(uuid, attributes, kbs)
+        self.intersection = intersection
+
     @staticmethod
     def from_dict(schema, raw):
-
-        scenario_attributes = schema.attributes
+        scenario_attributes = None
+        if schema is not None:
+            scenario_attributes = schema.attributes
         if 'attributes' in raw.keys():
             scenario_attributes = [Attribute.from_json(a) for a in raw['attributes']]
+
+        if scenario_attributes is None:
+            raise ValueError("No scenario attributes found. "
+                             "Either schema must not be None (and have valid attributes) or "
+                             "scenario dict must have valid attributes field.")
         return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']])
 
 

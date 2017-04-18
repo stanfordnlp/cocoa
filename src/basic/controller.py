@@ -124,7 +124,7 @@ class Controller(object):
         import src.config as config
         if config.task == config.MutualFriends:
             return MutualFriendsController(scenario, sessions, chat_id, debug)
-        elif config.task == config.Negotation:
+        elif config.task == config.Negotiation:
             return NegotiationController(scenario, sessions, chat_id, debug)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
@@ -158,11 +158,13 @@ class NegotiationController(BaseController):
             self.prices[event.agent] = float(event.data)
 
     def get_outcome(self):
+        offer = -1
         if self.prices[0] is not None and self.prices[0] == self.prices[1]:
             reward = 1
+            offer = self.prices[0]
         else:
             reward = 0
-        return {'reward': reward}
+        return {'reward': reward, 'offer': offer}
 
     def game_over(self):
         return not self.inactive() and self.prices[0] is not None and self.prices[0] == self.prices[1]

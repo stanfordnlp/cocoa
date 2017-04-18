@@ -1,0 +1,70 @@
+* {
+    font-size: 1em;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+#filter td {
+    padding: 0 20px 5px 0;
+}
+.scenario {
+    width: 100%;
+    display: inline-block;
+    text-align: left;
+}
+.scenario table {
+    border-collapse: collapse;
+    text-align: left;
+}
+.survey {
+    width: 100%;
+}
+.survey table {
+    border-collapse: collapse;
+}
+.survey table td, .scenario table td {
+    padding: 0 5px;
+}
+.survey .response {
+    padding: 0 0 20px 0;
+}
+.agentLabel {
+    padding: 10px;
+}
+.scenario td, .scenario th, .survey td, .survey th {
+    border-bottom: 1px solid #ddd;
+    padding: 0 5px 0 0;
+}
+.divTitle {
+    padding: 20px 0px 10px 0px; 
+    font-weight: bold;
+}
+.kb0 {
+    width: 48%;
+    float: left;
+}
+.kb1 {
+    width: 48%;
+    margin-left: 4%;
+    float: left;
+}
+.chatLog .chat {
+    width: 100%;
+    border-collapse: collapse;
+}
+.kb0 th {
+    background-color: #80ced6;
+}
+.chatLog .agent0 {
+    background-color: #80ced6;
+}
+.survey .response0 th {
+    background-color: #80ced6;
+}
+.kb1 th {
+    background-color: #ffef96;
+}
+.chatLog .agent1 {
+    background-color: #ffef96;
+}
+.survey .response1 th {
+    background-color: #ffef96;
+}
