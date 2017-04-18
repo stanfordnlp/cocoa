@@ -20,7 +20,6 @@ def add_visualization_arguments(parser):
     parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
     parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
 
-#questions = ['fluent', 'fluent_text', 'correct', 'correct_text', 'cooperative', 'cooperative_text', 'strategic', 'strategic_text', 'humanlike', 'humanlike_text', 'comments']
 QUESTIONS = ['fluent', 'correct', 'cooperative', 'humanlike']
 
 # Canonical names to be displayed

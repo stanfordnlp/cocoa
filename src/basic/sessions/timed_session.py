@@ -28,7 +28,8 @@ class TimedSessionWrapper(Session):
 
     def receive(self, event):
         # join and leave events
-        if not (event.action == 'select' or event.action == 'message'):
+        # TODO move this var to Event
+        if event.action in ('join', 'leave', 'typing'):
             return
         self.last_message_timestamp = time.time()
         self.session.receive(event)
@@ -43,10 +44,10 @@ class TimedSessionWrapper(Session):
             self.last_message_timestamp + random.uniform(1, self.PATIENCE) > time.time()):
             return None
 
-	if len(self.queued_event) == 0:
+        if len(self.queued_event) == 0:
             self.queued_event.append(self.session.send())
 
-	event = self.queued_event[0]
+        event = self.queued_event[0]
         if event is None:
             return self.queued_event.popleft()
         if event.action == 'message':
@@ -55,9 +56,11 @@ class TimedSessionWrapper(Session):
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
             if self.prev_action == 'select':
                 delay += self.REPEATED_SELECTION_DELAY
+        # TODO: refactor this
+        elif event.action == 'offer':
+            delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
         else:
-            # unsupported event action type?
-            return None
+            raise ValueError('Unknown event type: %s' % event.action)
 
         if self.last_message_timestamp + delay > time.time():
             return None

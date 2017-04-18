@@ -16,5 +16,9 @@ class Session(object):
 
     def message(self, text):
         return Event(agent=self.agent, time=None, action='message', data=text)
+    # Mutualfriends
     def select(self, item):
         return Event(agent=self.agent, time=None, action='select', data=item)
+    # Negotiation
+    def offer(self, price):
+        return Event(agent=self.agent, time=None, action='offer', data=price)

@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
-from system import System
-from src.basic.sessions.heuristic_session import HeuristicSession
+from src.basic.systems.system import System
+from src.basic.sessions.mutualfriends.heuristic_session import HeuristicSession
 
 def add_heuristic_system_arguments(parser):
     parser.add_argument('--joint-facts', default=False, action='store_true', help='Generate joint attributes, e.g., hiking and philosophy')
