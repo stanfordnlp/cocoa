@@ -9,6 +9,7 @@ from src.model.vocab import Vocabulary, is_entity
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy
+from nltk.tokenize import word_tokenize
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -18,17 +19,12 @@ def add_preprocess_arguments(parser):
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'PAD'])
 markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', PAD='<pad>')
 
-# TODO: use tokenizer, numbers may contain punct, e.g. 5,000
 def tokenize(utterance):
     '''
     'hi there!' => ['hi', 'there', '!']
     '''
     utterance = utterance.encode('utf-8').lower()
-    # Remove '-' to match lexicon preprocess
-    for s in (' - ', '-'):
-        utterance = utterance.replace(s, ' ')
-    # Split on punctuation
-    tokens = re.findall(r"[\w']+|[.,!?;&-]", utterance)
+    tokens = word_tokenize(utterance)
     return tokens
 
 def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
