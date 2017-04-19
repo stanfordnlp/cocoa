@@ -231,12 +231,12 @@ class SellerRulebasedSession(BaseRulebasedSession):
     def persuade(self):
         # TODO: depend on price
         s = [
-                "This is a steal!",
                 "This car runs pretty well.",
                 "I've been taking good care of it.",
             ]
         if self.partner_price is not None:
             s.extend([
+                "This is a steal!",
                 "Can you go a little higher?",
                 "There is no way I can sell at that price",
                 "Go a little higher and we'll talk",
