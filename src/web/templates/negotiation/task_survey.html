@@ -2,7 +2,7 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Who's Our Mutual Friend?</title>
+    <title>Let's negotiate!</title>
     <style>
         td {
             padding: 0 15px 0 15px;
@@ -164,30 +164,6 @@
         <br> <br>
         {% if kb['personal']['Role'] == 'buyer' %}
         <div class="q">
-           <p style="text-align:center;">Here are all the facts that your partner, the landlord, could see, including those that were hidden from you.</p>
-           <table style="margin:1em auto;"">
-           <tbody>
-               {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
-                   <tr>
-                   {% set myval = kb['item'][attr] %}
-                   {% if myval is none %}
-                   {% set color = "#c42d07" %}
-                   {% else %}
-                   {% set color = "#000000" %}
-                   {% endif %}
-                   <td style="color: {{color}}"><b>{{attr}}</b></td>
-                   {% set value = partner_kb['item'][attr] %}
-                   
-                   
-                   {% if value is string %}
-                       <td style="color: {{color}}">{{ value }}</td>
-                   {% else %}
-                       <td style="color: {{color}}">{{ value|join(', ') }}</td>
-                   {% endif %}
-                   </tr>
-               {% endfor %}
-           </tbody>
-           </table> 
            <p style="text-align:center;">How <strong>honest</strong> was your partner?</p> <br>
             <form id="q_c">
                 <p style="float:left;">Not honest at all</p>
