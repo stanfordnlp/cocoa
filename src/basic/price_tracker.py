@@ -31,7 +31,7 @@ class PriceTracker(object):
         token = token.replace('K', '000')
         return token
 
-    def link_entity(self, raw_tokens, kb=None, partner_kb=None):
+    def link_entity(self, raw_tokens, kb=None, partner_kb=None, mentioned_entities=None):
         '''
         Detect numbers:
             ['how', 'about', '1000'] => ['how', 'about', ('1000', (1000, 'price'))]
