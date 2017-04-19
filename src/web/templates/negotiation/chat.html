@@ -396,7 +396,9 @@
                     {% if attr == 'Title' %}
                         <p><b>{{ kb['item'][attr] }}</b></p>
                     {% elif attr == 'Description' %}
-                        <p>{{ kb['item'][attr]|replace("\\n", "<br/>")|safe }}</p>
+                        {% for s in kb['item'][attr] %}
+                            {{ s }}<br/>     
+                        {% endfor %}
                     {% else %}
                         <tr>
                             <td><b>{{attr}}</b></td>
