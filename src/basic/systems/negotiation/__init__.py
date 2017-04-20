@@ -1,4 +1,4 @@
-from src.basic.price_tracker import PriceTracker
+from src.basic.negotiation.price_tracker import PriceTracker
 from rulebased_system import RulebasedSystem
 from cmd_system import CmdSystem
 

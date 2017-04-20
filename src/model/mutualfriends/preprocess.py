@@ -6,7 +6,7 @@ import random
 import re
 import numpy as np
 from src.model.vocab import Vocabulary, is_entity
-from src.model.graph import Graph, GraphBatch, inv_rel, item_to_str
+from graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy

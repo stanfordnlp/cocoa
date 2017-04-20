@@ -3,12 +3,7 @@ Preprocess examples in a dataset and generate data for models.
 '''
 
 import src.config as config
-if config.task == config.MutualFriends:
-    from mutualfriends.preprocess import *
-elif config.task == config.Negotiation:
-    from negotiation.preprocess import *
-else:
-    raise ValueError('Unknown task: %s.' % config.task)
-
-
-
+import importlib
+task_module = importlib.import_module('.'.join(('src.model', config.task)))
+add_data_generator_arguments = task_module.add_data_generator_arguments
+get_data_generator = task_module.get_data_generator

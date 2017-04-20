@@ -2,4 +2,4 @@ Negotiation = 'negotiation'
 MutualFriends = 'mutualfriends'
 
 
-task = Negotiation
+task = MutualFriends

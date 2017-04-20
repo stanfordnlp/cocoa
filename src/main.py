@@ -9,17 +9,11 @@ import time
 import tensorflow as tf
 from itertools import chain
 from src.basic.util import read_json, write_json, read_pickle, write_pickle
-from src.basic.dataset import add_dataset_arguments, read_dataset
 from src.basic.schema import Schema
-from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
-from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
-from src.model.entity import Entity
+from src.model.preprocess import add_data_generator_arguments, get_data_generator
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
-from src.model.graph import Graph, GraphMetadata, add_graph_arguments
-from src.model.graph_embedder import add_graph_embed_arguments
 from src.lib import logstats
 
 if __name__ == '__main__':
@@ -30,13 +24,8 @@ if __name__ == '__main__':
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
-    add_scenario_arguments(parser)
-    add_lexicon_arguments(parser)
-    add_dataset_arguments(parser)
-    add_preprocess_arguments(parser)
+    add_data_generator_arguments(parser)
     add_model_arguments(parser)
-    add_graph_arguments(parser)
-    add_graph_embed_arguments(parser)
     add_learner_arguments(parser)
     args = parser.parse_args()
 
@@ -77,25 +66,9 @@ if __name__ == '__main__':
         ckpt = None
 
     schema = Schema(model_args.schema_path, model_args.domain)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    dataset = read_dataset(scenario_db, args)
-    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
-    print 'Building lexicon...'
-    start = time.time()
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
-    print '%.2f s'% (time.time() - start)
 
-    # Dataset
-    use_kb = False if model_args.model == 'encdec' else True
-    copy = True if model_args.model == 'attn-copy-encdec' else False
-    if model_args.model == 'attn-copy-encdec':
-        model_args.entity_target_form = 'graph'
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model_args.prepend)
-    if args.test:
-        model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
-    else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings, use_kb, copy)
+    data_generator = get_data_generator(args, model_args, mappings, schema)
+
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
 
