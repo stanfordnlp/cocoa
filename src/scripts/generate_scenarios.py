@@ -21,13 +21,17 @@ def add_randomization_arguments(parser):
     parser.add_argument('--random-attributes', action='store_true',
                         help='If specified, uses a random number, distribution, and subset of attributes for each '
                              'scenario')
+    parser.add_argument('--min-attributes', type=int, default=3, help='Minimum number of attributes per scenario')
+    parser.add_argument('--max-attributes', type=int, default=4, help='Maximum number of attributes per scenario')
+
     parser.add_argument('--random-items', action='store_true',
-                        help='If specified, selects a random number of items in the range [5,10] for each scenario.')
+                        help='If specified, selects a random number of items (by default in the range [5,10]) for each scenario.')
     parser.add_argument('--min-items', type=int, default=5,
                         help='Minimum number of items per scenario')
-    parser.add_argument('--max-items', type=int, default=10,
+    parser.add_argument('--max-items', type=int, default=12,
                         help='Minimum number of items per scenario')
-    parser.add_argument('--alphas', nargs='*', type=float, default=[0.3, 0.6, 0.9],
+
+    parser.add_argument('--alphas', nargs='*', type=float, default=[0.3, 1.0, 3.0],
                         help='Alpha values to select from for each attribute.')
 
 add_scenario_arguments(parser)
@@ -56,7 +60,7 @@ def generate_scenario(schema):
     scenario_attributes = schema.attributes
     if random_attributes:
         # sample random number and set of attributes, and choose alphas for each attribute
-        num_attributes = min(np.random.choice(xrange(3, 5)), len(schema.attributes))
+        num_attributes = min(np.random.choice(xrange(args.min_attributes, args.max_attributes)), len(schema.attributes))
         scenario_attributes = np.random.choice(schema.attributes, num_attributes, replace=False)
         scenario_attributes = schema.get_ordered_attribute_subset(scenario_attributes)
         alphas = select_alphas(scenario_attributes)

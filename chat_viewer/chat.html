@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>MutualFriends Dataset Browser</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.13/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" type="text/css" href="css/my.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.12.4.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="js/my.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+</head>
+
+<body>
+
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">MutualFriends Dataset</a>
+    </div>
+    <ul class="nav navbar-nav">
+      <li class="active"><a href="https://stanfordnlp.github.io/cocoa/">Home</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container">
+    <div class="panel-group">
+    <div class="panel panel-default" id="filter">
+        <div class="panel-body">
+        <table id="filter"><tbody>
+        <tr id="items">
+            <td>Min #items:</td>
+            <td>
+                <select class="min" name="min">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                </select>
+            </td>
+            <td>Max #items:</td>
+            <td>
+                <select class="max" name="max">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                </select>
+            </td>
+        </tr>
+        <tr id="attrs">
+            <td>Min #attrs:</td>
+            <td>
+                <select class="min" name="min">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </td>
+            <td>Max #attrs:</td>
+            <td>
+                <select class="max" name="max">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </td>
+        </tr>
+        <tr id="agents">
+            <td>Agent 0:</td>
+            <td>
+                <select id="agent0">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="human">human</option>
+                    <option value="rule-based">rule-based</option>
+                    <option value="StanoNet">StanoNet</option>
+                    <option value="DynoNet">DynoNet</option>
+                </select>
+            </td>
+            <td>Agent 1:</td>
+            <td>
+                <select id="agent1">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="human">human</option>
+                    <option value="rule-based">rule-based</option>
+                    <option value="StanoNet">StanoNet</option>
+                    <option value="DynoNet">DynoNet</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <td>Outcome:</td>
+            <td colspan="3">
+                <select id="outcome">
+                    <option selected disabled value=''>--select--</option>
+                    <option value="fail">fail</option>
+                    <option value="success">success</option>
+            </td>
+        </tr>
+        <tr>
+            <td>Scenario ID:</td>
+            <td colspan="3">
+                <input type="text" id="inputScenarioId">
+            </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <button id="filterButton" type="button">Filter</button> 
+            </td>
+            <td colspan="2">
+                <button id="resetButton" type="button">Reset</button> 
+            </td>
+        </tr>
+        </tbody></table>
+    </div>
+    </div>
+
+    <div class="panel panel-default" id="metadata-wrapper">
+        <div class="panel-body">
+        <table id="metadata" class="display" width="100%" cellspacing="0"></table>
+        </div>
+    </div>
+    <div class="panel panel-default" id="example-wrapper">
+        <div class="panel-body">
+        <div id="example" width="100%"></div> 
+        </div>
+    </div>
+    </div> <!-- panel group -->
+</div> <!-- container -->
+</body>
+
+</html>

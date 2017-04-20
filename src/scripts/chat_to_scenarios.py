@@ -1,3 +1,7 @@
+'''
+Output all scenarios in a chat transcript.
+'''
+
 import sys
 import argparse
 from src.basic.util import read_json, write_json

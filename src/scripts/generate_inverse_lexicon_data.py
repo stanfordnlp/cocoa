@@ -49,7 +49,7 @@ if __name__ == "__main__":
         examples = json.load(f)
 
     if not args.output:
-        fout = open("../../data/inverse_lexicon_data.txt", "w")
+        fout = open("inverse_lexicon_data.txt", "w")
     else:
         fout = open(args.output, 'w')
 
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                     # Entity, Span, Type
                     fout.write(c[1][0] + "\t" + c[0] + "\t" + c[1][1] + "\n")
 
-    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical', False)
+    preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
     for raw in examples:
         ex = Example.from_dict(None, raw)
         kbs = ex.scenario.kbs

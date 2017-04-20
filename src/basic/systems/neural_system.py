@@ -10,7 +10,6 @@ from src.basic.util import read_pickle, read_json
 from src.model.encdec import build_model
 from src.model.preprocess import markers, TextIntMap, Preprocessor
 from collections import namedtuple
-from src.model.evaluate import FactEvaluator
 from src.lib import logstats
 
 def add_neural_system_arguments(parser):
@@ -21,11 +20,13 @@ class NeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, lexicon, model_path, fact_check, decoding, timed_session=False, consecutive_entity=True, realizer=None):
+    def __init__(self, schema, lexicon, model_path, decoding, timed_session=False, consecutive_entity=True, realizer=None):
         super(NeuralSystem, self).__init__()
         self.schema = schema
         self.lexicon = lexicon
         self.timed_session = timed_session
+        # Whether to send two utterances containing entities consecutively
+        # Don't do this because the bot can be too fast
         self.consecutive_entity = consecutive_entity
 
         # Load arguments
@@ -40,7 +41,6 @@ class NeuralSystem(System):
         mappings = read_pickle(mappings_path)
         vocab = mappings['vocab']
 
-        # TODO: different models have the same key now
         args.dropout = 0
         logstats.add_args('model_args', args)
         model = build_model(schema, mappings, args)
@@ -70,11 +70,11 @@ class NeuralSystem(System):
             copy = True
         else:
             copy = False
-        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form, args.prepend)
+        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
 
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'evaluator', 'prepend', 'consecutive_entity', 'realizer'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, evaluator=FactEvaluator() if fact_check else None, prepend=args.prepend, consecutive_entity=self.consecutive_entity, realizer=realizer)
+        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'copy', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'consecutive_entity', 'realizer'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], copy, textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, consecutive_entity=self.consecutive_entity, realizer=realizer)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:

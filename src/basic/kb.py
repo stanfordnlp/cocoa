@@ -31,21 +31,3 @@ class KB(object):
 
     def get_item(self, idx):
         return self.items[idx]
-
-    def get_ordered_item(self, item):
-        ordered_item = [(attr.name, item[attr.name]) for attr in self.attributes]
-        return ordered_item
-
-    @classmethod
-    def ordered_item_to_dict(cls, ordered_item):
-        # Convert an ordered item (a list of (key, value) pairs) to a string representation
-        # of the corresponding dictionary
-        # e.g. [("name","Claire"),("school","Stanford University"),...]"
-        d = dict((key, val) for (key,val) in ordered_item)  # {"name": "Claire", "school": "Stanford University",..}
-        return json.dumps(d)  # "{\"name\": \"Claire\", \"school\": \"Stanford University\",..}"
-
-    @classmethod
-    def string_to_item(cls, str_data):
-        # Convert the string representation of an item back to an ordered item (a tuple)
-        # e.g. string representation: "{\"name\": \"Claire\", \"school\": \"Stanford University\",..}"
-        return json.loads(str_data)

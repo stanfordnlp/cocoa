@@ -1,3 +1,8 @@
+'''
+Split human-bot/human mixed transcripts to multiple transcripts of chats between human
+and a single type of partner.
+'''
+
 import argparse
 import os
 from collections import defaultdict

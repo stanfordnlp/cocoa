@@ -98,9 +98,12 @@ def add_systems(config_dict, schema, lexicon, realizer):
         bot. Also includes the pairing probability for humans (backend.Partner.Human)
     """
 
+    total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
-
+    pairing_probabilities = {}
     for (sys_name, info) in config_dict.iteritems():
+        if "active" not in info.keys():
+            warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
             type = info["type"]
             # TODO: add realizer to simple system
@@ -116,9 +119,27 @@ def add_systems(config_dict, schema, lexicon, realizer):
                     '{}. Ignoring configuration.'.format(info, sys_name))
                 continue
             systems[sys_name] = model
+            if 'prob' in info.keys():
+                prob = float(info['prob'])
+                pairing_probabilities[sys_name] = prob
+                total_probs += prob
 
-    prob = 1.0/len(systems.keys())
-    pairing_probabilities = {system_name: prob for system_name in systems.keys()}
+    if total_probs > 1.0:
+        raise ValueError("Probabilities for active bots can't exceed 1.0.")
+    if len(pairing_probabilities.keys()) != 0 and len(pairing_probabilities.keys()) != len(systems.keys()):
+        remaining_prob = (1.0-total_probs)/(len(systems.keys()) - len(pairing_probabilities.keys()))
+    else:
+        remaining_prob = 1.0 / len(systems.keys())
+    inactive_bots = set()
+    for system_name in systems.keys():
+        if system_name not in pairing_probabilities.keys():
+            if remaining_prob == 0.0:
+                inactive_bots.add(system_name)
+            else:
+                pairing_probabilities[system_name] = remaining_prob
+
+    for sys_name in inactive_bots:
+        systems.pop(sys_name, None)
 
     return systems, pairing_probabilities
 
