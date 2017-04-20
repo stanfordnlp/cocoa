@@ -14,7 +14,6 @@ from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.lexicon import Lexicon, add_lexicon_arguments
 from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
-from src.model.entity import Entity
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
