@@ -60,7 +60,7 @@ def add_model_arguments(parser):
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
-    from src.model.encdec import BasicEncoder, BasicDecoder
+    from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from encdec import GraphEncoder, GraphDecoder, CopyGraphDecoder, PreselectCopyGraphDecoder, GatedCopyGraphDecoder, BasicEncoderDecoder, GraphEncoderDecoder
     from preprocess import markers
     from graph_embedder import GraphEmbedder
@@ -81,6 +81,7 @@ def build_model(schema, mappings, args):
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
         sample_select = None if len(args.decoding) < 3 or args.decoding[2] != 'select' else select
+        sampler = Sampler(sample_t, sample_select)
     else:
         raise('Unknown decoding method')
 
@@ -97,7 +98,7 @@ def build_model(schema, mappings, args):
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select, reward)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler, reward)
         model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=re_encode)
     elif args.model == 'attn-encdec' or args.model == 'attn-copy-encdec':
         max_degree = args.num_items + len(schema.attributes)
@@ -108,16 +109,16 @@ def build_model(schema, mappings, args):
         graph_embedder = GraphEmbedder(graph_embedder_config)
         encoder = GraphEncoder(args.rnn_size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, dropout=args.dropout, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding)
         if args.model == 'attn-encdec':
-            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
+            decoder = GraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sampler, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
         elif args.model == 'attn-copy-encdec':
             if args.gated_copy:
-                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
+                decoder = GatedCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sampler, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 sup_gate = args.sup_gate
             else:
                 if args.preselect:
-                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
+                    decoder = PreselectCopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sampler, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 else:
-                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sample_t=sample_t, sample_select=sample_select, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
+                    decoder = CopyGraphDecoder(args.rnn_size, vocab.size, graph_embedder, rnn_type=args.rnn_type, num_layers=args.num_layers, checklist=(not args.no_checklist), dropout=args.dropout, sampler, reward=reward, update_graph=update_graph, node_embed_in_rnn_inputs=node_embed_in_rnn_inputs, separate_utterance_embedding=separate_utterance_embedding, encoder=encoder)
                 sup_gate = False
         model = GraphEncoderDecoder(encoder_word_embedder, decoder_word_embedder, graph_embedder, encoder, decoder, pad, select, re_encode=re_encode, sup_gate=sup_gate)
     else:

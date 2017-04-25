@@ -1,4 +1,5 @@
 from itertools import izip
+from src.model.vocab import is_entity
 from src.lib.bleu import compute_bleu
 from src.lib.bleu import bleu_stats as get_bleu_stats
 from src.lib.bleu import bleu as get_bleu
@@ -84,6 +85,15 @@ class BaseEvaluator(object):
             self._generate_response(sess, dialogue_batch, summary_map)
 
         return self.get_stats(summary_map)
+
+    def _process_target_tokens(self, tokens):
+        '''
+        TODO: for now evaluate against canonical entities. In future, evaluate against
+        actual utterances.
+        '''
+        targets = [token[1] if is_entity(token) else token for token in tokens]
+        #targets = [x for x in targets if x not in (markers.PAD,)]
+        return targets
 
 import src.config as config
 import importlib

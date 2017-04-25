@@ -126,18 +126,12 @@ class GraphDecoder(GraphEncoder):
     '''
     Decoder with attention mechanism over the graph.
     '''
-    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, scoring='linear', output='project', checklist=True, sample_t=0, sample_select=None, reward=None, node_embed_in_rnn_inputs=False, update_graph=True, separate_utterance_embedding=False, encoder=None):
+    def __init__(self, rnn_size, num_symbols, graph_embedder, rnn_type='lstm', num_layers=1, dropout=0, scoring='linear', output='project', checklist=True, sampler=Sampler(0), node_embed_in_rnn_inputs=False, update_graph=True, separate_utterance_embedding=False, encoder=None):
         super(GraphDecoder, self).__init__(rnn_size, graph_embedder, rnn_type, num_layers, dropout, node_embed_in_rnn_inputs, update_graph, separate_utterance_embedding)
         if self.separate_utterance_embedding:
             assert encoder is not None
             self.encoder = encoder
-        self.sampler = Sampler(sample_t, sample_select)
-        if reward is not None:
-            self.add_reward = True
-            self.select_penalty = -1. * reward[0]
-            self.success_reward = 1. * reward[1]
-        else:
-            self.add_reward = False
+        self.sampler = sampler
         self.num_symbols = num_symbols
         self.utterance_id = 1
         self.scorer = scoring
@@ -159,10 +153,8 @@ class GraphDecoder(GraphEncoder):
     def compute_loss(self, targets, pad, select):
         logits = self.output_dict['logits']
         loss, seq_loss, total_loss = BasicDecoder._compute_loss(logits, targets, pad)
-        if self.add_reward:
-            loss += BasicDecoder._compute_penalty(logits, targets, self.matched_items, pad, select, self.select_penalty, self.success_reward)
         # -1 is selection loss
-        return loss, seq_loss, total_loss, tf.constant(-1)
+        return loss, seq_loss, total_loss
 
     def _build_rnn_cell(self):
         return AttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.keep_prob, self.scorer, self.output_combiner, self.num_layers, self.checklist)

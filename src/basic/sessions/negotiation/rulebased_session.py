@@ -1,6 +1,6 @@
 import random
 from src.basic.sessions.session import Session
-from src.model.preprocess import tokenize
+from src.model.negotiation.preprocess import tokenize
 from src.model.vocab import is_entity
 
 class RulebasedSession(object):

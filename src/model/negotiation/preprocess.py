@@ -178,10 +178,12 @@ class Dialogue(object):
         '''
         Pad turns to length num_turns.
         '''
-        turns, agents = self.turns, self.agents
+        turns, agents, roles = self.turns, self.agents, self.roles
         assert len(turns[0]) == len(turns[1]) and len(turns[0]) == len(turns[2])
         for i in xrange(len(turns[0]), num_turns):
-            agents.append(1 - agents[-1])
+            #agents.append(1 - agents[-1])
+            agents.append(None)
+            roles.append(None)
             for j in xrange(len(turns)):
                 turns[j].append([])
 
@@ -221,9 +223,15 @@ class DialogueBatch(object):
     def _create_turn_batches(self):
         turn_batches = []
         for i in xrange(Dialogue.num_stages):
-            turn_batches.append([self._normalize_turn(
-                [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
-                for j in xrange(self.num_turns)])
+            try:
+                turn_batches.append([self._normalize_turn(
+                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
+                    for j in xrange(self.num_turns)])
+            except IndexError:
+                print 'num_turns:', self.num_turns
+                for dialogue in self.dialogues:
+                    print len(dialogue.turns[0]), len(dialogue.roles)
+                import sys; sys.exit()
         return turn_batches
 
     def _get_agent_batch(self, i):

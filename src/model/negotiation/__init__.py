@@ -23,9 +23,9 @@ def get_data_generator(args, model_args, mappings, schema):
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, model_args.num_items, mappings)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, model_args.num_items, mappings)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings)
 
     return data_generator
 
@@ -38,7 +38,7 @@ def add_model_arguments(parser):
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
-    from src.model.encdec import BasicEncoder, BasicDecoder
+    from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from encdec import BasicEncoderDecoder
     from preprocess import markers
 
@@ -47,7 +47,6 @@ def build_model(schema, mappings, args):
 
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
-    select = vocab.to_ind(markers.SELECT)
     with tf.variable_scope('EncoderWordEmbedder'):
         encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
     with tf.variable_scope('DecoderWordEmbedder'):
@@ -55,19 +54,16 @@ def build_model(schema, mappings, args):
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
-        sample_select = None if len(args.decoding) < 3 or args.decoding[2] != 'select' else select
+        sampler = Sampler(sample_t)
     else:
         raise('Unknown decoding method')
 
-    if args.reward is not None:
-        reward = [float(x) for x in args.reward]
-    else:
-        reward = None
+    re_encode = args.re_encode
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sample_t, sample_select, reward)
-        model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=re_encode)
+        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
+        model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=re_encode)
     else:
         raise ValueError('Unknown model')
     return model

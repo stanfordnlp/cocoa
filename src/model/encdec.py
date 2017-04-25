@@ -196,16 +196,10 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state',), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sample_t=0, sample_select=None, reward=None):
+    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sampler=Sampler(0)):
         super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
         self.num_symbols = num_symbols
-        self.sampler = Sampler(sample_t, sample_select)
-        if reward is not None:
-            self.add_reward = True
-            self.select_penalty = -1. * reward[0]
-            self.success_reward = 1. * reward[1]
-        else:
-            self.add_reward = False
+        self.sampler = sampler
 
     def get_encoder_state(self, state):
         '''
@@ -241,43 +235,10 @@ class BasicDecoder(BasicEncoder):
         return logits
 
     # TODO: add a Loss class?
-    def compute_loss(self, targets, pad, select):
+    def compute_loss(self, targets, pad):
         logits = self.output_dict['logits']
         loss, seq_loss, total_loss = self._compute_loss(logits, targets, pad)
-        if self.add_reward:
-            loss += self._compute_penalty(logits, targets, self.matched_items, pad, select, self.select_penalty, self.success_reward)
-        # -1 is selection loss
-        return loss, seq_loss, total_loss, tf.constant(-1)
-
-    @classmethod
-    def _compute_penalty(cls, logits, targets, matched_items, pad, select, select_penalty, success_reward):
-        '''
-        matched_items: (batch_size,) in the range of num_symbols
-        '''
-        batch_size = tf.shape(logits)[0]
-        num_symbols = tf.shape(logits)[2]
-        logprobs = tf.log(tf.nn.softmax(logits) + EPS)
-        pad_mask = tf.not_equal(targets, pad)
-
-        correct_items = tf.one_hot(matched_items, num_symbols, on_value=1, off_value=0)  # (batch_size, num_symbols)
-        # Pick correct select utterances
-        select_utterances = tf.equal(targets[:, 0], select)  # (batch_size,)
-        mask = tf.cast(tf.where(select_utterances, correct_items, tf.zeros_like(correct_items)), tf.bool)  # (batch_size, num_symbols)
-        item_logprobs = logprobs[:, 1, :]
-        correct_item_logprobs = tf.reduce_sum(tf.where(mask, item_logprobs, tf.zeros_like(item_logprobs)), 1)
-        success_loss = -1 * success_reward *  correct_item_logprobs
-
-        # Only penalize incorrect select
-        select_loss = logprobs[:, 0, select] * select_penalty  # (batch_size,)
-        mask = tf.logical_and(select_utterances, tf.equal(targets[:, 1], matched_items))
-        select_loss = tf.where(mask, tf.zeros_like(select_loss), select_loss)
-
-        success_loss = tf.where(mask, success_loss, tf.zeros_like(success_loss))
-
-        loss = select_loss + success_loss
-        loss = tf.where(pad_mask[:, 0], loss, tf.zeros_like(loss))
-
-        return tf.reduce_sum(loss) / tf.to_float(batch_size)
+        return loss, seq_loss, total_loss
 
     @classmethod
     def _compute_loss(cls, logits, targets, pad):

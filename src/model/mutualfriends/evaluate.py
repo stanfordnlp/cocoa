@@ -155,15 +155,9 @@ class Evaluator(BaseEvaluator):
         return precision, recall, f1
 
     def _process_target_tokens(self, tokens):
-        '''
-        TODO: for now evaluate against canonical entities. In future, evaluate against
-        actual utterances.
-        '''
-        targets = [token[1] if is_entity(token) else token for token in tokens]
+        targets = super(Evaluator, self)._process_target_tokens(tokens)
         if self.prepend:
             targets, _ = remove_entities(targets)
-        #targets = [x for x in targets if x not in (markers.EOS, markers.PAD)]
-        targets = [x for x in targets if x not in (markers.PAD,)]
         return targets
 
     def _print_batch(self, batch, preds, targets, bleu_scores, graphs, attn_scores, probs):
@@ -210,11 +204,6 @@ class Evaluator(BaseEvaluator):
             #            except KeyError:
             #                print node_id, 'pad', score
 
-    def update_summary(self, summary_map, bleu_scores):
-        for bleu_score in bleu_scores:
-            # None means no entity in this utterance
-            if bleu_score is not None:
-                logstats.update_summary_map(summary_map, {'bleu': bleu_score})
 
     # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
     def update_entity_stats(self, summary_map, batch_preds, batch_targets, prefix=''):

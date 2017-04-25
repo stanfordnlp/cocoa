@@ -16,7 +16,6 @@ class Learner(BaseLearner):
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'last_inds': batch['decoder_inputs_last_inds'],
-                'matched_items': matched_items,
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,

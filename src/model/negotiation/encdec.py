@@ -8,7 +8,7 @@ class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
     '''
-    def __init__(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, select, re_encode=False, scope=None):
+    def __init__(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=False, scope=None):
         self.PAD = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
@@ -17,7 +17,7 @@ class BasicEncoderDecoder(object):
         self.build_model(encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope)
 
     def compute_loss(self, output_dict, targets):
-        return self.decoder.compute_loss(targets, self.PAD, self.SELECT)
+        return self.decoder.compute_loss(targets, self.PAD)
 
     def _encoder_input_dict(self):
         return {
@@ -55,7 +55,7 @@ class BasicEncoderDecoder(object):
             self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Loss
-            self.loss, self.seq_loss, self.total_loss, self.select_loss = self.compute_loss(decoder.output_dict, self.targets)
+            self.loss, self.seq_loss, self.total_loss = self.compute_loss(decoder.output_dict, self.targets)
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
@@ -64,7 +64,7 @@ class BasicEncoderDecoder(object):
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None, textint_map=None):
+    def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None):
         encoder_inputs = batch['encoder_inputs']
         decoder_inputs = batch['decoder_inputs']
         batch_size = encoder_inputs.shape[0]
