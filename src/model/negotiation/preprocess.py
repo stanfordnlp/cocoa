@@ -264,6 +264,8 @@ class DialogueBatch(object):
         #decoder_inputs = decoder_inputs[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
+        # NOTE: we're considering entities / prices as words for now.
+
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
                  'encoder_inputs': encoder_inputs,

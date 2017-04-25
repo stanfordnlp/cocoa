@@ -52,7 +52,6 @@ def add_model_arguments(parser):
     parser.add_argument('--gated-copy', default=False, action='store_true', help='Use gating function for copy')
     parser.add_argument('--sup-gate', default=False, action='store_true', help='Supervise copy gate')
     parser.add_argument('--preselect', default=False, action='store_true', help='Pre-select entities before decoding')
-    parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
     parser.add_argument('--reward', nargs='+', default=None, help='Reward for selection and success')
     parser.add_argument('--node-embed-in-rnn-inputs', default=False, action='store_true', help='Add node embedding of entities as inputs to the RNN')
     parser.add_argument('--no-graph-update', default=False, action='store_true', help='Do not update the KB graph during the dialogue')

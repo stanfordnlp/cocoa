@@ -2,12 +2,10 @@ from itertools import izip, izip_longest
 import numpy as np
 from preprocess import markers
 from graph import Graph
-from src.lib.bleu import compute_bleu
-from src.lib.bleu import bleu_stats as get_bleu_stats
-from src.lib.bleu import bleu as get_bleu
 from src.model.vocab import is_entity
 from src.lib import logstats
 from src.model.util import EPS
+from src.model.evaluate import BaseEvaluator
 
 def remove_entities(entity_tokens):
     eoe_inds = [i for i, x in enumerate(entity_tokens) if x == markers.EOE]
@@ -53,87 +51,68 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, remove_entity
             tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols], 'target'))
     return tokens, entities if len(entities) > 0 else None
 
-class Evaluator(object):
+class Evaluator(BaseEvaluator):
     def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
-        self.model = model
-        self.batch_size = batch_size
-        self.data = data
-        self.vocab = data.mappings['vocab']
-        self.verbose = verbose
+        super(Evaluator, self).__init__(data, model, splits, batch_size, verbose)
         self.copy = data.copy
         self.prepend = data.prepend
 
-        # Prepare dataset
-        self.eval_data = {split: data.generator(split, self.batch_size, shuffle=False) for split in splits}
-        self.num_batches = {split: data.next() for split, data in self.eval_data.iteritems()}
+    def _stop_symbol(self):
+        return self.vocab.to_ind(markers.EOS)
 
-        # For post-processing of generated utterances
-        self.stop_symbol = self.vocab.to_ind(markers.EOS)
-        #self.remove_symbols = map(self.vocab.to_ind, (markers.EOS, markers.PAD))
-        self.remove_symbols = map(self.vocab.to_ind, (markers.PAD,))
+    def _remove_symbols(self):
+        return map(self.vocab.to_ind, (markers.PAD,))
 
-    def dataset(self):
-        '''
-        Iterator over all datasets.
-        '''
-        for split, generator in self.eval_data.iteritems():
-            yield split, generator, self.num_batches[split]
-
-    def test_bleu(self, sess, test_data, num_batches):
-        '''
-        Go through each message of the agent and try to predict it
-        given the *perfect* past.
-        Return the average BLEU score across messages.
-        '''
-        summary_map = {}
-        bleu_stats = [0 for i in xrange(10)]
-        for i in xrange(num_batches):
-            dialogue_batch = test_data.next()
-            encoder_init_state = None
-            # Whether we're using knowledge graphs
-            if 'graph' in dialogue_batch:
-                graphs = dialogue_batch['graph']
+    def _generate_response(self, sess, dialogue_batch, summary_map):
+        encoder_init_state = None
+        # Whether we're using knowledge graphs
+        graphs = dialogue_batch.pop('graph', None)
+        utterances = None
+        for batch in dialogue_batch['batch_seq']:
+            targets = batch['targets']
+            max_len = targets.shape[1] + 10
+            output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
+            preds = output_dict['preds']
+            true_final_state = output_dict['true_final_state']
+            if graphs:
+                encoder_init_state = true_final_state
+                utterances = output_dict['utterances']
             else:
-                graphs = None
-            utterances = None
-            for batch in dialogue_batch['batch_seq']:
-                targets = batch['targets']
-                max_len = targets.shape[1] + 10
-                #preds, _, true_final_state, utterances, attn_scores = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
-                output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, graphs=graphs, utterances=utterances, vocab=self.vocab, copy=self.copy, textint_map=self.data.textint_map)
-                preds = output_dict['preds']
-                true_final_state = output_dict['true_final_state']
-                if graphs:
-                    encoder_init_state = true_final_state
-                    utterances = output_dict['utterances']
-                else:
-                    encoder_init_state = true_final_state
-                if self.copy:
-                    preds = graphs.copy_preds(preds, self.vocab.size)
-                num_sents = np.sum(targets == self.stop_symbol, axis=1)
-                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents)
+                encoder_init_state = true_final_state
+            if self.copy:
+                preds = graphs.copy_preds(preds, self.vocab.size)
+            num_sents = np.sum(targets == self.stop_symbol, axis=1)
+            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, self.prepend, num_sents)
 
-                # Compute BLEU
-                references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
-                # Sentence bleu: only for verbose print
-                bleu_scores = self.sentence_bleu_score(pred_tokens, references)
-                bleu_stats = self.update_bleu_stats(bleu_stats, pred_tokens, references)
-                self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
-                if 'selection_scores' in output_dict:
-                    self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :], 'select_')
-                if pred_entities is not None:
-                    self.update_entity_stats(summary_map, pred_entities, references, 'prepend_')
+            references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 
-                if self.verbose:
-                    attn_scores = output_dict.get('attn_scores', None)
-                    probs = output_dict.get('probs', None)
-                    self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores, probs)
+            # Metrics
+            # Sentence bleu: only for verbose print
+            bleu_scores = self.sentence_bleu_score(pred_tokens, references)
+            self.update_bleu_stats(summary_map, pred_tokens, references)
+            self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
+            if 'selection_scores' in output_dict:
+                self.update_selection_stats(summary_map, output_dict['selection_scores'], output_dict['true_checklists'][:, -1, :], 'select_')
+            if pred_entities is not None:
+                self.update_entity_stats(summary_map, pred_entities, references, 'prepend_')
 
-        entity_f1 = self.get_f1(summary_map, 'entity_')
-        bleu = (get_bleu(bleu_stats), get_bleu(bleu_stats[:-2]), get_bleu(bleu_stats[:-4]))
-        selection_f1 = self.get_f1(summary_map, 'select_')
-        prepend_f1 = self.get_f1(summary_map, 'prepend_')
-        return bleu, entity_f1, selection_f1, prepend_f1
+            if self.verbose:
+                attn_scores = output_dict.get('attn_scores', None)
+                probs = output_dict.get('probs', None)
+                self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores, probs)
+
+    def get_stats(self, summary_map):
+        output = super(Evaluator, self).get_stats(summary_map)
+        output['entity_f1'] = self.get_f1(summary_map, 'entity_')
+        output['selection_f1'] = self.get_f1(summary_map, 'select_')
+        output['prepend_f1'] = self.get_f1(summary_map, 'prepend_')
+        return output
+
+    def stats2str(self, stats):
+        s = [super(Evaluator, self).stats2str(stats)]
+        for m in ('entity_f1', 'selection_f1', 'prepend_f1'):
+            s.append('%s=%.4f/%.4f/%.4f' % (m, stats[m][0], stats[m][1],stats[m][2]))
+        return ' '.join(s)
 
     def update_selection_stats(self, summary_map, scores, targets, prefix=''):
         # NOTE: targets are from ground truth response and many contain new entities.
@@ -147,6 +126,12 @@ class Evaluator(object):
         pos_target = targets == 1
         tp = np.sum(np.logical_and(pos_pred, pos_target))
         logstats.update_summary_map(summary_map, {prefix+'tp': tp, prefix+'pos_pred': np.sum(pos_pred), prefix+'pos_target': np.sum(pos_target)})
+
+    def log_dict(self, stats):
+        d = super(Evaluator, self).log_dict(stats)
+        precision, recall, f1 = stats['entity_f1']
+        d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
+        return d
 
     def get_f1(self, summary_map, prefix):
         pos_target = prefix + 'pos_target'
@@ -230,21 +215,6 @@ class Evaluator(object):
             # None means no entity in this utterance
             if bleu_score is not None:
                 logstats.update_summary_map(summary_map, {'bleu': bleu_score})
-
-    def update_bleu_stats(self, stats, batch_preds, batch_targets):
-        for preds, targets in izip(batch_preds, batch_targets):
-            if len(targets) > 0:
-                stats = [sum(scores) for scores in izip(stats, get_bleu_stats(preds, targets))]
-        return stats
-
-    def sentence_bleu_score(self, batch_preds, batch_targets):
-        scores = []
-        for preds, targets in izip(batch_preds, batch_targets):
-            if len(targets) > 0:
-                scores.append(compute_bleu(preds, targets))
-            else:
-                scores.append(None)
-        return scores
 
     # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
     def update_entity_stats(self, summary_map, batch_preds, batch_targets, prefix=''):

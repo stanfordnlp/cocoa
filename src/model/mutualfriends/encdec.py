@@ -3,7 +3,7 @@ import numpy as np
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
 from src.model.rnn_cell import AttnRNNCell, PreselectAttnRNNCell
-from src.model.mutualfriends.preprocess import markers
+from preprocess import markers
 
 class GraphEncoder(BasicEncoder):
     '''
@@ -474,6 +474,7 @@ class BasicEncoderDecoder(object):
                 decoder.build_model(decoder_word_embedder, decoder_input_dict, self.tf_variables, time_major=False)
 
             # Re-encode decoded sequence
+            # TODO: re-encode is not implemeted in neural_sessions yet
             # TODO: hierarchical
             if self.re_encode:
                 input_args = decoder.get_rnn_inputs_args()

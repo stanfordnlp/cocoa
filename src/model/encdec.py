@@ -19,6 +19,7 @@ def add_basic_model_arguments(parser):
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     parser.add_argument('--re-encode', default=False, action='store_true', help='Re-encode the decoded sequence')
+    parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
 
 def optional_add(feed_dict, key, value):
     if value is not None:
