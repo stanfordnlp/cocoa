@@ -208,10 +208,13 @@ class BaseRulebasedSession(Session):
         elif self.no_deal(self.partner_price):
             # TODO: set persuasion strength
             p = random.random()
-            if p < 0.2:
-                return self.compromise()
-            if p < 0.4:
-            return self.persuade()
+            if p < 0.5:
+                return self.persuade()
+            else:
+                if not self.state['last_proposed_price']:
+                    return self.propose(self.my_price)
+                else:
+                    return self.compromise()
         else:
             p = random.random()
             if p < 0.2:
