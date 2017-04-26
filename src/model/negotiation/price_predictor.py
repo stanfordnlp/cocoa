@@ -26,4 +26,13 @@ class PricePredictor(object):
                 prices = tf.batch_linear(h, 1, True)  # (batch_size, seq_len, 1)
             self.output_dict['prices'] = prices
 
-    def compute_loss
+    def compute_loss(self, pad):
+        '''
+        MSE loss.
+        '''
+        targets = self.targets
+        preds = self.output_dict['prices']
+        weights = tf.cast(tf.not_equal(self.targets, tf.constant(pad)), tf.float32)
+        loss = tf.losses.mean_squared_error(targets, preds, weights=weights)
+        return loss
+
