@@ -47,6 +47,8 @@ class BaseRulebasedSession(Session):
                 'final_called': False,
                 'num_utterance_sent': 0,
                 'last_utterance': None,
+                'last_act': None,
+                'num_persuade': 0,
                 }
 
 
@@ -79,6 +81,7 @@ class BaseRulebasedSession(Session):
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
+        self.state['last_act'] = 'greet'
         return self.message(random.choice(greetings))
 
     def init_propose(self, price):
@@ -97,6 +100,7 @@ class BaseRulebasedSession(Session):
                     "%d and we have a deal" % price,
                 )
         self.state['last_proposed_price'] = price
+        self.state['last_act'] = 'propose'
         return self.message(random.choice(s))
 
     def intro(self):
@@ -111,15 +115,23 @@ class BaseRulebasedSession(Session):
         self.state['num_partner_insist'] = 1
         if self.inc*self.my_price <= self.inc*self.bottomline:
             return self.final_call()
+        self.state['last_act'] = 'compromise'
         return self.propose(self.my_price)
 
     def persuade(self):
-        raise NotImplementedError
+        if self.state['num_persuade'] > 3:
+            return self.compromise()
+        if self.state['last_act'] == 'persuade':
+            self.state['num_persuade'] += 1
+        else:
+            self.state['num_persuade'] = 0
+        self.state['last_act'] = 'persuade'
 
     def agree(self):
         self.my_price = self.partner_price
         # TODO: agree in words
         self.state['offered'] = True
+        self.state['last_act'] = 'agree'
         return self.offer(self.my_price)
 
     def deal(self, price):
@@ -195,6 +207,10 @@ class BaseRulebasedSession(Session):
             return self.agree()
         elif self.no_deal(self.partner_price):
             # TODO: set persuasion strength
+            p = random.random()
+            if p < 0.2:
+                return self.compromise()
+            if p < 0.4:
             return self.persuade()
         else:
             p = random.random()
@@ -219,6 +235,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "I have a %s" % title,
                 "I'm selling a %s" % title,
             )
+        self.state['last_act'] = 'intro'
         return self.message(random.choice(s))
 
     def init_propose(self, price):
@@ -226,9 +243,11 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "I'm asking for %d" % price,
                 "I'm looking to sell it for %d" % price,
             )
+        self.state['last_act'] = 'init_propose'
         return s
 
     def persuade(self):
+        super(SellerRulebasedSession, self).persuade()
         # TODO: depend on price
         s = [
                 "This car runs pretty well.",
@@ -253,6 +272,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "I cannot go any lower than %d" % self.bottomline,
                 "%d or you'll have to go to another place" % self.bottomline,
             )
+        self.state['last_act'] = 'final_call'
         return self.message(random.choice(s))
 
 class BuyerRulebasedSession(BaseRulebasedSession):
@@ -265,6 +285,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
         s = (
                 "How much are you asking?",
             )
+        self.state['last_act'] = 'intro'
         return self.message(random.choice(s))
 
     def init_propose(self, price):
@@ -272,9 +293,11 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 "I would like to take it for %d" % price,
                 "I'm thinking to spend %d" % price,
             )
+        self.state['last_act'] = 'init_propose'
         return s
 
     def persuade(self):
+        super(BuyerRulebasedSession, self).persuade()
         # TODO: depend on price
         s = [
                 "I'm on a tight budget.",
@@ -297,4 +320,5 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 "I cannot go any higher than %d" % self.bottomline,
                 "%d is all I have" % self.bottomline,
             )
+        self.state['last_act'] = 'final_call'
         return self.message(random.choice(s))

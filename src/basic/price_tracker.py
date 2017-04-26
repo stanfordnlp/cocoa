@@ -12,10 +12,10 @@ class PriceTracker(object):
             # Approximate range
             if partner_kb['personal']['Role'] == 'buyer':
                 # [target, bottomline]
-                b = b + (b - t)
+                b = b + 2*(b - t)
             else:
                 # [bottomline, target]
-                b = max(0, b - (t - b))
+                b = max(0, b - 2*(t - b))
         else:
             raise Exception('No KB is provided')
         if b < t:
