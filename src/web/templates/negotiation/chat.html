@@ -26,6 +26,26 @@
 				display: inline-block;
 			}
 
+			div#offer {
+				color: ##004d00;
+				border: 1px solid #004d00;
+				margin-top: 10px;
+				margin-bottom: 10px;
+				margin-left: 2px;
+				padding: 10px 5px 10px 5px;
+				font-size: 18px;
+			}
+
+			div#quit_option {
+				color: #bf1e1e;
+				border: 1px solid #bf1e1e;
+				margin-top: 10px;
+				margin-bottom: 10px;
+				margin-left: 2px;
+				padding: 10px 5px 10px 5px;
+				font-size: 18px;
+			}
+
 			textarea#chat {
 				width: 100%;
 				cols: 100;
@@ -189,6 +209,21 @@
 				});
 			}
 			
+			function quit() {
+				$.ajax({
+					url: BASE_URL + '/_quit/',
+					type: "get",
+					data: { 
+						"uid": "{{ uid }}"
+					},
+					dataType: "json",
+					success: function(response) {
+						displayText(response['message']);
+					}
+
+				});
+			}
+
 			function startedTyping() {
 				$.ajax({
 					url: BASE_URL + '/_typing_event/',
@@ -415,10 +450,16 @@
 				{% endfor %}
             </tbody>
 			</table>
-            <h3>Offer</h3>
-            <p>Enter your price (must be a multitude of $100):</p>
+        </div>
+        <div id="offer">
+        	<h4>Make offer:</h4>
+            <h4>You can only offer once.</h4>
             <input id="price" pattern="\d+"/>
             <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
+        </div>
+        <div id="quit_option">
+	        <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
+	        <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
         </div>
         {% if partner_kb %}
         <div id="peek">

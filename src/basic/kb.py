@@ -36,6 +36,7 @@ class KB(object):
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
+
 class NegotiationKB(BaseKB):
     def __init__(self, attributes, facts):
         super(NegotiationKB, self).__init__(attributes)

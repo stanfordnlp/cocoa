@@ -116,6 +116,12 @@ class BaseController(object):
     def get_chat_id(self):
         return self.chat_id
 
+    def game_over(self):
+        raise NotImplementedError
+
+    def complete(self):
+        raise NotImplementedError
+
 class Controller(object):
     '''
     Factory of controllers.
@@ -148,6 +154,9 @@ class MutualFriendsController(BaseController):
     def game_over(self):
         return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
+    def complete(self):
+        return self.selections[0] is not None and self.selections[0] == self.selections[1]
+
 class NegotiationController(BaseController):
     def __init__(self, scenario, sessions, chat_id=None, debug=True):
         super(NegotiationController, self).__init__(scenario, sessions, chat_id, debug)
@@ -173,3 +182,36 @@ class NegotiationController(BaseController):
         return not self.inactive() and \
                 ((self.prices[0] is not None and self.prices[1] is not None) or \
                 self.quit)
+
+    def complete(self):
+        return self.prices[0] is not None and self.prices[0] == self.prices[1]
+
+    def get_winner(self):
+        if not self.complete():
+            return None
+        targets = {0: self.scenario.kbs[0].facts['personal']['Target'],
+                   1: self.scenario.kbs[1].facts['personal']['Target']}
+
+        roles = {self.scenario.kbs[0].facts['personal']['Role']: 0,
+                 self.scenario.kbs[1].facts['personal']['Role']: 1}
+
+        diffs = {}
+
+        # for seller, offer is probably lower than target
+        seller_idx = roles['seller']
+        diffs[seller_idx] = targets[seller_idx] - self.prices[seller_idx]
+        if diffs[seller_idx] < 0:
+            diffs[seller_idx] = -diffs[seller_idx]
+
+        # for buyer, offer is probably
+        buyer_idx = roles['buyer']
+        diffs[buyer_idx] = self.prices[buyer_idx] - targets[buyer_idx]
+        if diffs[buyer_idx] < 0:
+            diffs[buyer_idx] = -diffs[buyer_idx]
+
+        if diffs[0] < diffs[1]:
+            return 0
+        elif diffs[1] < diffs[0]:
+            return 1
+
+        return -1

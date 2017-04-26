@@ -28,6 +28,12 @@
             font-size: 18px;
         }
 
+        .header {
+            font-size: 1.0rem;
+            padding: 10px 5px 10px 5px;
+            border: 3px solid #000e7f;
+            color: #000e7f;
+        }
         tr:nth-child(n) { 
             border: solid thin;
         }
@@ -143,10 +149,10 @@
 
 <body >
     <div class="wrapper" >
-        <header>
+        <div class="header">
         	<h2><b>Instructions</b></h2> <br>
-        	<b>{{ message }}</b> In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.
-        </header>
+        	<p><b>{{ message }}</b> In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        </div>
          
         <br>
         <br>

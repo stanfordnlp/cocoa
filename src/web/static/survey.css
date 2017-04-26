@@ -11,13 +11,6 @@ html, body {
 body {
   font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   font-size: 1.2rem;
-
-}
-
-header{
-  font-size: 0.9rem;
-  border-style: solid;
-  border-color: blue;
 }
 
 .wrapper {

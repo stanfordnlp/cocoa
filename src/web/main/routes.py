@@ -275,3 +275,11 @@ def offer():
 
     displayed_message = format_message("You proposed: $%d" % offer, True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_quit/', methods=['GET'])
+def quit():
+    backend = get_backend()
+    backend.quit(userid())
+    displayed_message = format_message("You chose to quit this task.", True)
+    return jsonify(message=displayed_message)

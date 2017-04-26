@@ -329,10 +329,12 @@ class BaseBackend(object):
                               message=message)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
-        if self.is_game_over(userid):
-            self.end_chat_and_finish(cursor, userid)
+        game_over, game_complete = self.is_game_over(userid)
+        if game_over:
+            msg, partner_msg = self.get_completion_messages(userid)
+            self.end_chat_and_finish(cursor, userid, message=msg)
             if not self.is_user_partner_bot(cursor, userid):
-                self.user_finished(cursor, partner_id)
+                self.user_finished(cursor, partner_id, message=partner_msg)
             return True
 
         return False
@@ -384,6 +386,15 @@ class BaseBackend(object):
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
+
+    def get_completion_messages(self, userid):
+        game_over, game_complete = self.is_game_over(userid)
+        if game_complete:
+            msg = Messages.get_completed_message()
+        else:
+            msg = Messages.get_incomplete_message()
+
+        return msg, msg
 
     def get_finished_info(self, userid, from_mturk=False):
         def _generate_mturk_code(completed=True):
@@ -561,8 +572,15 @@ class BaseBackend(object):
             print("WARNING: Rolled back transaction")
 
     def is_game_over(self, userid):
+        """
+        Checks whether the game that the user defined by userid is in is complete or not
+        :param userid:
+        :return:
+           finished: boolean to tell whether the game is over or not
+           complete: boolean to tell whether the game was completed or not. For some tasks these two values could be the same
+        """
         controller = self.controller_map[userid]
-        return controller.game_over()
+        return controller.game_over(), controller.complete()
 
     def is_user_partner_bot(self, cursor, userid):
         u = self._get_user_info_unchecked(cursor, userid)
@@ -697,14 +715,67 @@ class MutualFriendsBackend(BaseBackend):
 
 
 class NegotiationBackend(BaseBackend):
+    def get_completion_messages(self, userid):
+        """
+        Returns two completion messages: one for the current user and one for the user's partner. This function doesn't
+        check whether the user's partner is a bot or not. It just decides which user is the winner of the negotiation
+        and assigns completion messages accordingly.
+        :param userid:
+        :return:
+        """
+        def _get_agent_idx():
+            chat_id = controller.get_chat_id()
+
+            try:
+                with self.conn:
+                    cursor = self.conn.cursor()
+                    cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
+                    agent_ids = json.loads(cursor.fetchone()[0])
+                    agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
+                    print "Agent IDs string:", agent_ids
+                    return 0 if agent_ids[0] == userid else 1
+
+            except sqlite3.IntegrityError:
+                print("WARNING: Rolled back transaction")
+                return None
+
+        _, game_complete = self.is_game_over(userid)
+        partner_msg = None
+        if game_complete:
+            msg = Messages.get_completed_message()
+            partner_msg = msg
+        else:
+            msg = Messages.get_incomplete_message()
+            partner_msg = msg
+
+        controller = self.controller_map[userid]
+        agent_idx = _get_agent_idx()
+        if agent_idx == controller.get_winner():
+            msg = Messages.NegotiationBetterDeal
+            partner_msg = Messages.get_completed_message()
+
+        return msg, partner_msg
+
     def make_offer(self, userid, amt):
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
                 self.send(userid, Event.OfferEvent(u.agent_index,
-                                                       amt,
-                                                       str(time.time())))
+                                                   amt,
+                                                   str(time.time())))
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
+
+    def quit(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info_unchecked(cursor, userid)
+                self.send(userid, Event.QuitEvent(u.agent_index,
+                                                  None,
+                                                  str(time.time())))
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
             return None
