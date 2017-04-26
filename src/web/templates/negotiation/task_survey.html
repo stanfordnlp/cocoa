@@ -22,6 +22,18 @@
 
         table { 
             border-collapse: collapse; 
+            border: 1px solid black;
+            padding: 10px;
+            margin: 15px auto;
+            color: #058ead;
+        }
+
+        th, td {
+            padding: 10px;
+        }
+
+        form {
+            padding: 10px;
         }
 
         #facts {
@@ -150,10 +162,42 @@
 <body >
     <div class="wrapper" >
         <div class="header">
-        	<h2><b>Instructions</b></h2> <br>
-        	<p><b>{{ message }}</b> In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        	<h2 style="text-align: center;"><b>Results</b></h2> <br>
+        	<p style="text-align: center;"><b>{{ message }}</b></p>
+            {% if results %}
+            <table align="center">
+            <tr>
+                <td> </td>
+                <td><b>You</b></td>
+                <td><b>Partner<b></td>
+            </tr>
+            <tr>
+                <td>Target</td>
+                <td>{{ results[agent_idx]['Target'] }}</td>
+                <td>{{ results[1 - agent_idx]['Target'] }}</td>
+            </tr>
+            <tr>
+                <td>Bottomline</td>
+                <td>{{ results[agent_idx]['Bottomline'] }}</td>
+                <td>{{ results[1 - agent_idx]['Bottomline'] }}</td>
+            </tr>
+            <tr>
+                <td>Final offer</td>
+                <td>{{ results[agent_idx]['Offer'] }}</td>
+                <td>{{ results[1 - agent_idx]['Offer'] }}</td>
+            </tr>
+            </table>
+            {% endif %}
         </div>
          
+        <br>
+        <br>
+
+        <div class="header">
+            <h2><b>Survey Instructions</b></h2> <br>
+            <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        </div>
+
         <br>
         <br>
 
@@ -168,7 +212,7 @@
         </div>
 
         <br> <br>
-        {% if kb['personal']['Role'] == 'buyer' %}
+<!--         {% if kb['personal']['Role'] == 'buyer' %}
         <div class="q">
            <p style="text-align:center;">How <strong>honest</strong> was your partner?</p> <br>
             <form id="q_c">
@@ -178,7 +222,7 @@
             </form>
         </div>
         <br> <br>
-        {% endif %}
+        {% endif %} -->
         
 
         

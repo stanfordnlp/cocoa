@@ -78,7 +78,7 @@ class BaseBackend(object):
         self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
         _update_scenario_db()
         controller.set_inactive()
-        self.controller_map[userid] = None
+        # self.controller_map[userid] = None
 
     def _ensure_not_none(self, v, exception_class):
         if v is None:
@@ -440,8 +440,9 @@ class BaseBackend(object):
                 cursor = self.conn.cursor()
                 u = self._get_user_info(cursor, userid, assumed_status=Status.Survey)
                 scenario = self.scenario_db.get(u.scenario_id)
-                return SurveyState(u.message, scenario.get_kb(u.agent_index), scenario.get_kb(1 - u.agent_index),
-                                   scenario.attributes)
+                controller = self.controller_map[userid]
+                return SurveyState(u.message, u.agent_index, scenario.get_kb(u.agent_index), scenario.get_kb(1 - u.agent_index),
+                                   scenario.attributes, controller.get_result(u.agent_index))
 
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
@@ -744,15 +745,18 @@ class NegotiationBackend(BaseBackend):
         if game_complete:
             msg = Messages.get_completed_message()
             partner_msg = msg
+
+            controller = self.controller_map[userid]
+            agent_idx = _get_agent_idx()
+            if agent_idx == controller.get_winner():
+                msg = Messages.NegotiationBetterDeal
+                partner_msg = Messages.get_completed_message()
+            elif controller.get_winner() == 1 - agent_idx:
+                msg = Messages.get_completed_message()
+                partner_msg = Messages.NegotiationBetterDeal
         else:
             msg = Messages.get_incomplete_message()
             partner_msg = msg
-
-        controller = self.controller_map[userid]
-        agent_idx = _get_agent_idx()
-        if agent_idx == controller.get_winner():
-            msg = Messages.NegotiationBetterDeal
-            partner_msg = Messages.get_completed_message()
 
         return msg, partner_msg
 

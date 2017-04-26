@@ -26,6 +26,9 @@ class BaseController(object):
     def get_outcome(self):
         raise NotImplementedError
 
+    def get_result(self, agent_idx):
+        return None
+
     def simulate(self, max_turns=None):
         '''
         Simulate a dialogue.
@@ -179,9 +182,24 @@ class NegotiationController(BaseController):
         return {'reward': reward, 'offer': offer}
 
     def game_over(self):
-        return not self.inactive() and \
-                ((self.prices[0] is not None and self.prices[1] is not None) or \
-                self.quit)
+        return not self.inactive() and ((self.prices[0] is not None and self.prices[1] is not None) or self.quit)
+
+    def get_result(self, agent_idx):
+        if self.prices[0] is None or self.prices[1] is None:
+            return None
+
+        result = {agent_idx: {}, 1 - agent_idx: {}}
+
+        result[agent_idx]['Target'] = self.scenario.kbs[agent_idx].facts['personal']['Target']
+        result[1 - agent_idx]['Target'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Target']
+
+        result[agent_idx]['Bottomline'] = self.scenario.kbs[agent_idx].facts['personal']['Bottomline']
+        result[1 - agent_idx]['Bottomline'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Bottomline']
+
+        result[agent_idx]['Offer'] = int(self.prices[agent_idx])
+        result[1 - agent_idx]['Offer'] = int(self.prices[1 - agent_idx])
+
+        return result
 
     def complete(self):
         return self.prices[0] is not None and self.prices[0] == self.prices[1]

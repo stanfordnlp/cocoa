@@ -236,7 +236,9 @@ def index():
                                kb=survey_info.kb.to_dict(),
                                partner_kb=survey_info.partner_kb.to_dict(),
                                attributes=[attr.name for attr in survey_info.attributes],
-                               message=survey_info.message)
+                               message=survey_info.message,
+                               results=survey_info.result,
+                               agent_idx=survey_info.agent_idx)
 
 
 @main.route('/visualize', methods=['GET', 'POST'])
