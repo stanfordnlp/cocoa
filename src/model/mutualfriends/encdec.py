@@ -476,7 +476,9 @@ class BasicEncoderDecoder(object):
             else:
                 self.final_state = decoder.get_encoder_state(decoder.output_dict['final_state'])
 
-            self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
+            #self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
+            # TODO: fix this hack
+            self.targets = self.decoder.targets
 
             # Loss
             self.loss, self.seq_loss, self.total_loss, self.select_loss = self.compute_loss(decoder.output_dict, self.targets)

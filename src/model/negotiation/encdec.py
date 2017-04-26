@@ -4,6 +4,7 @@ from src.model.util import transpose_first_two_dims, batch_linear, batch_embeddi
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
 from preprocess import markers
 
+# TODO: refactor this class
 class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
@@ -16,8 +17,8 @@ class BasicEncoderDecoder(object):
         self.tf_variables = set()
         self.build_model(encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope)
 
-    def compute_loss(self, output_dict, targets):
-        return self.decoder.compute_loss(targets, self.PAD)
+    def compute_loss(self, output_dict):
+        return self.decoder.compute_loss(self.PAD)
 
     def _encoder_input_dict(self):
         return {
@@ -52,16 +53,15 @@ class BasicEncoderDecoder(object):
             #else:
             self.final_state = decoder.get_encoder_state(decoder.output_dict['final_state'])
 
-            self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
+            #self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
             # Loss
-            self.loss, self.seq_loss, self.total_loss = self.compute_loss(decoder.output_dict, self.targets)
+            self.loss, self.seq_loss, self.total_loss = self.compute_loss(decoder.output_dict)
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict = self.encoder.get_feed_dict(**kwargs.pop('encoder'))
         feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
-        optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
     def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None):
@@ -97,4 +97,23 @@ class BasicEncoderDecoder(object):
                 'final_state': decoder_output_dict['final_state'],
                 'true_final_state': true_final_state,
                 }
+
+class PriceDecoder(object):
+    '''
+    A wrapper of a decoder that outputs <price> and a price predictor that fills in the actual price.
+    '''
+    def __init__(self, decoder, price_predictor):
+        self.decoder = decoder
+        self.price_predictor = price_predictor.build_model(decoder.output_dict['outputs'])
+
+        # Outputs
+        self.output_dict = dict(self.decoder.output_dict)
+        self.output_dict['prices'] = self.price_predictor.output_dict['prices']
+
+    def compute_loss(self, pad):
+        loss, seq_loss, total_loss = self.decoder.compute_loss(pad)
+        price_loss = self.price_predictor.compute_loss(pad)
+        loss += price_loss
+        # NOTE: seq_loss and total_loss do not depend on price_loss. We're using loss for bp.
+        return loss, seq_loss, total_loss
 

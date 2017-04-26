@@ -209,11 +209,13 @@ class BasicDecoder(BasicEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
+        # TODO: remove traces of matched_items
         optional_add(feed_dict, self.matched_items, kwargs.pop('matched_items', None))
         return feed_dict
 
     def _build_inputs(self, input_dict):
         super(BasicDecoder, self)._build_inputs(input_dict)
+        self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
         with tf.name_scope('Inputs'):
             self.matched_items = tf.placeholder(tf.int32, shape=[None], name='matched_items')
 
@@ -227,8 +229,9 @@ class BasicDecoder(BasicEncoder):
         return logits
 
     # TODO: add a Loss class?
-    def compute_loss(self, targets, pad):
+    def compute_loss(self, pad):
         logits = self.output_dict['logits']
+        targets = self.targets
         loss, seq_loss, total_loss = self._compute_loss(logits, targets, pad)
         return loss, seq_loss, total_loss
 
@@ -249,10 +252,10 @@ class BasicDecoder(BasicEncoder):
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
         total_loss = tf.reduce_sum(loss)
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
-        # Average over words in each sequence
+        # Average over words in each sequence (batch_size, 1)
         seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
 
-        # Average over sequences
+        # Average over sequences (1,)
         loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
