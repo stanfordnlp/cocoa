@@ -73,6 +73,8 @@ class BaseRulebasedSession(Session):
         if self.partner_price is not None and \
             self.inc*price >= self.inc*self.partner_price:
                 self.state['num_partner_insist'] += 1
+        elif self.partner_price is None and self.state['last_proposed_price'] is not None:
+            self.state['num_partner_insist'] += 1
         else:
             self.state['num_partner_insist'] = 0
         if price is not None:
@@ -112,7 +114,7 @@ class BaseRulebasedSession(Session):
     def compromise(self):
         self.my_price = self._compromise(self.my_price)
         # Don't keep compromise
-        self.state['num_partner_insist'] = 1
+        self.state['num_partner_insist'] = 1  # Reset
         if self.inc*self.my_price <= self.inc*self.bottomline:
             return self.final_call()
         self.state['last_act'] = 'compromise'
@@ -120,6 +122,8 @@ class BaseRulebasedSession(Session):
 
     def persuade(self):
         if self.state['num_persuade'] > 3:
+            if not self.state['last_proposed_price']:
+                return self.propose(self.my_price)
             return self.compromise()
         if self.state['last_act'] == 'persuade':
             self.state['num_persuade'] += 1
@@ -207,14 +211,7 @@ class BaseRulebasedSession(Session):
             return self.agree()
         elif self.no_deal(self.partner_price):
             # TODO: set persuasion strength
-            p = random.random()
-            if p < 0.5:
-                return self.persuade()
-            else:
-                if not self.state['last_proposed_price']:
-                    return self.propose(self.my_price)
-                else:
-                    return self.compromise()
+            return self.persuade()
         else:
             p = random.random()
             if p < 0.2:
@@ -306,11 +303,14 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 "I'm on a tight budget.",
                 "I'm a poor student...",
                 "This is an old car...",
+                "Is it in good condition?",
+                "I don't really like the color.",
                 ]
         if self.partner_price is not None:
             s.extend([
                 "Can you go a little lower?",
                 "That's way too expensive!",
+                "I don't think it worth the price",
                 ])
         u = self.sample_templates(s)
         self.state['last_utterance'] = u
