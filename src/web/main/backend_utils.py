@@ -45,7 +45,8 @@ class Messages(object):
 
     NegotiationCompleted = "Great, you reached a final offer!"
     NegotiationIncomplete = "Sorry, you weren't able to reach a deal. :(  We will still award you a partial reward for the HIT if you made a good attempt to negotiate."
-    NegotiationBetterDeal = "Congratulations, you got the better deal!"
+    NegotiationBetterDeal = "Congratulations, you got the better deal! We'll award you a bonus on Mechanical Turk."
+    NegotiationWorseDeal = "Sorry, your partner got the better deal. :("
 
     @staticmethod
     def get_completed_message():

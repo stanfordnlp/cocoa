@@ -741,7 +741,6 @@ class NegotiationBackend(BaseBackend):
                 return None
 
         _, game_complete = self.is_game_over(userid)
-        partner_msg = None
         if game_complete:
             msg = Messages.get_completed_message()
             partner_msg = msg
@@ -750,9 +749,9 @@ class NegotiationBackend(BaseBackend):
             agent_idx = _get_agent_idx()
             if agent_idx == controller.get_winner():
                 msg = Messages.NegotiationBetterDeal
-                partner_msg = Messages.get_completed_message()
+                partner_msg = Messages.NegotiationWorseDeal
             elif controller.get_winner() == 1 - agent_idx:
-                msg = Messages.get_completed_message()
+                msg = Messages.NegotiationWorseDeal
                 partner_msg = Messages.NegotiationBetterDeal
         else:
             msg = Messages.get_incomplete_message()
