@@ -224,14 +224,6 @@ class BasicDecoder(BasicEncoder):
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         logits = batch_linear(outputs, self.num_symbols, True)
-        #logits = self.penalize_repetition(logits)
-        return logits
-
-    @classmethod
-    def penalize_repetition(cls, logits):
-        #return logits
-        exp_logits = tf.exp(tf.clip_by_value(logits, -100, 100))
-        logits = tf.log(tf.clip_by_value(exp_logits, 1e-10, 1e10)) - tf.log(tf.clip_by_value((tf.cumsum(exp_logits, axis=1) - exp_logits), 1e-10, 1e10))
         return logits
 
     # TODO: add a Loss class?

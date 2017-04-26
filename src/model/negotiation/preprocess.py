@@ -84,7 +84,7 @@ class TextIntMap(object):
         tokens = self.preprocessor.process_utterance(utterance, stage)
         return [self.vocab.to_ind(token) for token in tokens]
 
-    def int_to_text(self, inds):
+    def int_to_text(self, inds, stage=None):
         '''
         Inverse of text_to_int.
         '''
@@ -254,7 +254,7 @@ class DialogueBatch(object):
                     break
         return array
 
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, encode_tokens, decode_tokens):
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, encode_tokens, decode_tokens, agents, kbs):
         if encode_turn is not None:
             # Remove <go> at the beginning of utterance
             encoder_inputs = encode_turn[:, 1:]
@@ -283,6 +283,8 @@ class DialogueBatch(object):
                  'targets': decoder_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
+                 'agents': agents,
+                 'kbs': kbs,
                 }
         return batch
 
@@ -312,17 +314,15 @@ class DialogueBatch(object):
         batches = []
         enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
 
-        # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
-        encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], self._get_token_turns(i, enc), self._get_token_turns(i+1, dec)) for i in encode_turn_ids]
-
         # Add agents and kbs
         agents = self._get_agent_batch(1)  # Decoding agent
         kbs = self._get_kb_batch()
 
+        # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
+        encode_turn_ids = range(0, self.num_turns-1, 2)
+        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], self._get_token_turns(i, enc), self._get_token_turns(i+1, dec), agents, kbs) for i in encode_turn_ids]
+
         batch = {
-                 'agent': agents,
-                 'kb': kbs,
                  'batch_seq': batch_seq,
                 }
         batches.append(batch)
@@ -366,6 +366,7 @@ class Preprocessor(object):
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
+        Create two Dialogue objects for each example
         '''
         kbs = ex.scenario.kbs
         for agent in (0, 1):

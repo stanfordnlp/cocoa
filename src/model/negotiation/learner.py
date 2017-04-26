@@ -1,3 +1,4 @@
+import numpy as np
 from src.lib import logstats
 from src.model.learner import BaseLearner
 

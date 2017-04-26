@@ -95,6 +95,27 @@ class BaseEvaluator(object):
         #targets = [x for x in targets if x not in (markers.PAD,)]
         return targets
 
+    def get_f1(self, summary_map, prefix):
+        pos_target = prefix + 'pos_target'
+        pos_pred = prefix + 'pos_pred'
+        tp = prefix + 'tp'
+        if tp not in summary_map:
+            return -1, -1, -1
+        tp, target_size, pred_size = float(summary_map[tp]['sum']), float(summary_map[pos_target]['sum']), float(summary_map[pos_pred]['sum'])
+        return self._f1(tp, target_size, pred_size)
+
+    def _f1(self, tp, pred_size, target_size):
+        # This means no entity is detected in the test data. Probably something wrong.
+        if target_size == 0 or pred_size == 0:
+            return -1, -1 , -1
+        recall = tp / target_size
+        precision = tp / pred_size
+        if recall + precision == 0:
+            f1 = -1
+        else:
+            f1 = 2 * recall * precision / (recall + precision)
+        return precision, recall, f1
+
 import src.config as config
 import importlib
 task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))

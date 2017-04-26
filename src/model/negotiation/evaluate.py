@@ -1,6 +1,8 @@
 import numpy as np
-from itertools import izip
+from itertools import izip, izip_longest
+from src.lib import logstats
 from preprocess import markers
+from src.model.vocab import is_entity
 from src.model.evaluate import BaseEvaluator
 
 # TODO: factor this
@@ -51,11 +53,69 @@ class Evaluator(BaseEvaluator):
             # Sentence bleu: only for verbose print
             bleu_scores = self.sentence_bleu_score(pred_tokens, references)
             self.update_bleu_stats(summary_map, pred_tokens, references)
-            #self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
+            self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
                 #attn_scores = output_dict.get('attn_scores', None)
-                probs = output_dict.get('probs', None)
+                #probs = output_dict.get('probs', None)
                 # TODO: print
-                #self._print_batch(batch, pred_tokens, references, bleu_scores, graphs, attn_scores, probs)
+                self._print_batch(batch, pred_tokens, references, bleu_scores)
+
+    def _print_batch(self, batch, preds, targets, bleu_scores):
+        '''
+        inputs are integers; targets and preds are tokens (converted in test_bleu).
+        '''
+        encoder_tokens = batch['encoder_tokens']
+        inputs = batch['encoder_inputs']
+        decoder_tokens = batch['decoder_tokens']
+        kbs = batch['kbs']
+        print '-------------- batch ----------------'
+        for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
+            # Skip padded turns
+            if len(decoder_tokens[i]) == 0:
+                continue
+            kbs[i].dump()
+            print 'RAW INPUT:', encoder_tokens[i]
+            print 'RAW TARGET:', target
+            print '----------'
+            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
+            print 'TARGET:', target
+            print 'PRED:', pred
+            print 'BLEU:', bleu
+
+    def get_stats(self, summary_map):
+        output = super(Evaluator, self).get_stats(summary_map)
+        output['entity_f1'] = self.get_f1(summary_map, 'entity_')
+        return output
+
+    def stats2str(self, stats):
+        s = [super(Evaluator, self).stats2str(stats)]
+        for m in ('entity_f1',):
+            s.append('%s=%.4f/%.4f/%.4f' % (m, stats[m][0], stats[m][1],stats[m][2]))
+        return ' '.join(s)
+
+    # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
+    def update_entity_stats(self, summary_map, batch_preds, batch_targets, prefix=''):
+        def get_entity(x):
+            return [e for e in x if is_entity(e)]
+        pos_target = prefix + 'pos_target'
+        pos_pred = prefix + 'pos_pred'
+        tp = prefix + 'tp'
+        for preds, targets in izip (batch_preds, batch_targets):
+            # None targets means that this is a padded turn
+            if targets is None:
+                recalls.append(None)
+            else:
+                preds = set(get_entity(preds))
+                targets = set(get_entity(targets))
+                # Don't record cases where no entity is presented
+                if len(targets) > 0:
+                    logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
+                    logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
+
+    def log_dict(self, stats):
+        d = super(Evaluator, self).log_dict(stats)
+        precision, recall, f1 = stats['entity_f1']
+        d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
+        return d
 
