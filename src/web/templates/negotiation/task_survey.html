@@ -66,34 +66,23 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        honestVal = null;
-        if($("#honest").length != 0) {
-            honestVal = $("#honest").val();    
-        }
         
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
         comments = $("#comments").val();
         //fluentVal = document.getElementById("#myRange").value
         console.log("FLUENT: " + fluentVal);
-        console.log("HONEST: " + honestVal);
         console.log("PERSUASIVE: " + persuasiveVal);
         console.log("FAIR: " + fairVal);
 
         if (fluentVal == null || 
-            (honestVal == null && "{{kb['personal']['Role']}}" == 'buyer') || 
             persuasiveVal == null || 
             fairVal == null) {
             return false;
         }
         else{
             questionAnswers["fluent"] = fluentVal;
-            if ("{{kb['personal']['Role']}}" == 'buyer') {
-                questionAnswers["honest"] = honestVal;    
-            } else {
-                questionAnswers["honest"] = "null";
-            }
-            
+            questionAnswers["honest"] = "null";    
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
             if(comments == null) {
