@@ -125,7 +125,7 @@ def generate_scenario(schema, base_price, price_unit, intersections, flexibility
                 kbs = generate_kbs(schema, listing)
                 kbs[BUYER].facts['personal'].update(ranges[BUYER])
                 kbs[SELLER].facts['personal'].update(ranges[SELLER])
-                yield NegotiationScenario(generate_uuid('S'), schema.attributes, kbs, ranges['intersection'])
+                yield NegotiationScenario(generate_uuid('S'), listing['post_id'], schema.attributes, kbs, ranges['intersection'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

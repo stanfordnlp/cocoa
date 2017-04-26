@@ -56,13 +56,15 @@ class NegotiationScenario(BaseScenario):
     BUYER = 0
     SELLER = 1
 
-    def __init__(self, uuid, attributes, kbs, intersection):
+    def __init__(self, uuid, post_id, attributes, kbs, intersection):
         super(NegotiationScenario, self).__init__(uuid, attributes, kbs)
         self.intersection = intersection
+        self.post_id = post_id
 
     def to_dict(self):
         d = super(NegotiationScenario, self).to_dict()
         d['intersection'] = self.intersection
+        d['post_id'] = self.post_id
         return d
 
     @staticmethod
@@ -77,7 +79,7 @@ class NegotiationScenario(BaseScenario):
             raise ValueError("No scenario attributes found. "
                              "Either schema must not be None (and have valid attributes) or "
                              "scenario dict must have valid attributes field.")
-        return NegotiationScenario(raw['uuid'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']], raw['intersection'])
+        return NegotiationScenario(raw['uuid'], raw['post_id'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']], raw['intersection'])
 
 
 class MutualFriendsScenario(BaseScenario):
