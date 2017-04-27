@@ -180,12 +180,7 @@
                 	if (isNaN(priceStr)) { // ensure that string entered is a valid number 
                 		$('#submit').prop('disabled', 'disabled'); 
                 	} else {
-                		var price = parseInt(priceStr)
-	                    if (price % 100 == 0) {
-	                        $('#submit').prop('disabled', false);        // enables button
-	                    } else {
-	                        $('#submit').prop('disabled', 'disabled');   // disables button
-	                    }
+	                    $('#submit').prop('disabled', false);        // enables button
                 	}
                     
                 });
