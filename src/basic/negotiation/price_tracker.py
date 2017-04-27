@@ -1,6 +1,12 @@
-# TODO: combine this with the Lexicon
-
 class PriceTracker(object):
+    @classmethod
+    def get_price(cls, token):
+        try:
+            return float(token[1][0])
+        except:
+            return None
+
+
     @classmethod
     def _get_price_range(cls, kb, partner_kb):
         if kb is not None:

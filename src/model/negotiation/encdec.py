@@ -117,3 +117,9 @@ class PriceDecoder(object):
         # NOTE: seq_loss and total_loss do not depend on price_loss. We're using loss for bp.
         return loss, seq_loss, total_loss
 
+    def get_feed_dict(self, **kwargs):
+        feed_dict = self.decoder.get_feed_dict(**kwargs.pop('decoder'))
+        feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
+        return feed_dict
+
+    def run_decode(self,):

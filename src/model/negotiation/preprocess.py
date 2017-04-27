@@ -10,6 +10,8 @@ from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy
 from nltk.tokenize import word_tokenize
+from price_tracker import PriceTracker
+get_price = PriceTracker.get_price
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -82,7 +84,31 @@ class TextIntMap(object):
         or ground truth.
         '''
         tokens = self.preprocessor.process_utterance(utterance, stage)
-        return [self.vocab.to_ind(token) for token in tokens]
+        offset = self.vocab.size
+        return [(get_price(token) + offset) if get_price(token) is not None else self.vocab.to_ind(token) for token in tokens]
+
+    def process_entity(self, token_array, stage):
+        '''
+        token_array: 2D int array of tokens, assuming entities are mapped by entity_map offset by vocab_size.
+        Transform entities to specified form, e.g. type, canonical form.
+        Return the new token_array and an entity_array which has the same shape as token_array and use -1
+        for non-entity words and map entities by entity_map.
+        '''
+        entity_array = np.full(token_array.shape, -1, dtype=np.float32)
+        entity_inds = token_array >= offset
+        entity_array[entity_inds] = token_array[entity_inds] - offset
+
+        use_entity_map = self.setting[stage]
+        # If use_entity_map, nothing needs to be done as entities are already mapped by the entity_map
+        if not use_entity_map:
+            # Entities needs to be transformed and mapped by vocab
+            for tok_int, is_ent in izip(np.nditer(token_array, op_flags=['readwrite']), np.nditer(entity_inds)):
+                if is_ent:
+                    entity = self.entity_map.to_word(tok_int - offset)
+                    # NOTE: at this point we have lost the surface form of the entity: using an empty string
+                    processed_entity = self.preprocessor.get_entity_form(('', entity), self.entity_forms[stage])
+                    tok_int[...] = self.vocab.to_ind(processed_entity)
+        return token_array, entity_array
 
     def int_to_text(self, inds, stage=None):
         '''
@@ -105,11 +131,13 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         # token_turns: tokens and entitys (output of entitylink)
-        self.token_turns = ([], [])
+        # TODO: fix this, remove tuple
+        self.token_turns = ([],)
         # entities: -1 for non-entity words, entities are mapped based on entity_map
         self.entities = ([], [])
         # turns: input tokens of encoder, decoder input and target, later converted to integers
         self.turns = ([], [], [])
+        #self.prices = []
         self.agents = []
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
@@ -121,16 +149,19 @@ class Dialogue(object):
             self._add_utterance(1 - self.agent, [[], []])
         self._add_utterance(agent, utterances)
 
-    def _add_utterance(self, agent, utterances):
+    def _add_utterance(self, agent, utterance):
+        #prices = [x if (is_entity(x) and x[1][1] == 'price') else None for x in utterance]
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
-            for i in xrange(2):
-                self.token_turns[i][-1].append(utterances[i])
+            for i in xrange(1):
+                self.token_turns[i][-1].append(utterance)
+            #self.prices[-1].append(prices)
         else:
             self.agents.append(agent)
             self.roles.append(self.kb.facts['personal']['Role'])
-            for i in xrange(2):
-                self.token_turns[i].append([utterances[i]])
+            for i in xrange(1):
+                self.token_turns[i].append([utterance])
+            #self.prices.append([prices])
 
     def convert_to_int(self):
         if self.is_int:
@@ -146,7 +177,7 @@ class Dialogue(object):
                 self.turns[i].append([self.textint_map.text_to_int(utterance)
                     for utterance in turn])
         # Target tokens
-        stage = 'target'
+        #stage = 'target'
         for turn in self.token_turns[self.DEC]:
             self.turns[self.TARGET].append([self.textint_map.text_to_int(utterance)
                 for utterance in turn])
@@ -269,10 +300,13 @@ class DialogueBatch(object):
         assert decode_turn.shape == target_turn.shape
         decoder_inputs = np.copy(decode_turn)
         decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
-        #decoder_inputs = decoder_inputs[:, :-1]
         decoder_targets = target_turn[:, 1:]
 
-        # NOTE: we're considering entities / prices as words for now.
+        # Process entities. NOTE: change turns in place!
+        # prices to '<price>'
+        encoder_inputs, encoder_prices  = Dialogue.textint_map.process_entity(encoder_inputs, 'encoding')
+        decoder_inputs, decoder_prices = Dialogue.textint_map.process_entity(decoder_inputs, 'decoding')
+        decoder_targets, price_targets = Dialogue.textint_map.process_entity(decoder_targets, 'target')
 
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
@@ -280,7 +314,10 @@ class DialogueBatch(object):
                  'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, int_markers.PAD),
                  'decoder_inputs': decoder_inputs,
                  'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, int_markers.PAD),
+                 'encoder_prices': encoder_prices,
+                 'decoder_prices': decoder_prices,
                  'targets': decoder_targets,
+                 'price_targets': price_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
                  'agents': agents,
@@ -299,6 +336,7 @@ class DialogueBatch(object):
         inds = inds - 1
         return inds
 
+    # TODO: token_turns doesn't depend on stage
     def _get_token_turns(self, i, stage):
         if not hasattr(self.dialogues[0], 'token_turns'):
             return None
@@ -309,6 +347,7 @@ class DialogueBatch(object):
     def create_batches(self):
         self._normalize_dialogue()
         turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
+        # TODO: create_price_batches
         # A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
         batches = []
@@ -373,10 +412,10 @@ class Preprocessor(object):
             dialogue = Dialogue(agent, kbs[agent], ex.uuid)
             mentioned_entities = set()
             for e in ex.events:
-                utterances = self.process_event(e, dialogue.agent, dialogue.kb, mentioned_entities)
-                if utterances:
-                    dialogue.add_utterance(e.agent, utterances)
-                    for token in utterances[0]:
+                utterance = self.process_event(e, dialogue.agent, dialogue.kb, mentioned_entities)
+                if utterance:
+                    dialogue.add_utterance(e.agent, utterance)
+                    for token in utterance:
                         if is_entity(token):
                             mentioned_entities.add(token[1][0])
             yield dialogue
@@ -401,8 +440,7 @@ class Preprocessor(object):
             #print entity_tokens
             entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
-                # NOTE: have two copies because we might change it given decoding/encoding
-                return (entity_tokens, copy.copy(entity_tokens))
+                return entity_tokens
             else:
                 return None
         elif e.action == 'offer':
@@ -410,7 +448,7 @@ class Preprocessor(object):
             return (entity_tokens, copy.copy(entity_tokens))
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
-            return (entity_tokens, copy.copy(entity_tokens))
+            return entity_tokens
         else:
             raise ValueError('Unknown event action.')
 

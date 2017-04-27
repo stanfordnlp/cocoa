@@ -211,6 +211,7 @@ class BasicDecoder(BasicEncoder):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
         # TODO: remove traces of matched_items
         optional_add(feed_dict, self.matched_items, kwargs.pop('matched_items', None))
+        optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
     def _build_inputs(self, input_dict):

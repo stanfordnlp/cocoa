@@ -1,6 +1,8 @@
 import tensorflow as tf
 from src.model.util import batch_linear
+from src.model.encdec import optional_add
 
+# TODO: should probably have a base TFModle class for all TF models, e.g. implements get_feed_dict etc.
 class PricePredictor(object):
     '''
     Basic feed-forward NN for price prediction.
@@ -36,3 +38,7 @@ class PricePredictor(object):
         loss = tf.losses.mean_squared_error(targets, preds, weights=weights)
         return loss
 
+    def get_feed_dict(self, **kwargs):
+        feed_dict = kwargs.pop('feed_dict', {})
+        feed_dict[self.inputs] = kwargs.pop('inputs')
+        optional_add(feed_dict, self.targets, kwargs.pop('targets', None))

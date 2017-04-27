@@ -487,7 +487,7 @@ class BasicEncoderDecoder(object):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict = self.encoder.get_feed_dict(**kwargs.pop('encoder'))
         feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
-        optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
+        #optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
     def generate(self, sess, batch, encoder_init_state, max_len, copy=False, vocab=None, graphs=None, utterances=None, textint_map=None):
