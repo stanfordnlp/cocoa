@@ -14,6 +14,7 @@ import datetime
 from itertools import izip
 from collections import defaultdict
 import src.config as config
+import codecs
 
 def add_visualization_arguments(parser):
     parser.add_argument('--html-output', help='Name of directory to write HTML report to')
@@ -199,7 +200,7 @@ def _render_negotiation_scenario(scenario):
             if entity is None:
                 entity = "?"
             elif isinstance(entity, list):
-                entity = ", ".join([str(x) for x in entity])
+                entity = ", ".join([unicode(x) for x in entity])
             html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, entity))
         html.append("</table></div>")
 
@@ -294,9 +295,10 @@ def visualize_transcripts(html_output, transcripts, responses=None, css_file=Non
 
     html_lines = aggregate_chats(transcripts, responses, css_file)
 
-    outfile = open(html_output, 'w')
+    outfile = codecs.open(html_output, 'w', encoding='utf-8')
     for line in html_lines:
-        outfile.write(line+"\n")
+        outfile.write(line)
+        outfile.write("\n")
     outfile.close()
 
 
