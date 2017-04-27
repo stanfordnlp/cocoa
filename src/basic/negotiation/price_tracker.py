@@ -1,3 +1,5 @@
+
+# TODO: price as named tuple
 class PriceTracker(object):
     @classmethod
     def get_price(cls, token):

@@ -17,10 +17,10 @@ class Learner(BaseLearner):
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'last_inds': batch['decoder_inputs_last_inds'],
+                'targets': targets,
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
-                'targets': targets,
                 }
 
         feed_dict = self.model.get_feed_dict(**kwargs)

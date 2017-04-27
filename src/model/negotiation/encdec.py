@@ -121,5 +121,3 @@ class PriceDecoder(object):
         feed_dict = self.decoder.get_feed_dict(**kwargs.pop('decoder'))
         feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
         return feed_dict
-
-    def run_decode(self,):
