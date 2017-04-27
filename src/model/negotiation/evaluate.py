@@ -4,6 +4,7 @@ from src.lib import logstats
 from preprocess import markers
 from src.model.vocab import is_entity
 from src.model.evaluate import BaseEvaluator
+from preprocess import Dialogue
 
 # TODO: factor this
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None):
@@ -74,13 +75,14 @@ class Evaluator(BaseEvaluator):
             # Skip padded turns
             if len(decoder_tokens[i]) == 0:
                 continue
-            kbs[i].dump()
-            print 'RAW INPUT:', encoder_tokens[i]
-            print 'RAW TARGET:', target
+            kb = kbs[i]
+            kb.dump()
+            print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
+            print 'RAW TARGET:', Dialogue.original_price(kb, target)
             print '----------'
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
-            print 'TARGET:', target
-            print 'PRED:', pred
+            print 'TARGET:', Dialogue.original_price(kb, target)
+            print 'PRED:', Dialogue.original_price(kb, pred)
             print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
@@ -102,16 +104,12 @@ class Evaluator(BaseEvaluator):
         pos_pred = prefix + 'pos_pred'
         tp = prefix + 'tp'
         for preds, targets in izip (batch_preds, batch_targets):
-            # None targets means that this is a padded turn
-            if targets is None:
-                recalls.append(None)
-            else:
-                preds = set(get_entity(preds))
-                targets = set(get_entity(targets))
-                # Don't record cases where no entity is presented
-                if len(targets) > 0:
-                    logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
-                    logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
+            preds = set(get_entity(preds))
+            targets = set(get_entity(targets))
+            # Don't record cases where no entity is presented
+            if len(targets) > 0:
+                logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
+                logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
 
     def log_dict(self, stats):
         d = super(Evaluator, self).log_dict(stats)

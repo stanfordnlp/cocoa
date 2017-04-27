@@ -192,16 +192,12 @@ class Evaluator(BaseEvaluator):
         pos_pred = prefix + 'pos_pred'
         tp = prefix + 'tp'
         for preds, targets in izip(batch_preds, batch_targets):
-            # None targets means that this is a padded turn
-            if targets is None:
-                recalls.append(None)
-            else:
-                preds = set(get_entity(preds))
-                targets = set(get_entity(targets))
-                # Don't record cases where no entity is presented
-                if len(targets) > 0:
-                    logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
-                    logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
+            preds = set(get_entity(preds))
+            targets = set(get_entity(targets))
+            # Don't record cases where no entity is presented
+            if len(targets) > 0:
+                logstats.update_summary_map(summary_map, {pos_target: len(targets), pos_pred: len(preds)})
+                logstats.update_summary_map(summary_map, {tp: sum([1 if e in preds else 0 for e in targets])})
 
 class FactEvaluator(object):
     '''

@@ -1,9 +1,9 @@
 __author__ = 'anushabala'
 from session import Session
-from src.model.graph import Graph, GraphBatch
-from src.model.preprocess import markers, word_to_num
+from src.model.mutualfriends.graph import Graph, GraphBatch
+from src.model.mutualfriends.preprocess import markers, word_to_num
 from src.model.vocab import is_entity, Vocabulary
-from src.model.evaluate import pred_to_token
+from src.model.mutualfriends.evaluate import pred_to_token
 import numpy as np
 import random
 import re

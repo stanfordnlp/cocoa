@@ -149,13 +149,26 @@ class Dialogue(object):
             self._add_utterance(1 - self.agent, [])
         self._add_utterance(agent, utterances)
 
-    def _normalize_price(self, price):
+    @classmethod
+    def _original_price(cls, kb, price):
+        p = get_price(price)
+        b = kb.facts['personal']['Bottomline']  # 0
+        t = kb.facts['personal']['Target']  # 1
+        w = 1. / (t - b)
+        c = -1. * b / (t - b)
+        assert w != 0
+        p = (p - c) / w
+        p = int(p)
+        return (price[0], (p, 'price'))
+
+    @classmethod
+    def _normalize_price(cls, kb, price):
         '''
         Normalize the price such that bottomline=0 and target=1.
         '''
         p = get_price(price)
-        b = self.kb.facts['personal']['Bottomline']  # 0
-        t = self.kb.facts['personal']['Target']  # 1
+        b = kb.facts['personal']['Bottomline']  # 0
+        t = kb.facts['personal']['Target']  # 1
         assert (t - b) != 0
         w = 1. / (t - b)
         c = -1. * b / (t - b)
@@ -164,12 +177,17 @@ class Dialogue(object):
         # TODO: hack
         return (price[0], (p, 'price'))
 
-    def normalize_price(self, utterance):
-        return [self._normalize_price(x) if is_entity(x) else x for x in utterance]
+    @classmethod
+    def normalize_price(cls, kb, utterance):
+        return [cls._normalize_price(kb, x) if is_entity(x) else x for x in utterance]
+
+    @classmethod
+    def original_price(cls, kb, utterance):
+        return [cls._original_price(kb, x) if is_entity(x) else x for x in utterance]
 
     def _add_utterance(self, agent, utterance):
         #prices = [x if (is_entity(x) and x[1][1] == 'price') else None for x in utterance]
-        utterance = self.normalize_price(utterance)
+        utterance = self.normalize_price(self.kb, utterance)
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             for i in xrange(1):
