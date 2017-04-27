@@ -217,7 +217,7 @@ class BaseHTMLVisualizer(object):
 
         outfile = open(html_output, 'w')
         for line in html_lines:
-            outfile.write(line+"\n")
+            outfile.write(line.encode('utf8')+"\n")
         outfile.close()
 
     @classmethod
@@ -316,12 +316,17 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 
 
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
     questions = ('fluent', 'honest', 'persuasive', 'fair')
 
     @classmethod
     def render_scenario(cls, scenario):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
+        # Post
+        facts = scenario.kbs[0].facts
+        html.append("<p>%s</p>" % facts['item']['Title'])
+        html.append("<p>%s</p>" % '<br>'.join(facts['item']['Description']))
+        # Private info
         for (idx, kb) in enumerate(scenario.kbs):
             kb_dict = kb.to_dict()
             html.append("<div class=\"kb%d\"><table><tr>"
@@ -332,14 +337,6 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
             for attr in kb_dict['personal'].keys():
                 html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, kb_dict['personal'][attr]))
 
-            html.append("<tr><th colspan=\"2\">Object Attributes</th></tr>")
-            for attr in kb_dict['item'].keys():
-                entity = kb_dict['item'][attr]
-                if entity is None:
-                    entity = "?"
-                elif isinstance(entity, list):
-                    entity = ", ".join([str(x) for x in entity])
-                html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, entity))
             html.append("</table></div>")
 
         html.append("</div>")

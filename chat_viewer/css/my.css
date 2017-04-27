@@ -29,7 +29,7 @@
 .agentLabel {
     padding: 10px;
 }
-.scenario td, .scenario th, .survey td, .survey th {
+.scenario td, .scenario th, .scenario tr, .survey td, .survey th, .survey tr {
     border-bottom: 1px solid #ddd;
     padding: 0 5px 0 0;
 }
