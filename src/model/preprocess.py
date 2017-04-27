@@ -10,6 +10,7 @@ from src.model.graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy
+from nltk.tokenize import word_tokenize
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -25,12 +26,14 @@ def tokenize(utterance):
     'hi there!' => ['hi', 'there', '!']
     '''
     utterance = utterance.encode('utf-8').lower()
-    # Remove '-' to match lexicon preprocess
-    for s in (' - ', '-'):
-        utterance = utterance.replace(s, ' ')
-    # Split on punctuation
-    tokens = re.findall(r"[\w']+|[.,!?;&-]", utterance)
+    tokens = word_tokenize(utterance)
     return tokens
+    ## Remove '-' to match lexicon preprocess
+    #for s in (' - ', '-'):
+    #    utterance = utterance.replace(s, ' ')
+    ## Split on punctuation
+    #tokens = re.findall(r"[\w']+|[.,!?;&-]", utterance)
+    #return tokens
 
 word_to_num = {'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'}
 def normalize_number(token):
