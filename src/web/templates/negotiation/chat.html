@@ -128,6 +128,7 @@
 			var BASE_URL = 'http://' + document.domain + ':' + location.port;
 			var selectTime = null, messageStartTime = null;
 			var messageTime = 0.0;
+            var num_offer = 0;
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -176,18 +177,21 @@
                 //	})
 
                 $('#price').on('keyup blur', function () { // fires on every keyup & blur
-                	var priceStr = $('#price').val()
-                	if (isNaN(priceStr)) { // ensure that string entered is a valid number 
-                		$('#submit').prop('disabled', 'disabled'); 
-                	} else {
-	                    $('#submit').prop('disabled', false);        // enables button
-                	}
+                    if (num_offer < 1) {
+                	    var priceStr = $('#price').val()
+                	    if (isNaN(priceStr)) { // ensure that string entered is a valid number 
+                	    	$('#submit').prop('disabled', 'disabled'); 
+                	    } else {
+	                        $('#submit').prop('disabled', false);        // enables button
+                	    }
+                    }
                     
                 });
 
 			});
 
 			function makeOffer() {
+                num_offer += 1;
 				var price = parseInt($('#price').val())
 				$.ajax({
 					url: BASE_URL + '/_offer/',
