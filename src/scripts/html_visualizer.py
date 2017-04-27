@@ -78,6 +78,8 @@ class BaseHTMLVisualizer(object):
                 s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
             elif event.action == 'offer':
                 s = 'OFFER $%.1f' % float(event.data)
+            elif event.action == 'quit':
+                s = 'QUIT'
             else:
                 continue
             row = '<tr class=\"agent%d\">\
