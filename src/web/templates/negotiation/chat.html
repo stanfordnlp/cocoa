@@ -8,7 +8,11 @@
 			}
 			.points {
 				color: #009933;
-			}
+            }
+
+            .modal-body{
+                font-size: 16px;
+            }
 
 			div#chat_container {
 				float:left;
@@ -119,9 +123,9 @@
         <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
 		<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
 		<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
         <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
 		<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
 		<script type="text/javascript" charset="utf-8">
 			var validCheckInterval, inboxCheckInterval;
@@ -129,6 +133,7 @@
 			var selectTime = null, messageStartTime = null;
 			var messageTime = 0.0;
             var num_offer = 0;
+            var read_time = 20000; // milliseconds
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -147,6 +152,12 @@
             		}
             	});
 				$("#instructionCollapse").click();
+
+                $('#description').modal('show');
+
+                setTimeout(function(){
+                  $('#description').modal('hide')
+                }, read_time);
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
@@ -335,7 +346,8 @@
 
 		<script type="text/javascript" charset="utf-8">
 			function getTimeRemaining(endtime) {
-				var t = Date.parse(endtime) - Date.parse(new Date());
+                var t = read_time + Date.parse(endtime) - Date.parse(new Date());
+                t = Math.min(t, Date.parse(endtime))
 				var seconds = Math.floor((t / 1000) % 60);
 				var minutes = Math.floor((t / 1000 / 60));
 				return {
@@ -376,96 +388,130 @@
     </head>
     
     <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
-      <div class="clearfix">
-    <div id="chat_container">
-    <div id="instructions">
-    	
-        <h1 style="color:#004d00">{{ title}}</h1>
-        <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
-        <div id="inner" class="collapse">
-        {{ instructions }}
+    <div class="clearfix">
+        <!-- Modal -->
+        <div class="modal fade" id="description" role="dialog">
+          <div class="modal-dialog">
+          
+            <!-- Modal content-->
+            <div class="modal-content">
+              <div class="modal-header">
+                <h4 class="modal-title">Negotiation scenario (please read carefully)</h4>
+              </div>
+              <div class="modal-body">
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p> You just saw the following post: </p>
+                {% else %}
+                    <p> You have posted the following ad: </p>
+                {% endif %}
+                <br>
+                <p><b>  {{ kb['item']['Title'] }} </b></p>
+                <p>
+                    {% for s in kb['item']['Description'] %}
+                        {{ s }}<br/>     
+                    {% endfor %}
+                </p>
+                <br>
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p>You really like this car and decide to negotiate with the seller about the price.</p>
+                {% else %}
+                    <p>You want to get rid of this car soon and are willing to negotiate the price.</p>
+                {% endif %}
+              </div>
+            </div>
+            
+          </div>
         </div>
-	</div>
 
-        <div id="clockdiv" align="right">
-	  Time Remaining: 
-	  <div>
-	    <span class="minutes"></span>
-	    <span class="seconds"></span>
-	  </div>
-	</div>
+        <div id="chat_container">
+            <div id="instructions">
+                <h1 style="color:#004d00">{{ title}}</h1>
+                <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
+                <div id="inner" class="collapse">
+                    {{ instructions }}
+                </div>
+	        </div>
 
-        <textarea readonly id="chat"></textarea>
-        <input readonly id="status" style="width:100%;"><br><br>
-        <input id="text" placeholder="Enter your message here"><br><br>
+            <div id="clockdiv" align="right">
+	          Time Remaining: 
+	          <div>
+	            <span class="minutes"></span>
+	            <span class="seconds"></span>
+	          </div>
+	        </div>
 
-    </div>
+            <textarea readonly id="chat"></textarea>
+            <input readonly id="status" style="width:100%;"><br><br>
+            <input id="text" placeholder="Enter your message here"><br><br>
 
-    <div id="info_container">
-    	<div id="topright">
-			<div id="icon">
-				<img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
-			</div>
-			<div style="display:none; color:#FF0000;" id="leave">
-			<h4><a href="javascript:skipChat();">Click here</a> to quit this chat.</h4>
-			</div>
-		</div>
-		<div id="facts">
-            <h3>Goal</h3>
-            {% if kb['personal']['Role'] == 'buyer' %}
-                <p>You are the potential <b>buyer</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
-                The lower the better.</p>
-            {% else %}
-                <p>You are the <b>seller</b>.
-                Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
-                but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
-                The higher the better.</p>
-            {% endif %}
-            <h3>Basic facts</h3>
-			<table>
-            <tbody>
-			    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
-                    {% if attr == 'Title' %}
-                        <p><b>{{ kb['item'][attr] }}</b></p>
-                    {% elif attr == 'Description' %}
-                        {% for s in kb['item'][attr] %}
-                            {{ s }}<br/>     
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td><b>{{attr}}</b></td>
-                        {% set value = kb['item'][attr] %}
-                        {% if value is none %}
-                            <td>?</td> 
-                        {% elif value is string %}
-					        <td>{{ value }}</td>
+        </div>
+
+        <div id="info_container">
+        	<div id="topright">
+	    		<div id="icon">
+	    			<img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+	    		</div>
+	    		<div style="display:none; color:#FF0000;" id="leave">
+	    		    <h4><a href="javascript:skipChat();">Click here</a> to quit this chat.</h4>
+	    		</div>
+	    	</div>
+	    	<div id="facts">
+                <h3>Goal</h3>
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p>You are the potential <b>buyer</b>.
+                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    The lower the better.</p>
+                {% else %}
+                    <p>You are the <b>seller</b>.
+                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    The higher the better.</p>
+                {% endif %}
+                <h3>Basic facts</h3>
+	    		<table>
+                <tbody>
+	    		    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
+                        {% if attr == 'Title' %}
+                            <p><b>{{ kb['item'][attr] }}</b></p>
+                        {% elif attr == 'Description' %}
+                            {% for s in kb['item'][attr] %}
+                                {{ s }}<br/>     
+                            {% endfor %}
                         {% else %}
-					        <td>{{ value|join(', ') }}</td>
-				        {% endif %}
-                        </tr>
-				    {% endif %}
-				{% endfor %}
-            </tbody>
-			</table>
-        </div>
-        <div id="offer">
-        	<h4>Make offer:</h4>
-            <h4>You can only offer once.</h4>
-            <input id="price" pattern="\d+"/>
-            <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
-        </div>
-        <div id="quit_option">
-	        <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
-	        <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
-        </div>
-        {% if partner_kb %}
-        <div id="peek">
-        </div>
-        {% endif %}
+                            <tr>
+                                <td><b>{{attr}}</b></td>
+                            {% set value = kb['item'][attr] %}
+                            {% if value is none %}
+                                <td>?</td> 
+                            {% elif value is string %}
+	    				        <td>{{ value }}</td>
+                            {% else %}
+	    				        <td>{{ value|join(', ') }}</td>
+	    			        {% endif %}
+                            </tr>
+	    			    {% endif %}
+	    			{% endfor %}
+                </tbody>
+	    		</table>
+            </div>
+            <div id="offer">
+            	<h4>Make offer:</h4>
+                <h4>You can only offer once.</h4>
+                <input id="price" pattern="\d+"/>
+                <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
+            </div>
+            <div id="quit_option">
+	            <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
+	            <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
+            </div>
 
-    </div>
+            {% if partner_kb %}
+                <div id="peek">
+                </div>
+            {% endif %}
+
+        </div>
     </div>
     </body>
 </html>
