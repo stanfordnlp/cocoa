@@ -29,11 +29,9 @@ class BaseRulebasedSession(Session):
         self.range_ = abs(self.target - self.bottomline)
 
         # Direction of desired price
-        self.inc = 0
+        self.inc = None
         # TODO: set this to empirical human stat
         self.overshoot = random.choice((.1, .2, .3,))
-        # Initial offer
-        self.my_price = (1. + self.overshoot * self.inc) * self.target
 
         self.state = {
                 'said_hi': False,
@@ -51,6 +49,11 @@ class BaseRulebasedSession(Session):
                 'num_persuade': 0,
                 }
 
+    def init_price(self):
+        '''
+        Initial offer
+        '''
+        self.my_price = (1. + self.overshoot * self.inc) * self.target
 
     def receive(self, event):
         self.state['num_utterance_sent'] = 0
@@ -228,6 +231,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
         super(SellerRulebasedSession, self).__init__(agent, kb, lexicon)
         # Direction of desired price
         self.inc = 1.
+        self.init_price()
 
     def intro(self):
         title = self.kb['item']['Title']
@@ -280,6 +284,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
         super(BuyerRulebasedSession, self).__init__(agent, kb, lexicon)
         # Direction of desired price
         self.inc = -1.
+        self.init_price()
 
     def intro(self):
         s = (
