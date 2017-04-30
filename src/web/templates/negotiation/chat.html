@@ -133,7 +133,11 @@
 			var selectTime = null, messageStartTime = null;
 			var messageTime = 0.0;
             var num_offer = 0;
-            var read_time = 20000; // milliseconds
+            {% if not partner_kb %}
+                var read_time = 20000; // milliseconds
+            {% else %}
+                var read_time = 1000;
+            {% endif %}
 			$(document).ready(function(){
 				$.ajax({
             		url: BASE_URL +'/_connect/',
@@ -161,24 +165,26 @@
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
-				window.onbeforeunload = disconnect;
-				$('#text').keypress(function(e) {
-					var code = e.keyCode || e.which;
-					if ($('#text').val().length == 0) {
-						messageStartTime = Date.now() / 1000.0;
-						//startedTyping();
-					}
-					if (code == 13) {
-						//stoppedTyping();
-						text = $('#text').val();
-						$('#text').val('');
-						var currentTime = Date.now() / 1000.0;
-						messageTime = currentTime - messageStartTime;
-						sendMessage(text);
-						messageStartTime = null;
-						messageTime = 0.0;
-					}
-				});
+                window.onbeforeunload = disconnect;
+                setTimeout(function(){
+				    $('#text').keypress(function(e) {
+				    	var code = e.keyCode || e.which;
+				    	if ($('#text').val().length == 0) {
+				    		messageStartTime = Date.now() / 1000.0;
+				    		//startedTyping();
+				    	}
+				    	if (code == 13) {
+				    		//stoppedTyping();
+				    		text = $('#text').val();
+				    		$('#text').val('');
+				    		var currentTime = Date.now() / 1000.0;
+				    		messageTime = currentTime - messageStartTime;
+				    		sendMessage(text);
+				    		messageStartTime = null;
+				    		messageTime = 0.0;
+				    	}
+                    });
+                }, read_time);
                 
                 //$('#text').focus().keyup(
                 //	function(e) {
@@ -495,6 +501,16 @@
                 </tbody>
 	    		</table>
             </div>
+            {% if partner_kb %}
+                <div id="facts">
+                    <h3>Partner Goal</h3>
+                    <p>
+                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    </p>
+                </div>
+            {% endif %}
+
             <div id="offer">
             	<h4>Make offer:</h4>
                 <h4>You can only offer once.</h4>
@@ -505,11 +521,6 @@
 	            <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
 	            <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
             </div>
-
-            {% if partner_kb %}
-                <div id="peek">
-                </div>
-            {% endif %}
 
         </div>
     </div>
