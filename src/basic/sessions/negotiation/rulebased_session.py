@@ -31,14 +31,12 @@ class BaseRulebasedSession(Session):
         # Direction of desired price
         self.inc = None
         # TODO: set this to empirical human stat
-        self.overshoot = random.choice((.1, .2, .3,))
+        self.overshoot = random.choice((0, .1, .2))
 
         self.state = {
                 'said_hi': False,
                 'introduced': False,
                 'last_proposed_price': None,
-                'my_price_change': False,
-                'partner_price_change': False,
                 'num_partner_insist': 0,
                 'offered': False,
                 'partner_offered': False,
@@ -53,7 +51,7 @@ class BaseRulebasedSession(Session):
         '''
         Initial offer
         '''
-        self.my_price = (1. + self.overshoot * self.inc) * self.target
+        self.my_price = self.target + self.inc*(self.overshoot * abs(self.target - self.bottomline))
 
     def receive(self, event):
         self.state['num_utterance_sent'] = 0
@@ -112,10 +110,17 @@ class BaseRulebasedSession(Session):
         raise NotImplementedError
 
     def _compromise(self, price):
-        return price * (1 - .2*self.inc)
+        my_price = price * (1 - .2*self.inc)
+        if not self.partner_price:
+            return my_price
+        else:
+            middle_price = int((my_price + self.partner_price) * 0.5)
+            return middle_price
 
     def compromise(self):
         self.my_price = self._compromise(self.my_price)
+        if self.partner_price and self.inc*self.my_price < self.inc*self.partner_price:
+            return self.agree()
         # Don't keep compromise
         self.state['num_partner_insist'] = 1  # Reset
         if self.inc*self.my_price <= self.inc*self.bottomline:
@@ -134,12 +139,22 @@ class BaseRulebasedSession(Session):
             self.state['num_persuade'] = 0
         self.state['last_act'] = 'persuade'
 
+    def offer(self, price):
+        self.state['offered'] = True
+        return super(BaseRulebasedSession, self).offer(price)
+
     def agree(self):
         self.my_price = self.partner_price
-        # TODO: agree in words
-        self.state['offered'] = True
         self.state['last_act'] = 'agree'
-        return self.offer(self.my_price)
+        if random.random() < 0.5:
+            return self.offer(self.my_price)
+        else:
+            s = (
+                    'ok!',
+                    'Deal.',
+                    'I can take that.',
+                )
+            return self.message(random.choice(s))
 
     def deal(self, price):
         # Seller
@@ -193,11 +208,9 @@ class BaseRulebasedSession(Session):
                 return self.intro()
 
         if self.state['final_called']:
-            self.state['offered'] = True
             return self.offer(self.bottomline)
 
         if self.state['partner_offered']:
-            self.state['offered'] = True
             if not self.no_deal(self.partner_price):
                 return self.offer(self.partner_price)
             return self.offer(self.my_price)
@@ -309,7 +322,6 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 "I'm a poor student...",
                 "This is an old car...",
                 "Is it in good condition?",
-                "I don't really like the color.",
                 ]
         if self.partner_price is not None:
             s.extend([
