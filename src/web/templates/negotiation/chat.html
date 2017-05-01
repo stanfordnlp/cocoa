@@ -136,9 +136,17 @@
             {% if not partner_kb %}
                 var read_time = 20000; // milliseconds
             {% else %}
-                var read_time = 1000;
+                var read_time = 1000;  // In peek/debug mode, skip it
             {% endif %}
 			$(document).ready(function(){
+                $('#description').modal('show');
+                $("#instructionCollapse").click();
+
+                // This part executes after the description is shown
+                setTimeout(function(){
+
+                $('#description').modal('hide')
+
 				$.ajax({
             		url: BASE_URL +'/_connect/',
             		type: "get",
@@ -155,36 +163,27 @@
             			displayText(response['message']);
             		}
             	});
-				$("#instructionCollapse").click();
-
-                $('#description').modal('show');
-
-                setTimeout(function(){
-                  $('#description').modal('hide')
-                }, read_time);
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
                 window.onbeforeunload = disconnect;
-                setTimeout(function(){
-				    $('#text').keypress(function(e) {
-				    	var code = e.keyCode || e.which;
-				    	if ($('#text').val().length == 0) {
-				    		messageStartTime = Date.now() / 1000.0;
-				    		//startedTyping();
-				    	}
-				    	if (code == 13) {
-				    		//stoppedTyping();
-				    		text = $('#text').val();
-				    		$('#text').val('');
-				    		var currentTime = Date.now() / 1000.0;
-				    		messageTime = currentTime - messageStartTime;
-				    		sendMessage(text);
-				    		messageStartTime = null;
-				    		messageTime = 0.0;
-				    	}
-                    });
-                }, read_time);
+				$('#text').keypress(function(e) {
+					var code = e.keyCode || e.which;
+					if ($('#text').val().length == 0) {
+						messageStartTime = Date.now() / 1000.0;
+						//startedTyping();
+					}
+					if (code == 13) {
+						//stoppedTyping();
+						text = $('#text').val();
+						$('#text').val('');
+						var currentTime = Date.now() / 1000.0;
+						messageTime = currentTime - messageStartTime;
+						sendMessage(text);
+						messageStartTime = null;
+						messageTime = 0.0;
+					}
+                });
                 
                 //$('#text').focus().keyup(
                 //	function(e) {
@@ -204,7 +203,7 @@
                     }
                     
                 });
-
+                }, read_time);  // delay due to reading the description
 			});
 
 			function makeOffer() {
@@ -304,7 +303,7 @@
 						}
 					}
 				});
-			}
+            }
 
 			function pollServer() {
 				$.ajax({
