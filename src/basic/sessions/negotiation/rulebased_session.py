@@ -115,7 +115,10 @@ class BaseRulebasedSession(Session):
             return my_price
         else:
             middle_price = int((my_price + self.partner_price) * 0.5)
-            return middle_price
+            if self.inc == 1:
+                return max(middle_price, my_price)
+            else:
+                return min(middle_price, my_price)
 
     def compromise(self):
         self.my_price = self._compromise(self.my_price)
