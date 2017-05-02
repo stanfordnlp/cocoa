@@ -66,7 +66,7 @@ class Evaluator(BaseEvaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
         # Whether we're using knowledge graphs
-        graphs = dialogue_batch.pop('graph', None)
+        graphs = dialogue_batch.get('graph', None)
         utterances = None
         for batch in dialogue_batch['batch_seq']:
             targets = batch['targets']
