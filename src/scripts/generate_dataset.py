@@ -38,7 +38,7 @@ if args.test_max_examples is None:
 
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
-agents = [get_system(name, args) for name in args.agents]
+agents = [get_system(name, args, schema) for name in args.agents]
 num_examples = args.scenario_offset
 
 summary_map = {}
