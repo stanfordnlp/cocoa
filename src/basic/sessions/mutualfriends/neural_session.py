@@ -297,6 +297,7 @@ class GraphNeuralSession(RNNNeuralSession):
         decoder_args['vocab'] = self.env.vocab
         return decoder_args
 
+    # TODO: start_symbol breaks the interface
     def _update_states(self, sess, decoder_output_dict, entity_tokens, start_symbol):
         self.decoder_state = decoder_output_dict['final_state']
         # TODO: reencode
