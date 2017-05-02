@@ -27,7 +27,19 @@ def tokenize(utterance):
     '''
     utterance = utterance.encode('utf-8').lower()
     tokens = word_tokenize(utterance)
-    return tokens
+    # TODO: Don't split on markers <>
+    new_tokens = []
+    in_brackets = False
+    for tok in tokens:
+        if in_brackets:
+            new_tokens[-1] = new_tokens[-1] + tok
+        else:
+            new_tokens.append(tok)
+        if tok == '<':
+            in_brackets = True
+        if tok == '>':
+            in_brackets = False
+    return new_tokens
 
 def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
     vocab = Vocabulary(offset=0, unk=True)
@@ -40,13 +52,12 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
     # Add words
     for dialogue in dialogues:
         assert dialogue.is_int is False
-        for turns in dialogue.token_turns:
-            for turn in turns:
-                for token in chain.from_iterable(turn):
-                    if is_entity(token):
-                        _add_entity(token)
-                    else:
-                        vocab.add_word(token)
+        for turn in dialogue.token_turns:
+            for token in chain.from_iterable(turn):
+                if is_entity(token):
+                    _add_entity(token)
+                else:
+                    vocab.add_word(token)
 
     # Add special symbols
     vocab.add_words(special_symbols)
@@ -106,7 +117,6 @@ class TextIntMap(object):
                 price = tok_int[0]  # This is actually float for prices
                 # NOTE: at this point we have lost the surface form of the entity: using an empty string
                 processed_entity = self.preprocessor.get_entity_form(('', (price, 'price')), self.entity_forms[stage])
-                print 'processed entity:', processed_entity
                 tok_int[...] = self.vocab.to_ind(processed_entity)
         return token_array, entity_array
 
@@ -131,8 +141,7 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         # token_turns: tokens and entitys (output of entitylink)
-        # TODO: fix this, remove tuple
-        self.token_turns = ([],)
+        self.token_turns = []
         # entities: -1 for non-entity words, entities are mapped based on entity_map
         self.entities = ([], [])
         # turns: input tokens of encoder, decoder input and target, later converted to integers
@@ -150,6 +159,7 @@ class Dialogue(object):
         self._add_utterance(agent, utterances)
 
     @classmethod
+    # TODO: this is operated on canonical entities, need to be consistent!
     def _original_price(cls, kb, price):
         p = get_price(price)
         b = kb.facts['personal']['Bottomline']  # 0
@@ -159,7 +169,8 @@ class Dialogue(object):
         assert w != 0
         p = (p - c) / w
         p = int(p)
-        return (price[0], (p, 'price'))
+        #return (price[0], (p, 'price'))
+        return (p, 'price')
 
     @classmethod
     def _normalize_price(cls, kb, price):
@@ -183,44 +194,25 @@ class Dialogue(object):
 
     @classmethod
     def original_price(cls, kb, utterance):
-        return [cls._original_price(kb, x) if is_entity(x) else x for x in utterance]
+        s = [cls._original_price(kb, x) if is_entity(x) else x for x in utterance]
+        return s
 
     def _add_utterance(self, agent, utterance):
         #prices = [x if (is_entity(x) and x[1][1] == 'price') else None for x in utterance]
         utterance = self.normalize_price(self.kb, utterance)
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
-            for i in xrange(1):
-                self.token_turns[i][-1].append(utterance)
-            #self.prices[-1].append(prices)
+            self.token_turns[-1].append(utterance)
         else:
             self.agents.append(agent)
             self.roles.append(self.kb.facts['personal']['Role'])
-            for i in xrange(1):
-                self.token_turns[i].append([utterance])
+            self.token_turns.append([utterance])
             #self.prices.append([prices])
 
     def convert_to_int(self):
         if self.is_int:
             return
-        #for i, turns in enumerate(self.token_turns):
-        #    #if i == self.ENC:
-        #    #    stage = 'encoding'
-        #    #elif i == self.DEC:
-        #    #    stage = 'decoding'
-        #    #else:
-        #    #    raise ValueError('Unknown stage %s' % stage)
-        #    for turn in turns:
-        #        self.turns[i].append([self.textint_map.text_to_int(utterance)
-        #            for utterance in turn])
-        ## Target tokens
-        ##stage = 'target'
-        #for turn in self.token_turns[self.DEC]:
-        #    self.turns[self.TARGET].append([self.textint_map.text_to_int(utterance)
-        #        for utterance in turn])
-
-        # TODO: fix token_turns
-        for turn in self.token_turns[0]:
+        for turn in self.token_turns:
             for i in xrange(len(self.turns)):
                 self.turns[i].append([self.textint_map.text_to_int(utterance)
                     for utterance in turn])
@@ -240,11 +232,10 @@ class Dialogue(object):
                 self.turns[i][j] = [x for x in chain.from_iterable(turn)]
 
         if hasattr(self, 'token_turns'):
-            for i, turns in enumerate(self.token_turns):
-                for j, turn in enumerate(turns):
-                    for utterance in turn:
-                        utterance.append(markers.EOS)
-                    self.token_turns[i][j] = [x for x in chain.from_iterable(turn)]
+            for j, turn in enumerate(self.token_turns):
+                for utterance in turn:
+                    utterance.append(markers.EOS)
+                self.token_turns[j] = [x for x in chain.from_iterable(turn)]
 
         self.flattened = True
 
@@ -376,13 +367,12 @@ class DialogueBatch(object):
         inds = inds - 1
         return inds
 
-    # TODO: token_turns doesn't depend on stage
-    def _get_token_turns(self, i, stage):
+    def _get_token_turns(self, i):
         stage = 0
         if not hasattr(self.dialogues[0], 'token_turns'):
             return None
         # Return None for padded turns
-        return [dialogue.token_turns[stage][i] if i < len(dialogue.token_turns[stage]) else ''
+        return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else ''
                 for dialogue in self.dialogues]
 
     def create_batches(self):
@@ -400,7 +390,7 @@ class DialogueBatch(object):
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], self._get_token_turns(i, enc), self._get_token_turns(i+1, dec), agents, kbs) for i in encode_turn_ids]
+        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], self._get_token_turns(i), self._get_token_turns(i+1), agents, kbs) for i in encode_turn_ids]
 
         batch = {
                  'batch_seq': batch_seq,
@@ -477,8 +467,6 @@ class Preprocessor(object):
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb.facts, mentioned_entities=mentioned_entities)
             else:
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb.facts, mentioned_entities=mentioned_entities)
-            #print e.data
-            #print entity_tokens
             entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 return entity_tokens
