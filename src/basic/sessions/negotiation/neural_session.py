@@ -1,7 +1,8 @@
-from session import Session
+from src.basic.sessions.session import Session
 from src.model.negotiation.preprocess import markers, Dialogue
-from src.model.vocab import is_entity, Vocabulary
-from src.model.negotiation.evaluate import pred_to_token
+from src.model.vocab import Vocabulary
+from src.basic.entity import is_entity, Entity
+from src.model.evaluate import pred_to_token
 import numpy as np
 import random
 import re
@@ -21,9 +22,10 @@ class NeuralSession(Session):
         self.env = env
         self.model = env.model
         self.kb = kb
-        self.role = self.kb['facts']['personal']['Role']
+        self.role = self.kb.facts['personal']['Role']
         self.matched_item = None
         self.sent_entity = False
+        self.mentioned_entities = set()
         #self.log = open('chat.debug.log', 'a')
         #self.log.write('-------------------------------------\n')
 
@@ -48,7 +50,7 @@ class NeuralSession(Session):
 
         for token in entity_tokens:
             if is_entity(token):
-                self.mentioned_entities.add(token[1][0])
+                self.mentioned_entities.add(token.canonical)
         entity_tokens += [markers.EOS]
 
         self.encode(entity_tokens)
@@ -93,9 +95,9 @@ class NeuralSession(Session):
             self.sent_entity = False
         for token in tokens:
             if is_entity(token):
-                self.mentioned_entities.add(token[1][0])
+                self.mentioned_entities.add(token.canonical)
         if self.env.realizer is None:
-            tokens = [x if not is_entity(x) else x[0] for x in tokens]
+            tokens = [x if not is_entity(x) else x.surface for x in tokens]
         else:
             tokens = self.env.realizer.realize_entity(tokens)
         if len(tokens) > 1 and tokens[0] == markers.OFFER:
@@ -180,11 +182,12 @@ class RNNNeuralSession(NeuralSession):
         decoder_args = self._decoder_args(entity_tokens)
         decoder_output_dict = self.model.decoder.run_decode(sess, self.env.max_len, batch_size=1, stop_symbol=self.env.stop_symbol, **decoder_args)
 
+        # TODO: why [0]
         entity_tokens = self._pred_to_token(decoder_output_dict['preds'])[0]
         if not self._is_valid(entity_tokens):
             return None
         #self.log.write('decode:%s\n' % str(entity_tokens))
-        self._update_states(sess, decoder_output_dict, entity_tokens, start_symbol)
+        self._update_states(sess, decoder_output_dict, entity_tokens)
 
         # Text message
         if self.new_turn:
@@ -207,6 +210,7 @@ class RNNNeuralSession(NeuralSession):
 
     def _pred_to_token(self, preds):
         entity_tokens, _ = pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
-        entity_tokens = Dialogue.original_price(self.kb, entity_tokens)
-        entity_tokens = [[(x[0], x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
+        # NOTE: entities are CanonicalEntities, change to Entity
+        entity_tokens = [[Entity(str(x.value), x) if is_entity(x) else x for x in toks] for toks in entity_tokens]
+        entity_tokens = [Dialogue.original_price(self.kb, toks) for toks in entity_tokens]
         return entity_tokens

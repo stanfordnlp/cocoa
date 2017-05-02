@@ -63,7 +63,7 @@ class NeuralSystem(System):
 
         self.model_name = args.model
         preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
-        textint_map = TextIntMap(vocab, mappings['entity'], preprocessor)
+        textint_map = TextIntMap(vocab, preprocessor)
 
         Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'consecutive_entity', 'realizer'])
         self.env = Env(model, tf_session, preprocessor, mappings['vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, consecutive_entity=self.consecutive_entity, realizer=realizer)

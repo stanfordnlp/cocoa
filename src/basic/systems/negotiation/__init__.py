@@ -1,10 +1,10 @@
 from src.basic.negotiation.price_tracker import PriceTracker
 from rulebased_system import RulebasedSystem
-from neural_system import NeuralSystem
+from neural_system import NeuralSystem, add_neural_system_arguments
 from cmd_system import CmdSystem
 
 def add_system_arguments(parser):
-    return
+    add_neural_system_arguments(parser)
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker()
