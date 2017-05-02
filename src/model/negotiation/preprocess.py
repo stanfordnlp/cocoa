@@ -5,7 +5,8 @@ Preprocess examples in a dataset and generate data for models.
 import random
 import re
 import numpy as np
-from src.model.vocab import Vocabulary, is_entity
+from src.model.vocab import Vocabulary
+from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
 import copy
@@ -27,7 +28,7 @@ def tokenize(utterance):
     '''
     utterance = utterance.encode('utf-8').lower()
     tokens = word_tokenize(utterance)
-    # TODO: Don't split on markers <>
+    # Don't split on markers <>
     new_tokens = []
     in_brackets = False
     for tok in tokens:
@@ -169,8 +170,7 @@ class Dialogue(object):
         assert w != 0
         p = (p - c) / w
         p = int(p)
-        #return (price[0], (p, 'price'))
-        return (p, 'price')
+        return price._replace(canonical=price.canonical._replace(value=p))
 
     @classmethod
     def _normalize_price(cls, kb, price):
@@ -185,8 +185,7 @@ class Dialogue(object):
         c = -1. * b / (t - b)
         p = w * p + c
         p = float('{:.2f}'.format(p))
-        # TODO: hack
-        return (price[0], (p, 'price'))
+        return price._replace(canonical=price.canonical._replace(value=p))
 
     @classmethod
     def normalize_price(cls, kb, utterance):
@@ -419,11 +418,11 @@ class Preprocessor(object):
         '''
         assert len(entity) == 2
         if form == 'surface':
-            return entity[0]
+            return entity.surface
         elif form == 'type':
-            return '<%s>' % entity[1][1]
+            return '<%s>' % entity.canonical.type
         elif form == 'canonical':
-            return entity[1]
+            return entity.canonical
         else:
             raise ValueError('Unknown entity form %s' % form)
 
@@ -448,12 +447,13 @@ class Preprocessor(object):
                     dialogue.add_utterance(e.agent, utterance)
                     for token in utterance:
                         if is_entity(token):
-                            mentioned_entities.add(token[1][0])
+                            mentioned_entities.add(token.canonical)
             yield dialogue
 
     @classmethod
     def price_to_entity(cls, price):
-        return (price, (price, 'price'))
+        #return (price, (price, 'price'))
+        return Entity(price, CanonicalEntity(price, 'price'))
 
     def process_event(self, e, agent, kb, mentioned_entities=None):
         '''
@@ -467,7 +467,7 @@ class Preprocessor(object):
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb.facts, mentioned_entities=mentioned_entities)
             else:
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb.facts, mentioned_entities=mentioned_entities)
-            entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
+            #entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 return entity_tokens
             else:

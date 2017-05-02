@@ -1,12 +1,15 @@
+from src.basic.entity import Entity, CanonicalEntity
 
-# TODO: price as named tuple
 class PriceTracker(object):
     @classmethod
     def get_price(cls, token):
         try:
-            return float(token[1][0])
+            return token.canonical.value
         except:
-            return None
+            try:
+                return token.value
+            except:
+                return None
 
 
     @classmethod
@@ -55,7 +58,7 @@ class PriceTracker(object):
                 if i + 1 < N and raw_tokens[i+1].startswith('mile'):
                     new_token = token
                 elif number >= price_range[0] and number <= price_range[1]:
-                    new_token = (token, (number, 'price'))
+                    new_token = Entity(token, CanonicalEntity(number, 'price'))
                 else:
                     new_token = token
             except ValueError:

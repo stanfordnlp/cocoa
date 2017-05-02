@@ -2,7 +2,7 @@ import numpy as np
 from itertools import izip, izip_longest
 from src.lib import logstats
 from preprocess import markers
-from src.model.vocab import is_entity
+from src.basic.entity import is_entity
 from src.model.evaluate import BaseEvaluator
 from preprocess import Dialogue
 
