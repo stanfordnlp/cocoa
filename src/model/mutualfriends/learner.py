@@ -1,3 +1,4 @@
+import numpy as np
 from src.lib import logstats
 from src.model.learner import BaseLearner
 
@@ -16,6 +17,7 @@ class Learner(BaseLearner):
         # graph is dynamic; also the original batch data should not be modified.
         if copy:
             targets = graphs.copy_targets(batch['targets'], self.vocab.size)
+            # NOTE: we're not using matched_items for now in the model
             matched_items = graphs.copy_targets(np.reshape(matched_items, [-1, 1]), self.vocab.size)
             matched_items = np.reshape(matched_items, [-1])
         else:
@@ -27,11 +29,10 @@ class Learner(BaseLearner):
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'last_inds': batch['decoder_inputs_last_inds'],
-                'matched_items': matched_items,
+                'targets': targets,
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
-                'targets': targets,
                 }
 
         if graph_data is not None:

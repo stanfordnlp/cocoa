@@ -154,7 +154,7 @@ class GraphDecoder(GraphEncoder):
         logits = self.output_dict['logits']
         loss, seq_loss, total_loss = BasicDecoder._compute_loss(logits, targets, pad)
         # -1 is selection loss
-        return loss, seq_loss, total_loss
+        return loss, seq_loss, total_loss, tf.constant(-1.)
 
     def _build_rnn_cell(self):
         return AttnRNNCell(self.rnn_size, self.context_size, self.rnn_type, self.keep_prob, self.scorer, self.output_combiner, self.num_layers, self.checklist)
@@ -200,8 +200,8 @@ class GraphDecoder(GraphEncoder):
     def _build_inputs(self, input_dict):
         super(GraphDecoder, self)._build_inputs(input_dict)
         with tf.name_scope('Inputs'):
-            self.matched_items = tf.placeholder(tf.int32, shape=[None], name='matched_items')
             self.init_checklists = tf.placeholder(tf.int32, shape=[None, None, None], name='init_checklists')
+            self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
     def _build_rnn_inputs(self, time_major):
         inputs = super(GraphDecoder, self)._build_rnn_inputs(time_major)
@@ -229,7 +229,7 @@ class GraphDecoder(GraphEncoder):
     def get_feed_dict(self, **kwargs):
         feed_dict = super(GraphDecoder, self).get_feed_dict(**kwargs)
         feed_dict[self.init_checklists] = kwargs.pop('init_checklists')
-        optional_add(feed_dict, self.matched_items, kwargs.pop('matched_items', None))
+        optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
     def pred_to_input(self, preds, **kwargs):

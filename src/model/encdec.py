@@ -25,6 +25,7 @@ def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
 
+# TODO: fix sampler
 class Sampler(object):
     '''
     Return a symbol from output/logits (batch_size, seq_len, vocab_size).
@@ -209,16 +210,12 @@ class BasicDecoder(BasicEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
-        # TODO: remove traces of matched_items
-        optional_add(feed_dict, self.matched_items, kwargs.pop('matched_items', None))
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
     def _build_inputs(self, input_dict):
         super(BasicDecoder, self)._build_inputs(input_dict)
         self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
-        with tf.name_scope('Inputs'):
-            self.matched_items = tf.placeholder(tf.int32, shape=[None], name='matched_items')
 
     def _build_output(self, output_dict):
         '''
