@@ -344,9 +344,7 @@ class DialogueBatch(object):
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
                  'encoder_inputs': encoder_inputs,
-                 'encoder_inputs_last_inds': self._get_last_inds(encoder_inputs, int_markers.PAD),
                  'decoder_inputs': decoder_inputs,
-                 'decoder_inputs_last_inds': self._get_last_inds(decoder_inputs, int_markers.PAD),
                  'targets': decoder_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
@@ -354,17 +352,6 @@ class DialogueBatch(object):
                  'kbs': kbs,
                 }
         return batch
-
-    def _get_last_inds(self, inputs, stop_symbol):
-        '''
-        Return the last index which is not stop_symbol.
-        inputs: (batch_size, input_size)
-        '''
-        assert type(stop_symbol) is int
-        inds = np.argmax(inputs == stop_symbol, axis=1)
-        inds[inds == 0] = inputs.shape[1]
-        inds = inds - 1
-        return inds
 
     def _get_token_turns(self, i):
         stage = 0

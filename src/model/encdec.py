@@ -139,19 +139,22 @@ class BasicEncoder(object):
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
         return inputs
 
-    def _build_inputs(self, input_dict):
+    def _build_inputs(self, input_dict, pad=0):
         with tf.name_scope('Inputs'):
             self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')
-            self.last_inds = tf.placeholder(tf.int32, shape=[None], name='last_inds')
+            last_inds = tf.reduce_sum(tf.where(tf.equal(self.inputs, pad), tf.zeros_like(self.inputs), tf.ones_like(self.inputs)), 1)
+            # For all-pad inputs
+            last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
+            self.last_inds = last_inds - 1
 
-    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
         with tf.variable_scope(type(self).__name__):
             self.word_embedder = word_embedder
 
-            self._build_inputs(input_dict)
+            self._build_inputs(input_dict, pad=pad)
             self.batch_size = tf.shape(self.inputs)[0]
             self.seq_len = tf.shape(self.inputs)[1]
 
@@ -183,7 +186,6 @@ class BasicEncoder(object):
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
-        feed_dict[self.last_inds] = kwargs.pop('last_inds')
         feed_dict[self.keep_prob] = 1. - self.dropout
         optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
         return feed_dict
@@ -213,7 +215,7 @@ class BasicDecoder(BasicEncoder):
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    def _build_inputs(self, input_dict):
+    def _build_inputs(self, input_dict, pad=0):
         super(BasicDecoder, self)._build_inputs(input_dict)
         self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
@@ -258,7 +260,7 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    def build_model(self, word_embedder, input_dict, tf_variables, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
         super(BasicDecoder, self).build_model(word_embedder, input_dict, tf_variables, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(scope or type(self).__name__):
             logits = self._build_output(self.output_dict)

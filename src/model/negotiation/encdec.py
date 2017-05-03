@@ -35,12 +35,12 @@ class BasicEncoderDecoder(object):
             # Encoding
             with tf.name_scope('Encoder'):
                 encoder_input_dict = self._encoder_input_dict()
-                encoder.build_model(encoder_word_embedder, encoder_input_dict, self.tf_variables, time_major=False)
+                encoder.build_model(encoder_word_embedder, encoder_input_dict, self.tf_variables, time_major=False, pad=self.PAD)
 
             # Decoding
             with tf.name_scope('Decoder'):
                 decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
-                decoder.build_model(decoder_word_embedder, decoder_input_dict, self.tf_variables, time_major=False)
+                decoder.build_model(decoder_word_embedder, decoder_input_dict, self.tf_variables, time_major=False, pad=self.PAD)
 
             # Re-encode decoded sequence
             # TODO: re-encode is not implemeted in neural_sessions yet
@@ -72,7 +72,6 @@ class BasicEncoderDecoder(object):
         # Encode true prefix
         # TODO: get_encoder_args
         encoder_args = {'inputs': encoder_inputs,
-                'last_inds': batch['encoder_inputs_last_inds'],
                 'init_state': encoder_init_state
                 }
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
@@ -80,7 +79,6 @@ class BasicEncoderDecoder(object):
         # Decode max_len steps
         # TODO: get_decoder_args
         decoder_args = {'inputs': decoder_inputs[:, [0]],
-                'last_inds': np.zeros([batch_size], dtype=np.int32),
                 'init_state': encoder_output_dict['final_state'],
                 'textint_map': textint_map
                 }
@@ -88,7 +86,6 @@ class BasicEncoderDecoder(object):
 
         # Decode true utterances (so that we always condition on true prefix)
         decoder_args['inputs'] = decoder_inputs
-        decoder_args['last_inds'] = batch['decoder_inputs_last_inds']
         feed_dict = self.decoder.get_feed_dict(**decoder_args)
         # TODO: this is needed by re-encode
         #feed_dict[self.encoder.keep_prob] = 1. - self.encoder.dropout

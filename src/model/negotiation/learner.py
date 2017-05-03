@@ -12,11 +12,9 @@ class Learner(BaseLearner):
         targets = batch['targets']
 
         encoder_args = {'inputs': batch['encoder_inputs'],
-                'last_inds': batch['encoder_inputs_last_inds'],
                 'init_state': encoder_init_state,
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
-                'last_inds': batch['decoder_inputs_last_inds'],
                 'targets': targets,
                 }
         kwargs = {'encoder': encoder_args,
