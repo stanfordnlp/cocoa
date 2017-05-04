@@ -145,6 +145,7 @@
 			$(document).ready(function(){
                 $('#description').modal('show');
                 $("#instructionCollapse").click();
+                window.onbeforeunload = disconnect;
 
                 document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
 
@@ -177,7 +178,7 @@
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
-                window.onbeforeunload = disconnect;
+                
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;
 					if ($('#text').val().length == 0) {
