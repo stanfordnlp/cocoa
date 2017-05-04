@@ -14,6 +14,10 @@
                 font-size: 16px;
             }
 
+            div#modal_description {
+            	color:#004d00;
+            	font-style: italic;
+            }
 			div#chat_container {
 				float:left;
 				width: 45%;
@@ -142,12 +146,11 @@
                 $('#description').modal('show');
                 $("#instructionCollapse").click();
 
-                // This part executes after the description is shown
-                setTimeout(function(){
+                document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
 
-                $('#description').modal('hide')
+                var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
 
-				$.ajax({
+                $.ajax({
             		url: BASE_URL +'/_connect/',
             		type: "get",
             		data: {"uid": "{{ uid }}" },
@@ -163,6 +166,14 @@
             			displayText(response['message']);
             		}
             	});
+
+                // This part executes after the description is shown
+                setTimeout(function(){
+
+                $('#description').modal('hide')
+
+            	
+				initializeClock('clockdiv', deadline);
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
@@ -347,11 +358,8 @@
 				window.location.reload(true);
 			}
 
-		</script>
-
-		<script type="text/javascript" charset="utf-8">
 			function getTimeRemaining(endtime) {
-                var t = read_time + Date.parse(endtime) - Date.parse(new Date());
+                var t = Date.parse(endtime) - Date.parse(new Date());
                 t = Math.min(t, Date.parse(endtime))
 				var seconds = Math.floor((t / 1000) % 60);
 				var minutes = Math.floor((t / 1000 / 60));
@@ -385,10 +393,6 @@
 				var timeinterval = setInterval(updateClock, 1000);
 			}
 
-			function init() {
-				var deadline = new Date(Date.parse(new Date()) + {{ num_seconds }} * 1000);
-				initializeClock('clockdiv', deadline);
-			}
 		</script>
     </head>
     
@@ -401,7 +405,8 @@
             <!-- Modal content-->
             <div class="modal-content">
               <div class="modal-header">
-                <h4 class="modal-title">Negotiation scenario (please read carefully)</h4>
+                <h4 class="modal-title">Negotiation scenario</h4>
+                <b><p id="modal_instruction"></p></b>
               </div>
               <div class="modal-body">
                 {% if kb['personal']['Role'] == 'buyer' %}
@@ -410,12 +415,14 @@
                     <p> You have posted the following ad: </p>
                 {% endif %}
                 <br>
+                <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
                 <p>
                     {% for s in kb['item']['Description'] %}
                         {{ s }}<br/>     
                     {% endfor %}
                 </p>
+                </div>
                 <br>
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You really like this car and decide to negotiate with the seller about the price.</p>
