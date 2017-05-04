@@ -14,55 +14,59 @@
                 font-size: 16px;
             }
 
-            div#chat_container {
-                float:left;
-                width: 45%;
+            div#modal_description {
+            	color:#004d00;
+            	font-style: italic;
             }
-            
-            div#info_container {
-                margin-left: 47%;
-                color:#004d00;
-            }
-            
+			div#chat_container {
+				float:left;
+				width: 45%;
+			}
+			
+			div#info_container {
+				margin-left: 47%;
+				color:#004d00;
+			}
+			
 
-            div#icon {
-                padding: 10px 100px 10px 20px;
-                display: inline-block;
-            }
+			div#icon {
+				padding: 10px 100px 10px 20px;
+				display: inline-block;
+			}
 
-            div#offer {
-                color: ##004d00;
-                border: 1px solid #004d00;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                margin-left: 2px;
-                padding: 10px 5px 10px 5px;
-                font-size: 18px;
-            }
+			div#offer {
+				color: ##004d00;
+				border: 1px solid #004d00;
+				margin-top: 10px;
+				margin-bottom: 10px;
+				margin-left: 2px;
+				padding: 10px 5px 10px 5px;
+				font-size: 18px;
+			}
 
-            div#quit_option {
-                color: #bf1e1e;
-                border: 1px solid #bf1e1e;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                margin-left: 2px;
-                padding: 10px 5px 10px 5px;
-                font-size: 18px;
-            }
+			div#quit_option {
+				color: #bf1e1e;
+				border: 1px solid #bf1e1e;
+				margin-top: 10px;
+				margin-bottom: 10px;
+				margin-left: 2px;
+				padding: 10px 5px 10px 5px;
+				font-size: 18px;
+			}
 
-            textarea#chat {
-                width: 100%;
-                cols: 100;
-                height: 25%;
-                color:#004d00;
-                font-size:14px;
-            }
+			textarea#chat {
+				width: 100%;
+				cols: 100;
+				height: 25%;
+				color:#004d00;
+				font-size:14px;
+			}
 
-            input#text {
-                width: 100%;
-            }
+			input#text {
+				width: 100%;
+			}
 
-            td {
+			td {
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 padding: 0 15px 0 15px;
@@ -142,30 +146,37 @@
                 $('#description').modal('show');
                 $("#instructionCollapse").click();
 
+                document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
+
+                var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
+
+                $.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+				
+            	$.ajax({
+            		url: BASE_URL + '/_join_chat/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}"},
+            		dataType: "json",
+            		success: function(response) {
+            			displayText(response['message']);
+            		}
+            	});
+
                 // This part executes after the description is shown
                 setTimeout(function(){
 
                 $('#description').modal('hide')
 
-                $.ajax({
-                    url: BASE_URL +'/_connect/',
-                    type: "get",
-                    data: {"uid": "{{ uid }}" },
-                    dataType: "json"
-                });
-                
-                $.ajax({
-                    url: BASE_URL + '/_join_chat/',
-                    type: "get",
-                    data: {"uid": "{{ uid }}"},
-                    dataType: "json",
-                    success: function(response) {
-                        displayText(response['message']);
-                    }
-                });
+            	
+				initializeClock('clockdiv', deadline);
 
-                inboxCheckInterval = setInterval(checkInbox, 1000);
-                validCheckInterval = setInterval(pollServer, 3000);
+				inboxCheckInterval = setInterval(checkInbox, 1000);
+				validCheckInterval = setInterval(pollServer, 3000);
                 window.onbeforeunload = disconnect;
                 $('#text').keypress(function(e) {
                     var code = e.keyCode || e.which;
@@ -338,58 +349,51 @@
             
             
             function skipChat() {
-                disconnect();
-                $.ajax({
-                    url: BASE_URL + '/_skip_chat/',
-                    type: "get",
-                    data: {"uid": "{{ uid }}"}
-                });            
-                window.location.reload(true);
-            }
+	            disconnect();
+            	$.ajax({
+            		url: BASE_URL + '/_skip_chat/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}"}
+				});			
+				window.location.reload(true);
+			}
 
-        </script>
-
-        <script type="text/javascript" charset="utf-8">
-            function getTimeRemaining(endtime) {
-                var t = read_time + Date.parse(endtime) - Date.parse(new Date());
+			function getTimeRemaining(endtime) {
+                var t = Date.parse(endtime) - Date.parse(new Date());
                 t = Math.min(t, Date.parse(endtime))
-                var seconds = Math.floor((t / 1000) % 60);
-                var minutes = Math.floor((t / 1000 / 60));
-                return {
-                    'total': t,
-                    'minutes': minutes,
-                    'seconds': seconds
-                };
-            }
+				var seconds = Math.floor((t / 1000) % 60);
+				var minutes = Math.floor((t / 1000 / 60));
+				return {
+					'total': t,
+					'minutes': minutes,
+					'seconds': seconds
+				};
+			}
 
-            function initializeClock(id, endtime) {
-                var clock = document.getElementById(id);
-                var minutesSpan = clock.querySelector('.minutes');
-                var secondsSpan = clock.querySelector('.seconds');
+			function initializeClock(id, endtime) {
+				var clock = document.getElementById(id);
+				var minutesSpan = clock.querySelector('.minutes');
+				var secondsSpan = clock.querySelector('.seconds');
 
-                function updateClock() {
-                    var t = getTimeRemaining(endtime);
-                    minutesSpan.innerHTML = t.minutes+':';
-                    secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-                    if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
-                        $("#leave").css("display", "inline-block");
-                    }
-                    if (t.total <= 0) {
-                        clearInterval(validCheckInterval);
-                        clearInterval(timeinterval);
-                        pollServer();
-                    }
-                }
+				function updateClock() {
+					var t = getTimeRemaining(endtime);
+					minutesSpan.innerHTML = t.minutes+':';
+					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+					if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
+						$("#leave").css("display", "inline-block");
+					}
+					if (t.total <= 0) {
+						clearInterval(validCheckInterval);
+						clearInterval(timeinterval);
+						pollServer();
+					}
+				}
 
-                updateClock();
-                var timeinterval = setInterval(updateClock, 1000);
-            }
+				updateClock();
+				var timeinterval = setInterval(updateClock, 1000);
+			}
 
-            function init() {
-                var deadline = new Date(Date.parse(new Date()) + {{ num_seconds }} * 1000);
-                initializeClock('clockdiv', deadline);
-            }
-        </script>
+		</script>
     </head>
     
     <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
@@ -401,7 +405,8 @@
             <!-- Modal content-->
             <div class="modal-content">
               <div class="modal-header">
-                <h4 class="modal-title">Negotiation scenario (please read carefully)</h4>
+                <h4 class="modal-title">Negotiation scenario</h4>
+                <b><p id="modal_instruction"></p></b>
               </div>
               <div class="modal-body">
                 {% if kb['personal']['Role'] == 'buyer' %}
@@ -410,12 +415,14 @@
                     <p> You have posted the following ad: </p>
                 {% endif %}
                 <br>
+                <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
                 <p>
                     {% for s in kb['item']['Description'] %}
                         {{ s }}<br/>     
                     {% endfor %}
                 </p>
+                </div>
                 <br>
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You really like this car and decide to negotiate with the seller about the price.</p>
