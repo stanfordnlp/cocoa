@@ -69,7 +69,9 @@
         
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
+        negotiatorVal = $("#negotiator").val();
         comments = $("#comments").val();
+        
         //fluentVal = document.getElementById("#myRange").value
         console.log("FLUENT: " + fluentVal);
         console.log("PERSUASIVE: " + persuasiveVal);
@@ -77,7 +79,8 @@
 
         if (fluentVal == null || 
             persuasiveVal == null || 
-            fairVal == null) {
+            fairVal == null ||
+            negotiatorVal == null ) {
             return false;
         }
         else{
@@ -85,6 +88,7 @@
             questionAnswers["honest"] = "null";    
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
+            questionAnswers["negotiator"] = negotiatorVal;
             if(comments == null) {
             	comments = "";
             }
@@ -234,6 +238,18 @@
                 <p style="float:left;">Not fair at all</p>
                 <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:11%;" >
                 <p style="float:right;">Very fair</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not at all</p>
+                <input type="range" id="negotiator" min="1" max="5" style="width:50%; margin-left:11%;" >
+                <p style="float:right;">Extremely</p>
             </form>
         </div>
         

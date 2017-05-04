@@ -805,10 +805,10 @@ class NegotiationBackend(BaseBackend):
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
                 _update_scenario_db(user_info.chat_id, user_info.partner_type)
-                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?)',
+                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?,?)',
                                (userid, user_info.chat_id, user_info.partner_type,
                                 data['fluent'], data['honest'], data['persuasive'],
-                                data['fair'], data['comments']))
+                                data['fair'], data['negotiator'], data['comments']))
                 _user_finished(userid)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
