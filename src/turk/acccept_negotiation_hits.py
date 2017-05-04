@@ -6,9 +6,6 @@ import csv
 import sqlite3
 import json
 
-access_key = 'AKIAJR4ULNPXFICAGAXA'
-secret_key = '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'
-
 
 def process_db(cursor):
     survey_codes = {}
@@ -16,7 +13,9 @@ def process_db(cursor):
     cursor.execute('''SELECT * FROM mturk_task''')
     data = cursor.fetchall()
     for uid, code, cid in data:
-        survey_codes[cid] = (code, uid)
+        if cid not in survey_codes.keys():
+            survey_codes[cid] = []
+        survey_codes[cid].append((code, uid))
 
     cursor.execute('''SELECT agent_ids, chat_id FROM chat''')
     data = cursor.fetchall()
@@ -39,16 +38,19 @@ def get_turns_per_agent(transcript):
 
 def is_chat_valid(transcript):
     turns = get_turns_per_agent(transcript)
-    if turns[0] < 4 or turns[1] < 4:
-        return False
 
     if "outcome" not in transcript.keys():
         return False
 
     outcome = transcript["outcome"]
+
     if outcome is None or outcome["reward"] is None:
         return False
 
+    if outcome["reward"] == 0 and (turns[0] < 4 or turns[1] < 4):
+        return False
+
+    assert outcome["reward"] == 1
     return True
 
 
@@ -110,15 +112,24 @@ def process_hits(survey_codes, agent_ids):
     rejected_codes = set()
     partial_credit = set()
     bonus_codes = set()
-    for (cid, (code, uid)) in survey_codes.iteritems():
-        if not is_chat_valid(all_chats[cid]):
-            rejected_codes.add(code)
-        elif is_partial_chat(all_chats[cid]):
-            partial_credit.add(code)
-        else:
-            winner = get_bonus_users(all_chats[cid])
-            if winner >= 0 and agent_ids[winner] == uid:
-                bonus_codes.add(code)
+    for cid in survey_codes.keys():
+        for (code, uid) in survey_codes[cid]:
+            if not is_chat_valid(all_chats[cid]):
+                print "REJECT: chat %s" % cid
+                rejected_codes.add(code)
+            elif is_partial_chat(all_chats[cid]):
+                print "PARTIAL CREDIT: chat %s " % cid
+                partial_credit.add(code)
+            else:
+                winner = get_bonus_users(all_chats[cid])
+                if winner >= 0:
+                    if agent_ids[cid][winner] == uid:
+                        print "BONUS: agent %d in chat %s" % (winner, cid)
+                        bonus_codes.add(code)
+                    # else:
+                    #     print "PARTNER BONUS: agent %d in chat %s" % (1-winner, cid)
+                else:
+                    print "VALID, NO WINNER: chat %s" % cid
 
     return rejected_codes, partial_credit, bonus_codes
 
@@ -148,27 +159,33 @@ def make_payments(mturk_conn, results_csv, bonus_amount, partial_amount, rejecte
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument('--config', type=str, default='data/aws_config.json',
+                        help='Config file containing AWS access key and secret access key. '
+                             'See data/sample_aws_config.json for an example.')
     parser.add_argument('-m', type=str, default='SANDBOX', help="Mode ('SANDBOX' or 'PROD')")
     parser.add_argument('--results', type=str, required=True, help="Path to CSV results from MTurk")
     parser.add_argument('--db', type=str, required=True, help='Path to database containing chat outcomes.')
     parser.add_argument('--transcripts', type=str, required=True, help='Path to transcripts.json file containing chats')
-    parser.add_argument('--bonus', type=float, default=0.25, help='Amount to grant as bonus to each worker per assignment.')
+    parser.add_argument('--bonus', type=float, default=0.25,
+                        help='Amount to grant as bonus to each worker per assignment.')
     parser.add_argument('--partial', type=float, default=0.15, help='Partial amount for incomplete dialogues')
 
 
     args = parser.parse_args()
+    config = json.load(open(args.config, 'r'))
     mode = args.m
     db = args.db
     results_file = args.results
     bonus = args.bonus
+    partial_reward = args.partial
 
     host = 'mechanicalturk.sandbox.amazonaws.com'
     if mode == 'PROD':
         host = 'mechanicalturk.amazonaws.com'
 
-    mturk_connection = MTurkConnection(aws_access_key_id=access_key,
-                                 aws_secret_access_key=secret_key,
-                                 host=host)
+    mturk_connection = MTurkConnection(aws_access_key_id=config["access_key"],
+                                       aws_secret_access_key=config["secret_key"],
+                                       host=host)
 
     all_chats = read_chats(args.transcripts)
     db_connection = sqlite3.connect(db)
@@ -179,6 +196,6 @@ if __name__ == "__main__":
     db_connection.close()
 
     rejected, partial, bonuses = process_hits(survey_codes, agent_ids)
-    make_payments(mturk_connection, results_file, bonus, rejected, partial, bonuses)
+    make_payments(mturk_connection, results_file, bonus, partial_reward, rejected, partial, bonuses)
 
 
