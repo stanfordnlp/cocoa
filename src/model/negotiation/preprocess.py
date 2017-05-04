@@ -8,7 +8,7 @@ import numpy as np
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
-from collections import namedtuple, defaultdict
+from collections import namedtuple, defaultdict, deque
 import copy
 from nltk.tokenize import word_tokenize
 from src.basic.negotiation.price_tracker import PriceTracker
@@ -21,6 +21,7 @@ def add_preprocess_arguments(parser):
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'PAD'])
 markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', PAD='<pad>')
+START_PRICE = -1
 
 def tokenize(utterance):
     '''
@@ -96,30 +97,7 @@ class TextIntMap(object):
         or ground truth.
         '''
         tokens = self.preprocessor.process_utterance(utterance, stage)
-        #offset = self.vocab.size
-        #return [(get_price(token) + offset) if get_price(token) is not None else self.vocab.to_ind(token) for token in tokens]
         return [self.vocab.to_ind(token) for token in tokens]
-
-    def process_entity(self, token_array, stage):
-        '''
-        token_array: 2D int array of tokens, assuming entities are mapped by entity_map offset by vocab_size.
-        Transform entities to specified form, e.g. type, canonical form.
-        Return the new token_array and an entity_array which has the same shape as token_array and use -1
-        for non-entity words and map entities by entity_map.
-        '''
-        offset = self.vocab.size
-        entity_array = np.full(token_array.shape, -1, dtype=np.float32)
-        entity_inds = token_array >= offset
-        entity_array[entity_inds] = token_array[entity_inds] - offset
-
-        # Entities needs to be transformed and mapped by vocab
-        for tok_int, is_ent in izip(np.nditer(token_array, op_flags=['readwrite']), np.nditer(entity_inds)):
-            if is_ent:
-                price = tok_int[0]  # This is actually float for prices
-                # NOTE: at this point we have lost the surface form of the entity: using an empty string
-                processed_entity = self.preprocessor.get_entity_form(('', (price, 'price')), self.entity_forms[stage])
-                tok_int[...] = self.vocab.to_ind(processed_entity)
-        return token_array, entity_array
 
     def int_to_text(self, inds, stage=None):
         '''
@@ -133,6 +111,7 @@ class Dialogue(object):
     DEC = 1
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
+    price_hist_len = 3
 
     def __init__(self, agent, kb, uuid):
         '''
@@ -143,11 +122,10 @@ class Dialogue(object):
         self.kb = kb
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = []
-        # entities: -1 for non-entity words, entities are mapped based on entity_map
-        self.entities = ([], [])
         # turns: input tokens of encoder, decoder input and target, later converted to integers
-        self.turns = ([], [], [])
-        #self.prices = []
+        self.turns = [[], [], []]
+        # entities: has the same structure as turns, non-entity tokens are None
+        self.entities = []
         self.agents = []
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
@@ -197,25 +175,34 @@ class Dialogue(object):
         return s
 
     def _add_utterance(self, agent, utterance):
-        #prices = [x if (is_entity(x) and x[1][1] == 'price') else None for x in utterance]
         utterance = self.normalize_price(self.kb, utterance)
+        entities = [x if is_entity(x) else None for x in utterance]
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             self.token_turns[-1].append(utterance)
+            self.entities[-1].append(entities)
         else:
             self.agents.append(agent)
             self.roles.append(self.kb.facts['personal']['Role'])
             self.token_turns.append([utterance])
-            #self.prices.append([prices])
+            self.entities.append([entities])
 
     def convert_to_int(self):
         if self.is_int:
             return
         for turn in self.token_turns:
-            for i in xrange(len(self.turns)):
-                self.turns[i].append([self.textint_map.text_to_int(utterance)
+            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+                turns.append([self.textint_map.text_to_int(utterance, stage)
                     for utterance in turn])
         self.is_int = True
+
+    def _flatten_turns(self, turns, EOS):
+        flat_turns = []
+        for turn in turns:
+            for utterance in turn:
+                utterance.append(EOS)
+            flat_turns.append([x for x in chain.from_iterable(turn)])
+        return flat_turns
 
     def flatten_turns(self):
         '''
@@ -225,31 +212,63 @@ class Dialogue(object):
             return
 
         for i, turns in enumerate(self.turns):
-            for j, turn in enumerate(turns):
-                for utterance in turn:
-                    utterance.append(int_markers.EOS)
-                self.turns[i][j] = [x for x in chain.from_iterable(turn)]
-
-        if hasattr(self, 'token_turns'):
-            for j, turn in enumerate(self.token_turns):
-                for utterance in turn:
-                    utterance.append(markers.EOS)
-                self.token_turns[j] = [x for x in chain.from_iterable(turn)]
+            self.turns[i] = self._flatten_turns(turns, int_markers.EOS)
+        self.token_turns = self._flatten_turns(self.token_turns, markers.EOS)
+        self.entities = self._flatten_turns(self.entities, None)
+        self.price_hists = self.get_price_hist(self.price_hist_len, int_markers.PAD)
 
         self.flattened = True
+
+    def _pad_list(self, l, size, pad):
+        for i in xrange(len(l), size):
+            l.append(pad)
+        return l
 
     def pad_turns(self, num_turns):
         '''
         Pad turns to length num_turns.
         '''
-        turns, agents, roles = self.turns, self.agents, self.roles
-        assert len(turns[0]) == len(turns[1]) and len(turns[0]) == len(turns[2])
-        for i in xrange(len(turns[0]), num_turns):
-            #agents.append(1 - agents[-1])
-            agents.append(None)
-            roles.append(None)
-            for j in xrange(len(turns)):
-                turns[j].append([])
+        self.agents = self._pad_list(self.agents, num_turns, None)
+        self.roles = self._pad_list(self.roles, num_turns, None)
+        for turns in self.turns:
+            self._pad_list(turns, num_turns, [])
+        # TODO: we need a price pad vector, currently this is hard-coded, move to a class
+        self.price_hists = self._pad_list(self.price_hists, num_turns, [[int_markers.PAD]*8])
+        assert len(self.price_hists) == len(self.turns[0])
+
+    def get_price_hist(self, hist_len, pad):
+        '''
+        Given flattened entity turns, return the entity history for each token.
+        pad: used to fill in non-price targets.
+        '''
+        my_prices = deque([START_PRICE] * hist_len, maxlen=hist_len)
+        partner_prices = deque([START_PRICE] * hist_len, maxlen=hist_len)
+        price_hists = []
+        assert len(self.agents) == len(self.entities)
+        for agent, entities in izip(self.agents, self.entities):
+            h = []
+            if agent == self.agent:
+                price_queue = my_prices
+            else:
+                price_queue = partner_prices
+            # This is a padded turn at the beginning
+            if len(entities) == 0:
+                price_vec = [pad, agent] + list(my_prices) + list(partner_prices)
+                h.append(price_vec)
+            else:
+                for entity in entities:
+                    if entity is not None:
+                        p = float('{:.2f}'.format(get_price(entity)))
+                        price_queue.append(p)
+                    else:
+                        p = pad
+                    # NOTE: we put the current price p at the begining, will be sliced to be the price target later
+                    price_vec = [p, agent] + list(my_prices) + list(partner_prices)
+                    h.append(price_vec)
+            assert len(h) > 0
+            price_hists.append(h)
+        return price_hists
+
 
 class DialogueBatch(object):
     use_kb = False
@@ -284,6 +303,19 @@ class DialogueBatch(object):
                 T[i][0] = int_markers.GO_S if role == 'seller' else int_markers.GO_B
         return T
 
+    @classmethod
+    def _normalize_price_hist(cls, price_batch, roles):
+        '''
+        Perform the same ops as _normalize turn: pad price hist for padded tokens.
+        '''
+        max_num_tokens = max([len(t) for t in price_batch])
+        batch_size = len(price_batch)
+        feat_size = len(price_batch[0][0])
+        T = np.full([batch_size, max_num_tokens+1, feat_size], START_PRICE, dtype=np.float32)
+        for i, (turn, role) in enumerate(izip(price_batch, roles)):
+            T[i, 1:len(turn)+1, :] = turn
+        return T
+
     def _create_turn_batches(self):
         turn_batches = []
         for i in xrange(Dialogue.num_stages):
@@ -298,13 +330,20 @@ class DialogueBatch(object):
                 import sys; sys.exit()
         return turn_batches
 
+    def _create_price_batches(self):
+        price_batches = [self._normalize_price_hist(
+            [dialogue.price_hists[j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
+            for j in xrange(self.num_turns)]
+        return price_batches
+
+
     def _get_agent_batch(self, i):
         return [dialogue.agents[i] for dialogue in self.dialogues]
 
     def _get_kb_batch(self):
         return [dialogue.kb for dialogue in self.dialogues]
 
-    def _remove_last(self, array, value):
+    def _replace_eos(self, array, value):
         '''
         For each row, replace (in place) the last occurence of value to <pad>.
         The last token input to decoder should not be </s> otherwise the model will learn
@@ -318,11 +357,12 @@ class DialogueBatch(object):
                     break
         return array
 
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, encode_tokens, decode_tokens, agents, kbs):
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_turn, encode_tokens, decode_tokens, agents, kbs):
         if encode_turn is not None:
             # Remove <go> at the beginning of utterance
             encoder_inputs = encode_turn[:, 1:]
         else:
+            raise ValueError
             batch_size = decode_turn.shape[0]
             # If there's no input to encode, use </s> as the encoder input.
             encoder_inputs = np.full((batch_size, 1), int_markers.EOS, dtype=np.int32)
@@ -332,20 +372,19 @@ class DialogueBatch(object):
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
         decoder_inputs = np.copy(decode_turn)
-        decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
-        decoder_targets = target_turn[:, 1:]
+        decoder_inputs = self._replace_eos(decoder_inputs, int_markers.EOS)[:, :-1]
+        decoder_price_inputs = price_turn[:, :-1, 1:]
 
-        # Process entities. NOTE: change turns in place!
-        # prices to '<price>'
-        #encoder_inputs, encoder_prices  = Dialogue.textint_map.process_entity(encoder_inputs, 'encoding')
-        #decoder_inputs, decoder_prices = Dialogue.textint_map.process_entity(decoder_inputs, 'decoding')
-        #decoder_targets, price_targets = Dialogue.textint_map.process_entity(decoder_targets, 'target')
+        decoder_targets = target_turn[:, 1:]
+        price_targets = price_turn[:, 1:, 0]
 
         # TODO: use textint_map to process encoder/decoder_inputs here
         batch = {
                  'encoder_inputs': encoder_inputs,
                  'decoder_inputs': decoder_inputs,
                  'targets': decoder_targets,
+                 'decoder_price_inputs': decoder_price_inputs,
+                 'price_targets': price_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
                  'agents': agents,
@@ -364,7 +403,7 @@ class DialogueBatch(object):
     def create_batches(self):
         self._normalize_dialogue()
         turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
-        # TODO: create_price_batches
+        price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
         # A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
         batches = []
@@ -376,9 +415,11 @@ class DialogueBatch(object):
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], self._get_token_turns(i), self._get_token_turns(i+1), agents, kbs) for i in encode_turn_ids]
+        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), agents, kbs) for i in encode_turn_ids]
 
         batch = {
+                 'agent': agents,
+                 'kb': kbs,
                  'batch_seq': batch_seq,
                 }
         batches.append(batch)
@@ -483,7 +524,7 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, use_kb=False, copy=False):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, use_kb=False, copy=False, price_hist_len=3):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.use_kb = use_kb  # Whether to generate graph
@@ -505,6 +546,7 @@ class DataGenerator(object):
         self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
+        Dialogue.price_hist_len = 3
 
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
