@@ -1,10 +1,12 @@
 __author__ = 'anushabala'
 from boto.mturk.connection import MTurkConnection
 from boto.mturk.price import Price
+from boto.mturk.connection import MTurkRequestError
 from argparse import ArgumentParser
 import csv
 import sqlite3
 import json
+from src.model.preprocess import tokenize
 
 
 def process_db(cursor):
@@ -36,9 +38,33 @@ def get_turns_per_agent(transcript):
     return turns
 
 
+def get_avg_tokens_per_agent(transcript):
+    tokens = {0: 0., 1: 0.}
+    utterances = {0: 0., 1: 0.}
+    for event in transcript["events"]:
+        if event["action"] == "message":
+            msg_tokens = tokenize(event["data"])
+            tokens[event["agent"]] += len(msg_tokens)
+            utterances[event["agent"]] += 1
+
+    if utterances[0] != 0:
+        tokens[0] /= utterances[0]
+    if utterances[1] != 0:
+        tokens[1] /= utterances[1]
+
+    return tokens
+
+
 def is_chat_valid(transcript):
     turns = get_turns_per_agent(transcript)
+    avg_tokens = get_avg_tokens_per_agent(transcript)
 
+    if turns[0] < 4 or turns[1] < 4:
+        return False
+    if avg_tokens[0] < 5 or avg_tokens[1] < 5:
+        # print "Utterances too short: %s" % transcript["uuid"]
+        # print "Avg tokens: ", avg_tokens
+        return False
     if "outcome" not in transcript.keys():
         return False
 
@@ -47,10 +73,6 @@ def is_chat_valid(transcript):
     if outcome is None or outcome["reward"] is None:
         return False
 
-    if outcome["reward"] == 0 and (turns[0] < 4 or turns[1] < 4):
-        return False
-
-    assert outcome["reward"] == 1
     return True
 
 
@@ -131,6 +153,7 @@ def process_hits(survey_codes, agent_ids):
                 else:
                     print "VALID, NO WINNER: chat %s" % cid
 
+    print rejected_codes
     return rejected_codes, partial_credit, bonus_codes
 
 
@@ -144,18 +167,34 @@ def make_payments(mturk_conn, results_csv, bonus_amount, partial_amount, rejecte
         assignmentid = row[assignment_idx]
         workerid = row[worker_idx]
         code = row[code_idx]
+        try:
+            if code in rejected:
+                print "Rejecting assignment %s" % assignmentid
+                mturk_conn.reject_assignment(assignmentid,
+                                             feedback='Not enough of an attempt to complete the negotiation.')
+            elif code in partial:
+                print "Partial: will award partial credit as bonus for %s" % assignmentid
+                mturk_conn.reject_assignment(assignmentid,
+                                             feedback='Dialogue was incomplete; partial credit will '
+                                                      'be awarded as a bonus.')
+            else:
+                print "Approve assignment %s" % assignmentid
+                mturk_conn.approve_assignment(assignmentid,
+                                              feedback='Thanks for attempting this negotiation task! :)')
+        except MTurkRequestError as e:
+            print "FAILED: approve/reject:", e.reason
 
-        if code in rejected:
-            mturk_conn.reject_assignment(assignmentid, feedback='Not enough of an attempt to complete the negotiation')
-        else:
-            mturk_conn.approve_assignment(assignmentid, feedback='Thanks for attempting this negotiation task! :)')
-
-        if code in partial:
-            mturk_conn.grant_bonus(workerid, assignmentid, Price(amount=partial),
-                                   reason='For a good negotiation attempt!')
-        elif code in bonuses:
-            mturk_conn.grant_bonus(workerid, assignmentid, Price(amount=bonus_amount),
-                                                         reason='For great negotiation skills!')
+        try:
+            if code in partial:
+                print "Partial credit assignment %s" % assignmentid
+                mturk_conn.grant_bonus(workerid, assignmentid, Price(amount=partial_amount),
+                                       reason='For a good negotiation attempt!')
+            elif code in bonuses:
+                print "Bonus for assignemnt %s" % assignmentid
+                mturk_conn.grant_bonus(workerid, assignmentid, Price(amount=bonus_amount),
+                                       reason='For great negotiation skills!')
+        except MTurkRequestError as e:
+            print "FAILED: bonus: ", e.reason
 
 if __name__ == "__main__":
     parser = ArgumentParser()
