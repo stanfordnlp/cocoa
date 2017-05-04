@@ -86,7 +86,7 @@ def log_surveys_to_json(db_path, surveys_file):
     if config.task == config.MutualFriends:
         questions = ['fluent', 'correct', 'cooperative', 'humanlike', 'comments']
     elif config.task == config.Negotiation:
-        questions = ['fluent', 'honest', 'persuasive', 'fair', 'comments']
+        questions = ['fluent', 'honest', 'persuasive', 'fair', 'negotiator', 'comments']
     else:
         raise ValueError("Unknown task %s" % config.task)
 
