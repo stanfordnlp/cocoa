@@ -4,10 +4,10 @@ from src.lib import logstats
 from preprocess import markers
 from src.basic.entity import is_entity
 from src.model.evaluate import BaseEvaluator
-from preprocess import Dialogue
+from preprocess import Dialogue, price_filler
 
 # TODO: factor this
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None):
+def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None, prices=None):
     '''
     Convert integer predition to tokens. Remove PAD and EOS.
     preds: (batch_size, max_len)
@@ -25,8 +25,15 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
     entities = []
     if num_sents is None:
         num_sents = [1 for _ in preds]
-    for pred, n in izip(preds, num_sents):
-        tokens.append(textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols]))
+    for pred, n, price in izip(preds, num_sents, prices):
+        N = find_stop(pred, n)
+        assert len(pred) == len(price)
+        token_price = [(x, p) for x, p in izip(pred[:N], price[:N]) if not x in remove_symbols]
+        s = textint_map.int_to_text([x[0] for x in token_price], prices=[x[1] for x in token_price])
+        #s = textint_map.int_to_text([x[0] for x in token_price])
+    #for pred, n in izip(preds, num_sents):
+    #    s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
+        tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(BaseEvaluator):
@@ -43,10 +50,11 @@ class Evaluator(BaseEvaluator):
             max_len = targets.shape[1] + 10
             output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, textint_map=self.data.textint_map)
             preds = output_dict['preds']
+            prices = output_dict['prices']
             true_final_state = output_dict['true_final_state']
             encoder_init_state = true_final_state
             num_sents = np.sum(targets == self.stop_symbol, axis=1)
-            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents)
+            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
 
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 
@@ -61,6 +69,12 @@ class Evaluator(BaseEvaluator):
                 #probs = output_dict.get('probs', None)
                 # TODO: print
                 self._print_batch(batch, pred_tokens, references, bleu_scores)
+
+    def _process_target_tokens(self, tokens):
+        # TODO: hack
+        #targets = ['<%s>' % token[1][1] if is_entity(token) else token for token in tokens]
+        targets = [token[1] if is_entity(token) else token for token in tokens]
+        return targets
 
     def _print_batch(self, batch, preds, targets, bleu_scores):
         '''
@@ -77,12 +91,16 @@ class Evaluator(BaseEvaluator):
                 continue
             kb = kbs[i]
             kb.dump()
-            print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
-            print 'RAW TARGET:', Dialogue.original_price(kb, target)
+            #print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
+            #print 'RAW TARGET:', Dialogue.original_price(kb, target)
+            print 'RAW INPUT:', encoder_tokens[i]
+            print 'RAW TARGET:', target
             print '----------'
             print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
-            print 'TARGET:', Dialogue.original_price(kb, target)
-            print 'PRED:', Dialogue.original_price(kb, pred)
+            #print 'TARGET:', Dialogue.original_price(kb, target)
+            #print 'PRED:', Dialogue.original_price(kb, pred)
+            print 'TARGET:', target
+            print 'PRED:', pred
             print 'BLEU:', bleu
 
     def get_stats(self, summary_map):

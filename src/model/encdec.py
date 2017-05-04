@@ -249,7 +249,7 @@ class BasicDecoder(BasicEncoder):
 
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=targets) * token_weights
         total_loss = tf.reduce_sum(loss)
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         # Average over words in each sequence (batch_size, 1)
@@ -279,8 +279,6 @@ class BasicDecoder(BasicEncoder):
             assert batch_size == 1, 'Early stop only works for single instance'
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
-        # last_inds=0 because input length is one from here on
-        last_inds = np.zeros([batch_size], dtype=np.int32)
         for i in xrange(max_len):
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             step_preds = self.sampler.sample(logits)
@@ -288,7 +286,6 @@ class BasicDecoder(BasicEncoder):
             if step_preds[0][0] == stop_symbol:
                 break
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                    last_inds=last_inds,
                     init_state=final_state)
         return {'preds': preds, 'final_state': final_state}
 

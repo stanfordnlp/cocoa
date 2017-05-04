@@ -2,7 +2,8 @@ import tensorflow as tf
 import numpy as np
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
-from preprocess import markers
+from preprocess import markers, START_PRICE
+from price_buffer import PriceBuffer
 
 # TODO: refactor this class
 class BasicEncoderDecoder(object):
@@ -77,9 +78,12 @@ class BasicEncoderDecoder(object):
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
-        # TODO: get_decoder_args
+        # TODO: get_decoder_args for refactor
+        price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
         decoder_args = {'inputs': decoder_inputs[:, [0]],
                 'init_state': encoder_output_dict['final_state'],
+                'price_symbol': textint_map.vocab.to_ind('<price>'),
+                'price_predictor': price_args,
                 'textint_map': textint_map
                 }
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
@@ -91,9 +95,15 @@ class BasicEncoderDecoder(object):
         #feed_dict[self.encoder.keep_prob] = 1. - self.encoder.dropout
         true_final_state = sess.run((self.final_state), feed_dict=feed_dict)
         return {'preds': decoder_output_dict['preds'],
+                'prices': decoder_output_dict['prices'],
                 'final_state': decoder_output_dict['final_state'],
                 'true_final_state': true_final_state,
                 }
+        #return {'preds': decoder_output_dict['preds'],
+        #        'prices': None,
+        #        'final_state': decoder_output_dict['final_state'],
+        #        'true_final_state': true_final_state,
+        #        }
 
 class PriceDecoder(object):
     '''
@@ -101,7 +111,13 @@ class PriceDecoder(object):
     '''
     def __init__(self, decoder, price_predictor):
         self.decoder = decoder
-        self.price_predictor = price_predictor.build_model(decoder.output_dict['outputs'])
+        self.price_predictor = price_predictor
+
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
+        self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
+        # NOTE: output from rnn is time major
+        context = transpose_first_two_dims(self.decoder.output_dict['outputs'])
+        self.price_predictor.build_model(context)
 
         # Outputs
         self.output_dict = dict(self.decoder.output_dict)
@@ -115,6 +131,58 @@ class PriceDecoder(object):
         return loss, seq_loss, total_loss
 
     def get_feed_dict(self, **kwargs):
-        feed_dict = self.decoder.get_feed_dict(**kwargs.pop('decoder'))
+        feed_dict = self.decoder.get_feed_dict(**kwargs)
         feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
         return feed_dict
+
+    def get_encoder_state(self, state):
+        '''
+        Given the hidden state to the encoder to continue from there.
+        '''
+        return self.decoder.get_encoder_state(state)
+
+    def pred_to_input(self, preds, **kwargs):
+        '''
+        Convert predictions to input of the next decoding step.
+        '''
+        textint_map = kwargs.pop('textint_map')
+        inputs = textint_map.pred_to_input(preds)
+        return inputs
+
+    def run_decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
+        #return self.decoder.run_decode(sess, max_len, batch_size=batch_size, stop_symbol=stop_symbol, **kwargs)
+        if stop_symbol is not None:
+            assert batch_size == 1, 'Early stop only works for single instance'
+        price_symbol = kwargs.pop('price_symbol')
+        feed_dict = self.get_feed_dict(**kwargs)
+        preds = np.zeros([batch_size, max_len], dtype=np.int32)
+        prices = np.zeros([batch_size, max_len], dtype=np.float32)
+        # reshape: squeeze step dim; we are only considering one step
+        price_buffer = PriceBuffer(init_price_batch=kwargs['price_predictor']['inputs'].reshape(batch_size, -1))
+
+        for i in xrange(max_len):
+            logits, final_state, price = sess.run((self.output_dict['logits'], self.output_dict['final_state'], self.output_dict['prices']), feed_dict=feed_dict)
+            step_preds = self.decoder.sampler.sample(logits)  # (batch_size, 1)
+
+            preds[:, [i]] = step_preds
+            if step_preds[0][0] == stop_symbol:
+                break
+
+            # Update price
+            mask = (step_preds == price_symbol).reshape(-1)
+            # At least one <price>
+            if np.sum(mask) > 0:
+                # NOTE: price is (batch_size, 1)
+                price_buffer.add(price.reshape(batch_size), mask, True)
+            prices[:, [i]] = price
+
+            price_batch = price_buffer.to_price_batch()
+            #print price_batch
+            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
+                    price_predictor={'inputs': price_batch},
+                    init_state=final_state)
+
+        # TODO: hack
+        #print prices
+        prices = np.around(prices, decimals=2)
+        return {'preds': preds, 'prices': prices, 'final_state': final_state}

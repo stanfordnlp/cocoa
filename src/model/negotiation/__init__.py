@@ -31,15 +31,18 @@ def get_data_generator(args, model_args, mappings, schema):
 
 def add_model_arguments(parser):
     from src.model.encdec import add_basic_model_arguments
+    from price_predictor import add_price_predictor_arguments
 
     add_basic_model_arguments(parser)
+    add_price_predictor_arguments(parser)
 
 # TODO: factor this
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
-    from encdec import BasicEncoderDecoder
+    from price_predictor import PricePredictor
+    from encdec import BasicEncoderDecoder, PriceDecoder
     from preprocess import markers
 
     tf.reset_default_graph()
@@ -63,6 +66,10 @@ def build_model(schema, mappings, args):
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
         decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
+        if args.predict_price:
+            # TODO: hack. add PriceStack to record and return prices
+            price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
+            decoder = PriceDecoder(decoder, price_predictor)
         model = BasicEncoderDecoder(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=re_encode)
     else:
         raise ValueError('Unknown model')

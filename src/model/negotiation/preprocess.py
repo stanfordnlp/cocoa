@@ -23,6 +23,9 @@ SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', '
 markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', PAD='<pad>')
 START_PRICE = -1
 
+def price_filler(x):
+    return x == '<price>'
+
 def tokenize(utterance):
     '''
     'hi there!' => ['hi', 'there', '!']
@@ -80,13 +83,14 @@ class TextIntMap(object):
         self.entity_forms = preprocessor.entity_forms
         self.preprocessor = preprocessor
 
-    def pred_to_input(self, preds):
+    def pred_to_input(self, preds, prices=None):
         '''
         Convert decoder outputs to decoder inputs.
         '''
         if self.entity_forms['target'] == self.entity_forms['decoding']:
             return preds
         preds_utterances = [self.int_to_text(pred) for pred in preds]
+        # TODO: fill in <price>!!
         input_utterances = [self.preprocessor.process_utterance(utterance, 'decoding') for utterance in preds_utterances]
         inputs = np.array([self.text_to_int(utterance, 'decoding') for utterance in input_utterances])
         return inputs
@@ -99,11 +103,16 @@ class TextIntMap(object):
         tokens = self.preprocessor.process_utterance(utterance, stage)
         return [self.vocab.to_ind(token) for token in tokens]
 
-    def int_to_text(self, inds, stage=None):
+    def int_to_text(self, inds, stage=None, prices=None):
         '''
         Inverse of text_to_int.
         '''
-        return [self.vocab.to_word(ind) for ind in inds]
+        toks = [self.vocab.to_word(ind) for ind in inds]
+        if prices is not None:
+            assert len(inds) == len(prices)
+            toks = [CanonicalEntity(value=p, type='price') if price_filler(x) else x for x, p in izip(toks, prices)]
+            #toks = ['<price>' if price_filler(x) else x for x, p in izip(toks, prices)]
+        return toks
 
 class Dialogue(object):
     textint_map = None
@@ -148,7 +157,10 @@ class Dialogue(object):
         assert w != 0
         p = (p - c) / w
         p = int(p)
-        return price._replace(canonical=price.canonical._replace(value=p))
+        if isinstance(price, Entity):
+            return price._replace(canonical=price.canonical._replace(value=p))
+        else:
+            return price._replace(value=p)
 
     @classmethod
     def _normalize_price(cls, kb, price):
@@ -311,9 +323,13 @@ class DialogueBatch(object):
         max_num_tokens = max([len(t) for t in price_batch])
         batch_size = len(price_batch)
         feat_size = len(price_batch[0][0])
-        T = np.full([batch_size, max_num_tokens+1, feat_size], START_PRICE, dtype=np.float32)
+        T = np.full([batch_size, max_num_tokens+1, feat_size], int_markers.PAD, dtype=np.float32)
         for i, (turn, role) in enumerate(izip(price_batch, roles)):
             T[i, 1:len(turn)+1, :] = turn
+            # TODO: fix the condition
+            #if T[i][1][0] != int_markers.PAD:
+            # TODO: it should be copying from previous price batch, not init contidition!!
+            T[i, 0, :] = T[i, 1, :]
         return T
 
     def _create_turn_batches(self):

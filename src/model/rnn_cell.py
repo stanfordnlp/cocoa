@@ -3,18 +3,17 @@ RNN cell with attention over an input context.
 '''
 
 import tensorflow as tf
-from tensorflow.python.ops.math_ops import tanh
-from tensorflow.python.ops.rnn_cell import _linear as linear
-from src.model.util import batch_linear, batch_embedding_lookup, EPS
+from src.model.util import linear, batch_linear, batch_embedding_lookup, EPS
 
 def add_attention_arguments(parser):
     parser.add_argument('--attn-scoring', default='linear', help='How to compute scores between hidden state and context {bilinear, linear}')
     parser.add_argument('--attn-output', default='project', help='How to combine rnn output and attention {concat, project}')
     parser.add_argument('--no-checklist', default=False, action='store_true', help='Whether to include checklist at each RNN step')
 
-recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
-                  'gru': tf.nn.rnn_cell.GRUCell,
-                  'lstm': tf.nn.rnn_cell.LSTMCell,
+rnn_cell = tf.contrib.rnn
+recurrent_cell = {'rnn': rnn_cell.BasicRNNCell,
+                  'gru': rnn_cell.GRUCell,
+                  'lstm': rnn_cell.LSTMCell,
                  }
 
 activation = tf.tanh
@@ -28,11 +27,11 @@ def build_rnn_cell(rnn_type, rnn_size, num_layers, keep_prob):
     else:
         cell = recurrent_cell[rnn_type](rnn_size)
     if num_layers > 1:
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob)
-        cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+        cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob)
+        cell = rnn_cell.MultiRNNCell([cell] * num_layers)
+        cell = rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
     else:
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+        cell = rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
     return cell
 
 class AttnRNNCell(object):

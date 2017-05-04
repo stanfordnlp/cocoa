@@ -54,6 +54,8 @@ class BaseLearner(object):
             self._run_batch(dialogue_batch, sess, summary_map, test=True)
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
+
+    # TODO: factor this
     def _print_batch(self, batch, preds, loss):
         encoder_tokens = batch['encoder_tokens']
         encoder_inputs = batch['encoder_inputs']
@@ -71,7 +73,9 @@ class BaseLearner(object):
             print '----------'
             print 'ENC INPUT:', self.data.textint_map.int_to_text(encoder_inputs[i], 'encoding')
             print 'DEC INPUT:', self.data.textint_map.int_to_text(decoder_inputs[i], 'decoding')
+            print 'PRICE INPUT:', batch['decoder_price_inputs'][i]
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
+            print 'PRICE TARGET:', batch['price_targets'][i]
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
             print 'LOSS:', loss[i]
 

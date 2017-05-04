@@ -14,8 +14,12 @@ class Learner(BaseLearner):
         encoder_args = {'inputs': batch['encoder_inputs'],
                 'init_state': encoder_init_state,
                 }
+        price_args = {'inputs': batch['decoder_price_inputs'],
+                'targets': batch['price_targets'],
+                }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'targets': targets,
+                'price_predictor': price_args,
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
