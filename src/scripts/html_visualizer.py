@@ -53,7 +53,7 @@ class BaseHTMLVisualizer(object):
             return False, None
 
         chat_html= ['<div class=\"chatLog\">',
-                '<div class=\"divTitle\"> Chat Log </div>',
+                '<div class=\"divTitle\"> Chat Log: %s </div>' % chat['uuid'],
                 '<table class=\"chat\">']
         agent_str = {0: '', 1: ''}
 
