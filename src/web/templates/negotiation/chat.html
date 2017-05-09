@@ -173,7 +173,7 @@
                 $('#description').modal('hide')
 
             	
-				initializeClock('clockdiv', deadline);
+				//initializeClock('clockdiv', deadline);
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
 				validCheckInterval = setInterval(pollServer, 3000);
@@ -412,20 +412,22 @@
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p> You just saw the following post: </p>
                 {% else %}
-                    <p> You have posted the following ad: </p>
+                    <p> You have posted the following ad (note that the buyer may not see all information): </p>
                 {% endif %}
                 <br>
                 <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
+                {% if kb['personal']['Role'] == 'seller' %}
                 <p>
                     {% for s in kb['item']['Description'] %}
                         {{ s }}<br/>     
                     {% endfor %}
                 </p>
+                {% endif %}
                 </div>
                 <br>
                 {% if kb['personal']['Role'] == 'buyer' %}
-                    <p>You really like this car and decide to negotiate with the seller about the price.</p>
+                    <p>You are very interested in this car and decide to ask about its details and negotiate the price.</p>
                 {% else %}
                     <p>You want to get rid of this car soon and are willing to negotiate the price.</p>
                 {% endif %}
@@ -444,13 +446,14 @@
                 </div>
             </div>
 
+            <!--
             <div id="clockdiv" align="right">
               Time Remaining: 
               <div>
                 <span class="minutes"></span>
                 <span class="seconds"></span>
               </div>
-            </div>
+            </div> -->
 
             <textarea readonly id="chat"></textarea>
             <input readonly id="status" style="width:100%;"><br><br>
@@ -468,7 +471,7 @@
                 </div>
             </div>
             <div id="facts">
-                <h3>Goal</h3>
+                <h3>Scenario</h3>
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You are the potential <b>buyer</b>.
                     Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
@@ -487,9 +490,11 @@
                         {% if attr == 'Title' %}
                             <p><b>{{ kb['item'][attr] }}</b></p>
                         {% elif attr == 'Description' %}
+                            {% if kb['personal']['Role'] == 'seller' %}
                             {% for s in kb['item'][attr] %}
                                 {{ s }}<br/>     
                             {% endfor %}
+                            {% endif %}
                         {% else %}
                             <tr>
                                 <td><b>{{attr}}</b></td>
@@ -518,8 +523,8 @@
             {% endif %}
 
             <div id="offer">
-                <h4>Make offer:</h4>
-                <h4>You can only offer once.</h4>
+                <h4>Final agreement:</h4>
+                <h4>You can only enter it once.</h4>
                 <input id="price" pattern="\d+"/>
                 <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
             </div>
