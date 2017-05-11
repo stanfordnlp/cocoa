@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from src.scripts.dataset_statistics import get_total_statistics, print_group_stats
+from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
 from argparse import ArgumentParser
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB
@@ -49,6 +49,8 @@ def compute_avg_description_overlap(transcripts):
     num_agents = 0
     total_overlap = 0.
     for t in transcripts:
+        if not is_chat_valid(t) and not is_partial_chat(t):
+            continue
         overlap = description_overlap(t)
         total_overlap += overlap[0] + overlap[1]
         num_agents += 2
@@ -60,6 +62,8 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     avg_overlaps = []
     ratings = dict((q,[]) for q in questions)
     for t in transcripts:
+        if not is_chat_valid(t) and not is_partial_chat(t):
+            continue
         cid = t["uuid"]
         overlap = description_overlap(t)
         if cid not in surveys.keys():
