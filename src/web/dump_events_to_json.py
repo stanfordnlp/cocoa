@@ -3,14 +3,16 @@ from src.basic.systems.human_system import HumanSystem
 __author__ = 'anushabala'
 import sqlite3
 import json
+import os
 from src.basic.event import Event
 from src.basic.dataset import Example
 from src.basic.kb import KB
 from argparse import ArgumentParser
 from src.basic.scenario_db import add_scenario_arguments, ScenarioDB
 from src.basic.schema import Schema
-from src.basic.util import read_json
+from src.basic.util import read_json, write_json
 from datetime import datetime
+from collections import defaultdict
 
 date_fmt = '%Y-%m-%d %H-%M-%S'
 
@@ -130,6 +132,53 @@ def convert_time_format(time):
 
     return None
 
+def read_results_csv(csv_file):
+    '''
+    Return a dict from mturk_code to worker_id.
+    '''
+    import csv
+    reader = csv.reader(open(csv_file, 'r'))
+    header = reader.next()
+    worker_idx = header.index('WorkerId')
+    code_idx = header.index('Answer.surveycode')
+    d = {}
+    for row in reader:
+        workerid = row[worker_idx]
+        code = row[code_idx]
+        d[code] = workerid
+    return d
+
+def log_worker_id_to_json(db_path, batch_results):
+    '''
+    {chat_id: {'0': worker_id; '1': worker_id}}
+    '''
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT chat_id, agent_ids FROM chat')
+
+    d = {}
+    code_to_wid = read_results_csv(batch_results)
+    for chat_id, agent_uids in cursor.fetchall():
+        agent_wid = {}
+        agent_uids = eval(agent_uids)
+        for agent_id, agent_uid in agent_uids.iteritems():
+            if not (isinstance(agent_uid, basestring) and agent_uid.startswith('U_')):
+                agent_wid[agent_id] = None
+            else:
+                cursor.execute('''SELECT mturk_code FROM mturk_task WHERE name=?''', (agent_uid,))
+                res = cursor.fetchall()
+                if len(res) > 0:
+                    mturk_code = res[0][0]
+                    # TODO: why is this possible
+                    if mturk_code not in code_to_wid:
+                        continue
+                    else:
+                        agent_wid[agent_id] = code_to_wid[mturk_code]
+        d[chat_id] = agent_wid
+    output_dir = os.path.dirname(batch_results)
+    write_json(d, output_dir + '/worker_ids.json')
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -140,6 +189,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', type=str, required=True, help='File to write JSON examples to.')
     parser.add_argument('--uid', type=str, nargs='*', help='Only print chats from these uids')
     parser.add_argument('--surveys', type=str, help='If provided, writes a file containing results from user surveys.')
+    parser.add_argument('--batch-results', type=str, help='If provided, write a mapping from chat_id to worker_id')
     args = parser.parse_args()
     schema = Schema(args.schema_path, args.domain)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
@@ -147,3 +197,5 @@ if __name__ == "__main__":
     log_transcripts_to_json(scenario_db, args.db, args.output, args.uid)
     if args.surveys:
         log_surveys_to_json(args.db, args.surveys)
+    if args.batch_results:
+        log_worker_id_to_json(args.db, args.batch_results)
