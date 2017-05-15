@@ -55,7 +55,7 @@ def get_avg_tokens_per_agent(transcript):
     return tokens
 
 
-def is_chat_valid(transcript):
+def is_chat_valid(transcript, idx):
     turns = get_turns_per_agent(transcript)
     avg_tokens = get_avg_tokens_per_agent(transcript)
 
@@ -70,7 +70,7 @@ def is_chat_valid(transcript):
     if outcome["reward"] == 1:
         return True
 
-    if (turns[0] < 4 or turns[1] < 4) and (avg_tokens[0] < 5 or avg_tokens[1] < 5):
+    if turns[idx] < 4 and avg_tokens[idx] < 5 :
         # print "Utterances too short: %s" % transcript["uuid"]
         # print "Avg tokens: ", avg_tokens
         return False
@@ -111,12 +111,13 @@ def get_winner(transcript):
     return -1
 
 
-def is_partial_chat(transcript):
+def is_partial_chat(transcript, idx):
     outcome = transcript["outcome"]
-    if is_chat_valid(transcript) and outcome["reward"] == 0:
+    if is_chat_valid(transcript, idx) and outcome["reward"] == 0:
         turns = get_turns_per_agent(transcript)
         avg_tokens = get_avg_tokens_per_agent(transcript)
-        if (turns[0] < 4 or turns[1] < 4) and (avg_tokens[0] < 5 or avg_tokens[1] < 5):
+        # print turns, avg_tokens
+        if turns[idx] < 4 and avg_tokens[idx] < 5:
             return False
         return True
 
@@ -134,23 +135,24 @@ def read_chats(transcripts_file):
 
 
 def process_hits(survey_codes, agent_ids):
-    rejected_codes = set()
-    partial_credit = set()
-    bonus_codes = set()
+    rejected_codes = {}
+    partial_credit = {}
+    bonus_codes = {}
     for cid in survey_codes.keys():
         for (code, uid) in survey_codes[cid]:
-            if not is_chat_valid(all_chats[cid]):
-                print "REJECT: chat %s" % cid
-                rejected_codes.add(code)
-            elif is_partial_chat(all_chats[cid]):
-                print "PARTIAL CREDIT: chat %s " % cid
-                partial_credit.add(code)
+            idx = 0 if agent_ids[cid][0] == uid else 1
+            if not is_chat_valid(all_chats[cid], idx):
+                print "REJECT: chat %s, agent %d" % (cid, idx)
+                rejected_codes[code] = (cid, idx)
+            elif is_partial_chat(all_chats[cid], idx):
+                print "PARTIAL CREDIT: chat %s, agent %d " % (cid, idx)
+                partial_credit[code] = (cid, idx)
             else:
                 winner = get_bonus_users(all_chats[cid])
                 if winner >= 0:
-                    if agent_ids[cid][winner] == uid:
+                    if winner == idx:
                         # print "BONUS: agent %d in chat %s" % (winner, cid)
-                        bonus_codes.add(code)
+                        bonus_codes[code] = (cid, idx)
                     # else:
                     #     print "PARTNER BONUS: agent %d in chat %s" % (1-winner, cid)
                 else:
@@ -170,18 +172,18 @@ def make_payments(mturk_conn, results_csv, bonus_amount, rejected, partial, bonu
         workerid = row[worker_idx]
         code = row[code_idx]
         try:
-            if code in rejected:
-                print "Rejecting assignment %s" % assignmentid
+            if code in rejected.keys():
+                print "Rejecting assignment %s: chat %s, agent %d, worker %s" % (assignmentid, rejected[code][0], rejected[code][1], workerid)
                 if not debug:
                     mturk_conn.reject_assignment(assignmentid,
                                                  feedback='Not enough of an attempt to complete the negotiation.')
-            elif code in partial:
-                print "Partial: approving assignment %s" % assignmentid
+            elif code in partial.keys():
+                print "Partial: approving assignment %s: chat %s, agent %d, worker %s" % (assignmentid, partial[code][0], partial[code][1], workerid)
                 if not debug:
                     mturk_conn.approve_assignment(assignmentid,
                                                  feedback='Thanks for attempting this negotiation task! :)')
             else:
-                print "Approve assignment %s" % assignmentid
+                # print "Approve assignment %s: " % code
                 if not debug:
                     mturk_conn.approve_assignment(assignmentid,
                                                   feedback='Thanks for attempting this negotiation task! :)')
@@ -189,11 +191,12 @@ def make_payments(mturk_conn, results_csv, bonus_amount, rejected, partial, bonu
             print "FAILED: approve/reject:", e.reason
 
         try:
-            if code in bonuses:
-                print "Bonus for assignemnt %s" % assignmentid
+            if code in bonuses.keys():
+                print "Bonus for assignment %s: chat %s, agent %d, worker %s" % (assignmentid, bonuses[code][0], bonuses[code][1], workerid)
                 if not debug:
                     mturk_conn.grant_bonus(workerid, assignmentid, Price(amount=bonus_amount),
                                            reason='For great negotiation skills!')
+            pass
         except MTurkRequestError as e:
             print "FAILED: bonus: ", e.reason
 
