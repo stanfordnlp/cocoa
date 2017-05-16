@@ -54,7 +54,13 @@ def generate_kbs(schema, listing):
     for attr in schema.attributes:
         if attr.name in ('Role', 'Target', 'Bottomline'):
             continue
-        buyer_item[attr.name] = listing[attr.name.lower()]
+        l = listing[attr.name.lower()]
+        if attr.name == 'Description':
+            # NOTE: Buyer only sees the first half
+            N = max(1, len(l) / 2)
+            buyer_item[attr.name] = l[:N]
+        else:
+            buyer_item[attr.name] = l
         seller_item[attr.name] = listing[attr.name.lower()]
     seller_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'seller'}, 'item': seller_item})
     buyer_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'buyer'}, 'item': buyer_item})
