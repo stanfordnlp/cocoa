@@ -11,33 +11,11 @@ from src.basic.schema import Schema
 from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
 from src.basic.util import generate_uuid, write_json, read_json
 from src.basic.kb import NegotiationKB
+from itertools import izip_longest
 
 private_attr = ['Laundry', 'Pet', 'Built data', 'Neighborhood']
 BUYER = NegotiationScenario.BUYER
 SELLER = NegotiationScenario.SELLER
-
-def generate_simulated_kbs(schema):
-    buyer_item, seller_item = {}, {}
-    for attr in schema.attributes:
-        if attr.name in ('Role', 'Target', 'Bottomline'):
-            continue
-        value_set = schema.values[attr.value_type]
-        if attr.multivalued:
-            num_values = np.random.randint(1, 4)  # 1 to 3 values
-            value = tuple(np.random.choice(value_set, num_values, replace=False))
-        else:
-            value = random.choice(value_set)
-        seller_item[attr.name] = value
-        if attr.name in private_attr and random.random() < 0.5:
-            buyer_item[attr.name] = None
-        else:
-            buyer_item[attr.name] = value
-    seller_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'seller'}, 'item': seller_item})
-    buyer_kb = NegotiationKB(schema.attributes, {'personal': {'Role': 'buyer'}, 'item': buyer_item})
-    kbs = [None, None]
-    kbs[BUYER] = buyer_kb
-    kbs[SELLER] = seller_kb
-    return kbs
 
 def is_valid_line(line):
     if 'contact' in line.lower():
@@ -71,7 +49,7 @@ def process_listing(listing):
 
     return listing
 
-def generate_scraped_kbs(schema, listing):
+def generate_kbs(schema, listing):
     buyer_item, seller_item = {}, {}
     for attr in schema.attributes:
         if attr.name in ('Role', 'Target', 'Bottomline'):
@@ -85,12 +63,6 @@ def generate_scraped_kbs(schema, listing):
     kbs[SELLER] = seller_kb
     return kbs
 
-def generate_kbs(schema, listing):
-    if not listing:
-        return generate_simulated_kbs(schema)
-    else:
-        return generate_scraped_kbs(schema, listing)
-
 def discretize(price, price_unit):
     price = int(price / price_unit)
     return price
@@ -101,18 +73,15 @@ def generate_price_range(base_price, price_unit, intersections, flexibility=0.2)
     intersections: percentage of intersection relative to the range
     '''
     base_price = discretize(base_price, price_unit)
-    seller_range = (base_price * (1. - flexibility),
-            base_price * (1. + flexibility))
-    range_size = seller_range[1] - seller_range[0]
+    seller_bottomline = base_price * (1. - flexibility)
+    seller_range = base_price * flexibility
     for i in intersections:
-        intersection = i * range_size
-        buyer_upperbound = seller_range[0] + intersection
-        buyer_range = (buyer_upperbound - range_size, buyer_upperbound)
+        intersection = i * seller_range
+        buyer_bottomline = seller_bottomline + intersection
 
-        yield {SELLER: {'Bottomline': int(seller_range[0]) * price_unit,
-                         'Target': int(seller_range[1]) * price_unit},
-                BUYER: {'Bottomline': int(buyer_range[1]) * price_unit,
-                        'Target': int(buyer_range[0]) * price_unit},
+        yield {
+                SELLER: {'Bottomline': int(seller_bottomline) * price_unit, 'Target': None},
+                BUYER: {'Bottomline': int(buyer_bottomline) * price_unit, 'Target': None},
                 'intersection': i,
               }
 
@@ -125,7 +94,7 @@ def generate_scenario(schema, base_price, price_unit, intersections, flexibility
                 kbs = generate_kbs(schema, listing)
                 kbs[BUYER].facts['personal'].update(ranges[BUYER])
                 kbs[SELLER].facts['personal'].update(ranges[SELLER])
-                yield NegotiationScenario(generate_uuid('S'), listing['post_id'], schema.attributes, kbs, ranges['intersection'])
+                yield NegotiationScenario(generate_uuid('S'), listing['post_id'], listing['category'], listing['images'], schema.attributes, kbs, ranges['intersection'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -133,8 +102,8 @@ if __name__ == '__main__':
     parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=-1)
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.6, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
-    parser.add_argument('--text', required=True, help="JSON file containing text listings")
-    parser.add_argument('--price-unit', default=50, help="Unit for discretizing prices")
+    parser.add_argument('--scraped-data', nargs='+', required=True, help="JSON file containing text listings")
+    parser.add_argument('--price-unit', default=10, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
     args = parser.parse_args()
 
@@ -143,7 +112,9 @@ if __name__ == '__main__':
 
     schema = Schema(args.schema_path)
 
-    listings = read_json(args.text)
+    listings = [read_json(data) for data in args.scraped_data]
+    # Interleave listings from different categories so we have a balanced scenario set
+    listings = [x for l in izip_longest(*listings, fillvalue=None) for x in l if x is not None]
     base_price = None
 
     scenario_list = []
