@@ -417,13 +417,11 @@
                 <br>
                 <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
-                {% if kb['personal']['Role'] == 'seller' %}
                 <p>
                     {% for s in kb['item']['Description'] %}
                         {{ s }}<br/>     
                     {% endfor %}
                 </p>
-                {% endif %}
                 </div>
                 <br>
                 {% if kb['personal']['Role'] == 'buyer' %}
@@ -490,11 +488,9 @@
                         {% if attr == 'Title' %}
                             <p><b>{{ kb['item'][attr] }}</b></p>
                         {% elif attr == 'Description' %}
-                            {% if kb['personal']['Role'] == 'seller' %}
                             {% for s in kb['item'][attr] %}
                                 {{ s }}<br/>     
                             {% endfor %}
-                            {% endif %}
                         {% else %}
                             <tr>
                                 <td><b>{{attr}}</b></td>
