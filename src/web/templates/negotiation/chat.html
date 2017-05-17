@@ -173,6 +173,8 @@
 
                 $('#description').modal('hide')
 
+                // $('#accept').style.display = 'none';
+                // $('#reject').style.display = 'none';
             	
 				//initializeClock('clockdiv', deadline);
 
@@ -221,13 +223,17 @@
 
             function makeOffer() {
                 num_offer += 1;
-                var price = parseInt($('#price').val())
+                var price = parseInt($('#price').val());
+                var sides = $('#side_offers').val();
+                $("#price").attr("disabled", "disabled")
+                $("#side_offers").attr("disabled", "disabled")
                 $.ajax({
                     url: BASE_URL + '/_offer/',
                     type: "get",
                     data: { 
                         "uid": "{{ uid }}",
-                        "offer": price
+                        "price": price,
+                        "sides": sides
                     },
                     dataType: "json",
                     success: function(response) {
@@ -237,6 +243,33 @@
                 });
             }
             
+            function accept() {
+                $.ajax({
+                    url: BASE_URL +'/_accept_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
+
+            function reject() {
+                $.ajax({
+                    url: BASE_URL +'/_reject_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
             function quit() {
                 $.ajax({
                     url: BASE_URL + '/_quit/',
@@ -306,13 +339,30 @@
                     data: { "uid": "{{ uid }}" },
                     dataType: "json",
                     success: function(response) {
-                        if(response['received']    ) {
+                        if(response['received']) {
                             if(response['status']) {
                                 displayStatus(response['message'])
                             } else {
                                 displayText(response['message']);
                             }
-                            
+                            if ('price' in response) {
+                                $("#price").attr("disabled", "disabled")
+                                $("#side_offers").attr("disabled", "disabled")
+                                
+                                $('#price').val(response['price']);
+                            }
+                            if ('sides' in response) {
+                                if(response['sides'].length == 0) {
+                                    $('#side_offers').val("<No additional terms>");
+                                } else {
+                                    $('#side_offers').val(response['sides']);
+                                }
+                            }
+
+                                $('#submit').hide();
+                                $('#accept').show();
+                                $('#reject').show();
+                                
                         }
                     }
                 });
@@ -398,7 +448,7 @@
 		</script>
     </head>
     
-    <body onload='init()' oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
+    <body oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
     <div class="clearfix">
         <!-- Modal -->
         <div class="modal fade" id="description" role="dialog">
@@ -419,6 +469,9 @@
                 <br>
                 <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
+                {% if kb['item']['Images']|length >= 1 %}
+                <img height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
+                {% endif %}
                 <p>
                     {% for s in kb['item']['Description'] %}
                         {{ s }}<br/>     
@@ -427,9 +480,9 @@
                 </div>
                 <br>
                 {% if kb['personal']['Role'] == 'buyer' %}
-                    <p>You are very interested in this car and decide to ask about its details and negotiate the price.</p>
+                    <p>You are very interested in this item and decide to ask about its details and negotiate the price.</p>
                 {% else %}
-                    <p>You want to get rid of this car soon and are willing to negotiate the price.</p>
+                    <p>You want to get rid of this item soon and are willing to negotiate the price.</p>
                 {% endif %}
               </div>
             </div>
@@ -463,9 +516,9 @@
 
         <div id="info_container">
             <div id="topright">
-                <div id="icon">
+                <!-- <div id="icon">
                     <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
-                </div>
+                </div> -->
                 <div style="display:none; color:#FF0000;" id="leave">
                     <h4><a href="javascript:skipChat();">Click here</a> to quit this chat.</h4>
                 </div>
@@ -474,24 +527,29 @@
                 <h3>Scenario</h3>
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You are the potential <b>buyer</b>.
-                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
-                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
+                    The most you can afford to pay is <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                     The lower the better.</p>
                 {% else %}
                     <p>You are the <b>seller</b>.
-                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
-                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
+                    You can accept an offer as low as <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                     The higher the better.</p>
                 {% endif %}
                 <h3>Basic facts</h3>
                 <table>
                 <tbody>
-                    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline') %}
+                    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline' or attr == 'Price' or attr == 'Images' or attr == 'Category') %}
                         {% if attr == 'Title' %}
                             <p><b>{{ kb['item'][attr] }}</b></p>
+                            {% if kb['item']['Images']|length >= 1 %}
+                <img height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
+                {% endif %}
                         {% elif attr == 'Description' %}
                             {% for s in kb['item'][attr] %}
+                            <div id="description" style="overflow: auto;">
                                 {{ s }}<br/>     
+                            </div>
                             {% endfor %}
                         {% else %}
                             <tr>
@@ -514,7 +572,7 @@
                 <div id="facts">
                     <h3>Partner Goal</h3>
                     <p>
-                    Try to negotiate <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}. 
                     but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                     </p>
                 </div>
@@ -523,8 +581,13 @@
             <div id="offer">
                 <h4>Final agreement:</h4>
                 <h4>You can only enter it once.</h4>
+                <label for="price">Price</label>
                 <input id="price" pattern="\d+"/>
-                <button onclick="this.disabled=true;makeOffer()" id="submit">Submit</button>
+                <label for="side_offers">Additional Terms</label>
+                <input id="side_offers" />
+                <button onclick="this.disabled=true;makeOffer()" style="display:inline-block" id="submit">Submit</button>
+                <button onclick="this.disabled=true;accept();" style="display:none" id="accept">Accept</button>
+                <button onclick="this.disabled=true;reject();" style="display:none" id="reject">Reject</button>
             </div>
             <div id="quit_option">
                 <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>

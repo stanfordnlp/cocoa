@@ -90,7 +90,8 @@ def check_inbox():
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),
                                      True)
         elif event.action == 'offer':
-            message = format_message("Your partner offered: $%d" % event.data, True)
+            message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
+            return jsonify(message=message, received=True, price=event.data['price'], sides=event.data['sides'])
         elif event.action == 'typing':
             if event.data == 'started':
                 message = "Your partner is typing..."
@@ -223,6 +224,7 @@ def index():
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
                                icon=app.config['task_icon'],
+                               images_base=app.config['images_base'],
                                partner_kb=partner_kb,
                                quit_enabled=app.config['user_params']['skip_chat_enabled'],
                                quit_after=app.config['user_params']['status_params']['chat']['num_seconds'] -
@@ -270,13 +272,36 @@ def select():
 @main.route('/_offer/', methods=['GET'])
 def offer():
     backend = get_backend()
-    offer = float(request.args.get('offer'))
-    if offer == -1:
-        return
+    price = float(request.args.get('price'))
+    sides = request.args.get('sides')
+
+    offer = {'price': price,
+             'sides': sides}
+
+    if offer is None or price == -1:
+        return jsonify(message=format_message("You made an invalid offer. Please try again.", True))
     backend.make_offer(userid(), offer)
 
-    displayed_message = format_message("You proposed: $%d" % offer, True)
+    displayed_message = format_message("You made an offer!", True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_accept_offer/', methods=['GET'])
+def accept_offer():
+    backend = get_backend()
+    backend.accept_offer(userid())
+
+    msg = format_message("You accepted the offer!", True)
+    return jsonify(message=msg)
+
+
+@main.route('/_reject_offer/', methods=['GET'])
+def reject_offer():
+    backend = get_backend()
+    backend.reject_offer(userid())
+
+    msg = format_message("You rejected the offer.", True)
+    return jsonify(message=msg)
 
 
 @main.route('/_quit/', methods=['GET'])

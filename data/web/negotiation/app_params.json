@@ -5,7 +5,7 @@
 	    },
 
 	    "chat": {
-	        "num_seconds": 440
+	        "num_seconds": 1200
 	    },
 
 	    "finished": {
@@ -18,6 +18,7 @@
     },
     "connection_timeout_num_seconds": 3,
     "templates_dir": "/home/hehe/game-dialogue/src/web/templates/negotiation",
+  	"images_base": "/home/hehe/game-dialogue/images",
     "instructions": "/home/hehe/game-dialogue/data/web/negotiation/craiglist-instructions.html",
     "task_title": "Let's Negotiate!",
     "icon": "handshake.jpg",

@@ -214,6 +214,14 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
+    images_base = None
+    if 'images_base' in params.keys():
+        images_base = params['images_base']
+    else:
+        raise ValueError("Base path for images in scenarios must be provided.")
+    if not os.path.exists(images_base):
+        raise ValueError("Provided image base path doesn't exist: %s" % images_base)
+
     app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
@@ -241,6 +249,7 @@ if __name__ == "__main__":
 
     add_scenarios_to_db(db_file, scenario_db, systems)
 
+    app.config['images_base'] = images_base
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities

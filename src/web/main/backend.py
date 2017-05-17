@@ -3,6 +3,7 @@ import json
 __author__ = 'anushabala'
 import uuid
 from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
+from src.turk.accept_negotiation_hits import get_avg_tokens_per_agent, get_turns_per_agent
 from src.basic.systems.human_system import HumanSystem
 from src.scripts.visualize_data import visualize_chat
 from src.web.dump_events_to_json import convert_events_to_json
@@ -148,6 +149,8 @@ class BaseBackend(object):
         def _create_row(chat_id, event):
             data = event.data
             if event.action == 'select':
+                data = json.dumps(event.data)
+            if event.action == 'offer':
                 data = json.dumps(event.data)
             return chat_id, event.action, event.agent, event.time, data, event.start_time
 
@@ -716,6 +719,28 @@ class MutualFriendsBackend(BaseBackend):
 
 
 class NegotiationBackend(BaseBackend):
+    def check_chat_acceptable(self, userid):
+        def _check_chat():
+            avg_turns = get_turns_per_agent(ex)
+            avg_tokens = get_avg_tokens_per_agent(ex)
+        with self.conn:
+            controller = self.controller_map[userid]
+            cursor = self.conn.cursor()
+            chat_id = controller.get_chat_id()
+            ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
+
+
+    def check_game_over_and_transition(self, cursor, userid, partner_id):
+        game_over, game_complete = self.is_game_over(userid)
+        if game_over:
+            msg, partner_msg = self.get_completion_messages(userid)
+            self.end_chat_and_finish(cursor, userid, message=msg)
+            if not self.is_user_partner_bot(cursor, userid):
+                self.user_finished(cursor, partner_id, message=partner_msg)
+            return True
+
+        return False
+
     def get_completion_messages(self, userid):
         """
         Returns two completion messages: one for the current user and one for the user's partner. This function doesn't
@@ -746,26 +771,48 @@ class NegotiationBackend(BaseBackend):
             partner_msg = msg
 
             controller = self.controller_map[userid]
-            agent_idx = _get_agent_idx()
-            if agent_idx == controller.get_winner():
-                msg = Messages.NegotiationBetterDeal
-                partner_msg = Messages.NegotiationWorseDeal
-            elif controller.get_winner() == 1 - agent_idx:
-                msg = Messages.NegotiationWorseDeal
-                partner_msg = Messages.NegotiationBetterDeal
+            # agent_idx = _get_agent_idx()
+            # if agent_idx == controller.get_winner():
+            #     msg = Messages.NegotiationBetterDeal
+            #     partner_msg = Messages.NegotiationWorseDeal
+            # elif controller.get_winner() == 1 - agent_idx:
+            #     msg = Messages.NegotiationWorseDeal
+            #     partner_msg = Messages.NegotiationBetterDeal
         else:
             msg = Messages.get_incomplete_message()
             partner_msg = msg
 
         return msg, partner_msg
 
-    def make_offer(self, userid, amt):
+    def make_offer(self, userid, offer):
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
                 self.send(userid, Event.OfferEvent(u.agent_index,
-                                                   amt,
+                                                   offer,
+                                                   str(time.time())))
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
+
+    def accept_offer(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info_unchecked(cursor, userid)
+                self.send(userid, Event.AcceptEvent(u.agent_index,
+                                                   str(time.time())))
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
+
+    def reject_offer(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info_unchecked(cursor, userid)
+                self.send(userid, Event.RejectEvent(u.agent_index,
                                                    str(time.time())))
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")

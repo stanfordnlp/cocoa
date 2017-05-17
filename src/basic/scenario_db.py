@@ -82,7 +82,7 @@ class NegotiationScenario(BaseScenario):
             raise ValueError("No scenario attributes found. "
                              "Either schema must not be None (and have valid attributes) or "
                              "scenario dict must have valid attributes field.")
-        return NegotiationScenario(raw['uuid'], raw['post_id'], raw['category'], scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']], raw['intersection'])
+        return NegotiationScenario(raw['uuid'], raw['post_id'], raw['category'], None, scenario_attributes, [KB.from_dict(scenario_attributes, kb) for kb in raw['kbs']], raw['intersection'])
 
 
 class MutualFriendsScenario(BaseScenario):
