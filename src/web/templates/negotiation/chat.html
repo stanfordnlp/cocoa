@@ -350,6 +350,9 @@
                                 $("#side_offers").attr("disabled", "disabled")
                                 
                                 $('#price').val(response['price']);
+                                $('#submit').hide();
+                                $('#accept').show();
+                                $('#reject').show();
                             }
                             if ('sides' in response) {
                                 if(response['sides'].length == 0) {
@@ -359,9 +362,7 @@
                                 }
                             }
 
-                                $('#submit').hide();
-                                $('#accept').show();
-                                $('#reject').show();
+                                
                                 
                         }
                     }

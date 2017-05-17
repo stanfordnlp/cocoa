@@ -719,20 +719,33 @@ class MutualFriendsBackend(BaseBackend):
 
 
 class NegotiationBackend(BaseBackend):
-    def check_chat_acceptable(self, userid):
-        def _check_chat():
+    def should_reject_chat(self, userid):
+        def _reject_chat():
             avg_turns = get_turns_per_agent(ex)
             avg_tokens = get_avg_tokens_per_agent(ex)
+            print "Average turns:", avg_turns
+            print "Average tokens:", avg_tokens
+
+            if (avg_turns[0] < 4 and avg_tokens[0] < 5) or (avg_turns[1] < 4 and avg_tokens[1] < 5):
+                return True
+
+            return False
+
         with self.conn:
             controller = self.controller_map[userid]
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
-
+            print "Transcript", ex
+            return _reject_chat()
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         game_over, game_complete = self.is_game_over(userid)
         if game_over:
+            if self.should_reject_chat(userid):
+                self.end_chat_and_transition_to_waiting(cursor, userid,
+                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                return True
             msg, partner_msg = self.get_completion_messages(userid)
             self.end_chat_and_finish(cursor, userid, message=msg)
             if not self.is_user_partner_bot(cursor, userid):

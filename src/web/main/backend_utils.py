@@ -42,11 +42,14 @@ class Messages(object):
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"
     ChatCompleted = "Great, you've completed the chat!"
     HITCompletionWarning = "Please note that you will only get credit for this HIT if you made a good attempt to complete the chat."
+    Waiting = 'Waiting for a new chat...'
 
     NegotiationCompleted = "Great, you reached a final offer!"
-    NegotiationIncomplete = "Sorry, you weren't able to reach a deal. :(  We will still award you a partial reward for the HIT if you made a good attempt to negotiate."
+    NegotiationIncomplete = "Sorry, you weren't able to reach a deal. :("
     NegotiationBetterDeal = "Congratulations, you got the better deal! We'll award you a bonus on Mechanical Turk."
     NegotiationWorseDeal = "Sorry, your partner got the better deal. :("
+    NegotiationRedirect = "Sorry, that chat did not meet our acceptance criteria."
+
 
     @staticmethod
     def get_completed_message():
