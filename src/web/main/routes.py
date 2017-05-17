@@ -224,7 +224,6 @@ def index():
                                title=app.config['task_title'],
                                instructions=Markup(app.config['instructions']),
                                icon=app.config['task_icon'],
-                               images_base=app.config['images_base'],
                                partner_kb=partner_kb,
                                quit_enabled=app.config['user_params']['skip_chat_enabled'],
                                quit_after=app.config['user_params']['status_params']['chat']['num_seconds'] -
