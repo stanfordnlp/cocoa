@@ -61,6 +61,10 @@ class NegotiationKB(BaseKB):
             if attr.name not in ('Role', 'Bottomline', 'Target'):
                 if attr.name == 'Description':
                     value = '\n' + '\n'.join(self.facts['item'][attr.name]).encode('utf8')
+                elif attr.name == 'Price':
+                    value = self.facts['item'][attr.name]
+                elif attr.name == 'Images':
+                    value = ' '.join(self.facts['item'][attr.name])
                 else:
                     value = self.facts['item'][attr.name].encode('utf8')
                 print '{name:<{width}s} {value}'.format(width=width, name=attr.name, value=value)

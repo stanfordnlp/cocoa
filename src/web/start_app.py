@@ -48,7 +48,7 @@ def add_survey_table(cursor):
     elif config.task == config.Negotiation:
         cursor.execute(
             '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-            honest integer, persuasive integer, fair integer, comments text)''')
+            honest integer, persuasive integer, fair integer, negotiator integer, comments text)''')
     else:
         raise ValueError("Unknown task %s" % config.task)
 
