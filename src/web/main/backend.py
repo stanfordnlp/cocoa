@@ -444,7 +444,8 @@ class BaseBackend(object):
                 u = self._get_user_info(cursor, userid, assumed_status=Status.Survey)
                 scenario = self.scenario_db.get(u.scenario_id)
                 controller = self.controller_map[userid]
-                return SurveyState(u.message, u.agent_index, scenario.get_kb(u.agent_index), scenario.get_kb(1 - u.agent_index),
+                return SurveyState(u.message, u.agent_index, scenario.uuid, scenario.get_kb(u.agent_index),
+                                   scenario.get_kb(1 - u.agent_index),
                                    scenario.attributes, controller.get_result(u.agent_index))
 
         except sqlite3.IntegrityError:
@@ -723,8 +724,6 @@ class NegotiationBackend(BaseBackend):
         def _reject_chat():
             avg_turns = get_turns_per_agent(ex)
             avg_tokens = get_avg_tokens_per_agent(ex)
-            print "Average turns:", avg_turns
-            print "Average tokens:", avg_tokens
 
             if (avg_turns[0] < 4 and avg_tokens[0] < 5) or (avg_turns[1] < 4 and avg_tokens[1] < 5):
                 return True
@@ -736,7 +735,6 @@ class NegotiationBackend(BaseBackend):
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
-            print "Transcript", ex
             return _reject_chat()
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):

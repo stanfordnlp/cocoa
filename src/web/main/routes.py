@@ -239,7 +239,8 @@ def index():
                                attributes=[attr.name for attr in survey_info.attributes],
                                message=survey_info.message,
                                results=survey_info.result,
-                               agent_idx=survey_info.agent_idx)
+                               agent_idx=survey_info.agent_idx,
+                               scenario_id=survey_info.scenario_id)
 
 
 @main.route('/visualize', methods=['GET', 'POST'])

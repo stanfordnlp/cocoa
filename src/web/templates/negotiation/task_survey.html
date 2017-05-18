@@ -98,13 +98,19 @@
     }
 
     $(document).ready(function() {
-    	$.ajax({
+    	window.scrollTo(0,0);
+        $.ajax({
 			url: '/_connect/',
 			type: "get",
 			data: {"uid": "{{ uid }}" },
 			dataType: "json"
 		});
-		
+		questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
+
+
+
         $("#submit").click(function() {
             allAnswered = ensureAllAnswered()
             if (allAnswered){
@@ -141,13 +147,6 @@
 			});
 		}
     });
-
-    window.onload = function(){
-        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
-        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
-        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
-        console.log("AGENT: " + questionAnswers["agent_id"]);
-    }
 
 </script>
 
