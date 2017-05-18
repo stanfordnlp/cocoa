@@ -134,12 +134,12 @@ if __name__ == '__main__':
     write_json(scenario_db.to_dict(), args.scenarios_path)
 
     for i in range(min(100, len(scenario_db.scenarios_list))):
-        # print '---------------------------------------------------------------------------------------------'
-        # print '---------------------------------------------------------------------------------------------'
+        print '---------------------------------------------------------------------------------------------'
+        print '---------------------------------------------------------------------------------------------'
         scenario = scenario_db.scenarios_list[i]
-        # print "Scenario id: %s" % scenario.uuid, scenario.intersection
+        print "Scenario id: %s" % scenario.uuid, scenario.intersection
         for agent in (0, 1):
             kb = scenario.kbs[agent]
-            # kb.dump()
+            kb.dump()
 
     print '%d scenarios generated' % len(scenario_list)
