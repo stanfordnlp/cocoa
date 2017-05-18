@@ -45,11 +45,11 @@ def description_overlap(transcript):
     return overlap
 
 
-def compute_avg_description_overlap(transcripts):
+def compute_avg_description_overlap(transcripts, surveyed_chats):
     num_agents = 0
     total_overlap = 0.
     for t in transcripts:
-        if not is_chat_valid(t) and not is_partial_chat(t):
+        if t["uuid"] not in surveyed_chats:
             continue
         overlap = description_overlap(t)
         total_overlap += overlap[0] + overlap[1]
@@ -62,8 +62,6 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     avg_overlaps = []
     ratings = dict((q,[]) for q in questions)
     for t in transcripts:
-        if not is_chat_valid(t) and not is_partial_chat(t):
-            continue
         cid = t["uuid"]
         overlap = description_overlap(t)
         if cid not in surveys.keys():
@@ -83,17 +81,73 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-def compute_statistics(args, lexicon, schema, scenario_db, transcripts, surveys, questions=("persuasive", "negotiator")):
+# todo copied these from accept_negotiation_hits.py--- consolidate
+def get_turns_per_agent(transcript):
+    turns = {0: 0, 1: 0}
+    for event in transcript["events"]:
+        if event["action"] == "message":
+            turns[event["agent"]] += 1
+
+    return turns
+
+
+def get_avg_tokens_per_agent(transcript):
+    tokens = {0: 0., 1: 0.}
+    utterances = {0: 0., 1: 0.}
+    for event in transcript["events"]:
+        if event["action"] == "message":
+            msg_tokens = tokenize(event["data"])
+            tokens[event["agent"]] += len(msg_tokens)
+            utterances[event["agent"]] += 1
+
+    if utterances[0] != 0:
+        tokens[0] /= utterances[0]
+    if utterances[1] != 0:
+        tokens[1] /= utterances[1]
+
+    return tokens
+
+
+def get_overall_statistics(transcripts, stats, surveyed_chats):
+    total_turns = 0.
+    avg_tokens = 0.
+    total_agents = 0.
+    for t in transcripts:
+        if t["uuid"] not in surveyed_chats:
+            continue
+
+        # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
+        # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
+        # previous batches where the interface allowed submissions of incomplete/partial chats
+        if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
+                or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
+            continue
+        turns = get_turns_per_agent(t)
+        tokens = get_avg_tokens_per_agent(t)
+
+        total_agents += 2
+        total_turns += turns[0] + turns[1]
+        avg_tokens += tokens[0] + tokens[1]
+
+    print "Total chats: ", total_agents/2
+    stats["avg_turns"] = total_turns / total_agents
+    stats["avg_tokens"] = avg_tokens / total_agents
+
+def compute_statistics(args, lexicon, schema, scenario_db, transcripts, survey_data, questions=("persuasive", "negotiator")):
     if not os.path.exists(os.path.dirname(args.stats_output)) and len(os.path.dirname(args.stats_output)) > 0:
         os.makedirs(os.path.dirname(args.stats_output))
+
+    surveyed_chats = survey_data[0].keys()
+    surveys = survey_data[1]
 
     stats = {}
     statsfile = open(args.stats_output, 'w')
     # stats["total"] = total_stats = get_total_statistics(transcripts, scenario_db)
     stats = {"total":{}}
-    stats["total"]["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts)
+    stats["total"]["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
     # print "Aggregated total dataset statistics"
     # print_group_stats(total_stats)
+    get_overall_statistics(transcripts, stats["total"], surveyed_chats)
 
     print "Avg. description overlap: %2.4f" % avg_overlap
 
@@ -103,6 +157,7 @@ def compute_statistics(args, lexicon, schema, scenario_db, transcripts, surveys,
         print "%s" % q, corr[q]
     # Speech acts
     json.dump(stats, statsfile)
+    print stats
     statsfile.close()
 
 
@@ -117,6 +172,6 @@ if __name__ == "__main__":
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     transcripts = json.load(open(args.transcripts, 'r'))
-    surveys = json.load(open(args.surveys, 'r'))[1]
+    survey_data = json.load(open(args.surveys, 'r'))
 
-    compute_statistics(args, None, schema, scenario_db, transcripts, surveys)
+    compute_statistics(args, None, schema, scenario_db, transcripts, survey_data)

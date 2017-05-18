@@ -1,6 +1,7 @@
 '''
 Visualize evaluation results.
 '''
+import json
 
 import src.config as config
 from src.basic.util import read_json, write_json
@@ -228,16 +229,23 @@ class BaseVisualizer(object):
         return dialogue_responses
 
     def html_visualize(self, viewer_mode, html_output, css_file=None):
-        dialogue_responses = self.get_dialogue_responses(self.question_scores)
-
-        # Put chats in the order of responses
         chats = []
         scenario_to_chats = defaultdict(set)
-        for dialogue_id, agent_responses in dialogue_responses.iteritems():
-            chat = self.uuid_to_chat[dialogue_id]
-            scenario_id = chat['scenario_uuid']
-            chats.append((scenario_id, chat))
-            scenario_to_chats[scenario_id].add(dialogue_id)
+        dialogue_responses = None
+        if self.question_scores:
+            dialogue_responses = self.get_dialogue_responses(self.question_scores)
+
+            # Put chats in the order of responses
+            for dialogue_id, agent_responses in dialogue_responses.iteritems():
+                chat = self.uuid_to_chat[dialogue_id]
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                scenario_to_chats[scenario_id].add(dialogue_id)
+        else:
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                scenario_to_chats[scenario_id].add(dialogue_id)
         chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
         html_visualizer = HTMLVisualizer.get_html_visualizer()
@@ -251,8 +259,10 @@ class NegotiationVisualizer(BaseVisualizer):
 
     def __init__(self, chats, surveys=None, worker_ids=None):
         super(NegotiationVisualizer, self).__init__(chats, surveys, worker_ids)
-        mask = self.filter(('A3OE4LKJ2ORFZS',))
-        self.chats = [x for x in self.chats if x['uuid'] in mask]
+        # mask = self.filter(('A3OE4LKJ2ORFZS',))
+        mask = None
+        # self.chats = [x for x in self.chats if x['uuid'] in mask]
+        self.question_scores = None
         if surveys:
             self.question_scores = self.read_eval(self.surveys, mask)
 
@@ -271,21 +281,23 @@ class NegotiationVisualizer(BaseVisualizer):
             else:
                 eval_agent = 1
             b = ex.scenario.kbs[eval_agent].facts['personal']['Bottomline']
-            t = ex.scenario.kbs[eval_agent].facts['personal']['Target']
-            w = 1. / (t - b)
-            c = -1. * b / (t - b)
-            assert (t - b) != 0
+            # l = ex.scenario.kbs[eval_agent].facts['item']['Price']
             if ex.outcome is None or ex.outcome["reward"] == 0:
                 continue
             else:
                 num_success += 1
                 for event in ex.events:
                     if event.action == 'offer':
-                        p = float(event.data)
-                        p = w * p + c
-                        if p > 100:
-                            print p, event.data, ex.ex_id
-                        final_offer += p
+                        offer = json.loads(event.data)
+                        p = float(offer['price'])
+                        if ex.scenario.kbs[eval_agent].facts['personal']['Role'] == 'buyer':
+                            diff = (b - p)/b
+                        else:
+                            diff = (p - b)/b
+
+                        # if p > 100:
+                        #     print p, event.data, ex.ex_id
+                        final_offer += diff
                         break
         return {'success rate': num_success / float(len(examples)),
                 'agreed offer': final_offer / float(num_success),
@@ -403,5 +415,6 @@ if __name__ == '__main__':
         visualizer.worker_stats()
 
     if args.html_output:
+        print "visualize"
         visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file)
 

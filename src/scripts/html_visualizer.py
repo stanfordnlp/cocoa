@@ -30,9 +30,11 @@ class HTMLVisualizer(object):
         else:
             raise ValueError('Unknown task: %s.' % config.task)
 
+
 class BaseHTMLVisualizer(object):
     agent_labels = None
     questions = None
+    partial_allowed = False
 
     @classmethod
     def get_scenario(cls, chat):
@@ -50,7 +52,7 @@ class BaseHTMLVisualizer(object):
         events = [Event.from_dict(e) for e in chat["events"]]
 
         if len(events) == 0:
-            return False, None
+            return False, False, None
 
         chat_html= ['<div class=\"chatLog\">',
                 '<div class=\"divTitle\"> Chat Log: %s </div>' % chat['uuid'],
@@ -77,9 +79,13 @@ class BaseHTMLVisualizer(object):
             elif event.action == 'select':
                 s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
             elif event.action == 'offer':
-                s = 'OFFER $%.1f' % float(event.data)
+                s = 'OFFER %s' % json.dumps(event.data)
             elif event.action == 'quit':
                 s = 'QUIT'
+            elif event.action == 'accept':
+                s = 'ACCEPT OFFER'
+            elif event.action == 'reject':
+                s = 'REJECT OFFER'
             else:
                 continue
             row = '<tr class=\"agent%d\">\
@@ -93,7 +99,8 @@ class BaseHTMLVisualizer(object):
         chat_html.extend(['</table>', '</div>'])
 
         completed = False if chat["outcome"] is None or chat["outcome"]["reward"] == 0 else True
-        return completed, chat_html
+
+        return completed, True, chat_html
 
     @classmethod
     def _render_response(cls, response, agent_id, agent):
@@ -150,9 +157,9 @@ class BaseHTMLVisualizer(object):
 
     @classmethod
     def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None):
-        completed, chat_html = cls.render_chat(chat, agent, partner_type)
+        completed, partial, chat_html = cls.render_chat(chat, agent, partner_type)
         if chat_html is None:
-            return False, None
+            return False, False, None
 
         html_lines = []
 
@@ -167,7 +174,7 @@ class BaseHTMLVisualizer(object):
             response_html = cls.render_response(responses[dialogue_id], agents)
             html_lines.extend(response_html)
 
-        return completed, html_lines
+        return completed, partial, html_lines
 
 
     @classmethod
@@ -188,10 +195,16 @@ class BaseHTMLVisualizer(object):
         incomplete_chats = []
         total = 0
         num_completed = 0
+        num_partial = 0
         for (idx, chat) in enumerate(transcripts):
-            completed, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
-            if completed:
-                num_completed += 1
+            completed, partial, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
+            if chat["uuid"] == "C_0e8f1e6c7513491286c74d941f01dfa0":
+                print completed, partial, chat_html
+            if completed or (cls.partial_allowed and partial):
+                if completed:
+                    num_completed += 1
+                elif (cls.partial_allowed and partial):
+                    num_partial += 1
                 completed_chats.extend(chat_html)
                 completed_chats.append('</div>')
                 completed_chats.append("<hr>")
@@ -203,8 +216,10 @@ class BaseHTMLVisualizer(object):
             total += 1
 
         html.extend(['<h3>Total number of chats: %d</h3>' % total,
-                     '<h3>Number of chats completed: %d</h3>' % num_completed,
-                     '<hr>'])
+                     '<h3>Number of chats completed: %d</h3>' % num_completed])
+        if cls.partial_allowed:
+            html.append('<h3>Number of incomplete but valid chats: %d</h3>' % num_partial)
+        html.append('<hr>')
         html.extend(completed_chats)
         html.extend(incomplete_chats)
         html.append('</body></html>')
@@ -229,7 +244,7 @@ class BaseHTMLVisualizer(object):
             os.mkdir(outdir)
         for chat in transcripts:
             dialogue_id = chat['uuid']
-            _, chat_html = cls.visualize_chat(chat, responses=responses)
+            _, _, chat_html = cls.visualize_chat(chat, responses=responses)
             if not chat_html:
                 continue
             with open(os.path.join(outdir, dialogue_id+'.html'), 'w') as fout:
@@ -320,6 +335,7 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
     questions = ('fluent', 'honest', 'persuasive', 'fair')
+    partial_allowed = True
 
     @classmethod
     def render_scenario(cls, scenario):
@@ -343,3 +359,10 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
 
         html.append("</div>")
         return html
+
+    @classmethod
+    def render_chat(cls, chat, agent=None, partner_type='human'):
+        complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type)
+        partial = True if chat["outcome"] is not None and chat["outcome"]["reward"] == 0 \
+                          and "offer" in chat["outcome"].keys() and chat["outcome"]["offer"] is not None else True
+        return complete, partial, html_lines
