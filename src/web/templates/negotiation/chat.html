@@ -528,7 +528,7 @@
                 <h3>Scenario</h3>
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You are the potential <b>buyer</b>.
-                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
+                    The list price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
                     The most you can afford to pay is <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
                     The lower the better.</p>
                 {% else %}
@@ -548,7 +548,7 @@
                 {% endif %}
                         {% elif attr == 'Description' %}
                             {% for s in kb['item'][attr] %}
-                            <div id="description" style="overflow: auto;">
+                            <div id="factDescription" class="description-collapse">
                                 {{ s }}<br/>     
                             </div>
                             {% endfor %}
@@ -585,7 +585,7 @@
                 <label for="price">Price</label>
                 <input id="price" pattern="\d+"/>
                 <label for="side_offers">Additional Terms</label>
-                <input id="side_offers" />
+                <textarea id="side_offers" rows="2" cols="50"></textarea>
                 <button onclick="this.disabled=true;makeOffer()" style="display:inline-block" id="submit">Submit</button>
                 <button onclick="this.disabled=true;accept();" style="display:none" id="accept">Accept</button>
                 <button onclick="this.disabled=true;reject();" style="display:none" id="reject">Reject</button>

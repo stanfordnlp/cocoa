@@ -172,7 +172,7 @@ class NegotiationController(BaseController):
 
     def event_callback(self, event):
         if event.action == 'offer':
-            self.offers[event.agent] = event.data['price']
+            self.offers[event.agent] = event.data
         elif event.action == 'accept':
             self.outcomes[event.agent] = True
         elif event.action == 'reject':
@@ -224,7 +224,7 @@ class NegotiationController(BaseController):
         return result
 
     def complete(self):
-        return (self.offers[0] is not None and self.offers[1] is True) or (self.offers[1] is not None and self.offers[0] is True)
+        return (self.offers[0] is not None and self.outcomes[1] is True) or (self.offers[1] is not None and self.outcomes[0] is True)
 
     def get_winner(self):
         if not self.complete():

@@ -84,10 +84,9 @@ def generate_price_range(base_price, price_unit, intersections, flexibility=0.2)
     for i in intersections:
         intersection = i * seller_range
         buyer_bottomline = seller_bottomline + intersection
-
         yield {
-                SELLER: {'Bottomline': int(seller_bottomline) * price_unit, 'Target': None},
-                BUYER: {'Bottomline': int(buyer_bottomline) * price_unit, 'Target': None},
+                SELLER: {'Bottomline': int(seller_bottomline * price_unit), 'Target': None},
+                BUYER: {'Bottomline': int(buyer_bottomline * price_unit), 'Target': None},
                 'intersection': i,
               }
 
@@ -96,6 +95,8 @@ def generate_scenario(schema, base_price, price_unit, intersections, flexibility
         listing = process_listing(listing)
         if listing:
             base_price = int(listing['price'])
+            if base_price < price_unit:
+                continue
             for ranges in generate_price_range(base_price, price_unit, intersections, flexibility):
                 kbs = generate_kbs(schema, listing)
                 kbs[BUYER].facts['personal'].update(ranges[BUYER])
@@ -133,12 +134,12 @@ if __name__ == '__main__':
     write_json(scenario_db.to_dict(), args.scenarios_path)
 
     for i in range(min(100, len(scenario_db.scenarios_list))):
-        print '---------------------------------------------------------------------------------------------'
-        print '---------------------------------------------------------------------------------------------'
+        # print '---------------------------------------------------------------------------------------------'
+        # print '---------------------------------------------------------------------------------------------'
         scenario = scenario_db.scenarios_list[i]
-        print "Scenario id: %s" % scenario.uuid, scenario.intersection
+        # print "Scenario id: %s" % scenario.uuid, scenario.intersection
         for agent in (0, 1):
             kb = scenario.kbs[agent]
-            kb.dump()
+            # kb.dump()
 
     print '%d scenarios generated' % len(scenario_list)
