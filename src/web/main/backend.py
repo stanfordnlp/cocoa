@@ -412,7 +412,11 @@ class BaseBackend(object):
         def _is_chat_complete(cursor, chat_id):
             cursor.execute('''SELECT outcome FROM chat WHERE chat_id=?''', (chat_id,))
             try:
-                outcome = json.loads(cursor.fetchone()[0])
+                result = cursor.fetchone()
+                if result is None or len(result) == 0:
+                    return False
+                outcome = json.loads(result[0])
+
                 if outcome['reward'] is None or outcome['reward'] == 0:
                     return False
                 else:
