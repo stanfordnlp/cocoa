@@ -14,7 +14,6 @@ from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.lexicon import Lexicon, add_lexicon_arguments
 from src.model.preprocess import DataGenerator, Preprocessor, add_preprocess_arguments
-from src.model.entity import Entity
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
@@ -79,7 +78,6 @@ if __name__ == '__main__':
     schema = Schema(model_args.schema_path, model_args.domain)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
-    word_counts = Preprocessor.count_words(chain(dataset.train_examples, dataset.test_examples))
     print 'Building lexicon...'
     start = time.time()
     lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
