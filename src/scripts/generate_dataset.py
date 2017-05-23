@@ -9,7 +9,6 @@ from src.basic.util import read_json
 from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
-from src.basic.systems.heuristic_system import HeuristicSystem, add_heuristic_system_arguments
 from src.basic.systems.simple_system import SimpleSystem
 from src.basic.systems.cmd_system import CmdSystem
 from src.basic.systems.neural_system import NeuralSystem, add_neural_system_arguments
@@ -31,7 +30,6 @@ add_scenario_arguments(parser)
 add_lexicon_arguments(parser)
 add_dataset_arguments(parser)
 add_neural_system_arguments(parser)
-add_heuristic_system_arguments(parser)
 args = parser.parse_args()
 logstats.init(args.stats_file)
 if args.random_seed:
