@@ -300,7 +300,7 @@ class BaseHTMLVisualizer(object):
             cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses)
 
 class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
     questions = ("fluent", "correct", 'cooperative', "humanlike")
 
     @classmethod
