@@ -15,10 +15,21 @@ class Session(object):
         raise NotImplementedError
 
     def message(self, text):
-        return Event(agent=self.agent, time=None, action='message', data=text)
+        return Event.MessageEvent(self.agent, text)
+
+    # TODO: refactor
     # Mutualfriends
     def select(self, item):
-        return Event(agent=self.agent, time=None, action='select', data=item)
+        return Event.SelectionEvent(self.agent, item, None)
+
     # Negotiation
-    def offer(self, price):
-        return Event(agent=self.agent, time=None, action='offer', data=price)
+    def offer(self, offer):
+        '''
+        offer = {'price': float, 'sides', str}
+        '''
+        return Event.OfferEvent(self.agent, offer, None)
+
+    def accept(self):
+        return Event.AcceptEvent(self.agent, None)
+    def reject(self):
+        return Event.RejectEvent(self.agent, None)
