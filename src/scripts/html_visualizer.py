@@ -198,8 +198,6 @@ class BaseHTMLVisualizer(object):
         num_partial = 0
         for (idx, chat) in enumerate(transcripts):
             completed, partial, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
-            if chat["uuid"] == "C_0e8f1e6c7513491286c74d941f01dfa0":
-                print completed, partial, chat_html
             if completed or (cls.partial_allowed and partial):
                 if completed:
                     num_completed += 1
@@ -334,7 +332,7 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'honest', 'persuasive', 'fair')
+    questions = ('fluent', 'negotiator', 'persuasive', 'fair')
     partial_allowed = True
 
     @classmethod
