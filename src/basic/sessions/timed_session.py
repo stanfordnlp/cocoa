@@ -57,7 +57,7 @@ class TimedSessionWrapper(Session):
             if self.prev_action == 'select':
                 delay += self.REPEATED_SELECTION_DELAY
         # TODO: refactor this
-        elif event.action == 'offer':
+        elif event.action in ('offer', 'accept', 'reject'):
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
         else:
             raise ValueError('Unknown event type: %s' % event.action)
