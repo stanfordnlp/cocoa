@@ -746,7 +746,8 @@ class NegotiationBackend(BaseBackend):
         if game_over:
             if self.should_reject_chat(userid):
                 self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting,
+                                                        partner_id=partner_id)
                 return True
             msg, partner_msg = self.get_completion_messages(userid)
             self.end_chat_and_finish(cursor, userid, message=msg)
