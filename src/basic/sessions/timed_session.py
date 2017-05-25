@@ -26,7 +26,7 @@ class TimedSessionWrapper(Session):
         self.prev_action = None
         self.received = False
         self.num_utterances = 0
-        self.start_typing = None
+        self.start_typing = False
 
     def receive(self, event):
         # join and leave events
@@ -53,7 +53,6 @@ class TimedSessionWrapper(Session):
         if event is None:
             return self.queued_event.popleft()
         if event.action == 'message':
-            self.start_typing = True
             delay = float(len(event.data)) / self.CHAR_RATE + random.uniform(0, self.EPSILON)
         elif event.action == 'select':
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
@@ -66,16 +65,20 @@ class TimedSessionWrapper(Session):
             raise ValueError('Unknown event type: %s' % event.action)
 
         if self.last_message_timestamp + delay > time.time():
-            if self.start_typing is True:
-                self.start_typing = False
+            if event.action == 'message' and self.start_typing is False:
+                self.start_typing = True
                 return Event.TypingEvent(self.agent, 'started')
             else:
                 return None
         else:
-            event = self.queued_event.popleft()
-            self.prev_action = event.action
-            self.received = False
-            self.num_utterances += 1
-            self.last_message_timestamp = time.time()
-            event.time = str(self.last_message_timestamp)
-            return event
+            if event.action == 'message' and self.start_typing is True:
+                self.start_typing = False
+                return Event.TypingEvent(self.agent, 'stopped')
+            else:
+                event = self.queued_event.popleft()
+                self.prev_action = event.action
+                self.received = False
+                self.num_utterances += 1
+                self.last_message_timestamp = time.time()
+                event.time = str(self.last_message_timestamp)
+                return event
