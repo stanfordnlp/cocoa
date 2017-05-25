@@ -65,7 +65,9 @@ class TimedSessionWrapper(Session):
             raise ValueError('Unknown event type: %s' % event.action)
 
         if self.last_message_timestamp + delay > time.time():
-            if event.action == 'message' and self.start_typing is False:
+            # Add reading time before start typing
+            if event.action == 'message' and self.start_typing is False and \
+                    self.last_message_timestamp + random.uniform(0.5, 1.5) > time.time():
                 self.start_typing = True
                 return Event.TypingEvent(self.agent, 'started')
             else:
