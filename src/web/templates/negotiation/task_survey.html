@@ -66,7 +66,7 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        
+        cooperativeVal = $("#cooperatve").val();
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
         negotiatorVal = $("#negotiator").val();
@@ -80,7 +80,8 @@
         if (fluentVal == null || 
             persuasiveVal == null || 
             fairVal == null ||
-            negotiatorVal == null ) {
+            negotiatorVal == null ||
+            cooperativeVal == null ) {
             return false;
         }
         else{
@@ -89,6 +90,8 @@
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
             questionAnswers["negotiator"] = negotiatorVal;
+            questionAnswers["cooperative"] = cooperativeVal;
+            
             if(comments == null) {
             	comments = "";
             }

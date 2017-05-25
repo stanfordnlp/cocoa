@@ -185,15 +185,16 @@
 					var code = e.keyCode || e.which;
 					if ($('#text').val().length == 0) {
 						messageStartTime = Date.now() / 1000.0;
-						//startedTyping();
+						startedTyping();
 					}
 					if (code == 13) {
-						//stoppedTyping();
+						stoppedTyping();
 						text = $('#text').val();
 						$('#text').val('');
 						var currentTime = Date.now() / 1000.0;
 						messageTime = currentTime - messageStartTime;
 						sendMessage(text);
+                        $("#text").attr("disabled", "disabled")
 						messageStartTime = null;
 						messageTime = 0.0;
 					}
@@ -224,9 +225,9 @@
             function makeOffer() {
                 num_offer += 1;
                 var price = parseInt($('#price').val());
-                var sides = $('#side_offers').val();
+                var sides = "";
                 $("#price").attr("disabled", "disabled")
-                $("#side_offers").attr("disabled", "disabled")
+                // $("#side_offers").attr("disabled", "disabled")
                 $.ajax({
                     url: BASE_URL + '/_offer/',
                     type: "get",
@@ -343,24 +344,25 @@
                             if(response['status']) {
                                 displayStatus(response['message'])
                             } else {
+                                $("#text").removeAttr('disabled');
                                 displayText(response['message']);
                             }
                             if ('price' in response) {
                                 $("#price").attr("disabled", "disabled")
-                                $("#side_offers").attr("disabled", "disabled")
+                                // $("#side_offers").attr("disabled", "disabled")
                                 
                                 $('#price').val(response['price']);
                                 $('#submit').hide();
                                 $('#accept').show();
                                 $('#reject').show();
                             }
-                            if ('sides' in response) {
-                                if(response['sides'].length == 0) {
-                                    $('#side_offers').val("<No additional terms>");
-                                } else {
-                                    $('#side_offers').val(response['sides']);
-                                }
-                            }
+                            // if ('sides' in response) {
+                            //     if(response['sides'].length == 0) {
+                            //         $('#side_offers').val("<No additional terms>");
+                            //     } else {
+                            //         $('#side_offers').val(response['sides']);
+                            //     }
+                            // }
 
                                 
                                 
@@ -510,6 +512,7 @@
             </div> -->
 
             <textarea readonly id="chat"></textarea>
+            <input readonly id="status" style="width:100%;"><br><br>
             <input id="text" placeholder="Enter your message here"><br><br>
 
         </div>
@@ -583,8 +586,8 @@
                 <h4>You can only make an offer once.</h4>
                 <label for="price">Price</label>
                 <input id="price" pattern="\d+"/>
-                <label for="side_offers">Additional Terms</label>
-                <textarea id="side_offers" rows="2" cols="50"></textarea>
+                <!-- <label for="side_offers">Additional Terms</label> -->
+                <!-- <textarea id="side_offers" rows="2" cols="50"></textarea> -->
                 <button onclick="this.disabled=true;makeOffer()" style="display:inline-block" id="submit">Submit</button>
                 <button onclick="this.disabled=true;accept();" style="display:none" id="accept">Accept</button>
                 <button onclick="this.disabled=true;reject();" style="display:none" id="reject">Reject</button>
