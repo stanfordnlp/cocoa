@@ -66,7 +66,7 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        cooperativeVal = $("#cooperatve").val();
+        coherentVal = $("#coherent").val();
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
         negotiatorVal = $("#negotiator").val();
@@ -76,12 +76,15 @@
         console.log("FLUENT: " + fluentVal);
         console.log("PERSUASIVE: " + persuasiveVal);
         console.log("FAIR: " + fairVal);
+        console.log("COHERENT:" + coherentVal);
+        console.log("NEGOTIATOR: " + negotiatorVal)
+
 
         if (fluentVal == null || 
             persuasiveVal == null || 
             fairVal == null ||
             negotiatorVal == null ||
-            cooperativeVal == null ) {
+            coherentVal == null ) {
             return false;
         }
         else{
@@ -90,8 +93,7 @@
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
             questionAnswers["negotiator"] = negotiatorVal;
-            questionAnswers["cooperative"] = cooperativeVal;
-            
+            questionAnswers["coherent"] = coherentVal;
             if(comments == null) {
             	comments = "";
             }
@@ -243,12 +245,14 @@
             </form>
         </div>
 
+        <br> <br>
+
         <div class="q">
             <p style="text-align:center;">How <strong>coherent</strong> was your partner? Being coherent means saying things related to the context and not self-contradicting; an incoherent speaker might repeat him/herself, frequently switch topics, and/or ignore what the partner said.</p> <br>
 
             <form id="q_h">
                 <p style="float:left;">Not coherent at all</p>
-                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:14%;" >
+                <input type="range" id="coherent" min="1" max="5" style="width:50%; margin-left:14%;" >
                 <p style="float:right;">Very coherent</p>
             </form>
         </div>
