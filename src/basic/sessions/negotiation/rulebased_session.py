@@ -143,7 +143,7 @@ class BaseRulebasedSession(Session):
         return self.message(self.sides[side_offer])
 
     def compromise(self):
-        if random.random() < 0.5 or len(self.state['sides']) == len(self.sides):
+        if random.random() < 0.7 or len(self.state['sides']) == len(self.sides):
             return self.compromise_price()
         else:
             return self.offer_sides()
@@ -427,7 +427,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
 
     def persuade(self):
         p = random.random()
-        if p < 0.5 or len(self.sides) == len(self.state['sides']):
+        if p < 0.7 or len(self.sides) == len(self.state['sides']):
             return super(BuyerRulebasedSession, self).persuade()
         else:
             return self.offer_sides()
