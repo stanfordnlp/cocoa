@@ -169,8 +169,7 @@ class BaseRulebasedSession(Session):
         self.state['offered'] = True
         #if not sides and len(self.state['sides']) > 0:
         #    sides = '; '.join(self.state['sides'])
-        #return super(BaseRulebasedSession, self).offer({'price': price, 'sides': sides})
-        return super(BaseRulebasedSession, self).offer(price)
+        return super(BaseRulebasedSession, self).offer({'price': price})
 
     def agree(self):
         self.my_price = self.partner_price

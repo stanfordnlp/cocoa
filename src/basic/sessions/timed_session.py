@@ -3,6 +3,7 @@ from session import Session
 import time
 import random
 from collections import deque
+from src.basic.event import Event
 
 
 class TimedSessionWrapper(Session):
@@ -25,6 +26,7 @@ class TimedSessionWrapper(Session):
         self.prev_action = None
         self.received = False
         self.num_utterances = 0
+        self.start_typing = False
 
     def receive(self, event):
         # join and leave events
@@ -63,12 +65,22 @@ class TimedSessionWrapper(Session):
             raise ValueError('Unknown event type: %s' % event.action)
 
         if self.last_message_timestamp + delay > time.time():
-            return None
+            # Add reading time before start typing
+            if event.action == 'message' and self.start_typing is False and \
+                    self.last_message_timestamp + random.uniform(0.5, 1.5) > time.time():
+                self.start_typing = True
+                return Event.TypingEvent(self.agent, 'started')
+            else:
+                return None
         else:
-            event = self.queued_event.popleft()
-            self.prev_action = event.action
-            self.received = False
-            self.num_utterances += 1
-            self.last_message_timestamp = time.time()
-            event.time = str(self.last_message_timestamp)
-            return event
+            if event.action == 'message' and self.start_typing is True:
+                self.start_typing = False
+                return Event.TypingEvent(self.agent, 'stopped')
+            else:
+                event = self.queued_event.popleft()
+                self.prev_action = event.action
+                self.received = False
+                self.num_utterances += 1
+                self.last_message_timestamp = time.time()
+                event.time = str(self.last_message_timestamp)
+                return event
