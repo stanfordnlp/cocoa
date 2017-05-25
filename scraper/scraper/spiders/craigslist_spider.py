@@ -107,9 +107,4 @@ class CraigslistSpider(Spider):
             return
 
     def skip(self, item):
-        if self.category == 'furniture':
-            title = item['title'].lower()
-            if 'table' in title or 'desk' in title:
-                return False
-            else:
-                return True
+        return False

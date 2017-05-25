@@ -148,17 +148,13 @@ def read_results_csv(csv_file):
         d[code] = workerid
     return d
 
-def log_worker_id_to_json(db_path, batch_results):
+def chat_to_worker_id(cursor, code_to_wid):
     '''
-    {chat_id: {'0': worker_id; '1': worker_id}}
+    chat_id: {'0': workder_id, '1': worker_id}
+    workder_id is None means it's a bot
     '''
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT chat_id, agent_ids FROM chat')
-
     d = {}
-    code_to_wid = read_results_csv(batch_results)
+    cursor.execute('SELECT chat_id, agent_ids FROM chat')
     for chat_id, agent_uids in cursor.fetchall():
         agent_wid = {}
         agent_uids = eval(agent_uids)
@@ -170,12 +166,21 @@ def log_worker_id_to_json(db_path, batch_results):
                 res = cursor.fetchall()
                 if len(res) > 0:
                     mturk_code = res[0][0]
-                    # TODO: why is this possible
                     if mturk_code not in code_to_wid:
                         continue
                     else:
                         agent_wid[agent_id] = code_to_wid[mturk_code]
         d[chat_id] = agent_wid
+    return d
+
+def log_worker_id_to_json(db_path, batch_results):
+    '''
+    {chat_id: {'0': worker_id; '1': worker_id}}
+    '''
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    code_to_wid = read_results_csv(batch_results)
+    worker_ids = chat_to_worker_id(cursor, code_to_wid)
     output_dir = os.path.dirname(batch_results)
     write_json(d, output_dir + '/worker_ids.json')
 

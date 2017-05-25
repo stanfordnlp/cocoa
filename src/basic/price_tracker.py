@@ -1,34 +1,43 @@
-# TODO: combine this with the Lexicon
+import re
 
 class PriceTracker(object):
     @classmethod
     def _get_price_range(cls, kb, partner_kb):
         if kb is not None:
             b = kb['personal']['Bottomline']
-            t = kb['personal']['Target']
+            #t = kb['personal']['Target']
+            p = kb['item']['Price']
+            role = kb['personal']['Role']
+            if role == 'seller':
+                price_range = (b, p)
+            else:
+                price_range = (0.6*b, b)
         elif partner_kb is not None:
             b = partner_kb['personal']['Bottomline']
-            t = partner_kb['personal']['Target']
-            # Approximate range
+            p = partner_kb['item']['Price']
             if partner_kb['personal']['Role'] == 'buyer':
-                # [target, bottomline]
-                b = b + 2*(b - t)
+                role = 'seller'
             else:
-                # [bottomline, target]
-                b = max(0, b - 2*(t - b))
+                role = 'buyer'
+            # Approximate range
+            if role == 'buyer':
+                # b is seller's bottomline, which is higher than buyer's bottomline
+                price_range = (0.8*b, p)
+            else:
+                # b is buyer's bottomline, which is lower than buyer's bottomline
+                price_range = (0.6*b, p)
         else:
             raise Exception('No KB is provided')
-        if b < t:
-            price_range = (b, t)
-        else:
-            price_range = (t, b)
         return price_range
 
     @classmethod
     def process_string(cls, token):
-        token = token.replace('$', '')
-        token = token.replace(',', '')
-        token = token.replace('K', '000')
+        token = re.sub(r'[\$\,]', '', token)
+        try:
+            if token.endswith('k'):
+                token = str(float(token.replace('k', '')) * 1000)
+        except ValueError:
+            pass
         return token
 
     def link_entity(self, raw_tokens, kb=None, partner_kb=None):
