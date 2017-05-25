@@ -91,7 +91,17 @@ def check_inbox():
                                      True)
         elif event.action == 'offer':
             message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
-            return jsonify(message=message, received=True, price=event.data['price'], sides=event.data['sides'])
+            if 'sides' not in event.data.keys():
+                sides = None
+            return jsonify(message=message, received=True, price=event.data['price'], sides=None)
+
+        elif event.action == 'accept':
+            message = format_message("Congrats, your partner accepted your offer!", True)
+            return jsonify(message=message, received=True)
+        elif event.action == 'reject':
+            message = format_message("Sorry, your partner rejected your offer.", True)
+            return jsonify(message=message, received=True)
+
         elif event.action == 'typing':
             if event.data == 'started':
                 message = "Your partner is typing..."
