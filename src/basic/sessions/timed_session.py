@@ -82,6 +82,9 @@ class TimedSessionWrapper(Session):
             if event.action == 'message' and self.start_typing is True:
                 self.start_typing = False
                 return Event.TypingEvent(self.agent, 'stopped')
+            elif event.action == 'join':
+                event = self.queued_event.popleft()
+                return event
             else:
                 event = self.queued_event.popleft()
                 self.prev_action = event.action
