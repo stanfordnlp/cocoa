@@ -88,7 +88,7 @@ def log_surveys_to_json(db_path, surveys_file):
     if config.task == config.MutualFriends:
         questions = ['fluent', 'correct', 'cooperative', 'humanlike', 'comments']
     elif config.task == config.Negotiation:
-        questions = ['fluent', 'honest', 'persuasive', 'fair', 'negotiator', 'comments']
+        questions = ['fluent', 'honest', 'persuasive', 'fair', 'negotiator', 'coherent', 'comments']
     else:
         raise ValueError("Unknown task %s" % config.task)
 
@@ -101,8 +101,8 @@ def log_surveys_to_json(db_path, surveys_file):
 
     for survey in logged_surveys:
         # todo this is pretty lazy - support variable # of questions per task eventually..
-        (userid, cid, _, q1, q2, q3, q4, q5, comments) = survey
-        responses = dict(zip(questions, [q1, q2, q3, q4, q5, comments]))
+        (userid, cid, _, q1, q2, q3, q4, q5, q6, comments) = survey
+        responses = dict(zip(questions, [q1, q2, q3, q4, q5, q6, comments]))
         cursor.execute('''SELECT agent_types, agent_ids FROM chat WHERE chat_id=?''', (cid,))
         chat_result = cursor.fetchone()
         agents = json.loads(chat_result[0])

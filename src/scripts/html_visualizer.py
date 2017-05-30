@@ -71,7 +71,11 @@ class BaseHTMLVisualizer(object):
                 agent_str[agent] = 'Agent %d (%s)' % (agent, 'unknown')
 
         for event in events:
-            t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
+            # TODO: fix event.tim
+            if not event.time:
+                t = None
+            else:
+                t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
             a = agent_str[event.agent]
             # TODO: factor render_event
             if event.action == 'message':
@@ -332,7 +336,7 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair')
+    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
     partial_allowed = True
 
     @classmethod

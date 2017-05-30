@@ -179,7 +179,7 @@ class BaseVisualizer(object):
         for summary_stat in summary_stats:
             print '=========== %s ===========' % summary_stat
             for question, agent_scores in question_scores.iteritems():
-                if self.question_type(question) == 'str':
+                if self.question_type(question) == 'str' or question not in self.questions:
                     continue
                 results = [(agent, self.summarize_scores(scores, summary_stat), self.get_total(scores)) for agent, scores in agent_scores.iteritems()]
                 results = sorted(results, key=lambda x: x[1][0], reverse=True)
@@ -254,8 +254,8 @@ class BaseVisualizer(object):
 class NegotiationVisualizer(BaseVisualizer):
     agents = ('human', 'rulebased')
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair')
-    question_labels = {"fluent": 'Fluency', "negotiator": 'Humanlikeness', 'persuasive': 'Persuasiveness', "fair": 'Fairness'}
+    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    question_labels = {"fluent": 'Fluency', "negotiator": 'Humanlikeness', 'persuasive': 'Persuasiveness', "fair": 'Fairness', 'coherent': 'Coherence'}
 
     def __init__(self, chats, surveys=None, worker_ids=None):
         super(NegotiationVisualizer, self).__init__(chats, surveys, worker_ids)
@@ -415,6 +415,5 @@ if __name__ == '__main__':
         visualizer.worker_stats()
 
     if args.html_output:
-        print "visualize"
         visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file)
 
