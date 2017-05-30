@@ -25,6 +25,9 @@ class BaseRulebasedSession(Session):
         self.my_price = None
         self.partner_price = None
         self.bottomline = self.kb['personal']['Bottomline']
+        self.target = self.kb['personal']['Target']
+        if self.bottomline is None:
+            self.bottomline = self.target * 0.8
         self.list_price = self.kb['item']['Price']
         self.category = self.kb['item']['Category']
         assert self.category in ('car', 'housing', 'furniture')
@@ -57,7 +60,14 @@ class BaseRulebasedSession(Session):
         '''
         Initial offer
         '''
-        self.my_price = self.bottomline * (1 + self.inc * self.overshoot)
+        if self.bottomline is not None:
+            self.my_price = self.bottomline * (1 + self.inc * self.overshoot)
+        elif self.target is not None:
+            # Buyer. The target/listing price is shown.
+            if self.inc == 1:
+                self.my_price = self.target
+            else:
+                self.my_price = self.target * (1 + self.inc * self.overshoot)
 
     def receive(self, event):
         self.state['num_utterance_sent'] = 0

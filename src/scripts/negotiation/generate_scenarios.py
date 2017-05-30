@@ -79,14 +79,23 @@ def generate_price_range(base_price, price_unit, intersections, flexibility=0.2)
     intersections: percentage of intersection relative to the range
     '''
     base_price = discretize(base_price, price_unit)
-    seller_bottomline = base_price * (1. - flexibility)
+    #seller_bottomline = base_price * (1. - flexibility)
+    seller_target = base_price
     seller_range = base_price * flexibility
     for i in intersections:
         intersection = i * seller_range
-        buyer_bottomline = seller_bottomline + intersection
+        #buyer_bottomline = seller_bottomline + intersection
+        buyer_target = seller_target - intersection
+        # Reverse discretization
+        #seller_bottomline = int(seller_bottomline * price_unit)
+        #buyer_bottomline = int(buyer_bottomline * price_unit)
+        seller_target = int(seller_target) * price_unit
+        buyer_target = int(buyer_target) * price_unit
+        if seller_target == 0 or buyer_target == 0:
+            continue
         yield {
-                SELLER: {'Bottomline': int(seller_bottomline * price_unit), 'Target': None},
-                BUYER: {'Bottomline': int(buyer_bottomline * price_unit), 'Target': None},
+                SELLER: {'Bottomline': None, 'Target': seller_target},
+                BUYER: {'Bottomline': None, 'Target': buyer_target},
                 'intersection': i,
               }
 
@@ -110,7 +119,8 @@ if __name__ == '__main__':
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.6, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
     parser.add_argument('--scraped-data', nargs='+', required=True, help="JSON file containing text listings")
-    parser.add_argument('--price-unit', default=10, help="Unit for discretizing prices")
+    parser.add_argument('--fractions', nargs='+', required=True, help="Fractions of data from different scraped categories")
+    #parser.add_argument('--price-unit', default=10, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
     args = parser.parse_args()
 
@@ -120,12 +130,20 @@ if __name__ == '__main__':
     schema = Schema(args.schema_path)
 
     listings = [read_json(data) for data in args.scraped_data]
+    fractions = np.array([float(x) for x in args.fractions])
+    fractions = fractions / np.sum(fractions)
+    sampled_listings = []
+    N = sum([len(listing) for listing in listings])
+    for listing, fraction in izip(listings, fractions):
+        n = max(int(N * fraction), 1)
+        sampled_listings.append(listing[:n])
     # Interleave listings from different categories so we have a balanced scenario set
-    listings = [x for l in izip_longest(*listings, fillvalue=None) for x in l if x is not None]
+    listings = [x for l in izip_longest(*sampled_listings, fillvalue=None) for x in l if x is not None]
     base_price = None
 
     scenario_list = []
-    scenario_generator = generate_scenario(schema, base_price, args.price_unit, args.intersections, args.flexibility, listings)
+    price_unit = 1
+    scenario_generator = generate_scenario(schema, base_price, price_unit, args.intersections, args.flexibility, listings)
     for i, s in enumerate(scenario_generator):
         if i == args.num_scenarios:
             break
