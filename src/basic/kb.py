@@ -54,6 +54,7 @@ class NegotiationKB(BaseKB):
         role = personal_info['Role']
         price_range = (personal_info['Bottomline'], personal_info['Target'])
         print '----------------'
+        print 'Listing price:', self.facts['item']['Price']
         print 'Role:', role
         print 'Price range:', price_range
         width = max([len(str(attr.name)) for attr in self.attributes])
