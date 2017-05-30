@@ -7,6 +7,14 @@ from itertools import izip
 class CraigslistSpider(Spider):
     name = 'craigslist'
     allowed_domains = ['craigslist.org']
+    category_map = {
+            'car': 'cto',
+            'furniture': 'fuo',
+            'housing': 'apa',
+            'bike': 'bik',
+            'phone': 'mob',
+            'electronics': 'ele',
+            }
 
     def __init__(self, num_result_pages=1, num_item_per_page=120, cache_dir=None, category='car', from_cache=False, image=0, *args, **kwargs):
         super(CraigslistSpider, self).__init__(*args, **kwargs)
@@ -20,13 +28,9 @@ class CraigslistSpider(Spider):
             if not os.path.isdir(self.cache_dir):
                 os.makedirs(self.cache_dir)
         self.from_cache = from_cache == 'True'
-        if category == 'car':
-            self.url_cat = 'cto'
-        elif category == 'furniture':
-            self.url_cat = 'fuo'
-        elif category == 'housing':
-            self.url_cat = 'apa'
-        else:
+        try:
+            self.url_cat = self.category_map[category]
+        except KeyError:
             raise ValueError('Unknown category %s' % category)
         # 0 = don't download image; 1 = just download the main/first image; 2 = download all images
         self.image = int(image)
@@ -75,25 +79,27 @@ class CraigslistSpider(Spider):
                     processed.append(line)
             image_urls = response.xpath('//div[@id="thumbs"]/*[@data-imgid]/@href').extract()
         except (IndexError, AssertionError) as e:
-            return
+            item = None
 
-        if self.image == 0:
-            image_urls = []
-        elif self.image == 1:
-            image_urls = image_urls[:1]
+        if item is None:
+            yield {}
+        else:
+            if self.image == 0:
+                image_urls = []
+            elif self.image == 1:
+                image_urls = image_urls[:1]
 
-        item = {
-                'category': self.category,
-                'post_id': post_id,
-                'title': title,
-                'item': item,
-                'price': price,
-                'attrs': attrs,
-                'description': processed,
-                'image_urls': image_urls,
-                }
+            item = {
+                    'category': self.category,
+                    'post_id': post_id,
+                    'title': title,
+                    'item': item,
+                    'price': price,
+                    'attrs': attrs,
+                    'description': processed,
+                    'image_urls': image_urls,
+                    }
 
-        if not self.skip(item):
             item['images'] = []
 
             if self.cache_dir:
@@ -103,8 +109,3 @@ class CraigslistSpider(Spider):
                     with open(path, 'w') as fout:
                         fout.write(response.body)
             yield item
-        else:
-            return
-
-    def skip(self, item):
-        return False

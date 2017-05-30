@@ -70,6 +70,7 @@ FEED_FORMAT = 'json'
 # Configure item pipelines
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
+    'scraper.pipelines.CraigslistValidationPipeline': 0,
     'scraper.pipelines.CraigslistImagesPipeline': 1,
 }
 IMAGES_STORE = '/scr/hehe/game-dialogue/craigslist_cache/images'

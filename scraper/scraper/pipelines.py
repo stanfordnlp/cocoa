@@ -16,6 +16,13 @@ class ScraperPipeline(object):
     def process_item(self, item, spider):
         return item
 
+class CraigslistValidationPipeline(object):
+    def process_item(self, item, spider):
+        if item == {}:
+            raise DropItem('parse error')
+        else:
+            return item
+
 class CraigslistImagesPipeline(ImagesPipeline):
     def get_media_requests(self, item, info):
         for i, image_url in enumerate(item['image_urls']):
