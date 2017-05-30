@@ -47,7 +47,7 @@ class PriceTracker(object):
         '''
         # We must know at least one KB
         assert kb or partner_kb
-        price_range = self._get_price_range(kb, partner_kb)
+        #price_range = self._get_price_range(kb, partner_kb)
         entity_tokens = []
         N = len(raw_tokens)
         for i, token in enumerate(raw_tokens):
@@ -55,8 +55,8 @@ class PriceTracker(object):
                 number = float(self.process_string(token))
                 if i + 1 < N and raw_tokens[i+1].startswith('mile'):
                     new_token = token
-                elif number >= price_range[0] and number <= price_range[1]:
-                    new_token = (token, (number, 'price'))
+                #elif number >= price_range[0] and number <= price_range[1]:
+                #    new_token = (token, (number, 'price'))
                 else:
                     new_token = token
             except ValueError:
