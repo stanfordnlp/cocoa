@@ -728,8 +728,8 @@ class NegotiationBackend(BaseBackend):
         def _reject_chat():
             avg_turns = get_turns_per_agent(ex)
             avg_tokens = get_avg_tokens_per_agent(ex)
-
-            if (avg_turns[0] < 4 and avg_tokens[0] < 5) or (avg_turns[1] < 4 and avg_tokens[1] < 5):
+            # todo make this configurable
+            if (avg_turns[0] < 4 or avg_tokens[0] < 5) or (avg_turns[1] < 4 or avg_tokens[1] < 5):
                 return True
 
             return False

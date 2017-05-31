@@ -70,7 +70,7 @@ def is_chat_valid(transcript, idx):
     if outcome["reward"] == 1:
         return True
 
-    if turns[idx] < 4 and avg_tokens[idx] < 5 :
+    if turns[idx] < 4 or avg_tokens[idx] < 5:
         # print "Utterances too short: %s" % transcript["uuid"]
         # print "Avg tokens: ", avg_tokens
         return False
