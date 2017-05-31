@@ -22,12 +22,30 @@
 
         table { 
             border-collapse: collapse; 
+            border: 1px solid black;
+            padding: 10px;
+            margin: 15px auto;
+            color: #058ead;
+        }
+
+        th, td {
+            padding: 10px;
+        }
+
+        form {
+            padding: 10px;
         }
 
         #facts {
             font-size: 18px;
         }
 
+        .header {
+            font-size: 1.0rem;
+            padding: 10px 5px 10px 5px;
+            border: 3px solid #000e7f;
+            color: #000e7f;
+        }
         tr:nth-child(n) { 
             border: solid thin;
         }
@@ -48,36 +66,34 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        honestVal = null;
-        if($("#honest").length != 0) {
-            honestVal = $("#honest").val();    
-        }
-        
+        coherentVal = $("#coherent").val();
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
+        negotiatorVal = $("#negotiator").val();
         comments = $("#comments").val();
+        
         //fluentVal = document.getElementById("#myRange").value
         console.log("FLUENT: " + fluentVal);
-        console.log("HONEST: " + honestVal);
         console.log("PERSUASIVE: " + persuasiveVal);
         console.log("FAIR: " + fairVal);
+        console.log("COHERENT:" + coherentVal);
+        console.log("NEGOTIATOR: " + negotiatorVal)
+
 
         if (fluentVal == null || 
-            (honestVal == null && "{{kb['personal']['Role']}}" == 'buyer') || 
             persuasiveVal == null || 
-            fairVal == null) {
+            fairVal == null ||
+            negotiatorVal == null ||
+            coherentVal == null ) {
             return false;
         }
         else{
             questionAnswers["fluent"] = fluentVal;
-            if ("{{kb['personal']['Role']}}" == 'buyer') {
-                questionAnswers["honest"] = honestVal;    
-            } else {
-                questionAnswers["honest"] = "null";
-            }
-            
+            questionAnswers["honest"] = "null";    
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
+            questionAnswers["negotiator"] = negotiatorVal;
+            questionAnswers["coherent"] = coherentVal;
             if(comments == null) {
             	comments = "";
             }
@@ -87,13 +103,19 @@
     }
 
     $(document).ready(function() {
-    	$.ajax({
+    	window.scrollTo(0,0);
+        $.ajax({
 			url: '/_connect/',
 			type: "get",
 			data: {"uid": "{{ uid }}" },
 			dataType: "json"
 		});
-		
+		questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
+
+
+
         $("#submit").click(function() {
             allAnswered = ensureAllAnswered()
             if (allAnswered){
@@ -131,38 +153,63 @@
 		}
     });
 
-    window.onload = function(){
-        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
-        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
-        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
-        console.log("AGENT: " + questionAnswers["agent_id"]);
-    }
-
 </script>
 
 
 <body >
     <div class="wrapper" >
-        <header>
-        	<h2><b>Instructions</b></h2> <br>
-        	<b>{{ message }}</b> In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.
-        </header>
+        <div class="header">
+        	<h2 style="text-align: center;"><b>Results</b></h2> <br>
+        	<p style="text-align: center;"><b>{{ message }}</b></p>
+            {% if results %}
+            <table align="center">
+            <tr>
+                <td> </td>
+                <td><b>You</b></td>
+                <td><b>Partner<b></td>
+            </tr>
+            <tr>
+                <td>Target</td>
+                <td>{{ results[agent_idx]['Target'] }}</td>
+                <td>{{ results[1 - agent_idx]['Target'] }}</td>
+            </tr>
+            <tr>
+                <td>Bottomline</td>
+                <td>{{ results[agent_idx]['Bottomline'] }}</td>
+                <td>{{ results[1 - agent_idx]['Bottomline'] }}</td>
+            </tr>
+            <tr>
+                <td>Final offer</td>
+                <td>{{ results[agent_idx]['Offer'] }}</td>
+                <td>{{ results[1 - agent_idx]['Offer'] }}</td>
+            </tr>
+            </table>
+            {% endif %}
+        </div>
          
+        <br>
+        <br>
+
+        <div class="header">
+            <h2><b>Survey Instructions</b></h2> <br>
+            <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        </div>
+
         <br>
         <br>
 
          <div class="q">
 
-            <p style="text-align:center;">How <strong>fluent</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>fluent</strong> was your partner? I.e., are the sentences complete and grammatical? </p> <br>
             <form id="q_f">
                 <p style="float:left;">Not fluent at all</p>
-                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:16%;" >
+                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:13%;" >
                 <p style="float:right;">Very fluent</p>
             </form>
         </div>
 
         <br> <br>
-        {% if kb['personal']['Role'] == 'buyer' %}
+<!--         {% if kb['personal']['Role'] == 'buyer' %}
         <div class="q">
            <p style="text-align:center;">How <strong>honest</strong> was your partner?</p> <br>
             <form id="q_c">
@@ -172,13 +219,13 @@
             </form>
         </div>
         <br> <br>
-        {% endif %}
+        {% endif %} -->
         
 
         
 
         <div class="q">
-            <p style="text-align:center;">How <strong>persuasive</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>persuasive</strong> was your partner? Being persuasive means providing <strong>concrete evidence</strong> for each request instead of simply asking for a price.</p> <br>
             <form id="q_s">
                 <p style="float:left;">Not persuasive</p>
                 <input type="range" id="persuasive" min="1" max="5" style="width:50%; margin-left:13%" >
@@ -189,12 +236,37 @@
         <br> <br>
 
         <div class="q">
-            <p style="text-align:center;">How <strong>fair</strong> was the final price that you agreed on?</p> <br>
+            <p style="text-align:center;">How <strong>fair</strong> was the final offer that you agreed on?</p> <br>
 
             <form id="q_h">
                 <p style="float:left;">Not fair at all</p>
-                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:11%;" >
+                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:14%;" >
                 <p style="float:right;">Very fair</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>coherent</strong> was your partner? Being coherent means saying things related to the context and not self-contradicting; an incoherent speaker might repeat him/herself, frequently switch topics, and/or ignore what the partner said.</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not coherent at all</p>
+                <input type="range" id="coherent" min="1" max="5" style="width:50%; margin-left:14%;" >
+                <p style="float:right;">Very coherent</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <!--<p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not at all</p>
+                <input type="range" id="negotiator" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <p style="float:right;">Definitely</p>
             </form>
         </div>
         

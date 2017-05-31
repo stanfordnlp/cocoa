@@ -26,6 +26,9 @@ class BaseController(object):
     def get_outcome(self):
         raise NotImplementedError
 
+    def get_result(self, agent_idx):
+        return None
+
     def simulate(self, max_turns=None):
         '''
         Simulate a dialogue.
@@ -116,6 +119,12 @@ class BaseController(object):
     def get_chat_id(self):
         return self.chat_id
 
+    def game_over(self):
+        raise NotImplementedError
+
+    def complete(self):
+        raise NotImplementedError
+
 class Controller(object):
     '''
     Factory of controllers.
@@ -148,28 +157,101 @@ class MutualFriendsController(BaseController):
     def game_over(self):
         return not self.inactive() and self.selections[0] is not None and self.selections[0] == self.selections[1]
 
+    def complete(self):
+        return self.selections[0] is not None and self.selections[0] == self.selections[1]
+
+
 class NegotiationController(BaseController):
     def __init__(self, scenario, sessions, chat_id=None, debug=True):
         super(NegotiationController, self).__init__(scenario, sessions, chat_id, debug)
-        self.prices = [None, None]
+        # self.prices = [None, None]
+        self.offers = [None, None]
+        # self.sides = [None, None]
+        self.outcomes = [None, None]
         self.quit = False
 
     def event_callback(self, event):
         if event.action == 'offer':
-            self.prices[event.agent] = float(event.data)
+            self.offers[event.agent] = event.data
+        elif event.action == 'accept':
+            self.outcomes[event.agent] = True
+        elif event.action == 'reject':
+            self.outcomes[event.agent] = False
         elif event.action == 'quit':
             self.quit = True
 
     def get_outcome(self):
-        offer = -1
-        if self.prices[0] is not None and self.prices[0] == self.prices[1]:
+        offer = None
+        reward = 0
+        if self.offers[0] is not None and self.outcomes[1] is True:
             reward = 1
-            offer = self.prices[0]
+            offer = self.offers[0]
+        elif self.offers[1] is not None and self.outcomes[0] is True:
+            reward = 1
+            offer = self.offers[1]
         else:
-            reward = 0
+            if (self.offers[0] is not None or self.offers[1] is not None) and False in self.outcomes:
+                reward = 0
+                offer = self.offers[0] if self.offers[1] is None else self.offers[1]
+
+        # possible outcomes:
+        # reward is 1 and offer is not null: complete dialogue
+        # reward is 0 and offer is not null: incomplete dialogue (disagreement): offer was made and not accepted
+        # reweard is 0 and offer is null: incomplete dialogue: no offer was made
         return {'reward': reward, 'offer': offer}
 
     def game_over(self):
         return not self.inactive() and \
-                ((self.prices[0] is not None and self.prices[1] is not None) or \
-                self.quit)
+               ((self.offers[0] is not None and self.outcomes[1] is not None) or
+                (self.offers[1] is not None and self.outcomes[0] is not None) or
+                 self.quit)
+
+    def get_result(self, agent_idx):
+        if self.offers[0] is None or self.offers[1] is None:
+            return None
+
+        result = {agent_idx: {}, 1 - agent_idx: {}}
+
+        result[agent_idx]['Target'] = self.scenario.kbs[agent_idx].facts['personal']['Target']
+        result[1 - agent_idx]['Target'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Target']
+
+        result[agent_idx]['Bottomline'] = self.scenario.kbs[agent_idx].facts['personal']['Bottomline']
+        result[1 - agent_idx]['Bottomline'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Bottomline']
+
+        result[agent_idx]['Offer'] = int(self.offers[agent_idx])
+        result[1 - agent_idx]['Offer'] = int(self.offers[1 - agent_idx])
+
+        return result
+
+    def complete(self):
+        return (self.offers[0] is not None and self.outcomes[1] is True) or (self.offers[1] is not None and self.outcomes[0] is True)
+
+    def get_winner(self):
+        if not self.complete():
+            return None
+        targets = {0: self.scenario.kbs[0].facts['personal']['Target'],
+                   1: self.scenario.kbs[1].facts['personal']['Target']}
+
+        roles = {self.scenario.kbs[0].facts['personal']['Role']: 0,
+                 self.scenario.kbs[1].facts['personal']['Role']: 1}
+
+        diffs = {}
+
+        # for seller, offer is probably lower than target
+        seller_idx = roles['seller']
+        diffs[seller_idx] = targets[seller_idx] - self.offers[seller_idx]
+        if diffs[seller_idx] < 0:
+            diffs[seller_idx] = -diffs[seller_idx]
+
+        # for buyer, offer is probably
+        buyer_idx = roles['buyer']
+        diffs[buyer_idx] = self.offers[buyer_idx] - targets[buyer_idx]
+        if diffs[buyer_idx] < 0:
+            diffs[buyer_idx] = -diffs[buyer_idx]
+
+        if diffs[0] < diffs[1]:
+            return 0
+        elif diffs[1] < diffs[0]:
+            return 1
+
+        return -1
