@@ -93,8 +93,9 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
         # previous batches where the interface allowed submissions of incomplete/partial chats
-        if reject_transcript(t):
-            continue
+        # 06/01/2017 -- disabled this check because the rejection criteria have changed
+        # if reject_transcript(t):
+        #     continue
 
         scenario = t["scenario"]
         category = scenario["category"]

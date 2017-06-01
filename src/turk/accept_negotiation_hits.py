@@ -8,7 +8,7 @@ import sqlite3
 import json
 from src.model.preprocess import tokenize
 
-MIN_TOKENS = 70
+MIN_TOKENS = 40
 
 
 def reject_transcript(transcript, agent_idx=None):
