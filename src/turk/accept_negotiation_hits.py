@@ -8,19 +8,18 @@ import sqlite3
 import json
 from src.model.preprocess import tokenize
 
+MIN_TOKENS = 40
 
-def check_turns_and_tokens(avg_turns, avg_tokens):
-    if avg_turns[0] < 4 or avg_tokens[0] < 5:
-        if avg_tokens[0] >= 15:
-            return False
-        else:
-            return True
-    elif avg_turns[1] < 4 or avg_tokens[1] < 5:
-        if avg_tokens[1] >= 15:
-            return False
-        else:
-            return True
 
+def reject_transcript(transcript, agent_idx=None):
+    total_tokens = get_total_tokens_per_agent(transcript)
+    if agent_idx is not None:
+        if total_tokens[agent_idx] < MIN_TOKENS:
+            return True
+        return False
+
+    if total_tokens[0] < MIN_TOKENS or total_tokens[1] < MIN_TOKENS:
+        return True
     return False
 
 
@@ -69,11 +68,17 @@ def get_avg_tokens_per_agent(transcript):
 
     return tokens
 
+def get_total_tokens_per_agent(transcript):
+    tokens = {0: 0., 1: 0.}
+    for event in transcript["events"]:
+        if event["action"] == "message":
+            msg_tokens = tokenize(event["data"])
+            tokens[event["agent"]] += len(msg_tokens)
+
+    return tokens
+
 
 def is_chat_valid(transcript, idx):
-    turns = get_turns_per_agent(transcript)
-    avg_tokens = get_avg_tokens_per_agent(transcript)
-
     if "outcome" not in transcript.keys():
         return False
 
@@ -85,8 +90,7 @@ def is_chat_valid(transcript, idx):
     if outcome["reward"] == 1:
         return True
 
-
-    return check_turns_and_tokens(turns, avg_tokens)
+    return reject_transcript(transcript)
 
 
 #todo (anusha): copied this from controller.py, needs to be refactored?
@@ -125,10 +129,7 @@ def get_winner(transcript):
 def is_partial_chat(transcript, idx):
     outcome = transcript["outcome"]
     if is_chat_valid(transcript, idx) and outcome["reward"] == 0:
-        turns = get_turns_per_agent(transcript)
-        avg_tokens = get_avg_tokens_per_agent(transcript)
-        # print turns, avg_tokens
-        return check_turns_and_tokens(turns, avg_tokens)
+        return reject_transcript(transcript)
 
     return False
 

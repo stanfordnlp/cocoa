@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
+from src.turk.accept_negotiation_hits import reject_transcript, get_turns_per_agent, get_total_tokens_per_agent
 from argparse import ArgumentParser
 from src.model.preprocess import tokenize
 import json
@@ -80,33 +80,6 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-# todo copied these from accept_negotiation_hits.py--- consolidate
-def get_turns_per_agent(transcript):
-    turns = {0: 0, 1: 0}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            turns[event["agent"]] += 1
-
-    return turns
-
-
-def get_avg_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    utterances = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-            utterances[event["agent"]] += 1
-
-    if utterances[0] != 0:
-        tokens[0] /= utterances[0]
-    if utterances[1] != 0:
-        tokens[1] /= utterances[1]
-
-    return tokens
-
-
 def compute_basic_statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total":0.}
     total_tokens = {"total": 0.}
@@ -114,12 +87,15 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
     for t in transcripts:
         if t["uuid"] not in surveyed_chats:
             continue
+        turns = get_turns_per_agent(t)
+        tokens = get_total_tokens_per_agent(t)
+
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
         # previous batches where the interface allowed submissions of incomplete/partial chats
-        if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
-                or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
-            continue
+        # 06/01/2017 -- disabled this check because the rejection criteria have changed
+        # if reject_transcript(t):
+        #     continue
 
         scenario = t["scenario"]
         category = scenario["category"]
@@ -136,9 +112,6 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
             total_chats[name] = 0.
             total_tokens[name] = 0.
 
-        turns = get_turns_per_agent(t)
-        tokens = get_avg_tokens_per_agent(t)
-
         total_chats["total"] += 1
         total_turns["total"] += turns[0] + turns[1]
         total_tokens["total"] += tokens[0] + tokens[1]
@@ -149,7 +122,8 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
 
     for key in total_chats.keys():
         stats["turns"][key] = total_turns[key]/total_chats[key]
-        stats["tokens"][key] = total_tokens[key]/total_chats[key]
+        stats["tokens"][key] = total_tokens[key]/(total_chats[key]*2)
+        stats["num_completed"][key] = total_chats[key]
 
 
 def pretty_print_stats(stats, label):
@@ -167,7 +141,12 @@ def get_statistics(args, transcripts, survey_data, questions=("persuasive", "neg
 
     stats_out_path = os.path.join(args.stats_output, "stats.json")
     statsfile = open(stats_out_path, 'w')
-    stats = {"avg_description_overlap":{}, "turns": {}, "tokens": {}}
+    stats = {
+        "avg_description_overlap":{},
+        "turns": {},
+        "tokens": {},
+        "num_completed": {}
+    }
     stats["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
     # print "Aggregated total dataset statistics"
     # print_group_stats(total_stats)
@@ -184,6 +163,7 @@ def get_statistics(args, transcripts, survey_data, questions=("persuasive", "neg
 
     pretty_print_stats(stats["turns"], "Average # of turns")
     pretty_print_stats(stats["tokens"], "Average # of tokens")
+    pretty_print_stats(stats["num_completed"], "Number of chats")
 
     statsfile.close()
 
