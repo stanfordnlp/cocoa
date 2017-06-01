@@ -34,7 +34,6 @@ class HTMLVisualizer(object):
 class BaseHTMLVisualizer(object):
     agent_labels = None
     questions = None
-    partial_allowed = False
 
     @classmethod
     def get_scenario(cls, chat):
@@ -161,7 +160,7 @@ class BaseHTMLVisualizer(object):
 
     @classmethod
     def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None):
-        completed, partial, chat_html = cls.render_chat(chat, agent, partner_type)
+        completed, rejected, chat_html = cls.render_chat(chat, agent, partner_type)
         if chat_html is None:
             return False, False, None
 
@@ -178,7 +177,7 @@ class BaseHTMLVisualizer(object):
             response_html = cls.render_response(responses[dialogue_id], agents)
             html_lines.extend(response_html)
 
-        return completed, partial, html_lines
+        return completed, rejected, html_lines
 
 
     @classmethod
@@ -195,35 +194,39 @@ class BaseHTMLVisualizer(object):
                     html.append(line.strip())
             html.append('</style>')
 
-        completed_chats = []
-        incomplete_chats = []
+        accepted_chats = {'completed': [], 'incompleted': []}
+        rejected_chats = {'completed': [], 'incompleted': []}
+        num_accepted = {'completed': 0, 'incompleted': 0}
+        num_rejected = {'completed': 0, 'incompleted': 0}
         total = 0
-        num_completed = 0
-        num_partial = 0
+        def add_chat(chats, chat_html):
+            chats.extend(chat_html)
+            chats.append('</div>')
+            chats.append("<hr>")
         for (idx, chat) in enumerate(transcripts):
-            completed, partial, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
-            if completed or (cls.partial_allowed and partial):
-                if completed:
-                    num_completed += 1
-                elif (cls.partial_allowed and partial):
-                    num_partial += 1
-                completed_chats.extend(chat_html)
-                completed_chats.append('</div>')
-                completed_chats.append("<hr>")
+            completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
+            if chat_html is None:
+                continue
+            k = 'completed' if completed else 'incompleted'
+            if not rejected:
+                add_chat(accepted_chats[k], chat_html)
+                num_accepted[k] += 1
             else:
-                if chat_html is not None:
-                    incomplete_chats.extend(chat_html)
-                    incomplete_chats.append('</div>')
-                    incomplete_chats.append("<hr>")
+                add_chat(rejected_chats[k], chat_html)
+                num_rejected[k] += 1
             total += 1
 
-        html.extend(['<h3>Total number of chats: %d</h3>' % total,
-                     '<h3>Number of chats completed: %d</h3>' % num_completed])
-        if cls.partial_allowed:
-            html.append('<h3>Number of incomplete but valid chats: %d</h3>' % num_partial)
+        naccepted = sum(num_accepted.values())
+        nrejected = sum(num_rejected.values())
+        html.extend([
+            '<h3>Total number of chats: %d</h3>' % total,
+            '<h3>Number of chats accepted: %d (completed %d, incompleted %d)</h3>' % (naccepted, num_accepted['completed'], num_accepted['incompleted']),
+            '<h3>Number of chats rejected: %d (completed %d, incompleted %d)</h3>' % (nrejected, num_rejected['completed'], num_rejected['incompleted'])])
         html.append('<hr>')
-        html.extend(completed_chats)
-        html.extend(incomplete_chats)
+        html.extend(accepted_chats['completed'])
+        html.extend(accepted_chats['incompleted'])
+        html.extend(rejected_chats['completed'])
+        html.extend(rejected_chats['incompleted'])
         html.append('</body></html>')
         return html
 
@@ -337,7 +340,6 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
     questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
-    partial_allowed = True
 
     @classmethod
     def render_scenario(cls, scenario):
@@ -365,6 +367,6 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human'):
         complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type)
-        partial = True if chat["outcome"] is not None and chat["outcome"]["reward"] == 0 \
-                          and "offer" in chat["outcome"].keys() and chat["outcome"]["offer"] is not None else True
-        return complete, partial, html_lines
+        from src.turk.accept_negotiation_hits import check_turns_and_tokens, get_turns_per_agent, get_avg_tokens_per_agent
+        rejected = check_turns_and_tokens(get_turns_per_agent(chat), get_avg_tokens_per_agent(chat))
+        return complete, rejected, html_lines
