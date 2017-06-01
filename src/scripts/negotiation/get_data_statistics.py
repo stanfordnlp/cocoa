@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
+from src.turk.accept_negotiation_hits import check_turns_and_tokens
 from argparse import ArgumentParser
 from src.model.preprocess import tokenize
 import json
@@ -114,11 +114,13 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
     for t in transcripts:
         if t["uuid"] not in surveyed_chats:
             continue
+        turns = get_turns_per_agent(t)
+        tokens = get_avg_tokens_per_agent(t)
+
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
         # previous batches where the interface allowed submissions of incomplete/partial chats
-        if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
-                or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
+        if check_turns_and_tokens(turns, tokens):
             continue
 
         scenario = t["scenario"]
@@ -136,9 +138,6 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
             total_chats[name] = 0.
             total_tokens[name] = 0.
 
-        turns = get_turns_per_agent(t)
-        tokens = get_avg_tokens_per_agent(t)
-
         total_chats["total"] += 1
         total_turns["total"] += turns[0] + turns[1]
         total_tokens["total"] += tokens[0] + tokens[1]
@@ -150,6 +149,7 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
     for key in total_chats.keys():
         stats["turns"][key] = total_turns[key]/total_chats[key]
         stats["tokens"][key] = total_tokens[key]/total_chats[key]
+        stats["num_completed"][key] = total_chats[key]
 
 
 def pretty_print_stats(stats, label):
@@ -167,7 +167,12 @@ def get_statistics(args, transcripts, survey_data, questions=("persuasive", "neg
 
     stats_out_path = os.path.join(args.stats_output, "stats.json")
     statsfile = open(stats_out_path, 'w')
-    stats = {"avg_description_overlap":{}, "turns": {}, "tokens": {}}
+    stats = {
+        "avg_description_overlap":{},
+        "turns": {},
+        "tokens": {},
+        "num_completed": {}
+    }
     stats["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
     # print "Aggregated total dataset statistics"
     # print_group_stats(total_stats)
@@ -184,6 +189,7 @@ def get_statistics(args, transcripts, survey_data, questions=("persuasive", "neg
 
     pretty_print_stats(stats["turns"], "Average # of turns")
     pretty_print_stats(stats["tokens"], "Average # of tokens")
+    pretty_print_stats(stats["num_completed"], "Number of chats")
 
     statsfile.close()
 

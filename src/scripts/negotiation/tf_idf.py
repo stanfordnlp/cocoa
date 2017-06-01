@@ -5,6 +5,7 @@ __author__ = 'anushabala'
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import matplotlib.pyplot as plt
+from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
 
 
 def json_to_text(transcript, agent_type=None):
@@ -73,6 +74,9 @@ class TfIdfCalculator(object):
     def build(self, transcripts):
         grouped_chats = defaultdict(str)
         for t in transcripts:
+            if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
+                    or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
+                continue
             chat = json_to_text(t, self.agent_type)
             category = t["scenario"]["category"]
             grouped_chats[category] += " {:s}".format(chat)
