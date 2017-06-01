@@ -9,6 +9,21 @@ import json
 from src.model.preprocess import tokenize
 
 
+def check_turns_and_tokens(avg_turns, avg_tokens):
+    if avg_turns[0] < 4:
+        if avg_tokens[0] >= 15:
+            return False
+        else:
+            return True
+    elif avg_turns[1] < 4:
+        if avg_tokens[1] >= 15:
+            return False
+        else:
+            return True
+
+    return False
+
+
 def process_db(cursor):
     survey_codes = {}
     agent_ids = {}
@@ -70,12 +85,8 @@ def is_chat_valid(transcript, idx):
     if outcome["reward"] == 1:
         return True
 
-    if turns[idx] < 4 or avg_tokens[idx] < 5:
-        # print "Utterances too short: %s" % transcript["uuid"]
-        # print "Avg tokens: ", avg_tokens
-        return False
 
-    return True
+    return check_turns_and_tokens(turns, avg_tokens)
 
 
 #todo (anusha): copied this from controller.py, needs to be refactored?
@@ -117,9 +128,7 @@ def is_partial_chat(transcript, idx):
         turns = get_turns_per_agent(transcript)
         avg_tokens = get_avg_tokens_per_agent(transcript)
         # print turns, avg_tokens
-        if turns[idx] < 4 and avg_tokens[idx] < 5:
-            return False
-        return True
+        return check_turns_and_tokens(turns, avg_tokens)
 
     return False
 

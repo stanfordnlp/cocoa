@@ -3,7 +3,7 @@ import json
 __author__ = 'anushabala'
 import uuid
 from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
-from src.turk.accept_negotiation_hits import get_avg_tokens_per_agent, get_turns_per_agent
+from src.turk.accept_negotiation_hits import get_avg_tokens_per_agent, get_turns_per_agent, check_turns_and_tokens
 from src.basic.systems.human_system import HumanSystem
 from src.scripts.visualize_data import visualize_chat
 from src.web.dump_events_to_json import convert_events_to_json
@@ -728,11 +728,7 @@ class NegotiationBackend(BaseBackend):
         def _reject_chat():
             avg_turns = get_turns_per_agent(ex)
             avg_tokens = get_avg_tokens_per_agent(ex)
-            # todo make this configurable
-            if (avg_turns[0] < 4 or avg_tokens[0] < 5) or (avg_turns[1] < 4 or avg_tokens[1] < 5):
-                return True
-
-            return False
+            return check_turns_and_tokens(avg_turns, avg_tokens)
 
         with self.conn:
             controller = self.controller_map[userid]
