@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 
-from src.turk.accept_negotiation_hits import check_turns_and_tokens
+from src.turk.accept_negotiation_hits import reject_transcript, get_turns_per_agent, get_total_tokens_per_agent
 from argparse import ArgumentParser
 from src.model.preprocess import tokenize
 import json
@@ -80,33 +80,6 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-# todo copied these from accept_negotiation_hits.py--- consolidate
-def get_turns_per_agent(transcript):
-    turns = {0: 0, 1: 0}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            turns[event["agent"]] += 1
-
-    return turns
-
-
-def get_avg_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    utterances = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-            utterances[event["agent"]] += 1
-
-    if utterances[0] != 0:
-        tokens[0] /= utterances[0]
-    if utterances[1] != 0:
-        tokens[1] /= utterances[1]
-
-    return tokens
-
-
 def compute_basic_statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total":0.}
     total_tokens = {"total": 0.}
@@ -115,12 +88,12 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
         if t["uuid"] not in surveyed_chats:
             continue
         turns = get_turns_per_agent(t)
-        tokens = get_avg_tokens_per_agent(t)
+        tokens = get_total_tokens_per_agent(t)
 
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
         # previous batches where the interface allowed submissions of incomplete/partial chats
-        if check_turns_and_tokens(turns, tokens):
+        if reject_transcript(t):
             continue
 
         scenario = t["scenario"]
@@ -148,7 +121,7 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
 
     for key in total_chats.keys():
         stats["turns"][key] = total_turns[key]/total_chats[key]
-        stats["tokens"][key] = total_tokens[key]/total_chats[key]
+        stats["tokens"][key] = total_tokens[key]/(total_chats[key]*2)
         stats["num_completed"][key] = total_chats[key]
 
 
