@@ -172,8 +172,8 @@ class BaseHTMLVisualizer(object):
 
         html_lines.extend(chat_html)
 
-        if responses:
-            dialogue_id = chat['uuid']
+        dialogue_id = chat['uuid']
+        if responses and dialogue_id in responses:
             agents = chat['agents']
             response_html = cls.render_response(responses[dialogue_id], agents)
             html_lines.extend(response_html)

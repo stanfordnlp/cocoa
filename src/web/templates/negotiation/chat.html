@@ -531,13 +531,12 @@
                 {% if kb['personal']['Role'] == 'buyer' %}
                     <p>You are the potential <b>buyer</b>.
                     The list price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
-                    The most you can afford to pay is <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
-                    The lower the better.</p>
+                    You would like to pay for <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    You can accept higher price though if the item is really good or there are other perks.</p>
                 {% else %}
                     <p>You are the <b>seller</b>.
-                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
-                    You can accept an offer as low as <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
-                    The higher the better.</p>
+                    Your listing price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
+                    You are willing to negotiate but should not go too low.
                 {% endif %}
                 <h3>Basic facts</h3>
                 <table>
@@ -575,8 +574,7 @@
                 <div id="facts">
                     <h3>Partner Goal</h3>
                     <p>
-                    The list price for this item is {{ "$%d"|format(kb['item']['Price']) }}. 
-                    but you can accept <b>{{ "$%d"|format(kb['personal']['Bottomline']) }}</b>.
+                    Your listing price for this item is {{ "$%d"|format(kb['item']['Price']) }}. 
                     </p>
                 </div>
             {% endif %}

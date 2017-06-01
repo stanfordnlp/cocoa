@@ -236,17 +236,24 @@ class BaseVisualizer(object):
             dialogue_responses = self.get_dialogue_responses(self.question_scores)
 
             # Put chats in the order of responses
+            chats_with_survey = set()
             for dialogue_id, agent_responses in dialogue_responses.iteritems():
                 chat = self.uuid_to_chat[dialogue_id]
                 scenario_id = chat['scenario_uuid']
                 chats.append((scenario_id, chat))
+                chats_with_survey.add(dialogue_id)
                 scenario_to_chats[scenario_id].add(dialogue_id)
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+            # Incomplete chats (redirected, no survey)
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                if dialogue_id not in chats_with_survey:
+                    chats.append(chat)
         else:
             for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
                 scenario_id = chat['scenario_uuid']
                 chats.append((scenario_id, chat))
                 scenario_to_chats[scenario_id].add(dialogue_id)
-        chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
         html_visualizer = HTMLVisualizer.get_html_visualizer()
         html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file)
@@ -281,6 +288,7 @@ class NegotiationVisualizer(BaseVisualizer):
             else:
                 eval_agent = 1
             b = ex.scenario.kbs[eval_agent].facts['personal']['Bottomline']
+            t = ex.scenario.kbs[eval_agent].facts['personal']['Target']
             # l = ex.scenario.kbs[eval_agent].facts['item']['Price']
             if ex.outcome is None or ex.outcome["reward"] == 0:
                 continue
@@ -291,12 +299,16 @@ class NegotiationVisualizer(BaseVisualizer):
                         offer = json.loads(event.data)
                         p = float(offer['price'])
                         if ex.scenario.kbs[eval_agent].facts['personal']['Role'] == 'buyer':
-                            diff = (b - p)/b
+                            if b is not None:
+                                diff = (b - p)/b
+                            else:
+                                diff = (p - t)/t
                         else:
-                            diff = (p - b)/b
+                            if b is not None:
+                                diff = (p - b)/b
+                            else:
+                                diff = (t - p)/t
 
-                        # if p > 100:
-                        #     print p, event.data, ex.ex_id
                         final_offer += diff
                         break
         return {'success rate': num_success / float(len(examples)),
