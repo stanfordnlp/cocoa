@@ -51,9 +51,15 @@ def get_winner(transcript):
             return -1
     except KeyError:
         return -1
-    # NOTE: use bottomline for now because we don't have targets in batch
-    bottomlines = {0: kbs[0]['personal']['Bottomline'],
-               1: kbs[1]['personal']['Bottomline']}
+    # TODO: once we finalized the scenarios we should just have one case
+    refs = {0: kbs[0]['personal']['Bottomline'],
+            1: kbs[1]['personal']['Bottomline']}
+    ref_price = 'bottomline'
+    if refs[0] is None or refs[1] is None:
+        refs = {0: kbs[0]['personal']['Target'],
+                1: kbs[1]['personal']['Target']}
+        ref_price = 'target'
+
 
     roles = {kbs[0]['personal']['Role']: 0,
              kbs[1]['personal']['Role']: 1}
@@ -62,21 +68,24 @@ def get_winner(transcript):
 
     # for seller, offer is probably lower than target
     seller_idx = roles['seller']
-    diffs[seller_idx] = offer - bottomlines[seller_idx]
-    if diffs[seller_idx] < 0:
-        diffs[seller_idx] = -diffs[seller_idx]
+    diffs[seller_idx] = abs(offer - refs[seller_idx])
 
     # for buyer, offer is probably
     buyer_idx = roles['buyer']
-    diffs[buyer_idx] = bottomlines[buyer_idx] - offer
-    if diffs[buyer_idx] < 0:
-        diffs[buyer_idx] = -diffs[buyer_idx]
+    diffs[buyer_idx] = abs(refs[buyer_idx] - offer)
 
-    # Whoever closer to the bottomline is the loser
-    if diffs[0] < diffs[1]:
-        return 1
-    elif diffs[1] < diffs[0]:
-        return 0
+    if ref_price == 'bottomline':
+        # Winner if farther from bottomline
+        if diffs[0] < diffs[1]:
+            return 1
+        elif diffs[1] < diffs[0]:
+            return 0
+    else:
+        # Winner is closer to target
+        if diffs[0] < diffs[1]:
+            return 0
+        elif diffs[1] < diffs[0]:
+            return 1
 
     return -1
 
@@ -150,7 +159,8 @@ def update_worker_stats(result_path, worker_stats, worker_chats):
 
 def print_chat(chat):
     for event in chat['events']:
-        print event['agent'], event['data']
+        if event['action'] in ('message', 'offer'):
+            print event['agent'], event['data']
 
 def normalize_stats(worker_stats):
     keys = ('num_turns', 'num_tokens', 'win_rate', 'negotiator', 'fluent', 'persuasive')
@@ -177,7 +187,10 @@ def assign_qualification(mturk_conn, worker_scores, qual_type, threshold=None, d
     if not threshold:
         threshold = np.median(worker_scores.values())
     for worker_id, score in worker_scores.iteritems():
-        qual = qual_type['good'] if score > threshold else qual_type['bad']
+        if score > threshold:
+            continue
+        else:
+            qual = qual_type['bad']
         # Remove old qual
         if worker_id in worker_quals:
             old_qual = worker_quals[worker_id]
@@ -187,7 +200,7 @@ def assign_qualification(mturk_conn, worker_scores, qual_type, threshold=None, d
             else:
                 print 'Revoke qual {qual_type} of worker {worker_id}'.format(qual_type=old_qual, worker_id=worker_id)
                 if not debug:
-                    mturk_conn.revoke_qualification(worker_id, qual_type)
+                    mturk_conn.revoke_qualification(worker_id, old_qual)
         print 'Assign {qual_type} to worker {worker_id}'.format(qual_type=qual, worker_id=worker_id)
         if not debug:
             worker_quals[worker_id] = qual
