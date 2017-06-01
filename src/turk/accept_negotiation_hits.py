@@ -10,12 +10,12 @@ from src.model.preprocess import tokenize
 
 
 def check_turns_and_tokens(avg_turns, avg_tokens):
-    if avg_turns[0] < 4:
+    if avg_turns[0] < 4 or avg_tokens[0] < 5:
         if avg_tokens[0] >= 15:
             return False
         else:
             return True
-    elif avg_turns[1] < 4:
+    elif avg_turns[1] < 4 or avg_tokens[1] < 5:
         if avg_tokens[1] >= 15:
             return False
         else:
