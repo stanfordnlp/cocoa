@@ -43,17 +43,25 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
         agent_types = {0: HumanSystem.name(), 1: HumanSystem.name()}
 
     chat_events = []
+    agent_chat = {0: False, 1: False}
     for (agent, action, time, data, start_time) in logged_events:
-        if action == 'join' or action == 'leave':
+        if action == 'join' or action == 'leave' or action == 'typing':
+            continue
+        if action == 'message' and len(data.strip()) == 0:
             continue
         if action == 'select':
             data = json.loads(data)
+        agent_chat[agent] = True
 
         time = convert_time_format(time)
         start_time = convert_time_format(start_time)
         event = Event(agent, time, action, data, start_time)
         chat_events.append(event)
-    return Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id, agent_types)
+    # Skip single-agen chat
+    if agent_chat[0] and agent_chat[1]:
+        return Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id, agent_types)
+    else:
+        return None
 
 
 def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
@@ -74,7 +82,8 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
     examples = []
     for chat_id in ids:
         ex = convert_events_to_json(chat_id[0], cursor, scenario_db)
-        examples.append(ex)
+        if ex:
+            examples.append(ex)
 
     outfile = open(json_path, 'w')
     json.dump([ex.to_dict() for ex in examples], outfile)
