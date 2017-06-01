@@ -6,12 +6,14 @@ import numpy as np
 import copy
 import re
 import langdetect
+import os.path
 from itertools import izip
 from src.basic.schema import Schema
 from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
 from src.basic.util import generate_uuid, write_json, read_json
 from src.basic.kb import NegotiationKB
-from itertools import izip_longest
+from itertools import izip_longest, izip
+from collections import defaultdict
 
 private_attr = ['Laundry', 'Pet', 'Built data', 'Neighborhood']
 BUYER = NegotiationScenario.BUYER
@@ -118,7 +120,8 @@ if __name__ == '__main__':
     parser.add_argument('--num-scenarios', help='Number of scenarios to generate', type=int, default=-1)
     parser.add_argument('--intersections', nargs='*', type=float, default=[0.2, 0.4, 0.6, 0.8], help="Intersection of buyer and seller's price range")
     parser.add_argument('--flexibility', type=float, default=0.2, help="Price range")
-    parser.add_argument('--scraped-data', nargs='+', required=True, help="JSON file containing text listings")
+    parser.add_argument('--scraped-data', required=True, help="Path to scraped data")
+    parser.add_argument('--categories', nargs='+', required=True, help="Listing categories, JSON file path is craigslist_<category>.json")
     parser.add_argument('--fractions', nargs='+', required=True, help="Fractions of data from different scraped categories")
     #parser.add_argument('--price-unit', default=10, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
@@ -129,29 +132,35 @@ if __name__ == '__main__':
 
     schema = Schema(args.schema_path)
 
-    listings = [read_json(data) for data in args.scraped_data]
+    listings = [read_json(os.path.join(args.scraped_data, 'craigslist_{}.json'.format(c))) for c in args.categories]
     fractions = np.array([float(x) for x in args.fractions])
     fractions = fractions / np.sum(fractions)
+
+    # Sample listings
     sampled_listings = []
-    N = sum([len(listing) for listing in listings])
+    N = sum([len(l) for l in listings])
     for listing, fraction in izip(listings, fractions):
-        n = max(int(N * fraction), 1)
+        n = int(N * fraction)
+        print listing[0]['category'], len(listing), fraction, n
         sampled_listings.append(listing[:n])
-    # Interleave listings from different categories so we have a balanced scenario set
-    listings = [x for l in izip_longest(*sampled_listings, fillvalue=None) for x in l if x is not None]
+    listings = [x for l in sampled_listings for x in l]
+    N = len(listings)
+    inds = np.random.permutation(N)
+    listings = [listings[i] for i in inds]
+
     base_price = None
 
     scenario_list = []
     price_unit = 1
     scenario_generator = generate_scenario(schema, base_price, price_unit, args.intersections, args.flexibility, listings)
     for i, s in enumerate(scenario_generator):
-        if i == args.num_scenarios:
+        if len(scenario_list) == args.num_scenarios:
             break
         scenario_list.append(s)
     scenario_db = ScenarioDB(scenario_list)
     write_json(scenario_db.to_dict(), args.scenarios_path)
 
-    for i in range(min(100, len(scenario_db.scenarios_list))):
+    for i in range(min(10, len(scenario_db.scenarios_list))):
         print '---------------------------------------------------------------------------------------------'
         print '---------------------------------------------------------------------------------------------'
         scenario = scenario_db.scenarios_list[i]
@@ -160,4 +169,10 @@ if __name__ == '__main__':
             kb = scenario.kbs[agent]
             kb.dump()
 
+    num_listings_per_category = defaultdict(int)
+    for s in scenario_list:
+        cat = s.kbs[0].facts['item']['Category']
+        num_listings_per_category[cat] += 1
+    for k, v in num_listings_per_category.iteritems():
+        print k, v
     print '%d scenarios generated' % len(scenario_list)
