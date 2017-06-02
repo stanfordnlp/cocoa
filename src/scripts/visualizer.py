@@ -228,7 +228,7 @@ class BaseVisualizer(object):
                     dialogue_responses[dialogue_id][agent_id][question] = response
         return dialogue_responses
 
-    def html_visualize(self, viewer_mode, html_output, css_file=None):
+    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None):
         chats = []
         scenario_to_chats = defaultdict(set)
         dialogue_responses = None
@@ -256,7 +256,7 @@ class BaseVisualizer(object):
             chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
         html_visualizer = HTMLVisualizer.get_html_visualizer()
-        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file)
+        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file, img_path=img_path)
 
 class NegotiationVisualizer(BaseVisualizer):
     agents = ('human', 'rulebased')
@@ -427,5 +427,5 @@ if __name__ == '__main__':
         visualizer.worker_stats()
 
     if args.html_output:
-        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file)
+        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file, img_path=args.img_path)
 
