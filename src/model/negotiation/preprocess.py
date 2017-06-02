@@ -10,8 +10,9 @@ from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
 from collections import namedtuple, defaultdict, deque
 import copy
-from nltk.tokenize import word_tokenize
 from src.basic.negotiation.price_tracker import PriceTracker
+from src.basic.negotiation.tokenizer import tokenize
+
 get_price = PriceTracker.get_price
 
 def add_preprocess_arguments(parser):
@@ -19,32 +20,12 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', PAD='<pad>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD'])
+markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>')
 START_PRICE = -1
 
 def price_filler(x):
     return x == '<price>'
-
-def tokenize(utterance):
-    '''
-    'hi there!' => ['hi', 'there', '!']
-    '''
-    utterance = utterance.encode('utf-8').lower()
-    tokens = word_tokenize(utterance)
-    # Don't split on markers <>
-    new_tokens = []
-    in_brackets = False
-    for tok in tokens:
-        if in_brackets:
-            new_tokens[-1] = new_tokens[-1] + tok
-        else:
-            new_tokens.append(tok)
-        if tok == '<':
-            in_brackets = True
-        if tok == '>':
-            in_brackets = False
-    return new_tokens
 
 def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
     vocab = Vocabulary(offset=0, unk=True)
@@ -114,6 +95,68 @@ class TextIntMap(object):
             #toks = ['<price>' if price_filler(x) else x for x, p in izip(toks, prices)]
         return toks
 
+class PriceScaler(object):
+    @classmethod
+    def get_price_range(cls, kb):
+        '''
+        Return the bottomline and the target
+        '''
+        b = kb.facts['personal']['Bottomline']  # 0
+        t = kb.facts['personal']['Target']  # 1
+        role = kb.facts['personal']['Role']
+
+        # TODO: should have only one case after we fix the scenarios in the end.
+        if b is None:
+            if role == 'seller':
+                b = t * 0.7
+            else:
+                b = kb.facts['item']['Price']
+        elif t is None:
+            if role == 'seller':
+                t = kb.facts['item']['Price']
+            else:
+                t = b * 0.7
+
+        return b, t
+
+    @classmethod
+    def get_parameters(cls, b, t):
+        '''
+        Return (slope, constant) parameters of the linear mapping.
+        '''
+        assert (t - b) != 0
+        w = 1. / (t - b)
+        c = -1. * b / (t - b)
+        return w, c
+
+    @classmethod
+    # TODO: this is operated on canonical entities, need to be consistent!
+    def unscale_price(cls, kb, price):
+        p = get_price(price)
+        b, t = cls.get_price_range(kb)
+        w, c = cls.get_parameters(b, t)
+        assert w != 0
+        p = (p - c) / w
+        p = int(p)
+        if isinstance(price, Entity):
+            return price._replace(canonical=price.canonical._replace(value=p))
+        else:
+            return price._replace(value=p)
+
+    @classmethod
+    def scale_price(cls, kb, price):
+        '''
+        Scale the price such that bottomline=0 and target=1.
+        '''
+        p = get_price(price)
+        b, t = cls.get_price_range(kb)
+        w, c = cls.get_parameters(b, t)
+        p = w * p + c
+        # Discretize to two digits
+        p = float('{:.2f}'.format(p))
+        return price._replace(canonical=price.canonical._replace(value=p))
+
+
 class Dialogue(object):
     textint_map = None
     ENC = 0
@@ -147,39 +190,8 @@ class Dialogue(object):
         self._add_utterance(agent, utterances)
 
     @classmethod
-    # TODO: this is operated on canonical entities, need to be consistent!
-    def _original_price(cls, kb, price):
-        p = get_price(price)
-        b = kb.facts['personal']['Bottomline']  # 0
-        t = kb.facts['personal']['Target']  # 1
-        w = 1. / (t - b)
-        c = -1. * b / (t - b)
-        assert w != 0
-        p = (p - c) / w
-        p = int(p)
-        if isinstance(price, Entity):
-            return price._replace(canonical=price.canonical._replace(value=p))
-        else:
-            return price._replace(value=p)
-
-    @classmethod
-    def _normalize_price(cls, kb, price):
-        '''
-        Normalize the price such that bottomline=0 and target=1.
-        '''
-        p = get_price(price)
-        b = kb.facts['personal']['Bottomline']  # 0
-        t = kb.facts['personal']['Target']  # 1
-        assert (t - b) != 0
-        w = 1. / (t - b)
-        c = -1. * b / (t - b)
-        p = w * p + c
-        p = float('{:.2f}'.format(p))
-        return price._replace(canonical=price.canonical._replace(value=p))
-
-    @classmethod
-    def normalize_price(cls, kb, utterance):
-        return [cls._normalize_price(kb, x) if is_entity(x) else x for x in utterance]
+    def scale_price(cls, kb, utterance):
+        return [PriceScaler.scale_price(kb, x) if is_entity(x) else x for x in utterance]
 
     @classmethod
     def original_price(cls, kb, utterance):
@@ -187,7 +199,7 @@ class Dialogue(object):
         return s
 
     def _add_utterance(self, agent, utterance):
-        utterance = self.normalize_price(self.kb, utterance)
+        utterance = self.scale_price(self.kb, utterance)
         entities = [x if is_entity(x) else None for x in utterance]
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
@@ -324,11 +336,12 @@ class DialogueBatch(object):
         batch_size = len(price_batch)
         feat_size = len(price_batch[0][0])
         T = np.full([batch_size, max_num_tokens+1, feat_size], int_markers.PAD, dtype=np.float32)
+        # TODO: need to be passed in
+        last_price_batch = None
         for i, (turn, role) in enumerate(izip(price_batch, roles)):
             T[i, 1:len(turn)+1, :] = turn
             # TODO: fix the condition
             #if T[i][1][0] != int_markers.PAD:
-            # TODO: it should be copying from previous price batch, not init contidition!!
             T[i, 0, :] = T[i, 1, :]
         return T
 
@@ -517,26 +530,39 @@ class Preprocessor(object):
             else:
                 return None
         elif e.action == 'offer':
-            entity_tokens = [markers.OFFER, self.price_to_entity(e.data)]
+            data = e.data['price']
+            entity_tokens = [markers.OFFER, self.price_to_entity(data)]
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
             return entity_tokens
+        elif e.action == 'accept':
+            entity_tokens = [markers.ACCEPT]
+            return entity_tokens
+        elif e.action == 'reject':
+            entity_tokens = [markers.REJECT]
+            return entity_tokens
         else:
             raise ValueError('Unknown event action.')
+
+    @classmethod
+    def skip_example(cls, example):
+        tokens = {0: 0, 1: 0}
+        for event in example.events:
+            if event.action == "message":
+                msg_tokens = tokenize(event.data)
+                tokens[event.agent] += len(msg_tokens)
+        if tokens[0] < 40 and tokens[1] < 40:
+            return True
+        return False
 
     def preprocess(self, examples):
         dialogues = []
         for ex in examples:
+            if self.skip_example(ex):
+                continue
             for d in self._process_example(ex):
-                # Skip incomplete chats
-                if len(d.agents) < 2 or ex.outcome['reward'] == 0:
-                    continue
-                    print 'Removing dialogue %s' % d.uuid
-                    for event in ex.events:
-                        print event.to_dict()
-                else:
-                    dialogues.append(d)
+                dialogues.append(d)
         return dialogues
 
 class DataGenerator(object):
