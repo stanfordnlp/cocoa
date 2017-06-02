@@ -367,6 +367,6 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human'):
         complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type)
-        from src.turk.accept_negotiation_hits import check_turns_and_tokens, get_turns_per_agent, get_avg_tokens_per_agent
-        rejected = check_turns_and_tokens(get_turns_per_agent(chat), get_avg_tokens_per_agent(chat))
+        from src.turk.accept_negotiation_hits import reject_transcript
+        rejected = reject_transcript(chat)
         return complete, rejected, html_lines
