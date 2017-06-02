@@ -36,7 +36,10 @@ def add_website_arguments(parser):
                         help='Name of directory for storing website output (debug and error logs, chats, '
                              'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '
-                             'If the provided directory exists, all data in it is overwritten.')
+                             'If the provided directory exists, all data in it is overwritten unless the '
+                             '--reuse parameter is provided.')
+    parser.add_argument('--reuse', action='store_true', help='If provided, reuses the existing database file in the '
+                                                             'output directory.')
 
 
 def add_survey_table(cursor):
@@ -157,21 +160,20 @@ def cleanup(flask_app):
         log_surveys_to_json(db_path, surveys_path)
 
 
-def init(output_dir):
-    if os.path.exists(output_dir):
-        shutil.rmtree(output_dir)
-    os.makedirs(output_dir)
-
+def init(output_dir, reuse=False):
     db_file = os.path.join(output_dir, DB_FILE_NAME)
-    init_database(db_file)
-
     log_file = os.path.join(output_dir, LOG_FILE_NAME)
-
     transcripts_dir = os.path.join(output_dir, TRANSCRIPTS_DIR)
-    if os.path.exists(transcripts_dir):
-        shutil.rmtree(transcripts_dir)
+    if not reuse:
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir)
 
-    os.makedirs(transcripts_dir)
+        init_database(db_file)
+
+        if os.path.exists(transcripts_dir):
+            shutil.rmtree(transcripts_dir)
+        os.makedirs(transcripts_dir)
 
     return db_file, log_file, transcripts_dir
 
@@ -187,7 +189,7 @@ if __name__ == "__main__":
     with open(params_file) as fin:
         params = json.load(fin)
 
-    db_file, log_file, transcripts_dir = init(args.output)
+    db_file, log_file, transcripts_dir = init(args.output, args.reuse)
     params['db'] = {}
     params['db']['location'] = db_file
     params['logging'] = {}
@@ -239,7 +241,8 @@ if __name__ == "__main__":
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
-    add_scenarios_to_db(db_file, scenario_db, systems)
+    if not args.reuse:
+        add_scenarios_to_db(db_file, scenario_db, systems)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

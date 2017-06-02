@@ -3,7 +3,7 @@ import json
 __author__ = 'anushabala'
 import uuid
 from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
-from src.turk.accept_negotiation_hits import get_avg_tokens_per_agent, get_turns_per_agent, check_turns_and_tokens
+from src.turk.accept_negotiation_hits import get_total_tokens_per_agent, get_turns_per_agent, reject_transcript
 from src.basic.systems.human_system import HumanSystem
 from src.scripts.visualize_data import visualize_chat
 from src.web.dump_events_to_json import convert_events_to_json
@@ -724,31 +724,50 @@ class MutualFriendsBackend(BaseBackend):
 
 
 class NegotiationBackend(BaseBackend):
-    def should_reject_chat(self, userid):
-        def _reject_chat():
-            avg_turns = get_turns_per_agent(ex)
-            avg_tokens = get_avg_tokens_per_agent(ex)
-            return check_turns_and_tokens(avg_turns, avg_tokens)
-
+    def should_reject_chat(self, userid, agent_idx):
         with self.conn:
             controller = self.controller_map[userid]
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
-            return _reject_chat()
+            return reject_transcript(ex, agent_idx)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
+        def _get_agent_idx():
+            chat_id = controller.get_chat_id()
+            try:
+                with self.conn:
+                    cursor = self.conn.cursor()
+                    cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
+                    agent_ids = json.loads(cursor.fetchone()[0])
+                    agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
+                    print "Agent IDs string:", agent_ids
+                    return 0 if agent_ids[0] == userid else 1
+
+            except sqlite3.IntegrityError:
+                print("WARNING: Rolled back transaction")
+                return None
+
+        controller = self.controller_map[userid]
+        agent_idx = _get_agent_idx()
         game_over, game_complete = self.is_game_over(userid)
+
         if game_over:
-            if self.should_reject_chat(userid):
+            if self.should_reject_chat(userid, 1-agent_idx):
+                self.end_chat_and_transition_to_waiting(cursor, partner_id,
+                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+            else:
+                if not self.is_user_partner_bot(cursor, userid):
+                    partner_msg, _ = self.get_completion_messages(partner_id)
+                    self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
+
+            if self.should_reject_chat(userid, agent_idx):
                 self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting,
-                                                        partner_id=partner_id)
-                return True
-            msg, partner_msg = self.get_completion_messages(userid)
-            self.end_chat_and_finish(cursor, userid, message=msg)
-            if not self.is_user_partner_bot(cursor, userid):
-                self.user_finished(cursor, partner_id, message=partner_msg)
+                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+            else:
+                msg, _ = self.get_completion_messages(userid)
+                self.end_chat_and_finish(cursor, userid, message=msg)
+
             return True
 
         return False
@@ -782,7 +801,6 @@ class NegotiationBackend(BaseBackend):
             msg = Messages.get_completed_message()
             partner_msg = msg
 
-            controller = self.controller_map[userid]
             # agent_idx = _get_agent_idx()
             # if agent_idx == controller.get_winner():
             #     msg = Messages.NegotiationBetterDeal
