@@ -1,6 +1,5 @@
 import numpy as np
 
-# TODO: this can be put in the tf graph
 class PriceBuffer(object):
     def __init__(self, batch_size=None, buffer_size=None, agents=None, default_val=None, init_price_batch=None):
         if init_price_batch is not None:

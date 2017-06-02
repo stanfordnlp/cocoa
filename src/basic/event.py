@@ -16,6 +16,9 @@ class BaseEvent(object):
         self.action = action
         self.data = data
         self.start_time = start_time
+        # TODO: factor!
+        if self.action == 'offer':
+            self.data = eval(self.data)
 
     @staticmethod
     def from_dict(raw):
@@ -56,6 +59,7 @@ class BaseEvent(object):
     @staticmethod
     def TypingEvent(agent, data, time=None):
         return Event(agent, time, 'typing', data)
+
 
 
 import src.config as config
