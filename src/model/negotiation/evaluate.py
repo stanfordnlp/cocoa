@@ -25,15 +25,16 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
     entities = []
     if num_sents is None:
         num_sents = [1 for _ in preds]
-    for pred, n, price in izip(preds, num_sents, prices):
-        N = find_stop(pred, n)
-        assert len(pred) == len(price)
-        token_price = [(x, p) for x, p in izip(pred[:N], price[:N]) if not x in remove_symbols]
-        s = textint_map.int_to_text([x[0] for x in token_price], prices=[x[1] for x in token_price])
-        #s = textint_map.int_to_text([x[0] for x in token_price])
-    #for pred, n in izip(preds, num_sents):
-    #    s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
-        tokens.append(s)
+    if prices:
+        for pred, n, price in izip(preds, num_sents, prices):
+            N = find_stop(pred, n)
+            assert len(pred) == len(price)
+            token_price = [(x, p) for x, p in izip(pred[:N], price[:N]) if not x in remove_symbols]
+            s = textint_map.int_to_text([x[0] for x in token_price], prices=[x[1] for x in token_price])
+    else:
+        for pred, n in izip(preds, num_sents):
+            s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
+            tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(BaseEvaluator):

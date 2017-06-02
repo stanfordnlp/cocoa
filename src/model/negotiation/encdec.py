@@ -95,7 +95,7 @@ class BasicEncoderDecoder(object):
         #feed_dict[self.encoder.keep_prob] = 1. - self.encoder.dropout
         true_final_state = sess.run((self.final_state), feed_dict=feed_dict)
         return {'preds': decoder_output_dict['preds'],
-                'prices': decoder_output_dict['prices'],
+                'prices': decoder_output_dict.get('prices', None),
                 'final_state': decoder_output_dict['final_state'],
                 'true_final_state': true_final_state,
                 }
