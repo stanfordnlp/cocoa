@@ -730,7 +730,7 @@ class NegotiationBackend(BaseBackend):
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
-            return reject_transcript(ex)
+            return reject_transcript(ex, agent_idx)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         def _get_agent_idx():
