@@ -12,36 +12,6 @@ class PriceTracker(object):
             except:
                 return None
 
-
-    @classmethod
-    def _get_price_range(cls, kb, partner_kb):
-        if kb is not None:
-            b = kb['personal']['Bottomline']
-            #t = kb['personal']['Target']
-            p = kb['item']['Price']
-            role = kb['personal']['Role']
-            if role == 'seller':
-                price_range = (b, p)
-            else:
-                price_range = (0.6*b, b)
-        elif partner_kb is not None:
-            b = partner_kb['personal']['Bottomline']
-            p = partner_kb['item']['Price']
-            if partner_kb['personal']['Role'] == 'buyer':
-                role = 'seller'
-            else:
-                role = 'buyer'
-            # Approximate range
-            if role == 'buyer':
-                # b is seller's bottomline, which is higher than buyer's bottomline
-                price_range = (0.8*b, p)
-            else:
-                # b is buyer's bottomline, which is lower than buyer's bottomline
-                price_range = (0.6*b, p)
-        else:
-            raise Exception('No KB is provided')
-        return price_range
-
     @classmethod
     def process_string(cls, token):
         token = re.sub(r'[\$\,]', '', token)
@@ -59,18 +29,18 @@ class PriceTracker(object):
         '''
         # We must know at least one KB
         assert kb or partner_kb
-        #price_range = self._get_price_range(kb, partner_kb)
         entity_tokens = []
         N = len(raw_tokens)
         for i, token in enumerate(raw_tokens):
             try:
                 number = float(self.process_string(token))
-                if i + 1 < N and raw_tokens[i+1].startswith('mile'):
+                if i + 1 < N and (\
+                        raw_tokens[i+1].startswith('mile') or\
+                        raw_tokens[i+1].startswith('year')\
+                        ):
                     new_token = token
-                #elif number >= price_range[0] and number <= price_range[1]:
-                #    new_token = (token, (number, 'price'))
                 else:
-                    new_token = token
+                    new_token = Entity(surface=token, canonical=CanonicalEntity(value=number, type='price'))
             except ValueError:
                 new_token = token
             entity_tokens.append(new_token)
