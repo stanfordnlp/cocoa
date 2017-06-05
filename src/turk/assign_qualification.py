@@ -117,7 +117,7 @@ def is_valid(agent_stats):
     '''
     Don't count chats where there is only one person talking.
     '''
-    if agent_stats[1]['num_turns'] == 0 or agent_stats[0]['num_turns'] == 0:
+    if agent_stats[1]['num_turns'] < 3 or agent_stats[0]['num_turns'] < 3:
         return False
     return True
 
@@ -200,7 +200,10 @@ def assign_qualification(mturk_conn, worker_scores, qual_type, threshold=None, d
             else:
                 print 'Revoke qual {qual_type} of worker {worker_id}'.format(qual_type=old_qual, worker_id=worker_id)
                 if not debug:
-                    mturk_conn.revoke_qualification(worker_id, old_qual)
+                    try:
+                        mturk_conn.revoke_qualification(worker_id, old_qual)
+                    except MTurkRequestError as e:
+                        print "FAILED:", e.reason
 
         # Only assign bad quals
         if qual == qual_type['bad']:

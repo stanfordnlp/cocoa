@@ -49,7 +49,7 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
             continue
         if action == 'message' and len(data.strip()) == 0:
             continue
-        if action == 'select':
+        if action == 'select' or action == 'offer':
             data = json.loads(data)
         agent_chat[agent] = True
 
@@ -57,11 +57,13 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
         start_time = convert_time_format(start_time)
         event = Event(agent, time, action, data, start_time)
         chat_events.append(event)
-    # Skip single-agen chat
-    if agent_chat[0] and agent_chat[1]:
-        return Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id, agent_types)
-    else:
-        return None
+    return Example(scenario_db.get(uuid), uuid, chat_events, outcome, chat_id, agent_types)
+
+def single_agent(chat):
+    agent_event = {0: 0, 1: 0}
+    for event in chat.events:
+        agent_event[event.agent] += 1
+    return agent_event[0] == 0 or agent_event[1] == 0
 
 
 def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
@@ -81,8 +83,9 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
 
     examples = []
     for chat_id in ids:
+        # Skip single-agent chat
         ex = convert_events_to_json(chat_id[0], cursor, scenario_db)
-        if ex:
+        if not single_agent(ex):
             examples.append(ex)
 
     outfile = open(json_path, 'w')
