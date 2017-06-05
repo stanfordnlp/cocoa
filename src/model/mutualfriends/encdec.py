@@ -2,7 +2,8 @@ import tensorflow as tf
 import numpy as np
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
-from src.model.rnn_cell import AttnRNNCell, PreselectAttnRNNCell
+# Task-specific modules
+from rnn_cell import AttnRNNCell, PreselectAttnRNNCell
 from preprocess import markers
 
 class GraphEncoder(BasicEncoder):
@@ -151,8 +152,7 @@ class GraphDecoder(GraphEncoder):
         return self.encoder.encode(time_major=False, **kwargs)['final_output']
 
     def compute_loss(self, targets, pad, select):
-        logits = self.output_dict['logits']
-        loss, seq_loss, total_loss = BasicDecoder._compute_loss(logits, targets, pad)
+        loss, seq_loss, total_loss = BasicDecoder._compute_loss(pad)
         # -1 is selection loss
         return loss, seq_loss, total_loss, tf.constant(-1.)
 
@@ -441,7 +441,7 @@ class BasicEncoderDecoder(object):
         self.build_model(encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope)
 
     def compute_loss(self, output_dict, targets):
-        return self.decoder.compute_loss(targets, self.PAD, self.SELECT)
+        return self.decoder.compute_loss(self.PAD)
 
     def _encoder_input_dict(self):
         return {
@@ -481,7 +481,13 @@ class BasicEncoderDecoder(object):
             self.targets = self.decoder.targets
 
             # Loss
-            self.loss, self.seq_loss, self.total_loss, self.select_loss = self.compute_loss(decoder.output_dict, self.targets)
+            # TODO: make loss return a dict to accomadate different loss terms
+            losses = self.compute_loss(decoder.output_dict, self.targets)
+            self.loss, self.seq_loss, self.total_loss = losses[:3]
+            try:
+                self.select_loss = losses[3]
+            except IndexError:
+                self.select_loss = -1.
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})

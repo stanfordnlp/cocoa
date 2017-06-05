@@ -40,7 +40,7 @@ def get_data_generator(args, model_args, mappings, schema):
 
 def add_model_arguments(parser):
     from src.model.encdec import add_basic_model_arguments
-    from src.model.rnn_cell import add_attention_arguments
+    from rnn_cell import add_attention_arguments
     from graph import add_graph_arguments
     from graph_embedder import add_graph_embed_arguments
 
