@@ -296,8 +296,7 @@ class NegotiationVisualizer(BaseVisualizer):
                 num_success += 1
                 for event in ex.events:
                     if event.action == 'offer':
-                        offer = json.loads(event.data)
-                        p = float(offer['price'])
+                        p = float(event.data['price'])
                         if ex.scenario.kbs[eval_agent].facts['personal']['Role'] == 'buyer':
                             if b is not None:
                                 diff = (b - p)/b
