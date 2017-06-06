@@ -80,20 +80,29 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
+def get_avg_time_taken(transcript):
+    events = transcript["events"]
+    start_time = float(events[0]["time"])
+    end_time = float(events[-1]["time"])
+    return end_time - start_time
+
+
 def compute_basic_statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total":0.}
     total_tokens = {"total": 0.}
     total_chats = {"total": 0.}
+    total_time = {"total": 0.}
     for t in transcripts:
         if t["uuid"] not in surveyed_chats:
             continue
         turns = get_turns_per_agent(t)
         tokens = get_total_tokens_per_agent(t)
+        time = get_avg_time_taken(t)
 
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
         # previous batches where the interface allowed submissions of incomplete/partial chats
-        # 06/01/2017 -- disabled this check because the rejection criteria have changed
+        # 06/01/2017 -- disabled this check because the rejection criteria have changed - by default just look at all chats with surveys
         # if reject_transcript(t):
         #     continue
 
@@ -111,58 +120,60 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
             total_turns[name] = 0.
             total_chats[name] = 0.
             total_tokens[name] = 0.
+            total_time[name] = 0.
 
         total_chats["total"] += 1
         total_turns["total"] += turns[0] + turns[1]
         total_tokens["total"] += tokens[0] + tokens[1]
+        total_time["total"] += time
 
         total_chats[name] += 1
         total_turns[name] += turns[0] + turns[1]
         total_tokens[name] += tokens[0] + tokens[1]
+        total_time[name] += time
 
     for key in total_chats.keys():
         stats["turns"][key] = total_turns[key]/total_chats[key]
         stats["tokens"][key] = total_tokens[key]/(total_chats[key]*2)
         stats["num_completed"][key] = total_chats[key]
+        stats["time"][key] = total_time[key]/total_chats[key]
+
 
 
 def pretty_print_stats(stats, label):
-    print "Grouped statistics for: {:s} ".format(label)
+    print "{:s}".format(label)
     for key in sorted(stats.keys()):
         print "\t{key: <20}: {val:2.3f}".format(key=key, val=stats[key])
 
 
-def get_statistics(args, transcripts, survey_data, questions=("persuasive", "negotiator")):
-    if not os.path.exists(os.path.dirname(args.stats_output)) and len(os.path.dirname(args.stats_output)) > 0:
-        os.makedirs(os.path.dirname(args.stats_output))
-
+def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiator")):
     surveyed_chats = survey_data[0].keys()
     surveys = survey_data[1]
 
-    stats_out_path = os.path.join(args.stats_output, "stats.json")
+    stats_out_path = os.path.join(stats_output, "stats.json")
     statsfile = open(stats_out_path, 'w')
     stats = {
         "avg_description_overlap":{},
         "turns": {},
         "tokens": {},
-        "num_completed": {}
+        "num_completed": {},
+        "time": {}
     }
-    stats["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
-    # print "Aggregated total dataset statistics"
-    # print_group_stats(total_stats)
+    # stats["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
     compute_basic_statistics(transcripts, stats, surveyed_chats)
 
-    print "Avg. description overlap: %2.4f" % avg_overlap
+    # print "Avg. description overlap: %2.4f" % avg_overlap
 
-    corr = get_overlap_correlation(transcripts, surveys, questions)
-    print "Correlations between ratings and persuasivness:"
-    for q in questions:
-        print "%s" % q, corr[q]
-    # Speech acts
+    # corr = get_overlap_correlation(transcripts, surveys, questions)
+    # print "Correlations between ratings and persuasivness:"
+    # for q in questions:
+    #     print "%s" % q, corr[q]
+
     json.dump(stats, statsfile)
 
     pretty_print_stats(stats["turns"], "Average # of turns")
-    pretty_print_stats(stats["tokens"], "Average # of tokens")
+    pretty_print_stats(stats["tokens"], "Average # of tokens per agent")
+    pretty_print_stats(stats["time"], "Average time taken")
     pretty_print_stats(stats["num_completed"], "Number of chats")
 
     statsfile.close()
@@ -172,20 +183,27 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
     parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
-    parser.add_argument('--transcripts', required=True, help='Path to JSON file containing transcripts')
-    parser.add_argument('--surveys', required=True, help='Path to JSON file containing surveys')
-    parser.add_argument('--stats-output', required=True, help='Directory to output stats to')
+    parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
     parser.add_argument('--agent-types', nargs='+', default=['human'], help='Types of agents to get statistics for')
     args = parser.parse_args()
-    transcripts = json.load(open(args.transcripts, 'r'))
-    survey_data = json.load(open(args.surveys, 'r'))
+    output_dir = args.output_dir
+    if not os.path.exists(output_dir):
+        raise ValueError("Output directory {:s} doesn't exist".format(output_dir))
+    transcripts = json.load(open(os.path.join(output_dir, "transcripts", "transcripts.json"), 'r'))
+    survey_data = json.load(open(os.path.join(output_dir, "transcripts", "surveys.json"), 'r'))
 
-    get_statistics(args, transcripts, survey_data)
+    stats_output = os.path.join(output_dir, "stats")
+    print stats_output
+    if not os.path.exists(stats_output):
+        os.makedirs(stats_output)
+
+    get_statistics(transcripts, survey_data)
 
     top_features_by_agent = []
+
     for agent_type in args.agent_types:
         tfidf = TfIdfCalculator(transcripts, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
 
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=args.stats_output)
+    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)

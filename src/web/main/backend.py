@@ -235,7 +235,11 @@ class BaseBackend(object):
                 # map from scenario ID -> partner type -> # of completed dialogues with that partner
                 if scenario_id not in scenario_dialogues:
                     scenario_dialogues[scenario_id] = {}
-                scenario_dialogues[scenario_id][partner_type] = num_complete + num_active
+
+                if num_active < 0:
+                    scenario_dialogues[scenario_id][partner_type] = num_complete
+                else:
+                    scenario_dialogues[scenario_id][partner_type] = num_complete + num_active
 
             # find "active" scenarios (scenarios for which at least one agent type has no completed or active dialogues)
             active_scenarios = defaultdict(list)

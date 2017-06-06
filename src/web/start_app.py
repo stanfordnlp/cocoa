@@ -85,13 +85,16 @@ def init_database(db_file):
     conn.close()
 
 
-def add_scenarios_to_db(db_file, scenario_db, systems):
+def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     for scenario in scenario_db.scenarios_list:
         sid = scenario.uuid
         for agent_type in systems.keys():
-            c.execute('''INSERT INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
+            if update:
+                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
+            else:
+                c.execute('''INSERT INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
 
     conn.commit()
     conn.close()
@@ -241,8 +244,7 @@ if __name__ == "__main__":
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
-    if not args.reuse:
-        add_scenarios_to_db(db_file, scenario_db, systems)
+    add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
