@@ -157,6 +157,8 @@ if __name__ == '__main__':
         if len(scenario_list) == args.num_scenarios:
             break
         scenario_list.append(s)
+    if len(scenario_list) < args.num_scenarios:
+        print 'Not enough listings: {} scenarios generated.'.format(len(scenario_list))
     scenario_db = ScenarioDB(scenario_list)
     write_json(scenario_db.to_dict(), args.scenarios_path)
 
