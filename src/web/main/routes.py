@@ -14,8 +14,8 @@ from src.web.main.backend_utils import Status
 from src.basic.event import Event
 
 
-def generate_userid():
-    return "U_" + uuid.uuid4().hex
+def generate_userid(prefix="U_"):
+    return prefix + uuid.uuid4().hex
 
 
 def userid():
@@ -188,7 +188,18 @@ def index():
     the session."""
 
     if not request.args.get('uid'):
-        return redirect(url_for('main.index', uid=generate_userid(), **request.args))
+        prefix = "U_"
+        if request.args.get('mturk') and int(request.args.get('mturk')) == 1:
+            # link for Turkers
+            prefix = "MT_"
+        elif request.args.get('nlp') and int(request.args.get('nlp')) == 1:
+            # link for NLP group
+            prefix = "NLP_"
+        elif request.args.get('bus') and int(request.args.get('bus')) == 1:
+            # business school link
+            prefix = "BUS_"
+
+        return redirect(url_for('main.index', uid=generate_userid(prefix), **request.args))
 
     backend = get_backend()
 
