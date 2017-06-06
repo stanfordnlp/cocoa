@@ -117,7 +117,7 @@ def is_valid(agent_stats):
     '''
     Don't count chats where there is only one person talking.
     '''
-    if agent_stats[1]['num_turns'] == 0 or agent_stats[0]['num_turns'] == 0:
+    if agent_stats[1]['num_turns'] < 3 or agent_stats[0]['num_turns'] < 3:
         return False
     return True
 
@@ -188,7 +188,7 @@ def assign_qualification(mturk_conn, worker_scores, qual_type, threshold=None, d
         threshold = np.median(worker_scores.values())
     for worker_id, score in worker_scores.iteritems():
         if score > threshold:
-            continue
+            qual = qual_type['good']
         else:
             qual = qual_type['bad']
         # Remove old qual
@@ -200,11 +200,17 @@ def assign_qualification(mturk_conn, worker_scores, qual_type, threshold=None, d
             else:
                 print 'Revoke qual {qual_type} of worker {worker_id}'.format(qual_type=old_qual, worker_id=worker_id)
                 if not debug:
-                    mturk_conn.revoke_qualification(worker_id, old_qual)
-        print 'Assign {qual_type} to worker {worker_id}'.format(qual_type=qual, worker_id=worker_id)
-        if not debug:
-            worker_quals[worker_id] = qual
-            mturk_conn.assign_qualification(qual, worker_id, send_notification=False)
+                    try:
+                        mturk_conn.revoke_qualification(worker_id, old_qual)
+                    except MTurkRequestError as e:
+                        print "FAILED:", e.reason
+
+        # Only assign bad quals
+        if qual == qual_type['bad']:
+            print 'Assign {qual_type} to worker {worker_id}'.format(qual_type=qual, worker_id=worker_id)
+            if not debug:
+                worker_quals[worker_id] = qual
+                mturk_conn.assign_qualification(qual, worker_id, send_notification=False)
 
 #def assign_qualification(mturk_conn, worker_scores, qual_type, debug=False):
 #    for worker_id, score in worker_scores.iteritems():

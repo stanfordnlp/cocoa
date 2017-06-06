@@ -19,6 +19,7 @@ def add_html_visualizer_arguments(parser):
     parser.add_argument('--html-output', help='Name of directory to write HTML report to')
     parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
     parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+    parser.add_argument('--img-path', help='path to images')
 
 class HTMLVisualizer(object):
     @staticmethod
@@ -34,7 +35,6 @@ class HTMLVisualizer(object):
 class BaseHTMLVisualizer(object):
     agent_labels = None
     questions = None
-    partial_allowed = False
 
     @classmethod
     def get_scenario(cls, chat):
@@ -160,14 +160,14 @@ class BaseHTMLVisualizer(object):
         return html_lines
 
     @classmethod
-    def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None):
-        completed, partial, chat_html = cls.render_chat(chat, agent, partner_type)
+    def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None, img_path=None):
+        completed, rejected, chat_html = cls.render_chat(chat, agent, partner_type)
         if chat_html is None:
             return False, False, None
 
         html_lines = []
 
-        scenario_html = cls.render_scenario(cls.get_scenario(chat))
+        scenario_html = cls.render_scenario(cls.get_scenario(chat), img_path)
         html_lines.extend(scenario_html)
 
         html_lines.extend(chat_html)
@@ -178,11 +178,11 @@ class BaseHTMLVisualizer(object):
             response_html = cls.render_response(responses[dialogue_id], agents)
             html_lines.extend(response_html)
 
-        return completed, partial, html_lines
+        return completed, rejected, html_lines
 
 
     @classmethod
-    def aggregate_chats(cls, transcripts, responses=None, css_file=None):
+    def aggregate_chats(cls, transcripts, responses=None, css_file=None, img_path=None):
         html = ['<!DOCTYPE html>','<html>',
                 '<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
                 'tr:nth-child(n) { border: solid thin;}</style></head><body>']
@@ -195,44 +195,49 @@ class BaseHTMLVisualizer(object):
                     html.append(line.strip())
             html.append('</style>')
 
-        completed_chats = []
-        incomplete_chats = []
+        accepted_chats = {'completed': [], 'incompleted': []}
+        rejected_chats = {'completed': [], 'incompleted': []}
+        num_accepted = {'completed': 0, 'incompleted': 0}
+        num_rejected = {'completed': 0, 'incompleted': 0}
         total = 0
-        num_completed = 0
-        num_partial = 0
+        def add_chat(chats, chat_html):
+            chats.extend(chat_html)
+            chats.append('</div>')
+            chats.append("<hr>")
+        transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
         for (idx, chat) in enumerate(transcripts):
-            completed, partial, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
-            if completed or (cls.partial_allowed and partial):
-                if completed:
-                    num_completed += 1
-                elif (cls.partial_allowed and partial):
-                    num_partial += 1
-                completed_chats.extend(chat_html)
-                completed_chats.append('</div>')
-                completed_chats.append("<hr>")
+            completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx, img_path=img_path)
+            if chat_html is None:
+                continue
+            k = 'completed' if completed else 'incompleted'
+            if not rejected:
+                add_chat(accepted_chats[k], chat_html)
+                num_accepted[k] += 1
             else:
-                if chat_html is not None:
-                    incomplete_chats.extend(chat_html)
-                    incomplete_chats.append('</div>')
-                    incomplete_chats.append("<hr>")
+                add_chat(rejected_chats[k], chat_html)
+                num_rejected[k] += 1
             total += 1
 
-        html.extend(['<h3>Total number of chats: %d</h3>' % total,
-                     '<h3>Number of chats completed: %d</h3>' % num_completed])
-        if cls.partial_allowed:
-            html.append('<h3>Number of incomplete but valid chats: %d</h3>' % num_partial)
+        naccepted = sum(num_accepted.values())
+        nrejected = sum(num_rejected.values())
+        html.extend([
+            '<h3>Total number of chats: %d</h3>' % total,
+            '<h3>Number of chats accepted: %d (completed %d, incompleted %d)</h3>' % (naccepted, num_accepted['completed'], num_accepted['incompleted']),
+            '<h3>Number of chats rejected: %d (completed %d, incompleted %d)</h3>' % (nrejected, num_rejected['completed'], num_rejected['incompleted'])])
         html.append('<hr>')
-        html.extend(completed_chats)
-        html.extend(incomplete_chats)
+        html.extend(accepted_chats['completed'])
+        html.extend(accepted_chats['incompleted'])
+        html.extend(rejected_chats['completed'])
+        html.extend(rejected_chats['incompleted'])
         html.append('</body></html>')
         return html
 
     @classmethod
-    def visualize_transcripts(cls, html_output, transcripts, responses=None, css_file=None):
+    def visualize_transcripts(cls, html_output, transcripts, responses=None, css_file=None, img_path=None):
         if not os.path.exists(os.path.dirname(html_output)) and len(os.path.dirname(html_output)) > 0:
             os.makedirs(os.path.dirname(html_output))
 
-        html_lines = cls.aggregate_chats(transcripts, responses, css_file)
+        html_lines = cls.aggregate_chats(transcripts, responses, css_file, img_path)
 
         outfile = open(html_output, 'w')
         for line in html_lines:
@@ -293,20 +298,20 @@ class BaseHTMLVisualizer(object):
         cls.write_chat_htmls(transcripts, html_output, responses)
 
     @classmethod
-    def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None):
+    def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None, img_path=None):
         if viewer_mode:
             # External js and css
             cls.write_viewer_data(html_output, chats, responses=responses)
         else:
             # Inline style
-            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses)
+            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses, img_path=img_path)
 
 class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
     questions = ("fluent", "correct", 'cooperative', "humanlike")
 
     @classmethod
-    def render_scenario(cls, scenario):
+    def render_scenario(cls, scenario, img_path=None):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
         for (idx, kb) in enumerate(scenario.kbs):
             kb_dict = kb.to_dict()
@@ -337,15 +342,16 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
     questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
-    partial_allowed = True
 
     @classmethod
-    def render_scenario(cls, scenario):
+    def render_scenario(cls, scenario, img_path=None):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
         # Post
         facts = scenario.kbs[0].facts
-        html.append("<p>%s</p>" % facts['item']['Title'])
+        html.append("<p><b>%s ($%d)</b></p>" % (facts['item']['Title'], facts['item']['Price']))
         html.append("<p>%s</p>" % '<br>'.join(facts['item']['Description']))
+        if img_path and len(facts['item']['Images']) > 0:
+            html.append("<p><img src=%s></p>" % os.path.join(img_path, facts['item']['Images'][0]))
         # Private info
         for (idx, kb) in enumerate(scenario.kbs):
             kb_dict = kb.to_dict()
@@ -365,6 +371,6 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human'):
         complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type)
-        partial = True if chat["outcome"] is not None and chat["outcome"]["reward"] == 0 \
-                          and "offer" in chat["outcome"].keys() and chat["outcome"]["offer"] is not None else True
-        return complete, partial, html_lines
+        from src.turk.accept_negotiation_hits import reject_transcript
+        rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
+        return complete, rejected, html_lines
