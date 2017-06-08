@@ -325,14 +325,13 @@
 			</tr>
 			</thead>
 			<tbody>
-				{% set ctr = 1 %}
 				{% for item in kb %}
+				{% set ctr = loop.index%}
 				<tr>
 					<td><a href="javascript:void(0)" onclick="makeSelection({{ctr}} - 1)"><b>Select</b></a></td>
 					{% for attr in attributes %}
 					<td>{{item[attr]}}</td>
 					{% endfor %}
-					{% set ctr = ctr + 1 %}
 				</tr>
 				{% endfor %}
 			</tbody>
@@ -350,13 +349,12 @@
 			</tr>
 			</thead>
 			<tbody>
-				{% set ctr = 1 %}
 				{% for item in partner_kb %}
+				{% set ctr = loop.index%}
 				<tr>
 					{% for attr in attributes %}
 					<td>{{item[attr]}}</td>
 					{% endfor %}
-					{% set ctr = ctr + 1 %}
 				</tr>
 				{% endfor %}
 			</tbody>

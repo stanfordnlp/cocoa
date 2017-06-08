@@ -268,7 +268,7 @@ class GraphEncoder(BasicEncoder):
         self.word_embeddings = word_embeddings
         if self.node_embed_in_rnn_inputs:
             entity_embeddings = self._get_node_embedding(self.context[0], self.entities)
-            inputs = tf.concat(2, [word_embeddings, entity_embeddings])
+            inputs = tf.concat([word_embeddings, entity_embeddings], 2)
         else:
             inputs = word_embeddings
         if not time_major:
@@ -365,7 +365,7 @@ class BasicDecoder(BasicEncoder):
 
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets) * token_weights
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=targets) * token_weights
         total_loss = tf.reduce_sum(loss)
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         # Average over words in each sequence
@@ -608,7 +608,7 @@ class CopyGraphDecoder(GraphDecoder):
         '''
         logits = super(CopyGraphDecoder, self)._build_output(output_dict)  # (batch_size, seq_len, num_symbols)
         attn_scores = transpose_first_two_dims(output_dict['attn_scores'])  # (batch_size, seq_len, num_nodes)
-        return tf.concat(2, [logits, attn_scores])
+        return tf.concat([logits, attn_scores], 2)
 
     def pred_to_entity(self, pred, graphs, vocab):
         '''

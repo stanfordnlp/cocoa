@@ -55,7 +55,7 @@ class NeuralSystem(System):
 
         # NOTE: need to close the session when done
         tf_session = tf.Session(config=config)
-        tf.initialize_all_variables().run(session=tf_session)
+        tf.global_variables_initializer().run(session=tf_session)
 
         # Load TF model parameters
         ckpt = tf.train.get_checkpoint_state(model_path+'-best')

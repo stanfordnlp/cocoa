@@ -229,7 +229,7 @@ class Learner(object):
 
         # Testing
         with tf.Session(config=config) as sess:
-            tf.initialize_all_variables().run()
+            tf.global_variables_initializer().run()
             if args.init_from:
                 saver.restore(sess, ckpt.model_checkpoint_path)
             summary_map = {}

@@ -4,7 +4,7 @@ RNN cell with attention over an input context.
 
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
-from tensorflow.python.ops.rnn_cell import _linear as linear
+from tensorflow.contrib.rnn.python.ops.core_rnn_cell_impl import _linear as linear
 from src.model.util import batch_linear, batch_embedding_lookup, EPS
 
 def add_attention_arguments(parser):
@@ -12,9 +12,9 @@ def add_attention_arguments(parser):
     parser.add_argument('--attn-output', default='project', help='How to combine rnn output and attention {concat, project}')
     parser.add_argument('--no-checklist', default=False, action='store_true', help='Whether to include checklist at each RNN step')
 
-recurrent_cell = {'rnn': tf.nn.rnn_cell.BasicRNNCell,
-                  'gru': tf.nn.rnn_cell.GRUCell,
-                  'lstm': tf.nn.rnn_cell.LSTMCell,
+recurrent_cell = {'rnn': tf.contrib.rnn.BasicRNNCell,
+                  'gru': tf.contrib.rnn.GRUCell,
+                  'lstm': tf.contrib.rnn.LSTMCell,
                  }
 
 activation = tf.tanh
@@ -28,11 +28,11 @@ def build_rnn_cell(rnn_type, rnn_size, num_layers, keep_prob):
     else:
         cell = recurrent_cell[rnn_type](rnn_size)
     if num_layers > 1:
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob)
-        cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, output_keep_prob=keep_prob)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=keep_prob)
+        cell = tf.contrib.rnn.MultiRNNCell([cell] * num_layers)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob=keep_prob)
     else:
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+        cell = tf.contrib.rnn.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
     return cell
 
 class AttnRNNCell(object):
@@ -108,7 +108,7 @@ class AttnRNNCell(object):
         context_size = context.get_shape().as_list()[-1]
         with tf.variable_scope('ScoreContextBilinear'):
             h = batch_linear(h, context_size, False)  # (batch_size, context_len, context_size)
-            attns = tf.reduce_sum(tf.mul(h, context), 2)  # (batch_size, context_len)
+            attns = tf.reduce_sum(tf.multiply(h, context), 2)  # (batch_size, context_len)
         return attns
 
     def output_with_attention(self, output, attn):
@@ -123,7 +123,7 @@ class AttnRNNCell(object):
             raise ValueError('Unknown output model')
 
     def _output_concat(self, output, attn):
-        return tf.concat(1, [output, attn])
+        return tf.concat(values=[output, attn], axis=1)
 
     def _output_project(self, output, attn, project_size):
         with tf.variable_scope("AttnOutputProjection"):
@@ -147,7 +147,7 @@ class AttnRNNCell(object):
             attns = tf.where(context_mask, attns, zero_attns)
             # Compute attention weighted context
             attns = tf.expand_dims(attns, 2)
-            weighted_context = tf.reduce_sum(tf.mul(attns, context), 1)  # (batch_size, context_size)
+            weighted_context = tf.reduce_sum(tf.multiply(attns, context), 1)  # (batch_size, context_size)
             # Setting it to -inf seems to cause learning problems
             neginf = -10. * tf.ones_like(context_mask, dtype=tf.float32)
             masked_attn_scores = tf.where(context_mask, attn_scores, neginf)
@@ -158,7 +158,7 @@ class AttnRNNCell(object):
             prev_rnn_state, prev_attn, prev_context = state
             inputs, checklist = inputs
             # RNN step
-            new_inputs = tf.concat(1, [inputs, prev_attn])
+            new_inputs = tf.concat(values=[inputs, prev_attn], axis=1)
             output, rnn_state = self.rnn_cell(new_inputs, prev_rnn_state)
             # No update in context inside an utterance
             attn, attn_scores = self.compute_attention(output, prev_context, checklist)

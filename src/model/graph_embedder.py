@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
-from tensorflow.python.ops.rnn_cell import _linear as linear
+from tensorflow.contrib.rnn.python.ops.core_rnn_cell_impl import _linear as linear
 from src.model.util import batch_embedding_lookup, batch_linear, EPS
 
 def add_graph_embed_arguments(parser):
@@ -89,16 +89,16 @@ class GraphEmbedder(object):
                     # It saves some reshapes to do batch_linear and batch_embedding_lookup
                     # together, but this way is clearer.
                     if self.config.use_entity_embedding:
-                        initial_node_embed = tf.concat(2,
+                        initial_node_embed = tf.concat(
                                 [tf.nn.embedding_lookup(self.entity_embedding, entity_ids),
                                  batch_embedding_lookup(utterances[0], node_ids),
                                  batch_embedding_lookup(utterances[1], node_ids),
-                                 node_feats])
+                                 node_feats], 2)
                     else:
-                        initial_node_embed = tf.concat(2,
+                        initial_node_embed = tf.concat(
                                 [batch_embedding_lookup(utterances[0], node_ids),
                                  batch_embedding_lookup(utterances[1], node_ids),
-                                 node_feats])
+                                 node_feats], 2)
                     scope.reuse_variables()
 
                 # Message passing
@@ -116,7 +116,7 @@ class GraphEmbedder(object):
                             tf.get_variable_scope().reuse_variables()
                         node_embeds.append(mp(node_embeds[-1]))
 
-        context = tf.concat(2, node_embeds)
+        context = tf.concat(node_embeds, 2)
 
         self.context_initialized = True
         return context, mask
@@ -207,7 +207,7 @@ class GraphEmbedder(object):
         batch_inds = tf.reshape(tf.tile(tf.reshape(tf.range(B), [-1, 1]), [1, E*U]), [-1, 1])
         node_inds = tf.reshape(tf.tile(tf.reshape(entity_indices, [-1, 1]), [1, U]), [-1, 1])
         utterance_inds = tf.reshape(tf.tile(tf.range(U), [E*B]), [-1, 1])
-        inds = tf.concat(1, [batch_inds, node_inds, utterance_inds])
+        inds = tf.concat([batch_inds, node_inds, utterance_inds], 1)
 
         # Repeat utterance for each entity
         utterance = tf.reshape(tf.tile(utterance, [1, E]), [-1])
@@ -215,12 +215,12 @@ class GraphEmbedder(object):
 
         if self.config.learned_decay:
             with tf.variable_scope('UpdateUtterance', reuse=self.update_initialized):
-                weight = tf.sigmoid(batch_linear(tf.concat(2, [curr_utterances, new_utterance]), 1, True))  # (batch_size, num_nodes, 1)
+                weight = tf.sigmoid(batch_linear(tf.concat([curr_utterances, new_utterance], 2), 1, True))  # (batch_size, num_nodes, 1)
                 if not self.update_initialized:
                     self.update_initialized = True
 
 
         if self.config.learned_decay:
-            return tf.mul(1 - weight, curr_utterances) + tf.mul(weight, new_utterance)
+            return tf.multiply(1 - weight, curr_utterances) + tf.multiply(weight, new_utterance)
         else:
             return curr_utterances * self.config.decay + new_utterance
