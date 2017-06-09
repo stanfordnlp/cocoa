@@ -35,7 +35,7 @@ def tokenize(utterance):
     'hi there!' => ['hi', 'there', '!']
     '''
     utterance = utterance.encode('utf-8').lower()
-    tokens = word_tokenize(utterance)
+    tokens = word_tokenize(utterance.decode('utf-8'))
     tokens = stick_marker_sign(tokens)
     tokens = stick_dollar_sign(tokens)
     return tokens

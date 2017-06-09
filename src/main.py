@@ -56,7 +56,7 @@ if __name__ == '__main__':
         mappings = read_pickle(vocab_path)
         print 'Done [%fs]' % (time.time() - start)
     else:
-        # Process args
+        # TODO: factor. Process args
         if args.predict_price:
             # Output <price> and use predictor to fill in the number
             args.entity_decoding_form = 'type'

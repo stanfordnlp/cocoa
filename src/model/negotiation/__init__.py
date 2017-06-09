@@ -42,7 +42,8 @@ def build_model(schema, mappings, args):
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder
+    from context_embedder import ContextEmbedder
     from preprocess import markers
 
     tf.reset_default_graph()
@@ -65,7 +66,10 @@ def build_model(schema, mappings, args):
 
     if args.model == 'encdec':
         encoder = BasicEncoder(args.rnn_size, args.rnn_type, args.num_layers, args.dropout)
-        decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
+        #decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
+        # TODO: add option
+        context_embedder = ContextEmbedder(mappings['cat_vocab'].size)
+        decoder = ContextDecoder(args.rnn_size, vocab.size, context_embedder, args.rnn_type, args.num_layers, args.dropout, sampler)
         if args.predict_price:
             # TODO: hack. add PriceStack to record and return prices
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)

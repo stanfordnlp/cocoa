@@ -16,9 +16,7 @@ class BaseEvent(object):
         self.action = action
         self.data = data
         self.start_time = start_time
-        # TODO: factor!
-        if self.action == 'offer':
-            self.data = eval(self.data)
+        self.data = self.data
 
     @staticmethod
     def from_dict(raw):
