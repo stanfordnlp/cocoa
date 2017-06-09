@@ -285,8 +285,9 @@ class BasicDecoder(BasicEncoder):
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
+            # TODO: hacky for context
             feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                    init_state=final_state)
+                    init_state=final_state, context=kwargs['context'])
         return {'preds': preds, 'final_state': final_state}
 
 ############# dynamic import depending on task ##################

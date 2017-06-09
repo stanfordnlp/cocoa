@@ -6,20 +6,24 @@ class Learner(BaseLearner):
     def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
         super(Learner, self).__init__(data, model, evaluator, batch_size, verbose)
 
-    def _get_feed_dict(self, batch, encoder_init_state=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         targets = batch['targets']
 
+        price_args = {'init_price_history': init_price_history,
+                }
         encoder_args = {'inputs': batch['encoder_inputs'],
                 'init_state': encoder_init_state,
+                'price_inputs': batch['encoder_price_inputs'],
+                'price_predictor': price_args,
                 }
-        price_args = {'inputs': batch['decoder_price_inputs'],
-                'targets': batch['price_targets'],
-                }
+        # NOTE: decoder get init_price_history from the encoder output, so no input here
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'targets': targets,
-                'price_predictor': price_args,
+                'price_inputs': batch['decoder_price_inputs'],
+                'price_predictor': {},
+                'context': batch['context'],
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
@@ -32,6 +36,7 @@ class Learner(BaseLearner):
         '''
         Run truncated RNN through a sequence of batch examples.
         '''
+        # TODO: put price_history into encoder/decoder_state
         encoder_init_state = None
         for batch in dialogue_batch['batch_seq']:
             feed_dict = self._get_feed_dict(batch, encoder_init_state)

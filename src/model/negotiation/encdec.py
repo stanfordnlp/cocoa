@@ -27,8 +27,10 @@ class BasicEncoderDecoder(object):
                }
 
     def _decoder_input_dict(self, encoder_output_dict):
+        # TODO: clearner way to add price_history - put this in the state
         return {
                 'init_state': encoder_output_dict['final_state'],
+                'price_history': encoder_output_dict.pop('price_history', None),
                }
 
     def build_model(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope=None):
@@ -84,7 +86,8 @@ class BasicEncoderDecoder(object):
                 'init_state': encoder_output_dict['final_state'],
                 'price_symbol': textint_map.vocab.to_ind('<price>'),
                 'price_predictor': price_args,
-                'textint_map': textint_map
+                'textint_map': textint_map,
+                'context': batch['context'],
                 }
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
@@ -105,6 +108,70 @@ class BasicEncoderDecoder(object):
         #        'true_final_state': true_final_state,
         #        }
 
+#class ContextEncoderDecoder(BasicEncoderDecoder):
+#    def __init__(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=False, scope=None):
+#        super(ContextEncoderDecoder, self).__init__(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=re_encode, scope=scope)
+#        self.context_embedder = ContextEmbedder()
+#
+#    def get_feed_dict(self, **kwargs):
+#        super(ContextEncoderDecoder, self).get_feed_dict(**kwargs)
+#        feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
+#        return feed_dict
+#
+#    def _decoder_input_dict(self, encoder_output_dict):
+#        # TODO: clearner way to add price_history - put this in the state
+#        context_embedding = self.context_embedder.embed()
+#        return {
+#                'init_state': encoder_output_dict['final_state'],
+#                'price_history': encoder_output_dict.pop('price_history', None),
+#                'context': context_embedding,
+#               }
+
+class ContextDecoder(BasicDecoder):
+    '''
+    Add a context vector (category, title, description) to each decoding step.
+    '''
+    def __init__(self, rnn_size, num_symbols, context_embedder, rnn_type='lstm', num_layers=1, dropout=0, sampler=Sampler(0)):
+        super(ContextDecoder, self).__init__(rnn_size, num_symbols, rnn_type, num_layers, dropout, sampler)
+        self.context_embedder = context_embedder
+
+    def _build_rnn_inputs(self, time_major, **kwargs):
+        inputs = super(ContextDecoder, self)._build_rnn_inputs(time_major, **kwargs)  # (seq_len, batch_size, input_size)
+        self.context_embedding = self.context_embedder.embed()
+        context_seq = tf.to_float(tf.tile(tf.expand_dims(self.context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
+        inputs = tf.concat([inputs, context_seq], axis=2)
+        return inputs
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)
+        feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
+        return feed_dict
+
+class PriceEncoder(object):
+    '''
+    A wrapper of a encoder that uses a price predictor to update prices.
+    '''
+    def __init__(self, encoder, price_predictor):
+        self.encoder = encoder
+        self.price_predictor = price_predictor
+
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
+        with tf.variable_scope(type(self).__name__):
+            self.encoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
+            self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
+            # Update price. partner = True. Take the price at the last time step.
+            new_price_history = self.price_predictor.update_price(True, self.price_inputs)[-1]
+
+            # Outputs
+            self.output_dict = dict(self.encoder.output_dict)
+            self.output_dict['price_history'] = new_prices
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = self.encoder.get_feed_dict(**kwargs)
+        feed_dict[self.price_inputs] = kwargs.pop('price_inputs')
+        feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
+        return feed_dict
+
 class PriceDecoder(object):
     '''
     A wrapper of a decoder that outputs <price> and a price predictor that fills in the actual price.
@@ -114,24 +181,32 @@ class PriceDecoder(object):
         self.price_predictor = price_predictor
 
     def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
-        self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
-        # NOTE: output from rnn is time major
-        context = transpose_first_two_dims(self.decoder.output_dict['outputs'])
-        self.price_predictor.build_model(context)
+        with tf.variable_scope(type(self).__name__):
+            self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
+            # NOTE: output from rnn is time major
+            context = transpose_first_two_dims(self.decoder.output_dict['outputs'])
+            self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
+            self.price_targets = tf.placeholder(tf.float32, shape=[None, None], name='price_targets')  # (batch_size, seq_len)
+            # Update price. partner = False
+            new_price_history_seq = self.price_predictor.update_price(False, self.price_inputs, init_price=input_dict['price_history'])
+            predicted_prices = self.price_predictor.predict_price(new_price_history_seq, context)
 
-        # Outputs
-        self.output_dict = dict(self.decoder.output_dict)
-        self.output_dict['prices'] = self.price_predictor.output_dict['prices']
+            # Outputs
+            self.output_dict = dict(self.decoder.output_dict)
+            self.output_dict['price_history'] = new_price_history_seq[-1]
+            self.output_dict['price_preds'] = predicted_prices
 
     def compute_loss(self, pad):
         loss, seq_loss, total_loss = self.decoder.compute_loss(pad)
-        price_loss = self.price_predictor.compute_loss(pad)
+        price_loss = self.price_predictor.compute_loss(self.price_targets, self.output_dict['price_preds'], pad)
         loss += price_loss
         # NOTE: seq_loss and total_loss do not depend on price_loss. We're using loss for bp.
         return loss, seq_loss, total_loss
 
     def get_feed_dict(self, **kwargs):
         feed_dict = self.decoder.get_feed_dict(**kwargs)
+        feed_dict[self.price_inputs] = kwargs.pop('price_inputs')
+        optional_add(feed_dict, self.price_targets, kwargs.pop('price_targets', None))
         feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
         return feed_dict
 
@@ -149,6 +224,7 @@ class PriceDecoder(object):
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
+    # TODO: no more price buffer
     def run_decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
         #return self.decoder.run_decode(sess, max_len, batch_size=batch_size, stop_symbol=stop_symbol, **kwargs)
         if stop_symbol is not None:
