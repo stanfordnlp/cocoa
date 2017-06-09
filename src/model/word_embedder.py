@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+# TODO: add dropout
 class WordEmbedder(object):
     def __init__(self, num_symbols, embed_size, pad=None, scope=None):
         self.num_symbols = num_symbols
