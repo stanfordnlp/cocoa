@@ -10,16 +10,16 @@ class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
     '''
-    def __init__(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=False, scope=None):
-        self.PAD = pad  # Id of PAD in the vocab
+    def __init__(self, encoder, decoder, pad, re_encode=False):
+        self.pad = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
         #self.re_encode = re_encode
         self.tf_variables = set()
-        self.build_model(encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope)
+        self.build_model(encoder, decoder)
 
     def compute_loss(self, output_dict):
-        return self.decoder.compute_loss(self.PAD)
+        return self.decoder.compute_loss()
 
     def _encoder_input_dict(self):
         return {
@@ -33,17 +33,15 @@ class BasicEncoderDecoder(object):
                 'price_history': encoder_output_dict.pop('price_history', None),
                }
 
-    def build_model(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, scope=None):
-        with tf.variable_scope(scope or type(self).__name__):
+    def build_model(self, encoder, decoder):
+        with tf.variable_scope(type(self).__name__):
             # Encoding
-            with tf.name_scope('Encoder'):
-                encoder_input_dict = self._encoder_input_dict()
-                encoder.build_model(encoder_word_embedder, encoder_input_dict, self.tf_variables, time_major=False, pad=self.PAD)
+            encoder_input_dict = self._encoder_input_dict()
+            encoder.build_model(encoder_input_dict, self.tf_variables, time_major=False)
 
             # Decoding
-            with tf.name_scope('Decoder'):
-                decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
-                decoder.build_model(decoder_word_embedder, decoder_input_dict, self.tf_variables, time_major=False, pad=self.PAD)
+            decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
+            decoder.build_model(decoder_input_dict, self.tf_variables, time_major=False)
 
             # Re-encode decoded sequence
             # TODO: re-encode is not implemeted in neural_sessions yet

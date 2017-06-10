@@ -12,9 +12,9 @@ from src.model.util import transpose_first_two_dims, batch_linear, batch_embeddi
 
 def add_basic_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
-    parser.add_argument('--rnn-size', type=int, default=20, help='Dimension of hidden units of RNN')
-    parser.add_argument('--rnn-type', default='lstm', help='Type of RNN unit {rnn, gru, lstm}')
-    parser.add_argument('--num-layers', type=int, default=1, help='Number of RNN layers')
+    # TODO: more types of encoder and decoder
+    parser.add_argument('--encoder', default='rnn', choices=['rnn'], help='Encoder sequence embedder {bow, rnn}')
+    parser.add_argument('--decoder', default='rnn', choices=['rnn'], help='Decoder sequence embedder {rnn, attn}')
     parser.add_argument('--dropout', type=float, default=0, help='Dropout rate')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
@@ -73,120 +73,120 @@ class Sampler(object):
 
 class BasicEncoder(object):
     '''
-    A basic RNN encoder.
+    A basic RNN encoder for a sequence of inputs.
     '''
-    def __init__(self, rnn_size, rnn_type='lstm', num_layers=1, dropout=0):
-        self.rnn_size = rnn_size
-        self.rnn_type = rnn_type
-        self.num_layers = num_layers
-        self.dropout = dropout
-        self.keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+    def __init__(self, word_embedder, seq_embedder, pad):
+        self.word_embedder = word_embedder
+        self.seq_embedder = seq_embedder
+        self.pad = pad
         self.output_dict = {}
 
-    def _build_init_output(self, cell):
-        '''
-        Initializer for scan. Should have the same shape as the RNN output.
-        '''
-        return tf.zeros([self.batch_size, cell.output_size])
+    #def _build_init_output(self, cell):
+    #    '''
+    #    Initializer for scan. Should have the same shape as the RNN output.
+    #    '''
+    #    return tf.zeros([self.batch_size, cell.output_size])
 
-    def _get_final_state(self, states, last_inds=None):
-        '''
-        Return the final non-pad state from tf.scan outputs.
-        '''
-        if last_inds is None:
-            last_inds = self.last_inds
-        with tf.name_scope(type(self).__name__+'/get_final_state'):
-            flat_states = nest.flatten(states)
-            flat_last_states = []
-            for state in flat_states:
-                state = transpose_first_two_dims(state)  # (batch_size, time_seq, state_size)
-                # NOTE: when state has dim=4, it's the context which does not change in a seq; just take the last one.
-                if len(state.get_shape()) == 4:
-                    last_state = state[:, -1, :, :]
-                else:
-                    last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(last_inds, [-1, 1])), [1])
-                flat_last_states.append(last_state)
-            last_states = nest.pack_sequence_as(states, flat_last_states)
-        return last_states
+    #def _get_final_state(self, states, last_inds=None):
+    #    '''
+    #    Return the final non-pad state from tf.scan outputs.
+    #    '''
+    #    if last_inds is None:
+    #        last_inds = self.last_inds
+    #    with tf.name_scope(type(self).__name__+'/get_final_state'):
+    #        flat_states = nest.flatten(states)
+    #        flat_last_states = []
+    #        for state in flat_states:
+    #            state = transpose_first_two_dims(state)  # (batch_size, time_seq, state_size)
+    #            # NOTE: when state has dim=4, it's the context which does not change in a seq; just take the last one.
+    #            if len(state.get_shape()) == 4:
+    #                last_state = state[:, -1, :, :]
+    #            else:
+    #                last_state = tf.squeeze(batch_embedding_lookup(state, tf.reshape(last_inds, [-1, 1])), [1])
+    #            flat_last_states.append(last_state)
+    #        last_states = nest.pack_sequence_as(states, flat_last_states)
+    #    return last_states
 
-    def _build_rnn_cell(self):
-        return build_rnn_cell(self.rnn_type, self.rnn_size, self.num_layers, self.keep_prob)
+    #def _build_rnn_cell(self):
+    #    return build_rnn_cell(self.rnn_type, self.rnn_size, self.num_layers, self.keep_prob)
 
-    def _build_init_state(self, cell, input_dict):
-        initial_state = input_dict.get('init_state', None)
-        batch_size = input_dict.get('batch_size', self.batch_size)
-        if initial_state is not None:
-            return initial_state
-        else:
-            return cell.zero_state(batch_size, tf.float32)
+    #def _build_init_state(self, cell, input_dict):
+    #    initial_state = input_dict.get('init_state', None)
+    #    batch_size = input_dict.get('batch_size', self.batch_size)
+    #    if initial_state is not None:
+    #        return initial_state
+    #    else:
+    #        return cell.zero_state(batch_size, tf.float32)
 
-    def get_rnn_inputs_args(self):
-        '''
-        Return inputs used to build_rnn_inputs for encoding.
-        '''
-        return {
-                'inputs': self.inputs,
-                'last_inds': self.last_inds,
-                'batch_size': self.batch_size,
-                }
+    #def get_rnn_inputs_args(self):
+    #    '''
+    #    Return inputs used to build_rnn_inputs for encoding.
+    #    '''
+    #    return {
+    #            'inputs': self.inputs,
+    #            'last_inds': self.last_inds,
+    #            'batch_size': self.batch_size,
+    #            }
 
     def _build_rnn_inputs(self, time_major, **kwargs):
-        word_embedder = self.word_embedder
         inputs = kwargs.get('inputs', self.inputs)
-
-        inputs = word_embedder.embed(inputs, zero_pad=True)
+        inputs = self.word_embedder.embed(inputs, zero_pad=True)
         if not time_major:
             inputs = transpose_first_two_dims(inputs)  # (seq_len, batch_size, input_size)
         return inputs
 
-    def _build_inputs(self, input_dict, pad=0):
-        with tf.name_scope('Inputs'):
-            self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')
-            last_inds = tf.reduce_sum(tf.where(tf.equal(self.inputs, pad), tf.zeros_like(self.inputs), tf.ones_like(self.inputs)), 1)
-            # For all-pad inputs
-            last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
-            self.last_inds = last_inds - 1
+    def _build_inputs(self, input_dict):
+        self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
+        #last_inds = tf.reduce_sum(tf.where(tf.equal(self.inputs, pad), tf.zeros_like(self.inputs), tf.ones_like(self.inputs)), 1)
+        ## For all-pad inputs
+        #last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
+        #self.last_inds = last_inds - 1
+        self.batch_size = tf.shape(self.inputs)[0]
+        self.seq_len = tf.shape(self.inputs)[1]
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
+    def build_model(self, input_dict, tf_variables, time_major=True):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
         with tf.variable_scope(type(self).__name__):
-            self.word_embedder = word_embedder
+            self._build_inputs(input_dict)
 
-            self._build_inputs(input_dict, pad=pad)
-            self.batch_size = tf.shape(self.inputs)[0]
-            self.seq_len = tf.shape(self.inputs)[1]
+            #cell = self._build_rnn_cell()
+            #self.cell = cell
+            #self.init_state = self._build_init_state(cell, input_dict)
+            #self.output_size = cell.output_size
+            self.init_state = input_dict.get('init_state', None)
 
-            cell = self._build_rnn_cell()
-            self.cell = cell
-            self.init_state = self._build_init_state(cell, input_dict)
-            self.output_size = cell.output_size
-
+            mask = self.seq_embedder.mask_paddings(self.inputs, self.pad)
             inputs = self._build_rnn_inputs(time_major)
-            with tf.variable_scope('encode'):
-                rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
-            self._build_output_dict(rnn_outputs, states)
+            with tf.variable_scope('Embed'):
+                #rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
+                embeddings = self.seq_embedder.embed(inputs, mask, init_state=self.init_state)
+            self._build_output_dict(embeddings)
 
-    def _build_output_dict(self, rnn_outputs, rnn_states):
-        final_state = self._get_final_state(rnn_states)
-        self.output_dict.update({'outputs': rnn_outputs, 'final_state': final_state})
+    def _build_output_dict(self, embeddings):
+        #final_state = self._get_final_state(rnn_states)
+        #self.output_dict.update({'outputs': rnn_outputs, 'final_state': final_state})
+        self.output_dict.update({
+            'outputs': embeddings['step_embeddings'],
+            'final_state': embeddings['final_state'],
+            })
 
-    def encode(self, time_major=False, **kwargs):
-        '''
-        Used for additional encoding.
-        '''
-        inputs = self._build_rnn_inputs(time_major, **kwargs)
-        init_state = self._build_init_state(self.cell, kwargs)
-        rnn_outputs, states = tf.scan(lambda a, x: self.cell(x, a[1]), inputs, initializer=(self._build_init_output(self.cell), init_state))
-        final_state = self._get_final_state(states, kwargs.get('last_inds', self.last_inds))
-        final_output = self._get_final_state(rnn_outputs, kwargs.get('last_inds', self.last_inds))
-        return {'outputs': rnn_outputs, 'states': states, 'final_state': final_state, 'final_output': final_output}
+    #def encode(self, time_major=False, **kwargs):
+    #    '''
+    #    Used for additional encoding.
+    #    '''
+    #    inputs = self._build_rnn_inputs(time_major, **kwargs)
+    #    init_state = self._build_init_state(self.cell, kwargs)
+    #    rnn_outputs, states = tf.scan(lambda a, x: self.cell(x, a[1]), inputs, initializer=(self._build_init_output(self.cell), init_state))
+    #    final_state = self._get_final_state(states, kwargs.get('last_inds', self.last_inds))
+    #    final_output = self._get_final_state(rnn_outputs, kwargs.get('last_inds', self.last_inds))
+    #    return {'outputs': rnn_outputs, 'states': states, 'final_state': final_state, 'final_output': final_output}
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
-        feed_dict[self.keep_prob] = 1. - self.dropout
+        #feed_dict[self.keep_prob] = 1. - self.dropout
         optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
         return feed_dict
 
@@ -199,8 +199,8 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state',), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, rnn_size, num_symbols, rnn_type='lstm', num_layers=1, dropout=0, sampler=Sampler(0)):
-        super(BasicDecoder, self).__init__(rnn_size, rnn_type, num_layers, dropout)
+    def __init__(self, word_embedder, seq_embedder, pad, num_symbols, sampler=Sampler(0)):
+        super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad)
         self.num_symbols = num_symbols
         self.sampler = sampler
 
@@ -228,11 +228,10 @@ class BasicDecoder(BasicEncoder):
         logits = batch_linear(outputs, self.num_symbols, True)
         return logits
 
-    # TODO: add a Loss class?
-    def compute_loss(self, pad):
+    def compute_loss(self):
         logits = self.output_dict['logits']
         targets = self.targets
-        loss, seq_loss, total_loss = self._compute_loss(logits, targets, pad)
+        loss, seq_loss, total_loss = self._compute_loss(logits, targets, self.pad)
         return loss, seq_loss, total_loss
 
     @classmethod
@@ -260,9 +259,9 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
-        super(BasicDecoder, self).build_model(word_embedder, input_dict, tf_variables, time_major=time_major, scope=scope)  # outputs: (seq_len, batch_size, output_size)
-        with tf.variable_scope(scope or type(self).__name__):
+    def build_model(self, input_dict, tf_variables, time_major=True):
+        super(BasicDecoder, self).build_model(input_dict, tf_variables, time_major=time_major)  # outputs: (seq_len, batch_size, output_size)
+        with tf.variable_scope(type(self).__name__):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits
 
