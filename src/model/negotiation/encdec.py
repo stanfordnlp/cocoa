@@ -61,7 +61,7 @@ class BasicEncoderDecoder(object):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        feed_dict = self.encoder.get_feed_dict(**kwargs.pop('encoder'))
+        feed_dict = self.encoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('encoder'))
         feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
         return feed_dict
 
@@ -106,37 +106,19 @@ class BasicEncoderDecoder(object):
         #        'true_final_state': true_final_state,
         #        }
 
-#class ContextEncoderDecoder(BasicEncoderDecoder):
-#    def __init__(self, encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=False, scope=None):
-#        super(ContextEncoderDecoder, self).__init__(encoder_word_embedder, decoder_word_embedder, encoder, decoder, pad, re_encode=re_encode, scope=scope)
-#        self.context_embedder = ContextEmbedder()
-#
-#    def get_feed_dict(self, **kwargs):
-#        super(ContextEncoderDecoder, self).get_feed_dict(**kwargs)
-#        feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
-#        return feed_dict
-#
-#    def _decoder_input_dict(self, encoder_output_dict):
-#        # TODO: clearner way to add price_history - put this in the state
-#        context_embedding = self.context_embedder.embed()
-#        return {
-#                'init_state': encoder_output_dict['final_state'],
-#                'price_history': encoder_output_dict.pop('price_history', None),
-#                'context': context_embedding,
-#               }
-
 class ContextDecoder(BasicDecoder):
     '''
     Add a context vector (category, title, description) to each decoding step.
     '''
-    def __init__(self, rnn_size, num_symbols, context_embedder, rnn_type='lstm', num_layers=1, dropout=0, sampler=Sampler(0)):
-        super(ContextDecoder, self).__init__(rnn_size, num_symbols, rnn_type, num_layers, dropout, sampler)
+    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, dropout, num_symbols, sampler=Sampler(0)):
+        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, dropout, num_symbols, sampler)
         self.context_embedder = context_embedder
+        self.context = context
 
     def _build_rnn_inputs(self, time_major, **kwargs):
         inputs = super(ContextDecoder, self)._build_rnn_inputs(time_major, **kwargs)  # (seq_len, batch_size, input_size)
-        self.context_embedding = self.context_embedder.embed()
-        context_seq = tf.to_float(tf.tile(tf.expand_dims(self.context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
+        context_embedding = self.context_embedder.embed(self.context)
+        context_seq = tf.to_float(tf.tile(tf.expand_dims(context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
         inputs = tf.concat([inputs, context_seq], axis=2)
         return inputs
 

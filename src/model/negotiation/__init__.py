@@ -72,19 +72,26 @@ def build_model(schema, mappings, args):
     opts = vars(args)
     opts['vocab_size'] = vocab.size
     opts['keep_prob'] = keep_prob
-
+    opts['embed_size'] = args.rnn_size
     encoder_seq_embedder = get_sequence_embedder(args.encoder, **opts)
     decoder_seq_embedder = get_sequence_embedder(args.decoder, **opts)
 
+    if args.context is not None:
+        context_opts = dict(opts)
+        context_opts['vocab_size'] = mappings['kb_vocab'].size
+        context_opts['embed_size'] = args.context_size
+        with tf.variable_scope('ContextWordEmbedder'):
+            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], pad)
+        context_seq_embedder = get_sequence_embedder(args.context, **context_opts)
+        context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
+
     if args.model == 'encdec':
-        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad)
-        decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad)
-        #decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
-        # TODO: add option
-        #context_embedder = ContextEmbedder(mappings['cat_vocab'].size)
-        #decoder = ContextDecoder(args.rnn_size, vocab.size, context_embedder, args.rnn_type, args.num_layers, args.dropout, sampler)
+        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob, args.dropout)
+        if args.context is not None:
+            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, args.dropout, vocab.size, sampler)
+        else:
+            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, args.dropout, vocab.size, sampler)
         if args.predict_price:
-            # TODO: hack. add PriceStack to record and return prices
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
         model = BasicEncoderDecoder(encoder, decoder, pad, re_encode=re_encode)
