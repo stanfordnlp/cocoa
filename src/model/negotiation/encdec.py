@@ -61,7 +61,7 @@ class BasicEncoderDecoder(object):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        feed_dict = self.encoder.get_feed_dict(**kwargs.pop('encoder'))
+        feed_dict = self.encoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('encoder'))
         feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
         return feed_dict
 

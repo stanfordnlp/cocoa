@@ -20,6 +20,7 @@ class SequenceEmbedder(object):
     def __init__(self, embed_size, aggregation):
         self.embed_size = embed_size
         self.aggregation = aggregation
+        self.feedable_vars = {}
 
     def embed(self, sequence):
         raise NotImplementedError
@@ -98,29 +99,36 @@ class RNNEmbedder(SequenceEmbedder):
         self.keep_prob = keep_prob
 
     @classmethod
-    def select_states(states, mask):
+    def select_states(cls, states, mask):
         '''
         Return states at a specific time step.
         states: tensor or tuple of tensors from the scan output. (seq_len, batch_size, ...)
-        mask: (batch_size, seq_len) where True indicates that state at that time step is to be returned.
+        mask: (seq_len, batch_size) where True indicates that state at that time step is to be returned.
         '''
         flat_states = nest.flatten(states)
         flat_selected_states = []
-        for states in flat_states:
-            states = transpose_first_two_dims(states)  # (batch_size, seq_len, ...)
-            selected_states = tf.boolean_mask(states, mask)
+        for fs in flat_states:
+            # fs is (seq_len, batch_size, ...)
+            selected_states = tf.boolean_mask(fs, mask)
             flat_selected_states.append(selected_states)
         selected_states = nest.pack_sequence_as(states, flat_selected_states)
         return selected_states
 
     def last(self, sequence, mask):
         '''
-        sequence: (batch_size, seq_len, embed_size)
+        sequence: a tuple of tensors (seq_len, batch_size, ...)
+        mask: (batch_size, seq_len)
         '''
-        last_inds = tf.reduce_sum(tf.where(mask, tf.ones_like(sequence), tf.zeros_like(sequence)), 1)  # (batch_size,)
-        last_inds -= 1  # Index starts from 0
-        seq_len = tf.shape(sequence)[1]
-        last_inds_mask = tf.cast(tf.one_hot(last_inds, seq_len, on_value=1, off_value=0), tf.bool)
+        # Index of the last non-masked entry
+        last_inds = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 1)  # (batch_size,)
+        # For all-pad inputs
+        last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
+        # Index starts from 0
+        last_inds -= 1
+
+        seq_len = tf.shape(mask)[1]
+        last_inds_mask = tf.cast(tf.one_hot(last_inds, seq_len, on_value=1, off_value=0), tf.bool)  # (batch_size, seq_len)
+        last_inds_mask = tf.transpose(last_inds_mask)  # (seq_len, batch_size)
         return self.select_states(sequence, last_inds_mask)
 
     def aggregate(self, embeddings, mask=None):
@@ -131,15 +139,21 @@ class RNNEmbedder(SequenceEmbedder):
     def embed(self, sequence, padding_mask, init_state=None):
         '''
         Assume the sequence is a tensor, i.e. tokens are already embedded.
-        sequence: (batch_size, seq_len, input_size)
+        sequence: time-major (seq_len, batch_size, input_size)
         '''
-        batch_size = tf.shape(sequence)[0]
+        batch_size = tf.shape(sequence)[1]
         with tf.variable_scope(type(self).__name__):
             cell = build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob)
-            init_state = init_state or cell.zero_state(batch_size, tf.float32)
+
+            if init_state is None:
+                init_state = cell.zero_state(batch_size, tf.float32)
+            self.feedable_vars['init_state'] = init_state
+
             init_output = tf.zeros([batch_size, cell.output_size])
             outputs, states = tf.scan(lambda a, x: cell(x, a[1]), sequence, initializer=(init_output, init_state))
+
             final_state = self.last(states, padding_mask)
             embedding = self.aggregate(outputs, padding_mask)
+        # NOTE: outputs are all time-major
         return {'step_embeddings': outputs, 'embedding': embedding, 'final_state': final_state}
 

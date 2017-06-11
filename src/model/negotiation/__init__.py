@@ -77,8 +77,8 @@ def build_model(schema, mappings, args):
     decoder_seq_embedder = get_sequence_embedder(args.decoder, **opts)
 
     if args.model == 'encdec':
-        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad)
-        decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad)
+        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob, args.dropout)
+        decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, args.dropout, vocab.size, sampler)
         #decoder = BasicDecoder(args.rnn_size, vocab.size, args.rnn_type, args.num_layers, args.dropout, sampler)
         # TODO: add option
         #context_embedder = ContextEmbedder(mappings['cat_vocab'].size)
@@ -87,6 +87,7 @@ def build_model(schema, mappings, args):
             # TODO: hack. add PriceStack to record and return prices
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
+        # TODO: dropout
         model = BasicEncoderDecoder(encoder, decoder, pad, re_encode=re_encode)
     else:
         raise ValueError('Unknown model')

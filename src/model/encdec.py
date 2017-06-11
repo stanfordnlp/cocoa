@@ -75,10 +75,12 @@ class BasicEncoder(object):
     '''
     A basic RNN encoder for a sequence of inputs.
     '''
-    def __init__(self, word_embedder, seq_embedder, pad):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, dropout):
         self.word_embedder = word_embedder
         self.seq_embedder = seq_embedder
         self.pad = pad
+        self.keep_prob = keep_prob  # tf.placeholder
+        self.dropout = dropout
         self.output_dict = {}
 
     #def _build_init_output(self, cell):
@@ -155,13 +157,13 @@ class BasicEncoder(object):
             #self.cell = cell
             #self.init_state = self._build_init_state(cell, input_dict)
             #self.output_size = cell.output_size
-            self.init_state = input_dict.get('init_state', None)
+            init_state = input_dict.get('init_state', None)
 
             mask = self.seq_embedder.mask_paddings(self.inputs, self.pad)
             inputs = self._build_rnn_inputs(time_major)
             with tf.variable_scope('Embed'):
                 #rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
-                embeddings = self.seq_embedder.embed(inputs, mask, init_state=self.init_state)
+                embeddings = self.seq_embedder.embed(inputs, mask, init_state=init_state)
             self._build_output_dict(embeddings)
 
     def _build_output_dict(self, embeddings):
@@ -186,8 +188,9 @@ class BasicEncoder(object):
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
-        #feed_dict[self.keep_prob] = 1. - self.dropout
-        optional_add(feed_dict, self.init_state, kwargs.pop('init_state', None))
+        optional_add(feed_dict, self.seq_embedder.feedable_vars['init_state'], kwargs.pop('init_state', None))
+        if self.keep_prob not in feed_dict:
+            feed_dict[self.keep_prob] = 1. - self.dropout
         return feed_dict
 
     def run(self, sess, fetches, feed_dict):
@@ -199,8 +202,8 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state',), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, word_embedder, seq_embedder, pad, num_symbols, sampler=Sampler(0)):
-        super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad)
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, dropout, num_symbols, sampler=Sampler(0)):
+        super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, dropout)
         self.num_symbols = num_symbols
         self.sampler = sampler
 
