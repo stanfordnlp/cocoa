@@ -32,10 +32,12 @@ def add_model_arguments(parser):
     from src.model.encdec import add_basic_model_arguments
     from src.model.sequence_embedder import add_sequence_embedder_arguments
     from price_predictor import add_price_predictor_arguments
+    from context_embedder import add_context_embedder_arguments
 
     add_basic_model_arguments(parser)
     add_sequence_embedder_arguments(parser)
     add_price_predictor_arguments(parser)
+    add_context_embedder_arguments(parser)
 
 def build_model(schema, mappings, args):
     import tensorflow as tf
@@ -82,7 +84,7 @@ def build_model(schema, mappings, args):
         context_opts['embed_size'] = args.context_size
         with tf.variable_scope('ContextWordEmbedder'):
             context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], pad)
-        context_seq_embedder = get_sequence_embedder(args.context, **context_opts)
+        context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
 
     if args.model == 'encdec':

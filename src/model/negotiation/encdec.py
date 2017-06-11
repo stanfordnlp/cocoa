@@ -116,11 +116,11 @@ class ContextDecoder(BasicDecoder):
         self.context = context
 
     def _build_rnn_inputs(self, time_major, **kwargs):
-        inputs = super(ContextDecoder, self)._build_rnn_inputs(time_major, **kwargs)  # (seq_len, batch_size, input_size)
+        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(time_major, **kwargs)  # (seq_len, batch_size, input_size)
         context_embedding = self.context_embedder.embed(self.context)
         context_seq = tf.to_float(tf.tile(tf.expand_dims(context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
         inputs = tf.concat([inputs, context_seq], axis=2)
-        return inputs
+        return inputs, mask
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)

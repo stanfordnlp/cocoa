@@ -29,14 +29,14 @@ class SequenceEmbedder(object):
     def embed(self, sequence):
         raise NotImplementedError
 
-    def build_seq_inputs(self, inputs, word_embedder, time_major=False):
+    def build_seq_inputs(self, inputs, word_embedder, pad, time_major=False):
         '''
         inputs: a batch of input tokens/integers
         '''
         if not time_major:
             inputs = tf.transpose(inputs)
+        mask = self.mask_paddings(inputs, pad)
         inputs = word_embedder.embed(inputs)
-        mask = self.mask_paddings(inputs, self.pad)
         return inputs, mask
 
     def mask_paddings(self, sequence, pad):
@@ -164,6 +164,8 @@ class RNNEmbedder(SequenceEmbedder):
 
             if kwargs['init_state'] is None:
                 init_state = cell.zero_state(batch_size, tf.float32)
+            else:
+                init_state = kwargs['init_state']
             self.feedable_vars['init_state'] = init_state
 
             init_output = tf.zeros([batch_size, cell.output_size])

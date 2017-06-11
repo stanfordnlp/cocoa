@@ -132,7 +132,7 @@ class BasicEncoder(object):
 
     def _build_rnn_inputs(self, time_major, **kwargs):
         inputs = kwargs.get('inputs', self.inputs)
-        return self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, time_major=time_major)
+        return self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=time_major)
         #if not time_major:
         #    inputs = tf.transpose(inputs)
         #inputs = self.word_embedder.embed(inputs, zero_pad=True)
@@ -161,7 +161,7 @@ class BasicEncoder(object):
             #self.output_size = cell.output_size
             init_state = input_dict.get('init_state', None)
 
-            inputs, mask = self._build_rnn_inputs(time_major)
+            inputs, mask = self._build_rnn_inputs(time_major, **input_dict)
             with tf.variable_scope('Embed'):
                 #rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
                 embeddings = self.seq_embedder.embed(inputs, mask, init_state=init_state)

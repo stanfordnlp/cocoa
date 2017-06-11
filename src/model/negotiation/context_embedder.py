@@ -26,7 +26,7 @@ class ContextEmbedder(object):
         return self.word_embedder.embed(tf.transpose(inputs))
 
     def _embed_seq(self, sequence):
-        inputs, mask = self.seq_embedder.build_seq_inputs(sequence, self.word_embedder, time_major=False)
+        inputs, mask = self.seq_embedder.build_seq_inputs(sequence, self.word_embedder, self.pad, time_major=False)
         embeddings = self.seq_embedder.embed(inputs, mask, integer=False, init_state=None)
         return embeddings['embedding']
 
