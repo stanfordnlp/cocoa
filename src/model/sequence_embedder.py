@@ -11,12 +11,16 @@ def add_sequence_embedder_arguments(parser):
 
 def get_sequence_embedder(embedder_type, **kwargs):
     if embedder_type == 'bow':
-        return BoWEmbedder(kwargs['vocab_size'], kwargs['word_embedder'])
+        return BoWEmbedder(kwargs['vocab_size'], kwargs['embed_size'], kwargs.get('word_embedder', None))
     elif embedder_type == 'rnn':
-        return RNNEmbedder(kwargs['rnn_size'], kwargs['rnn_type'], kwargs['num_layers'], kwargs.get('aggregation', 'last'), kwargs['keep_prob'])
+        return RNNEmbedder(kwargs['embed_size'], kwargs['rnn_type'], kwargs['num_layers'], kwargs.get('aggregation', 'last'), kwargs['keep_prob'])
     raise ValueError('Unknown embedder_type %s' % embedder_type)
 
 class SequenceEmbedder(object):
+    '''
+    Embed a sequence into a vector.
+    NOTE: all inputs/outputs are time-major, i.e. (seq_len, batch_size, ...)
+    '''
     def __init__(self, embed_size, aggregation):
         self.embed_size = embed_size
         self.aggregation = aggregation
@@ -25,6 +29,16 @@ class SequenceEmbedder(object):
     def embed(self, sequence):
         raise NotImplementedError
 
+    def build_seq_inputs(self, inputs, word_embedder, time_major=False):
+        '''
+        inputs: a batch of input tokens/integers
+        '''
+        if not time_major:
+            inputs = tf.transpose(inputs)
+        inputs = word_embedder.embed(inputs)
+        mask = self.mask_paddings(inputs, self.pad)
+        return inputs, mask
+
     def mask_paddings(self, sequence, pad):
         '''
         Return a boolean tensor of (batch_size, seq_len) where padding positions are False.
@@ -32,29 +46,29 @@ class SequenceEmbedder(object):
         return tf.not_equal(sequence, pad)
 
     def zero_masked_embeddings(self, embeddings, mask):
-        batch_size = tf.shape(embeddings)[0]
+        batch_size = tf.shape(embeddings)[1]
         embeddings = tf.reshape(embeddings, [-1, self.embed_size])
         mask = tf.reshape(mask, [-1])
-        masked_embeddings = tf.reshape(tf.where(mask, embeddings, tf.zeros_like(embeddings)), [batch_size, -1, self.embed_size])
+        masked_embeddings = tf.reshape(tf.where(mask, embeddings, tf.zeros_like(embeddings)), [-1, batch_size, self.embed_size])
         return masked_embeddings
 
     def sum(self, sequence, mask):
         '''
-        sequence: (batch_size, seq_len, embed_size)
+        sequence: (seq_len, batch_size, embed_size)
         '''
         sequence = self.zero_masked_embeddings(sequence, mask)
-        return tf.reduce_sum(sequence, axis=1)
+        return tf.reduce_sum(sequence, axis=0)
 
     def max(self, sequence, mask):
         '''
-        sequence: (batch_size, seq_len, embed_size)
+        sequence: (seq_len, batch_size, embed_size)
         '''
-        return tf.reduce_max(sequence, axis=1)
+        return tf.reduce_max(sequence, axis=0)
 
     def aggregate(self, embeddings, mask=None):
         '''
-        embeddings: (batch_size, seq_len, embed_size)
-        mask: (batch_size, seq_len)
+        embeddings: (seq_len, batch_size, embed_size)
+        mask: (seq_len, batch_size)
         return: (batch_size, embed_size)
         '''
         if mask is None:
@@ -77,13 +91,14 @@ class BoWEmbedder(SequenceEmbedder):
             with tf.variable_scope(type(self).__name__):
                 self.word_embedder = WordEmbedder(vocab_size, embed_size)
 
-    def embed(self, sequence, padding_mask, integer=True):
+    def embed(self, sequence, padding_mask, **kwargs):
         '''
-        sequence: (batch_size, seq_len). tf.int32.
-        integer is False means that the sequence is already embedded.
+        sequence: (seq_len, batch_size). tf.int32.
+        kwargs:
+            integer: False means that the sequence is already embedded.
         '''
         with tf.variable_scope(type(self).__name__):
-            if integer:
+            if kwargs['integer']:
                 word_embeddings = self.word_embedder.embed(sequence)
             else:
                 word_embeddings = sequence
@@ -117,16 +132,16 @@ class RNNEmbedder(SequenceEmbedder):
     def last(self, sequence, mask):
         '''
         sequence: a tuple of tensors (seq_len, batch_size, ...)
-        mask: (batch_size, seq_len)
+        mask: (seq_len, batch_size)
         '''
         # Index of the last non-masked entry
-        last_inds = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 1)  # (batch_size,)
+        last_inds = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 0)  # (batch_size,)
         # For all-pad inputs
         last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
         # Index starts from 0
         last_inds -= 1
 
-        seq_len = tf.shape(mask)[1]
+        seq_len = tf.shape(mask)[0]
         last_inds_mask = tf.cast(tf.one_hot(last_inds, seq_len, on_value=1, off_value=0), tf.bool)  # (batch_size, seq_len)
         last_inds_mask = tf.transpose(last_inds_mask)  # (seq_len, batch_size)
         return self.select_states(sequence, last_inds_mask)
@@ -136,16 +151,18 @@ class RNNEmbedder(SequenceEmbedder):
             return self.last(embeddings, mask)
         return super(RNNEmbedder, self).aggregate(embeddings, mask)
 
-    def embed(self, sequence, padding_mask, init_state=None):
+    def embed(self, sequence, padding_mask, **kwargs):
         '''
         Assume the sequence is a tensor, i.e. tokens are already embedded.
         sequence: time-major (seq_len, batch_size, input_size)
+        kwargs:
+            init_state
         '''
         batch_size = tf.shape(sequence)[1]
         with tf.variable_scope(type(self).__name__):
             cell = build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob)
 
-            if init_state is None:
+            if kwargs['init_state'] is None:
                 init_state = cell.zero_state(batch_size, tf.float32)
             self.feedable_vars['init_state'] = init_state
 
