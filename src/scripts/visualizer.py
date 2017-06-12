@@ -46,6 +46,8 @@ class BaseVisualizer(object):
             self.worker_ids = {}
             for f in worker_ids:
                 self.worker_ids.update(read_json(f))
+        else:
+            self.worker_ids = None
 
     def worker_stats(self):
         job_counts = defaultdict(int)
@@ -223,12 +225,15 @@ class BaseVisualizer(object):
         for question, agent_scores in question_scores.iteritems():
             for agent, scores in agent_scores.iteritems():
                 for dialogue_id, agent_id, response in scores:
-                    chat = self.uuid_to_chat[dialogue_id]
+                    try:
+                        chat = self.uuid_to_chat[dialogue_id]
+                    except KeyError:
+                        continue
                     scenario_id = chat['scenario_uuid']
                     dialogue_responses[dialogue_id][agent_id][question] = response
         return dialogue_responses
 
-    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None):
+    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None, worker_ids=None):
         chats = []
         scenario_to_chats = defaultdict(set)
         dialogue_responses = None
@@ -256,7 +261,7 @@ class BaseVisualizer(object):
             chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
         html_visualizer = HTMLVisualizer.get_html_visualizer()
-        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file, img_path=img_path)
+        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file, img_path=img_path, worker_ids=worker_ids)
 
 class NegotiationVisualizer(BaseVisualizer):
     agents = ('human', 'rulebased')
@@ -422,9 +427,9 @@ if __name__ == '__main__':
         summary = visualizer.summarize()
         write_json(summary, args.stats)
 
-    if args.worker_ids:
-        visualizer.worker_stats()
+    #if args.worker_ids:
+    #    visualizer.worker_stats()
 
     if args.html_output:
-        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file, img_path=args.img_path)
+        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file, img_path=args.img_path, worker_ids=visualizer.worker_ids)
 
