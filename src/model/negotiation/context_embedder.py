@@ -31,7 +31,7 @@ class ContextEmbedder(object):
         return embeddings['embedding']
 
     def embed(self, context=('category',)):
-        category_embedding = self.one_hot_embed(self.category, self.category_size)
+        category_embedding = tf.to_float(self.one_hot_embed(self.category, self.category_size))
         title_embedding = self._embed_seq(self.title)
         description_embedding = self._embed_seq(self.description)
         # embeddings: (batch_size, embed_size)

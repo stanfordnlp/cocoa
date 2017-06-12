@@ -35,8 +35,8 @@ class SequenceEmbedder(object):
         '''
         if not time_major:
             inputs = tf.transpose(inputs)
-        mask = self.mask_paddings(inputs, pad)
-        inputs = word_embedder.embed(inputs)
+        mask = self.mask_paddings(inputs, pad)  # (seq_len, batch_size)
+        inputs = word_embedder.embed(inputs)  # (seq_len, batch_size, embed_size)
         return inputs, mask
 
     def mask_paddings(self, sequence, pad):

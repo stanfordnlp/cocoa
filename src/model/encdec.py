@@ -130,9 +130,9 @@ class BasicEncoder(object):
     #            'batch_size': self.batch_size,
     #            }
 
-    def _build_rnn_inputs(self, time_major, **kwargs):
+    def _build_rnn_inputs(self, **kwargs):
         inputs = kwargs.get('inputs', self.inputs)
-        return self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=time_major)
+        return self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)
         #if not time_major:
         #    inputs = tf.transpose(inputs)
         #inputs = self.word_embedder.embed(inputs, zero_pad=True)
@@ -148,7 +148,7 @@ class BasicEncoder(object):
         self.batch_size = tf.shape(self.inputs)[0]
         self.seq_len = tf.shape(self.inputs)[1]
 
-    def build_model(self, input_dict, tf_variables, time_major=True):
+    def build_model(self, input_dict, tf_variables):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
@@ -161,7 +161,7 @@ class BasicEncoder(object):
             #self.output_size = cell.output_size
             init_state = input_dict.get('init_state', None)
 
-            inputs, mask = self._build_rnn_inputs(time_major, **input_dict)
+            inputs, mask = self._build_rnn_inputs(**input_dict)
             with tf.variable_scope('Embed'):
                 #rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
                 embeddings = self.seq_embedder.embed(inputs, mask, init_state=init_state)
@@ -264,8 +264,8 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    def build_model(self, input_dict, tf_variables, time_major=True):
-        super(BasicDecoder, self).build_model(input_dict, tf_variables, time_major=time_major)  # outputs: (seq_len, batch_size, output_size)
+    def build_model(self, input_dict, tf_variables):
+        super(BasicDecoder, self).build_model(input_dict, tf_variables)  # outputs: (seq_len, batch_size, output_size)
         with tf.variable_scope(type(self).__name__):
             logits = self._build_output(self.output_dict)
         self.output_dict['logits'] = logits

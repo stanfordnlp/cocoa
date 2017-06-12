@@ -37,11 +37,11 @@ class BasicEncoderDecoder(object):
         with tf.variable_scope(type(self).__name__):
             # Encoding
             encoder_input_dict = self._encoder_input_dict()
-            encoder.build_model(encoder_input_dict, self.tf_variables, time_major=False)
+            encoder.build_model(encoder_input_dict, self.tf_variables)
 
             # Decoding
             decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
-            decoder.build_model(decoder_input_dict, self.tf_variables, time_major=False)
+            decoder.build_model(decoder_input_dict, self.tf_variables)
 
             # Re-encode decoded sequence
             # TODO: re-encode is not implemeted in neural_sessions yet
@@ -115,8 +115,8 @@ class ContextDecoder(BasicDecoder):
         self.context_embedder = context_embedder
         self.context = context
 
-    def _build_rnn_inputs(self, time_major, **kwargs):
-        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(time_major, **kwargs)  # (seq_len, batch_size, input_size)
+    def _build_rnn_inputs(self, **kwargs):
+        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(**kwargs)  # (seq_len, batch_size, input_size)
         context_embedding = self.context_embedder.embed(self.context)
         context_seq = tf.to_float(tf.tile(tf.expand_dims(context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
         inputs = tf.concat([inputs, context_seq], axis=2)
@@ -135,9 +135,9 @@ class PriceEncoder(object):
         self.encoder = encoder
         self.price_predictor = price_predictor
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, scope=None):
         with tf.variable_scope(type(self).__name__):
-            self.encoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
+            self.encoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, scope=scope)
             self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
             # Update price. partner = True. Take the price at the last time step.
             new_price_history = self.price_predictor.update_price(True, self.price_inputs)[-1]
@@ -160,9 +160,9 @@ class PriceDecoder(object):
         self.decoder = decoder
         self.price_predictor = price_predictor
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, time_major=True, scope=None):
+    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, scope=None):
         with tf.variable_scope(type(self).__name__):
-            self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, time_major=time_major, scope=scope)
+            self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, scope=scope)
             # NOTE: output from rnn is time major
             context = transpose_first_two_dims(self.decoder.output_dict['outputs'])
             self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
