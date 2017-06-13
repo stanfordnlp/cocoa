@@ -39,6 +39,18 @@ class SequenceEmbedder(object):
         inputs = word_embedder.embed(inputs)  # (seq_len, batch_size, embed_size)
         return inputs, mask
 
+    @classmethod
+    def concat_vector_to_seq(cls, context, sequence):
+        '''
+        context: (batch_size, context_size)
+        sequence: (seq_len, batch_size, embed_size)
+        return (seq_len, batch_size, embed_size+context_size)
+        '''
+        context = tf.to_float(context)
+        context_seq = tf.tile(tf.expand_dims(context, 0), tf.stack([tf.shape(sequence)[0], 1, 1]))
+        new_seq = tf.concat([sequence, context_seq], axis=2)
+        return new_seq
+
     def mask_paddings(self, sequence, pad):
         '''
         Return a boolean tensor of (batch_size, seq_len) where padding positions are False.

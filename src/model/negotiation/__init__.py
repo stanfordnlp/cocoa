@@ -53,7 +53,10 @@ def build_model(schema, mappings, args):
     tf.set_random_seed(args.random_seed)
 
     with tf.variable_scope('GlobalDropout'):
-        keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+        if args.test:
+            keep_prob = tf.constant(1.)
+        else:
+            keep_prob = tf.constant(1. - args.dropout)
 
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
@@ -88,11 +91,11 @@ def build_model(schema, mappings, args):
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
 
     if args.model == 'encdec':
-        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob, args.dropout)
+        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
         if args.context is not None:
-            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, args.dropout, vocab.size, sampler)
+            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler)
         else:
-            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, args.dropout, vocab.size, sampler)
+            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)

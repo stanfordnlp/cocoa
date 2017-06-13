@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
+from src.model.util import transpose_first_two_dims, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
@@ -92,8 +92,6 @@ class BasicEncoderDecoder(object):
         # Decode true utterances (so that we always condition on true prefix)
         decoder_args['inputs'] = decoder_inputs
         feed_dict = self.decoder.get_feed_dict(**decoder_args)
-        # TODO: this is needed by re-encode
-        #feed_dict[self.encoder.keep_prob] = 1. - self.encoder.dropout
         true_final_state = sess.run((self.final_state), feed_dict=feed_dict)
         return {'preds': decoder_output_dict['preds'],
                 'prices': decoder_output_dict.get('prices', None),
@@ -110,16 +108,25 @@ class ContextDecoder(BasicDecoder):
     '''
     Add a context vector (category, title, description) to each decoding step.
     '''
-    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, dropout, num_symbols, sampler=Sampler(0)):
-        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, dropout, num_symbols, sampler)
+    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, num_symbols, sampler=Sampler(0)):
+        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler)
         self.context_embedder = context_embedder
-        self.context = context
+        #self.context = context
+        self.context_embedding = self.context_embedder.embed(context)
+
+    def _build_output(self, output_dict):
+        outputs = output_dict['outputs']
+        embed_size = outputs.get_shape().as_list()[-1]
+        outputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, outputs)
+        outputs = tf.layers.dense(outputs, embed_size, activation=tf.nn.tanh)
+        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
+        # Linear layer
+        logits = tf.layers.dense(outputs, self.num_symbols, activation=None, use_bias=True)
+        return logits
 
     def _build_rnn_inputs(self, **kwargs):
         inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(**kwargs)  # (seq_len, batch_size, input_size)
-        context_embedding = self.context_embedder.embed(self.context)
-        context_seq = tf.to_float(tf.tile(tf.expand_dims(context_embedding, 0), tf.stack([tf.shape(inputs)[0], 1, 1])))
-        inputs = tf.concat([inputs, context_seq], axis=2)
+        inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         return inputs, mask
 
     def get_feed_dict(self, **kwargs):

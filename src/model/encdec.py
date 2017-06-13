@@ -75,12 +75,11 @@ class BasicEncoder(object):
     '''
     A basic RNN encoder for a sequence of inputs.
     '''
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, dropout):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob):
         self.word_embedder = word_embedder
         self.seq_embedder = seq_embedder
         self.pad = pad
         self.keep_prob = keep_prob  # tf.placeholder
-        self.dropout = dropout
         self.output_dict = {}
 
     #def _build_init_output(self, cell):
@@ -190,9 +189,6 @@ class BasicEncoder(object):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
         optional_add(feed_dict, self.seq_embedder.feedable_vars['init_state'], kwargs.pop('init_state', None))
-        # NOTE: keep_prob is a global variable so it's possible that it has been feeded by other modules
-        if self.keep_prob not in feed_dict:
-            feed_dict[self.keep_prob] = 1. - self.dropout
         return feed_dict
 
     def run(self, sess, fetches, feed_dict):
@@ -204,8 +200,8 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state',), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, dropout, num_symbols, sampler=Sampler(0)):
-        super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, dropout)
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0)):
+        super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
         self.num_symbols = num_symbols
         self.sampler = sampler
 
@@ -230,7 +226,8 @@ class BasicDecoder(BasicEncoder):
         '''
         outputs = output_dict['outputs']
         outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
-        logits = batch_linear(outputs, self.num_symbols, True)
+        # Linear layer
+        logits = tf.layers.dense(outputs, self.num_symbols, activation=None, use_bias=True)
         return logits
 
     def compute_loss(self):
