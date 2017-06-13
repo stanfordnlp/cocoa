@@ -596,11 +596,15 @@ class Preprocessor(object):
     @classmethod
     def skip_example(cls, example):
         tokens = {0: 0, 1: 0}
+        turns = {0: 0, 1: 0}
         for event in example.events:
             if event.action == "message":
                 msg_tokens = tokenize(event.data)
                 tokens[event.agent] += len(msg_tokens)
+                turns[event.agent] += 1
         if tokens[0] < 40 and tokens[1] < 40:
+            return True
+        if turns[0] < 2 or turns[1] < 2:
             return True
         return False
 
