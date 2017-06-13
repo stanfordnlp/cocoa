@@ -16,6 +16,7 @@ def add_basic_model_arguments(parser):
     parser.add_argument('--encoder', default='rnn', choices=['rnn'], help='Encoder sequence embedder {bow, rnn}')
     parser.add_argument('--decoder', default='rnn', choices=['rnn'], help='Decoder sequence embedder {rnn, attn}')
     parser.add_argument('--dropout', type=float, default=0, help='Dropout rate')
+    parser.add_argument('--sampled-loss', action='store_true', help='Whether to sample negative examples')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
     parser.add_argument('--re-encode', default=False, action='store_true', help='Re-encode the decoded sequence')
@@ -162,13 +163,10 @@ class BasicEncoder(object):
 
             inputs, mask = self._build_rnn_inputs(**input_dict)
             with tf.variable_scope('Embed'):
-                #rnn_outputs, states = tf.scan(lambda a, x: cell(x, a[1]), inputs, initializer=(self._build_init_output(cell), self.init_state))
                 embeddings = self.seq_embedder.embed(inputs, mask, init_state=init_state)
             self._build_output_dict(embeddings)
 
     def _build_output_dict(self, embeddings):
-        #final_state = self._get_final_state(rnn_states)
-        #self.output_dict.update({'outputs': rnn_outputs, 'final_state': final_state})
         self.output_dict.update({
             'outputs': embeddings['step_embeddings'],
             'final_state': embeddings['final_state'],
@@ -200,10 +198,11 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state',), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0)):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False):
         super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
         self.num_symbols = num_symbols
         self.sampler = sampler
+        self.sampled_loss = sampled_loss
 
     def get_encoder_state(self, state):
         '''
@@ -220,28 +219,96 @@ class BasicDecoder(BasicEncoder):
         super(BasicDecoder, self)._build_inputs(input_dict)
         self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
+    def _build_logits(self, inputs):
+        '''
+        inputs: (batch_size, seq_len, input_size)
+        return logits: (batch_size, seq_len)
+        '''
+        batch_size = tf.shape(inputs)[0]
+        input_size = inputs.get_shape().as_list()[-1]
+        output_size = self.num_symbols
+        # Linear output layer
+        with tf.variable_scope('OutputLogits'):
+            if self.sampled_loss:
+                self.output_w = tf.get_variable('weights', shape=[output_size, input_size], dtype=tf.float32)
+                self.output_bias = tf.get_variable('bias', shape=[output_size], dtype=tf.float32)
+                inputs = tf.reshape(inputs, [-1, input_size])
+                self.inputs_to_output_projection = inputs
+                logits = tf.matmul(inputs, tf.transpose(self.output_w)) + self.output_bias
+                logits = tf.reshape(logits, [batch_size, -1, output_size])
+            else:
+                logits = tf.layers.dense(inputs, output_size, activation=None, use_bias=True)
+        return logits
+
     def _build_output(self, output_dict):
         '''
         Take RNN outputs and produce logits over the vocab.
         '''
-        outputs = output_dict['outputs']
-        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
-        # Linear layer
-        logits = tf.layers.dense(outputs, self.num_symbols, activation=None, use_bias=True)
+        inputs = transpose_first_two_dims(output_dict['outputs'])  # (batch_size, seq_len, embed_size)
+        logits = self._build_logits(inputs)
         return logits
+
+    def _build_output_dict(self, embeddings):
+        super(BasicDecoder, self)._build_output_dict(embeddings)
+        self.output_dict['logits'] = self._build_output(self.output_dict)
 
     def compute_loss(self):
         logits = self.output_dict['logits']
         targets = self.targets
-        loss, seq_loss, total_loss = self._compute_loss(logits, targets, self.pad)
+        if not self.sampled_loss:
+            loss, seq_loss, total_loss = self._compute_logits_loss(logits, targets, self.pad)
+        else:
+            loss, seq_loss, total_loss = self._compute_sampled_loss(self.inputs_to_output_projection, targets, self.pad)
         return loss, seq_loss, total_loss
 
+    def _compute_sampled_loss(self, inputs, targets, pad):
+        '''
+        inputs: (batch_size * seq_len, inputs_size)
+        targets: (batch_size, seq_len)
+        '''
+        batch_size = tf.shape(targets)[0]
+        labels = tf.reshape(targets, [-1, 1])
+        loss = tf.nn.sampled_softmax_loss(weights=self.output_w, biases=self.output_bias, labels=labels, inputs=self.inputs_to_output_projection, num_sampled=512, num_classes=self.num_symbols, partition_strategy='div')
+        return self._mask_loss(loss, tf.reshape(targets, [-1]), pad, batch_size)
+
     @classmethod
-    def _compute_loss(cls, logits, targets, pad):
+    def _mask_loss(cls, loss, targets, pad, batch_size):
+        '''
+        loss: 1D (batch_size * seq_len,)
+        targets: 1D (batch_size * seq_len)
+        '''
+        # Mask padded tokens
+        token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
+        loss = loss * token_weights
+        total_loss = tf.reduce_sum(loss)
+
+        # Average over words in each sequence (batch_size, 1)
+        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
+        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
+
+        # Average over sequences (1,)
+        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
+
+        # total_loss is used to compute perplexity
+        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+
+    @classmethod
+    def _compute_logits_loss(cls, logits, targets, pad):
         '''
         logits: (batch_size, seq_len, vocab_size)
         targets: (batch_size, seq_len)
         '''
+        batch_size = tf.shape(targets)[0]
+        targets = tf.reshape(targets, [-1])
+
+        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
+        num_symbols = tf.shape(logits)[2]
+        logits = tf.reshape(logits, [-1, num_symbols])
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=targets)
+
+        return cls._mask_loss(loss, targets, pad, batch_size)
+
+
         batch_size = tf.shape(logits)[0]
         num_symbols = tf.shape(logits)[2]
         # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
@@ -261,11 +328,11 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    def build_model(self, input_dict, tf_variables):
-        super(BasicDecoder, self).build_model(input_dict, tf_variables)  # outputs: (seq_len, batch_size, output_size)
-        with tf.variable_scope(type(self).__name__):
-            logits = self._build_output(self.output_dict)
-        self.output_dict['logits'] = logits
+    #def build_model(self, input_dict, tf_variables):
+    #    super(BasicDecoder, self).build_model(input_dict, tf_variables)  # outputs: (seq_len, batch_size, output_size)
+    #    with tf.variable_scope(type(self).__name__):
+    #        logits = self._build_output(self.output_dict)
+    #    self.output_dict['logits'] = logits
 
     def pred_to_input(self, preds, **kwargs):
         '''

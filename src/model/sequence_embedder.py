@@ -181,7 +181,7 @@ class RNNEmbedder(SequenceEmbedder):
             self.feedable_vars['init_state'] = init_state
 
             init_output = tf.zeros([batch_size, cell.output_size])
-            outputs, states = tf.scan(lambda a, x: cell(x, a[1]), sequence, initializer=(init_output, init_state))
+            outputs, states = tf.scan(lambda a, x: cell(x, a[1]), sequence, initializer=(init_output, init_state), parallel_iterations=32)
 
             final_state = self.last(states, padding_mask)
             embedding = self.aggregate(outputs, padding_mask)

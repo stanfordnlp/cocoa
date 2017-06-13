@@ -108,8 +108,8 @@ class ContextDecoder(BasicDecoder):
     '''
     Add a context vector (category, title, description) to each decoding step.
     '''
-    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, num_symbols, sampler=Sampler(0)):
-        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler)
+    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False):
+        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
         self.context_embedder = context_embedder
         #self.context = context
         self.context_embedding = self.context_embedder.embed(context)
@@ -119,9 +119,9 @@ class ContextDecoder(BasicDecoder):
         embed_size = outputs.get_shape().as_list()[-1]
         outputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, outputs)
         outputs = tf.layers.dense(outputs, embed_size, activation=tf.nn.tanh)
-        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
         # Linear layer
-        logits = tf.layers.dense(outputs, self.num_symbols, activation=None, use_bias=True)
+        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
+        logits = self._build_logits(outputs)
         return logits
 
     def _build_rnn_inputs(self, **kwargs):
