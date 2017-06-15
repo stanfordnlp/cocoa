@@ -266,7 +266,6 @@ class BaseBackend(object):
             return self.scenario_db.get(sid), p
 
         def _update_used_scenarios(scenario_id, partner_type, chat_id):
-            # cursor.execute('''SELECT active FROM scenario WHERE scenario_id? AND''')
             cursor.execute(
                 '''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''',
                 (scenario_id, partner_type))
@@ -292,6 +291,8 @@ class BaseBackend(object):
                     try:
                         _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
                     except UnexpectedStatusException:
+                        self.logger.warn("Attempt to pair user {:s} with {:s} failed. User {:s} not in waiting "
+                                         "status".format(userid, partner_id, partner_id))
                         return False
                     _update_used_scenarios(scenario_id, HumanSystem.name(), chat_id)
                     if my_index == 0:
@@ -319,7 +320,8 @@ class BaseBackend(object):
             print("WARNING: Rolled back transaction")
 
     def decrement_active_chats(self, cursor, scenario_id, partner_type, chat_id):
-        cursor.execute('''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''')
+        cursor.execute('''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''',
+                       (scenario_id, partner_type))
         active_set = json.loads(cursor.fetchone()[0])
         if chat_id in active_set:
             active_set.remove(chat_id)
