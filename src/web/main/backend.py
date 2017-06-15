@@ -433,7 +433,11 @@ class BaseBackend(object):
                 result = cursor.fetchone()
                 if result is None or len(result) == 0:
                     return False
-                outcome = json.loads(result[0])
+
+                try:
+                    outcome = json.loads(result[0])
+                except ValueError:
+                    return False
 
                 if outcome['reward'] is None or outcome['reward'] == 0:
                     return False
@@ -446,8 +450,8 @@ class BaseBackend(object):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info(cursor, userid, assumed_status=Status.Finished)
-                num_seconds = (self.config["status_params"]["finished"][
-                                   "num_seconds"] + u.status_timestamp) - current_timestamp_in_seconds()
+                num_seconds = (self.config["status_params"]["finished"]["num_seconds"] +
+                               u.status_timestamp) - current_timestamp_in_seconds()
                 completed = _is_chat_complete(cursor, u.chat_id)
                 if from_mturk:
                     mturk_code = _generate_mturk_code(completed)
