@@ -904,7 +904,7 @@ class NegotiationBackend(BaseBackend):
             # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
             cursor.execute('''SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?''',
                            (scenario_id, partner_type))
-            complete_set = json.loads(cursor.fetchone()[0])
+            complete_set = set(json.loads(cursor.fetchone()[0]))
             complete_set.add(chat_id)
             cursor.execute('''
                 UPDATE scenario
