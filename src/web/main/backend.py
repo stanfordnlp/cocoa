@@ -181,6 +181,8 @@ class BaseBackend(object):
             self.sessions[userid] = my_session
             self.sessions[partner_id] = partner_session
 
+            partner_info = self._get_user_info(cursor, partner_id, assumed_status=Status.Waiting)
+
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
                               partner_id=userid,
@@ -281,6 +283,11 @@ class BaseBackend(object):
                     if len(others) == 0:
                         return None
                     partner_id = np.random.choice(others)
+
+                    try:
+                        _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
+                    except UnexpectedStatusException:
+                        return False
                     _update_used_scenarios(scenario_id, HumanSystem.name())
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(),
@@ -288,7 +295,7 @@ class BaseBackend(object):
                     else:
                         self.add_chat_to_db(chat_id, scenario_id, partner_id, userid, HumanSystem.name(),
                                             HumanSystem.name())
-                    return _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
+                    return True
                 else:
                     _update_used_scenarios(scenario_id, partner_type)
                     if my_index == 0:
