@@ -1,8 +1,10 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
+from tensorflow.contrib.seq2seq import LuongAttention, AttentionWrapper, AttentionWrapperState
 from word_embedder import WordEmbedder
-from rnn_cell import build_rnn_cell
+from rnn_cell import build_rnn_cell, MultiAttentionWrapper
 from src.model.util import transpose_first_two_dims
+from itertools import izip
 
 def add_sequence_embedder_arguments(parser):
     parser.add_argument('--rnn-size', type=int, default=20, help='Dimension of hidden units of RNN')
@@ -14,6 +16,8 @@ def get_sequence_embedder(embedder_type, **kwargs):
         return BoWEmbedder(kwargs['vocab_size'], kwargs['embed_size'], kwargs.get('word_embedder', None))
     elif embedder_type == 'rnn':
         return RNNEmbedder(kwargs['embed_size'], kwargs['rnn_type'], kwargs['num_layers'], kwargs.get('aggregation', 'last'), kwargs['keep_prob'])
+    elif embedder_type == 'rnn-attn':
+        return AttentionRNNEmbedder(kwargs['embed_size'], kwargs.get('attn_size', None), kwargs['rnn_type'], kwargs['num_layers'], kwargs.get('aggregation', 'last'), kwargs['keep_prob'])
     raise ValueError('Unknown embedder_type %s' % embedder_type)
 
 class SequenceEmbedder(object):
@@ -135,8 +139,15 @@ class RNNEmbedder(SequenceEmbedder):
         flat_states = nest.flatten(states)
         flat_selected_states = []
         for fs in flat_states:
-            # fs is (seq_len, batch_size, ...)
-            selected_states = tf.boolean_mask(fs, mask)
+            # NOTE: this is attention_state.time, which we are not using.
+            # time assumes to be the same for all examples in a batch, which is not
+            # compatible here because we take states at different time steps for
+            # examples in the same batch (because they have different lengths).
+            if len(fs.get_shape().as_list()) < 2:
+                selected_states = fs[0]
+            else:
+                # fs is (seq_len, batch_size, ...)
+                selected_states = tf.boolean_mask(fs, mask)
             flat_selected_states.append(selected_states)
         selected_states = nest.pack_sequence_as(states, flat_selected_states)
         return selected_states
@@ -163,6 +174,17 @@ class RNNEmbedder(SequenceEmbedder):
             return self.last(embeddings, mask)
         return super(RNNEmbedder, self).aggregate(embeddings, mask)
 
+    def _build_rnn_cell(self, **kwargs):
+        return build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob)
+
+    def _build_init_state(self, cell, batch_size, init_cell_state=None):
+        if init_cell_state is None:
+            init_state = cell.zero_state(batch_size, tf.float32)
+        else:
+            init_state = init_cell_state
+        self.feedable_vars['init_cell_state'] = init_state
+        return init_state
+
     def embed(self, sequence, padding_mask, **kwargs):
         '''
         Assume the sequence is a tensor, i.e. tokens are already embedded.
@@ -172,12 +194,9 @@ class RNNEmbedder(SequenceEmbedder):
         '''
         batch_size = tf.shape(sequence)[1]
         with tf.variable_scope(type(self).__name__):
-            cell = build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob)
+            cell = self._build_rnn_cell(**kwargs)
 
-            if kwargs['init_state'] is None:
-                init_state = cell.zero_state(batch_size, tf.float32)
-            else:
-                init_state = kwargs['init_state']
+            init_state = self._build_init_state(cell, batch_size, init_cell_state=kwargs['init_cell_state'])
             self.feedable_vars['init_state'] = init_state
 
             init_output = tf.zeros([batch_size, cell.output_size])
@@ -187,4 +206,48 @@ class RNNEmbedder(SequenceEmbedder):
             embedding = self.aggregate(outputs, padding_mask)
         # NOTE: outputs are all time-major
         return {'step_embeddings': outputs, 'embedding': embedding, 'final_state': final_state}
+
+class AttentionRNNEmbedder(RNNEmbedder):
+    def __init__(self, rnn_size, embed_size=None, rnn_type='lstm', num_layers=1, aggregation='last', keep_prob=1.):
+        super(AttentionRNNEmbedder, self).__init__(rnn_size, rnn_type=rnn_type, num_layers=num_layers, aggregation=aggregation, keep_prob=keep_prob)
+        self.embed_size = embed_size if embed_size is not None else rnn_size
+
+    def _mask_to_memory_len(self, mask):
+        '''
+        mask: (batch_size, mem_len)
+        '''
+        if mask is not None:
+            memory_len = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 0)  # (batch_size,)
+        else:
+            memory_len = None
+        return memory_len
+
+    def _build_init_state(self, cell, batch_size, init_cell_state=None):
+        zero_state = cell.zero_state(batch_size, dtype=tf.float32)
+        if init_cell_state is None:
+            init_state = zero_state
+        # init_state can be from a RNN (no attention) encoder
+        else:
+            init_state = zero_state.clone(cell_state=init_cell_state)
+        self.feedable_vars['init_cell_state'] = init_state.cell_state
+        return init_state
+
+    def _build_rnn_cell(self, **kwargs):
+        cell = super(AttentionRNNEmbedder, self)._build_rnn_cell(**kwargs)
+        memory = kwargs['attention_memory']  # (batch_size, mem_len, mem_size)
+        mask = kwargs.get('attention_mask', None)  # (batch_size, mem_len)
+        attention_size = self.embed_size
+        if not (isinstance(memory, list) or isinstance(memory, tuple)):
+            memory_len = self._mask_to_memory_len(mask)
+            attention_mechanism = LuongAttention(self.embed_size, memory, memory_len)
+            cell = AttentionWrapper(cell, attention_mechanism, attention_size)
+        else:
+            if mask is not None:
+                assert len(memory) == len(mask)
+                memory_len = map(self._mask_to_memory_len, mask)
+            else:
+                memory_len = [None] * len(memory)
+            attention_mechanism = [LuongAttention(self.embed_size, m, l) for m, l in izip(memory, memory_len)]
+            cell = MultiAttentionWrapper(cell, attention_mechanism, attention_size)
+        return cell
 

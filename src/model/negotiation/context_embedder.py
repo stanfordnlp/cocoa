@@ -1,4 +1,5 @@
 import tensorflow as tf
+from src.model.util import transpose_first_two_dims
 
 def add_context_embedder_arguments(parser):
     parser.add_argument('--context-encoder', choices=['bow', 'rnn'], default='bow', help='Encoding of context')
@@ -25,21 +26,26 @@ class ContextEmbedder(object):
     def _build_seq_inputs(self, inputs):
         return self.word_embedder.embed(tf.transpose(inputs))
 
-    def _embed_seq(self, sequence):
+    def _embed_seq(self, sequence, step=False):
         inputs, mask = self.seq_embedder.build_seq_inputs(sequence, self.word_embedder, self.pad, time_major=False)
         embeddings = self.seq_embedder.embed(inputs, mask, integer=False, init_state=None)
-        return embeddings['embedding']
+        if not step:
+            return embeddings['embedding']
+        else:
+            return transpose_first_two_dims(embeddings['step_embeddings'])
 
-    def embed(self, context=('category',)):
+    def embed(self, context=('category',), step=False):
         category_embedding = tf.to_float(self.one_hot_embed(self.category, self.category_size))
-        title_embedding = self._embed_seq(self.title)
-        description_embedding = self._embed_seq(self.description)
+        title_embedding = self._embed_seq(self.title, step)
+        description_embedding = self._embed_seq(self.description, step)
         # embeddings: (batch_size, embed_size)
         embeddings = {
                 'category': category_embedding,
                 'title': title_embedding,
                 'description': description_embedding,
                 }
+        if context is None:
+            return embeddings
         return tf.concat([embeddings[k] for k in context], axis=1)
 
     def get_feed_dict(self, **kwargs):

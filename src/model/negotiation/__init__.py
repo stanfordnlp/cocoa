@@ -44,7 +44,7 @@ def build_model(schema, mappings, args):
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -93,9 +93,11 @@ def build_model(schema, mappings, args):
     if args.model == 'encdec':
         encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
         if args.context is not None:
-            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            #decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         else:
-            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            #decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)

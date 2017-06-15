@@ -106,11 +106,10 @@ class BaseLearner(object):
             clipped_grads_and_vars = [(tf.clip_by_value(grad, min_grad, max_grad), var) for grad, var in grads_and_vars]
         else:
             clipped_grads_and_vars = grads_and_vars
-        # TODO: clip has problem with indexedslices, don't use
-        #self.clipped_grads = [grad for grad, var in clipped_grads_and_vars]
-        #self.grads = [grad for grad, var in grads_and_vars]
+        # TODO: fix this. proper clipping and print
         self.grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
         self.clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
+        self.grad_norm = self.clipped_grad_norm
 
         # Optimize
         self.train_op = optimizer.apply_gradients(clipped_grads_and_vars)

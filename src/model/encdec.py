@@ -14,7 +14,7 @@ def add_basic_model_arguments(parser):
     parser.add_argument('--model', default='encdec', help='Model name {encdec}')
     # TODO: more types of encoder and decoder
     parser.add_argument('--encoder', default='rnn', choices=['rnn'], help='Encoder sequence embedder {bow, rnn}')
-    parser.add_argument('--decoder', default='rnn', choices=['rnn'], help='Decoder sequence embedder {rnn, attn}')
+    parser.add_argument('--decoder', default='rnn', choices=['rnn', 'rnn-attn'], help='Decoder sequence embedder {rnn, attn}')
     parser.add_argument('--dropout', type=float, default=0, help='Dropout rate')
     parser.add_argument('--sampled-loss', action='store_true', help='Whether to sample negative examples')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
@@ -82,6 +82,7 @@ class BasicEncoder(object):
         self.pad = pad
         self.keep_prob = keep_prob  # tf.placeholder
         self.output_dict = {}
+        self.feedable_vars = {}
 
     #def _build_init_output(self, cell):
     #    '''
@@ -130,14 +131,13 @@ class BasicEncoder(object):
     #            'batch_size': self.batch_size,
     #            }
 
-    def _build_rnn_inputs(self, **kwargs):
-        inputs = kwargs.get('inputs', self.inputs)
-        return self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)
-        #if not time_major:
-        #    inputs = tf.transpose(inputs)
-        #inputs = self.word_embedder.embed(inputs, zero_pad=True)
-        #mask = self.seq_embedder.mask_paddings(inputs, self.pad)
-        #return inputs, mask
+    def _build_rnn_inputs(self, input_dict):
+        inputs = input_dict.get('inputs', self.inputs)
+        inputs, mask = self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)
+        init_cell_state = input_dict.get('init_cell_state', None)
+        return inputs, mask, {'init_cell_state': init_cell_state}
+        #init_state = input_dict.get('init_state', None)
+        #return inputs, mask, {'init_state': init_state}
 
     def _build_inputs(self, input_dict):
         self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
@@ -155,15 +155,10 @@ class BasicEncoder(object):
         with tf.variable_scope(type(self).__name__):
             self._build_inputs(input_dict)
 
-            #cell = self._build_rnn_cell()
-            #self.cell = cell
-            #self.init_state = self._build_init_state(cell, input_dict)
-            #self.output_size = cell.output_size
-            init_state = input_dict.get('init_state', None)
-
-            inputs, mask = self._build_rnn_inputs(**input_dict)
+            inputs, mask, kwargs = self._build_rnn_inputs(input_dict)
             with tf.variable_scope('Embed'):
-                embeddings = self.seq_embedder.embed(inputs, mask, init_state=init_state)
+                embeddings = self.seq_embedder.embed(inputs, mask, **kwargs)
+
             self._build_output_dict(embeddings)
 
     def _build_output_dict(self, embeddings):
@@ -186,6 +181,7 @@ class BasicEncoder(object):
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
         feed_dict[self.inputs] = kwargs.pop('inputs')
+        optional_add(feed_dict, self.seq_embedder.feedable_vars['init_cell_state'], kwargs.pop('init_cell_state', None))
         optional_add(feed_dict, self.seq_embedder.feedable_vars['init_state'], kwargs.pop('init_state', None))
         return feed_dict
 
@@ -195,7 +191,7 @@ class BasicEncoder(object):
 
     def run_encode(self, sess, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
-        return self.run(sess, ('final_state',), feed_dict)
+        return self.run(sess, ('final_state', 'outputs'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
     def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False):
@@ -212,6 +208,7 @@ class BasicDecoder(BasicEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
+        optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
@@ -348,14 +345,18 @@ class BasicDecoder(BasicEncoder):
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         for i in xrange(max_len):
+            #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             step_preds = self.sampler.sample(logits)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
             # TODO: hacky for context
-            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
-                    init_state=final_state, context=kwargs['context'])
+            feed_dict = self.get_feed_dict(
+                    inputs=self.pred_to_input(step_preds, **kwargs),
+                    init_state=final_state,
+                    encoder_outputs=kwargs['encoder_outputs'],
+                    context=kwargs['context'])
         return {'preds': preds, 'final_state': final_state}
 
 ############# dynamic import depending on task ##################

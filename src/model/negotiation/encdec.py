@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 from src.model.util import transpose_first_two_dims, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
+from src.model.sequence_embedder import AttentionRNNEmbedder
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
 
@@ -23,14 +24,16 @@ class BasicEncoderDecoder(object):
 
     def _encoder_input_dict(self):
         return {
-                'init_state': None,
+                'init_cell_state': None,
                }
 
     def _decoder_input_dict(self, encoder_output_dict):
-        # TODO: clearner way to add price_history - put this in the state
+        # TODO: clearner way to add price_history - put this in the state,
+        # maybe just return encoder_output_dict...
         return {
-                'init_state': encoder_output_dict['final_state'],
-                'price_history': encoder_output_dict.pop('price_history', None),
+                'init_cell_state': encoder_output_dict['final_state'],
+                'encoder_embeddings': encoder_output_dict['outputs'],
+                'price_history': encoder_output_dict.get('price_history', None),
                }
 
     def build_model(self, encoder, decoder):
@@ -73,7 +76,7 @@ class BasicEncoderDecoder(object):
         # Encode true prefix
         # TODO: get_encoder_args
         encoder_args = {'inputs': encoder_inputs,
-                'init_state': encoder_init_state
+                'init_cell_state': encoder_init_state,
                 }
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
@@ -81,11 +84,12 @@ class BasicEncoderDecoder(object):
         # TODO: get_decoder_args for refactor
         price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
         decoder_args = {'inputs': decoder_inputs[:, [0]],
-                'init_state': encoder_output_dict['final_state'],
+                'init_cell_state': encoder_output_dict['final_state'],
                 'price_symbol': textint_map.vocab.to_ind('<price>'),
                 'price_predictor': price_args,
                 'textint_map': textint_map,
                 'context': batch['context'],
+                'encoder_outputs': encoder_output_dict['outputs'],
                 }
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
@@ -103,6 +107,34 @@ class BasicEncoderDecoder(object):
         #        'final_state': decoder_output_dict['final_state'],
         #        'true_final_state': true_final_state,
         #        }
+
+class AttentionDecoder(BasicDecoder):
+    '''
+    Attend to encoder embeddings and/or context.
+    '''
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None, memory=('encoder',)):
+        assert isinstance(seq_embedder, AttentionRNNEmbedder)
+        super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
+        self.context_embedder = context_embedder
+        self.context_embedding = self.context_embedder.embed(context=('title', 'description'), step=True)  # (batch_size, context_len, embed_size)
+
+    def get_encoder_state(self, state):
+        return state.cell_state
+
+    def _build_rnn_inputs(self, input_dict):
+        inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(input_dict)
+        encoder_outputs = input_dict['encoder_embeddings']
+        self.feedable_vars['encoder_outputs'] = encoder_outputs
+        attention_memory = transpose_first_two_dims(encoder_outputs)  # (batch_size, seq_len, embed_size)
+        attention_memory = self.context_embedding
+        # TODO: attention mask
+        kwargs['attention_memory'] = attention_memory
+        return inputs, mask, kwargs
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(AttentionDecoder, self).get_feed_dict(**kwargs)
+        feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
+        return feed_dict
 
 class ContextDecoder(BasicDecoder):
     '''
@@ -124,8 +156,8 @@ class ContextDecoder(BasicDecoder):
         logits = self._build_logits(outputs)
         return logits
 
-    def _build_rnn_inputs(self, **kwargs):
-        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(**kwargs)  # (seq_len, batch_size, input_size)
+    def _build_rnn_inputs(self, input_dict):
+        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         return inputs, mask
 
