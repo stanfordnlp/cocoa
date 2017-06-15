@@ -167,6 +167,7 @@
             			displayText(response['message']);
             		}
             	});
+                validCheckInterval = setInterval(pollServer, 3000);
 
                 // This part executes after the description is shown
                 setTimeout(function(){
@@ -179,7 +180,6 @@
 				//initializeClock('clockdiv', deadline);
 
 				inboxCheckInterval = setInterval(checkInbox, 1000);
-				validCheckInterval = setInterval(pollServer, 3000);
                 
 				$('#text').keypress(function(e) {
 					var code = e.keyCode || e.which;

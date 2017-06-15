@@ -99,7 +99,10 @@ class BaseBackend(object):
 
     def _assert_no_connection_timeout(self, connection_status, connection_timestamp):
         if connection_status == 1:
-            return
+            if self._is_timeout(self.config["idle_timeout_num_seconds"], connection_timestamp):
+                raise ConnectionTimeoutException()
+            else:
+                return
         else:
             if self._is_timeout(self.config["connection_timeout_num_seconds"], connection_timestamp):
                 raise ConnectionTimeoutException()
@@ -130,7 +133,11 @@ class BaseBackend(object):
         u = self._get_user_info_unchecked(cursor, userid)
         if assumed_status is not None:
             self._validate_status_or_throw(assumed_status, u.status)
-        self._assert_no_connection_timeout(u.connected_status, u.connected_timestamp)
+        try:
+            self._assert_no_connection_timeout(u.connected_status, u.connected_timestamp)
+        except ConnectionTimeoutException:
+            self._update_user(cursor, userid, connected_status=0)
+            raise ConnectionTimeoutException
         self._assert_no_status_timeout(u.status, u.status_timestamp)
         return u
 
@@ -572,6 +579,7 @@ class BaseBackend(object):
                 except ConnectionTimeoutException:
                     return False
 
+                self._update_user(cursor, userid, connected_status=1)
                 if not self.is_user_partner_bot(cursor, userid):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
@@ -639,6 +647,7 @@ class BaseBackend(object):
                 cursor = self.conn.cursor()
                 try:
                     u = self._get_user_info(cursor, userid, assumed_status=assumed_status)
+                    self._update_user(cursor, userid, connected_status=1)
                     if u.status == Status.Waiting:
                         self.attempt_join_chat(userid)
                     return True
