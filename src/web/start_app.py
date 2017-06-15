@@ -75,7 +75,7 @@ def init_database(db_file):
         start_time text)'''
     )
     c.execute(
-        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer, active integer,
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
         PRIMARY KEY (scenario_id, partner_type))'''
     )
 
@@ -92,9 +92,9 @@ def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
         sid = scenario.uuid
         for agent_type in systems.keys():
             if update:
-                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
+                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
             else:
-                c.execute('''INSERT INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
+                c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
 
     conn.commit()
     conn.close()

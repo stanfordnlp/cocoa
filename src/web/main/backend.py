@@ -72,7 +72,8 @@ class BaseBackend(object):
             u = self._get_user_info_unchecked(cursor, userid)
             sid = controller.scenario.uuid
             partner_type = u.partner_type
-            self.decrement_active_chats(cursor, sid, partner_type)
+            chat_id = controller.get_chat_id()
+            self.decrement_active_chats(cursor, sid, partner_type, chat_id)
 
         controller = self.controller_map[userid]
         outcome = controller.get_outcome()
@@ -233,15 +234,14 @@ class BaseBackend(object):
             db_scenarios = cursor.fetchall()
             scenario_dialogues = defaultdict(lambda: defaultdict(int))
 
-            for (scenario_id, partner_type, num_complete, num_active) in db_scenarios:
+            for (scenario_id, partner_type, complete, active) in db_scenarios:
+                complete = set(json.loads(complete))
+                active = set(json.loads(active))
                 # map from scenario ID -> partner type -> # of completed dialogues with that partner
                 if scenario_id not in scenario_dialogues:
                     scenario_dialogues[scenario_id] = {}
 
-                if num_active < 0:
-                    scenario_dialogues[scenario_id][partner_type] = num_complete
-                else:
-                    scenario_dialogues[scenario_id][partner_type] = num_complete + num_active
+                scenario_dialogues[scenario_id][partner_type] = len(complete) + len(active)
 
             # find "active" scenarios (scenarios for which at least one agent type has no completed or active dialogues)
             active_scenarios = defaultdict(list)
@@ -262,13 +262,15 @@ class BaseBackend(object):
             p = np.random.choice(active_scenarios[sid])
             return self.scenario_db.get(sid), p
 
-        def _update_used_scenarios(scenario_id, partner_type):
+        def _update_used_scenarios(scenario_id, partner_type, chat_id):
             # cursor.execute('''SELECT active FROM scenario WHERE scenario_id? AND''')
             cursor.execute(
-                '''UPDATE scenario
-                SET active=active+1
-                WHERE scenario_id=? AND partner_type=?''',
+                '''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''',
                 (scenario_id, partner_type))
+            active_set = set(json.loads(cursor.fetchone()[0]))
+            active_set.add(chat_id)
+            cursor.execute('''UPDATE scenario SET active=? WHERE scenario_id=? AND partner_type=?''',
+                           (json.dumps(active_set), scenario_id, partner_type))
 
         try:
             with self.conn:
@@ -288,7 +290,7 @@ class BaseBackend(object):
                         _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id)
                     except UnexpectedStatusException:
                         return False
-                    _update_used_scenarios(scenario_id, HumanSystem.name())
+                    _update_used_scenarios(scenario_id, HumanSystem.name(), chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(),
                                             HumanSystem.name())
@@ -297,7 +299,7 @@ class BaseBackend(object):
                                             HumanSystem.name())
                     return True
                 else:
-                    _update_used_scenarios(scenario_id, partner_type)
+                    _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)
                     else:
@@ -308,10 +310,15 @@ class BaseBackend(object):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
-    def decrement_active_chats(self, cursor, scenario_id, partner_type):
+    def decrement_active_chats(self, cursor, scenario_id, partner_type, chat_id):
+        cursor.execute('''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''')
+        active_set = json.loads(cursor.fetchone()[0])
+        if chat_id in active_set:
+            active_set.remove(chat_id)
+
         cursor.execute(
-            '''UPDATE scenario SET active = active - 1 WHERE scenario_id=? AND partner_type=?''',
-            (scenario_id, partner_type)
+            '''UPDATE scenario SET active=? WHERE scenario_id=? AND partner_type=?''',
+            (json.dumps(active_set), scenario_id, partner_type)
         )
 
     def user_finished(self, cursor, userid, message=Messages.ChatCompleted):
@@ -649,14 +656,15 @@ class BaseBackend(object):
             cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (chat_id,))
             scenario_id = cursor.fetchone()[0]
             # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
+            cursor.execute('''SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?''',
+                           (scenario_id, partner_type))
+            complete_set = set(json.loads(cursor.fetchone()[0]))
+            complete_set.add(chat_id)
             cursor.execute('''
                 UPDATE scenario
-                SET complete = complete + 1
-                WHERE scenario_id=? AND partner_type=?
-                AND (SELECT COUNT(survey.name)
-                    FROM survey
-                    WHERE survey.chat_id=?) = 0;
-            ''', (scenario_id, partner_type, chat_id))
+                SET complete=?
+                WHERE scenario_id=? AND partner_type=?''',
+                           (json.dumps(complete_set), scenario_id, partner_type))
 
         try:
             with self.conn:
