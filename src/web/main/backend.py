@@ -528,6 +528,7 @@ class BaseBackend(object):
                         else:
                             message = Messages.ChatExpired
 
+                        self.logger.debug("User {:s} chat status expired, redirecting to waiting".format(userid))
                         self.end_chat_and_transition_to_waiting(cursor, userid, message=message)
                         return Status.Waiting
 
@@ -575,6 +576,8 @@ class BaseBackend(object):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
                     except UnexpectedStatusException:
+                        self.logger.debug("User {:s}: Partner not in chat status, redirecting to "
+                                          "waiting".format(userid))
                         self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
@@ -586,6 +589,8 @@ class BaseBackend(object):
                     except ConnectionTimeoutException:
                         self.end_chat_and_transition_to_waiting(cursor, userid,
                                                                 message=Messages.PartnerConnectionTimeout)
+                        self.logger.debug("User {:s}: Partner connection timed out, redirecting to "
+                                          "waiting".format(userid))
                         return False
 
                     if self.controller_map[userid] != self.controller_map[u.partner_id]:
@@ -788,6 +793,8 @@ class NegotiationBackend(BaseBackend):
 
         if game_over:
             if self.should_reject_chat(userid, 1-agent_idx):
+                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
+                                  "waiting".format(controller.get_chat_id(), userid, 1-agent_idx))
                 self.end_chat_and_transition_to_waiting(cursor, partner_id,
                                                         message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
@@ -796,6 +803,8 @@ class NegotiationBackend(BaseBackend):
                     self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
 
             if self.should_reject_chat(userid, agent_idx):
+                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
+                                  "waiting".format(controller.get_chat_id(), userid, agent_idx))
                 self.end_chat_and_transition_to_waiting(cursor, userid,
                                                         message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
