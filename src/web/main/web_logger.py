@@ -9,7 +9,7 @@ logger = None
 class WebLogger(object):
     @classmethod
     def initialize(cls, log_file):
-        logging.basicConfig(filename=log_file, filemode='w')
+        logging.basicConfig(filename=log_file, filemode='w', level=logging.DEBUG)
         global logger
         logger = logging.getLogger("web")
 

@@ -463,6 +463,7 @@ class BaseBackend(object):
                 completed = _is_chat_complete(cursor, u.chat_id)
                 if from_mturk:
                     mturk_code = _generate_mturk_code(completed)
+                    self.logger.debug("User {:s} got completion code {:s}".format(userid, mturk_code))
                 else:
                     mturk_code = None
                 _add_finished_task_row(cursor, userid, mturk_code, u.chat_id)
@@ -688,6 +689,7 @@ class BaseBackend(object):
                                 data['fluent'], data['correct'], data['cooperative'],
                                 data['humanlike'], data['comments']))
                 _user_finished(userid)
+                self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
@@ -772,7 +774,6 @@ class NegotiationBackend(BaseBackend):
                     cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
                     agent_ids = json.loads(cursor.fetchone()[0])
                     agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
-                    print "Agent IDs string:", agent_ids
                     return 0 if agent_ids[0] == userid else 1
 
             except sqlite3.IntegrityError:
