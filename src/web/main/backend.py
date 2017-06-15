@@ -322,7 +322,7 @@ class BaseBackend(object):
     def decrement_active_chats(self, cursor, scenario_id, partner_type, chat_id):
         cursor.execute('''SELECT active FROM scenario WHERE scenario_id=? AND partner_type=?''',
                        (scenario_id, partner_type))
-        active_set = json.loads(cursor.fetchone()[0])
+        active_set = set(json.loads(cursor.fetchone()[0]))
         if chat_id in active_set:
             active_set.remove(chat_id)
 
