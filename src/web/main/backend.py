@@ -3,7 +3,7 @@ import json
 __author__ = 'anushabala'
 import uuid
 from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
-from src.turk.accept_negotiation_hits import get_total_tokens_per_agent, get_turns_per_agent, reject_transcript
+from src.turk.accept_negotiation_hits import reject_transcript
 from src.basic.systems.human_system import HumanSystem
 from src.scripts.visualize_data import visualize_chat
 from src.web.dump_events_to_json import convert_events_to_json
@@ -18,6 +18,7 @@ from uuid import uuid4
 from collections import defaultdict
 from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
+from web_logger import WebLogger
 
 m = hashlib.md5()
 m.update("bot")
@@ -47,6 +48,7 @@ class BaseBackend(object):
         self.sessions = sessions
         self.controller_map = controller_map
         self.pairing_probabilities = pairing_probabilities
+        self.logger = WebLogger.get_logger()
 
     def _update_user(self, cursor, userid, **kwargs):
         if "status" in kwargs:
@@ -182,7 +184,8 @@ class BaseBackend(object):
             self.sessions[userid] = my_session
             self.sessions[partner_id] = partner_session
 
-            partner_info = self._get_user_info(cursor, partner_id, assumed_status=Status.Waiting)
+            # ensures that partner is actually in waiting state
+            self._get_user_info(cursor, partner_id, assumed_status=Status.Waiting)
 
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
@@ -270,7 +273,7 @@ class BaseBackend(object):
             active_set = set(json.loads(cursor.fetchone()[0]))
             active_set.add(chat_id)
             cursor.execute('''UPDATE scenario SET active=? WHERE scenario_id=? AND partner_type=?''',
-                           (json.dumps(active_set), scenario_id, partner_type))
+                           (json.dumps(list(active_set)), scenario_id, partner_type))
 
         try:
             with self.conn:
@@ -297,6 +300,9 @@ class BaseBackend(object):
                     else:
                         self.add_chat_to_db(chat_id, scenario_id, partner_id, userid, HumanSystem.name(),
                                             HumanSystem.name())
+                    self.logger.debug("Paired users {:s} and {:s} in chat with ID {:s} and scenario {:s}".format(
+                        userid, partner_id, chat_id, scenario_id
+                    ))
                     return True
                 else:
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
@@ -305,6 +311,8 @@ class BaseBackend(object):
                     else:
                         self.add_chat_to_db(chat_id, scenario_id, 0, userid, partner_type, HumanSystem.name())
 
+                    self.logger.debug("Paired user {:s} with bot of type {:s} in chat with ID {:s} and scenario "
+                                      "{:s}".format(userid, partner_type, chat_id, scenario_id))
                     return _pair_with_bot(cursor, userid, my_index, partner_type, scenario, chat_id)
 
         except sqlite3.IntegrityError:
@@ -318,7 +326,7 @@ class BaseBackend(object):
 
         cursor.execute(
             '''UPDATE scenario SET active=? WHERE scenario_id=? AND partner_type=?''',
-            (json.dumps(active_set), scenario_id, partner_type)
+            (json.dumps(list(active_set)), scenario_id, partner_type)
         )
 
     def user_finished(self, cursor, userid, message=Messages.ChatCompleted):
@@ -668,7 +676,7 @@ class BaseBackend(object):
                 UPDATE scenario
                 SET complete=?
                 WHERE scenario_id=? AND partner_type=?''',
-                           (json.dumps(complete_set), scenario_id, partner_type))
+                           (json.dumps(list(complete_set)), scenario_id, partner_type))
 
         try:
             with self.conn:
@@ -891,14 +899,18 @@ class NegotiationBackend(BaseBackend):
             cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (chat_id,))
             scenario_id = cursor.fetchone()[0]
             # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
+            cursor.execute('''SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?''',
+                           (scenario_id, partner_type))
+            complete_set = json.loads(cursor.fetchone()[0])
+            complete_set.add(chat_id)
             cursor.execute('''
                 UPDATE scenario
-                SET complete = complete + 1
+                SET complete=?
                 WHERE scenario_id=? AND partner_type=?
                 AND (SELECT COUNT(survey.name)
                     FROM survey
                     WHERE survey.chat_id=?) = 0;
-            ''', (scenario_id, partner_type, chat_id))
+            ''', (json.dumps(list(complete_set)), scenario_id, partner_type, chat_id))
 
         try:
             with self.conn:

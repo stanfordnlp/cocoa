@@ -16,6 +16,7 @@ from src.web import create_app
 from src.basic.systems import get_system, add_system_arguments
 from src.basic.systems.human_system import HumanSystem
 from gevent.wsgi import WSGIServer
+from src.web.main.web_logger import WebLogger
 
 __author__ = 'anushabala'
 
@@ -193,6 +194,7 @@ if __name__ == "__main__":
         params = json.load(fin)
 
     db_file, log_file, transcripts_dir = init(args.output, args.reuse)
+    WebLogger.initialize(log_file)
     params['db'] = {}
     params['db']['location'] = db_file
     params['logging'] = {}
