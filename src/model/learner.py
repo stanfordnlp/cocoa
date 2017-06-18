@@ -103,10 +103,11 @@ class BaseLearner(object):
         grads_and_vars = optimizer.compute_gradients(self.model.loss)
         if args.grad_clip > 0:
             min_grad, max_grad = -1.*args.grad_clip, args.grad_clip
-            clipped_grads_and_vars = [(tf.clip_by_value(grad, min_grad, max_grad), var) for grad, var in grads_and_vars]
+            clipped_grads_and_vars = [
+                (tf.clip_by_value(grad, min_grad, max_grad) if grad is not None else grad, var) \
+                for grad, var in grads_and_vars]
         else:
             clipped_grads_and_vars = grads_and_vars
-        # TODO: fix this. proper clipping and print
         self.grad_norm = tf.global_norm([grad for grad, var in grads_and_vars])
         self.clipped_grad_norm = tf.global_norm([grad for grad, var in clipped_grads_and_vars])
         self.grad_norm = self.clipped_grad_norm
