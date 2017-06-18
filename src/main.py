@@ -14,6 +14,8 @@ from src.model.preprocess import add_data_generator_arguments, get_data_generato
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
 from src.model.evaluate import Evaluator
+# TODO
+from src.model.negotiation.evaluate import CheatRetrievalEvaluator
 from src.lib import logstats
 
 if __name__ == '__main__':
@@ -21,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
+    parser.add_argument('--cheat', default=False, action='store_true', help='Cheat mode')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
@@ -94,8 +97,18 @@ if __name__ == '__main__':
         print 'GPU is disabled'
         config = tf.ConfigProto(device_count = {'GPU': 0})
     else:
+        print 'Using GPU'
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
         config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
+
+    if args.cheat:
+        responses = data_generator.get_all_responses('train')
+        print 'All responses:', len(responses)
+        evaluator = CheatRetrievalEvaluator(data_generator, None, responses, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
+        for split, test_data, num_batches in evaluator.dataset():
+            print split, num_batches
+            evaluator.test_response_generation(None, test_data, num_batches)
+        import sys; sys.exit()
 
     if args.test:
         assert args.init_from and ckpt, 'No model to test'

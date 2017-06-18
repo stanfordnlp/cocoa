@@ -666,6 +666,14 @@ class DataGenerator(object):
             start = end
         return dialogue_batches
 
+    def get_all_responses(self, name):
+        dialogues = self.dialogues[name]
+        responses = {'seller': [], 'buyer': []}
+        for dialogue in dialogues:
+            for turn, role in izip(dialogue.token_turns, dialogue.roles):
+                responses[role].extend(turn)
+        return responses
+
     def generator(self, name, batch_size, shuffle=True):
         dialogues = self.dialogues[name]
         for dialogue in dialogues:

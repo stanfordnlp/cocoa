@@ -5,6 +5,7 @@ from preprocess import markers
 from src.basic.entity import is_entity
 from src.model.evaluate import BaseEvaluator
 from preprocess import Dialogue, price_filler
+from src.basic.negotiation.price_tracker import PriceTracker
 
 # TODO: factor this
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None, prices=None):
@@ -85,6 +86,15 @@ class Evaluator(BaseEvaluator):
         inputs = batch['encoder_inputs']
         decoder_tokens = batch['decoder_tokens']
         kbs = batch['kbs']
+        def to_str(l):
+            words = []
+            for w in l:
+                if is_entity(w):
+                    words.append('[%s]' % PriceTracker.get_price(w))
+                elif not w.startswith('<'):
+                    words.append(w)
+            return ' '.join(words)
+
         print '-------------- batch ----------------'
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
             # Skip padded turns
@@ -94,14 +104,14 @@ class Evaluator(BaseEvaluator):
             kb.dump()
             #print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
             #print 'RAW TARGET:', Dialogue.original_price(kb, target)
-            print 'RAW INPUT:', encoder_tokens[i]
-            print 'RAW TARGET:', target
+            #print 'RAW INPUT:', encoder_tokens[i]
+            #print 'RAW TARGET:', target
             print '----------'
-            print 'INPUT:', self.data.textint_map.int_to_text(inputs[i], 'encoding')
+            print 'INPUT:', to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
             #print 'TARGET:', Dialogue.original_price(kb, target)
             #print 'PRED:', Dialogue.original_price(kb, pred)
-            print 'TARGET:', target
-            print 'PRED:', pred
+            print 'TARGET:', to_str(target)
+            print 'PRED:', to_str(pred)
             print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
@@ -135,4 +145,34 @@ class Evaluator(BaseEvaluator):
         precision, recall, f1 = stats['entity_f1']
         d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
+
+class CheatRetrievalEvaluator(Evaluator):
+    def __init__(self, data, model, responses, splits=('dev',), batch_size=1, verbose=True):
+        super(CheatRetrievalEvaluator, self).__init__(data, model, splits, batch_size, verbose)
+        self.responses = responses
+
+    def retrieve(self, cheat_target, role):
+        responses = self.responses[role]
+        cheat_targets = [cheat_target] * len(responses)
+        scores = self.sentence_bleu_score(responses, cheat_targets)
+        return responses[np.argmax(scores)]
+
+    def _generate_response(self, sess, dialogue_batch, summary_map):
+        kbs = dialogue_batch['kb']
+        roles = [kb.facts['personal']['Role'] for kb in kbs]
+        for batch in dialogue_batch['batch_seq']:
+            references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
+            pred_tokens = [self.retrieve(target, role) for target, role in izip(references, roles)]
+
+            # Metrics
+            # Sentence bleu: only for verbose print
+            bleu_scores = self.sentence_bleu_score(pred_tokens, references)
+            self.update_bleu_stats(summary_map, pred_tokens, references)
+            self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
+
+            if self.verbose:
+                #attn_scores = output_dict.get('attn_scores', None)
+                #probs = output_dict.get('probs', None)
+                # TODO: print
+                self._print_batch(batch, pred_tokens, references, bleu_scores)
 
