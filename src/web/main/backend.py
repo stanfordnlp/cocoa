@@ -53,7 +53,7 @@ class BaseBackend(object):
     def _update_user(self, cursor, userid, **kwargs):
         if "status" in kwargs:
             kwargs["status_timestamp"] = current_timestamp_in_seconds()
-        if "connected_status" in kwargs:
+        if "connected_status" in kwargs and "connected_timestamp" not in kwargs:
             kwargs["connected_timestamp"] = current_timestamp_in_seconds()
         keys = sorted(kwargs.keys())
         values = [kwargs[k] for k in keys]
@@ -136,7 +136,9 @@ class BaseBackend(object):
         try:
             self._assert_no_connection_timeout(u.connected_status, u.connected_timestamp)
         except ConnectionTimeoutException:
-            self._update_user(cursor, userid, connected_status=0)
+            self.logger.debug("User {:s} had connection timeout exception with connected status "
+                              "{:d}".format(userid, u.connected_status))
+            self._update_user(cursor, userid, connected_status=0, connected_timestamp=u.connected_timestamp)
             raise ConnectionTimeoutException
         self._assert_no_status_timeout(u.status, u.status_timestamp)
         return u
@@ -516,6 +518,7 @@ class BaseBackend(object):
                 cursor = self.conn.cursor()
                 try:
                     u = self._get_user_info(cursor, userid, assumed_status=None)
+                    self.logger.debug("Got updated status {:s} for user {:s}".format(u.status, userid))
                     return u.status
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
                     # Handle timeouts by performing the relevant update
@@ -523,6 +526,8 @@ class BaseBackend(object):
 
                     if u.status == Status.Waiting:
                         if isinstance(e, ConnectionTimeoutException):
+                            self.logger.debug("User {:s} is supposed to be in waiting state, got connection "
+                                              "timeout. Updating status to connected.".format(userid))
                             self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
                             return u.status
                         else:
