@@ -303,6 +303,10 @@ class BaseBackend(object):
                         self.logger.warn("Attempt to pair user {:s} with {:s} failed. User {:s} not in waiting "
                                          "status".format(userid, partner_id, partner_id))
                         return False
+                    except ConnectionTimeoutException:
+                        self.logger.warn("Attempt to pair user {:s} with {:s} failed. User {:s} had connection "
+                                         "timeout".format(userid, partner_id, partner_id))
+                        return False
                     _update_used_scenarios(scenario_id, HumanSystem.name(), chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, partner_id, HumanSystem.name(),
@@ -545,16 +549,12 @@ class BaseBackend(object):
                         return Status.Waiting
 
                     elif u.status == Status.Finished:
-                        self._update_user(cursor, userid, connected_status=1, status=Status.Waiting, message="")
-                        return Status.Waiting
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Finished
 
                     elif u.status == Status.Survey:
-                        if isinstance(e, ConnectionTimeoutException):
-                            # this should never happen because surveys can't time out
-                            self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
-                            return Status.Waiting
-                        else:
-                            return Status.Survey
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Survey
                     else:
                         raise Exception("Unknown status: {} for user: {}".format(u.status, userid))
 
