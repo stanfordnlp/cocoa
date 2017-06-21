@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
-from tensorflow.contrib.seq2seq import LuongAttention, AttentionWrapper, AttentionWrapperState
+from tensorflow.contrib.seq2seq import LuongAttention, BahdanauAttention, AttentionWrapper, AttentionWrapperState
 from word_embedder import WordEmbedder
 from rnn_cell import build_rnn_cell, MultiAttentionWrapper
 from src.model.util import transpose_first_two_dims
@@ -174,8 +174,8 @@ class RNNEmbedder(SequenceEmbedder):
             return self.last(embeddings, mask)
         return super(RNNEmbedder, self).aggregate(embeddings, mask)
 
-    def _build_rnn_cell(self, **kwargs):
-        return build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob)
+    def _build_rnn_cell(self, input_size, **kwargs):
+        return build_rnn_cell(self.rnn_type, self.embed_size, self.num_layers, self.keep_prob, input_size=input_size)
 
     def _build_init_state(self, cell, batch_size, init_cell_state=None):
         if init_cell_state is None:
@@ -193,8 +193,9 @@ class RNNEmbedder(SequenceEmbedder):
             init_state
         '''
         batch_size = tf.shape(sequence)[1]
+        input_size = sequence.get_shape().as_list()[-1]
         with tf.variable_scope(type(self).__name__):
-            cell = self._build_rnn_cell(**kwargs)
+            cell = self._build_rnn_cell(input_size, **kwargs)
 
             init_state = self._build_init_state(cell, batch_size, init_cell_state=kwargs['init_cell_state'])
             self.feedable_vars['init_state'] = init_state
@@ -232,8 +233,8 @@ class AttentionRNNEmbedder(RNNEmbedder):
         self.feedable_vars['init_cell_state'] = init_state.cell_state
         return init_state
 
-    def _build_rnn_cell(self, **kwargs):
-        cell = super(AttentionRNNEmbedder, self)._build_rnn_cell(**kwargs)
+    def _build_rnn_cell(self, input_size, **kwargs):
+        cell = super(AttentionRNNEmbedder, self)._build_rnn_cell(input_size, **kwargs)
         memory = kwargs['attention_memory']  # (batch_size, mem_len, mem_size)
         mask = kwargs.get('attention_mask', None)  # (batch_size, mem_len)
         attention_size = self.embed_size

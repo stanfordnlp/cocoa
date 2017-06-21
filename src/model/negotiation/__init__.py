@@ -97,7 +97,7 @@ def build_model(schema, mappings, args):
             decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         else:
             #decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)

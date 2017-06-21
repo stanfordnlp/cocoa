@@ -157,9 +157,12 @@ class ContextDecoder(BasicDecoder):
         return logits
 
     def _build_rnn_inputs(self, input_dict):
-        inputs, mask = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
+        inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
-        return inputs, mask
+        # TODO: hack
+        encoder_outputs = input_dict['encoder_embeddings']
+        self.feedable_vars['encoder_outputs'] = encoder_outputs
+        return inputs, mask, kwargs
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)
