@@ -207,21 +207,8 @@ class NegotiationController(BaseController):
                  self.quit)
 
     def get_result(self, agent_idx):
-        if self.offers[0] is None or self.offers[1] is None:
-            return None
-
-        result = {agent_idx: {}, 1 - agent_idx: {}}
-
-        result[agent_idx]['Target'] = self.scenario.kbs[agent_idx].facts['personal']['Target']
-        result[1 - agent_idx]['Target'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Target']
-
-        result[agent_idx]['Bottomline'] = self.scenario.kbs[agent_idx].facts['personal']['Bottomline']
-        result[1 - agent_idx]['Bottomline'] = self.scenario.kbs[1 - agent_idx].facts['personal']['Bottomline']
-
-        result[agent_idx]['Offer'] = int(self.offers[agent_idx])
-        result[1 - agent_idx]['Offer'] = int(self.offers[1 - agent_idx])
-
-        return result
+        # todo fix this if we ever want to display results in the survey
+        return None
 
     def complete(self):
         return (self.offers[0] is not None and self.outcomes[1] is True) or (self.offers[1] is not None and self.outcomes[0] is True)
