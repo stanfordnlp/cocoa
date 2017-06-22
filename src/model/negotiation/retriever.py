@@ -17,17 +17,18 @@ class Retriever(object):
     # NOTE: don't use <> because this is ignored by the analyzer
     START = 'startsymbol'
 
-    def __init__(self, index_dir, dialogues=None, context_size=1):
+    def __init__(self, index_dir, context_size=1):
         '''
         Load index from index_dir or build it from dialogues.
         context_size: number of previous utterances to include
         '''
         if not index.exists_in(index_dir):
-            self.ix = self.build_index(index_dir, dialogues, context_size)
+            self.ix = index.create_in(index_dir, schema=DialogueSchema, indexname='dialogues')
+            self.loaded_index = False
         else:
             self.ix = index.open_dir(index_dir)
+            self.loaded_index = True
         self.context_size = context_size
-        self.searcher = self.ix.searcher()
         self.parser = QueryParser('context', schema=self.ix.schema, group=OrGroup.factory(0.9))
 
     def process_turn(self, turn):
@@ -65,15 +66,13 @@ class Retriever(object):
             context.append(text)
         return docs
 
-    def build_index(self, index_dir, dialogues, context_size):
-        ix = index.create_in(index_dir, schema=DialogueSchema, indexname='dialogues')
-        writer = ix.writer()
+    def build_index(self, dialogues):
+        writer = self.ix.writer()
         for d in dialogues:
-            docs = self.dialogue_to_docs(d, context_size)
+            docs = self.dialogue_to_docs(d, self.context_size)
             for doc in docs:
                 writer.add_document(**doc)
         writer.commit()
-        return ix
 
     def search(self, role, category, title, prev_turns, n=5):
         context = prev_turns[-1*self.context_size:]
@@ -81,7 +80,9 @@ class Retriever(object):
         query = self.parser.parse(context)
         # Only consider buyer/seller utterances
         filter_query = Term('role', unicode(role))
-        results = self.searcher.search(query, filter=filter_query, limit=n)
+        with self.ix.searcher() as searcher:
+            results = searcher.search(query, filter=filter_query, limit=n)
+            results = [r['response'] for r in results]
         return results
 
 ########### TEST ############
@@ -108,6 +109,7 @@ if __name__ == '__main__':
 
     index_dir = '/scr/hehe/game-dialogue/index'
     retriever = Retriever(index_dir, dialogues=dialogues, context_size=1)
+    retriever.build_index(dialogues)
     prev_turns = ["what's your price".split()]
     results = retriever.search('buyer', 'bike', '', prev_turns)
     for r in results:
