@@ -12,6 +12,7 @@ from collections import namedtuple, defaultdict, deque
 import copy
 from src.basic.negotiation.price_tracker import PriceTracker
 from src.basic.negotiation.tokenizer import tokenize
+from retriever import Retriever
 
 get_price = PriceTracker.get_price
 
@@ -39,7 +40,8 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
     for dialogue in dialogues:
         assert dialogue.is_int is False
         for turn in dialogue.token_turns:
-            for token in chain.from_iterable(turn):
+            #for token in chain.from_iterable(turn):
+            for token in turn:
                 if is_entity(token):
                     _add_entity(token)
                 else:
@@ -236,8 +238,10 @@ class Dialogue(object):
             return
         for turn in self.token_turns:
             for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                turns.append([self.textint_map.text_to_int(utterance, stage)
-                    for utterance in turn])
+                #turns.append([self.textint_map.text_to_int(utterance, stage)
+                #    for utterance in turn])
+                turns.append(self.textint_map.text_to_int(turn, stage))
+        self.price_turns = self.get_price_turns(int_markers.PAD)
         self.category = self.mappings['cat_vocab'].to_ind(self.category)
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
@@ -258,11 +262,11 @@ class Dialogue(object):
         if self.flattened:
             return
 
-        for i, turns in enumerate(self.turns):
-            self.turns[i] = self._flatten_turns(turns, int_markers.EOS)
+        #for i, turns in enumerate(self.turns):
+        #    self.turns[i] = self._flatten_turns(turns, int_markers.EOS)
         self.token_turns = self._flatten_turns(self.token_turns, markers.EOS)
         self.entities = self._flatten_turns(self.entities, None)
-        self.price_turns = self.get_price_turns(int_markers.PAD)
+        #self.price_turns = self.get_price_turns(int_markers.PAD)
 
         self.flattened = True
 
@@ -292,39 +296,7 @@ class Dialogue(object):
         prices = [[to_float_price(entity) if entity else pad for entity in entities] for entities in self.entities]
         return prices
 
-        my_prices = deque([START_PRICE] * hist_len, maxlen=hist_len)
-        partner_prices = deque([START_PRICE] * hist_len, maxlen=hist_len)
-        price_hists = []
-        assert len(self.agents) == len(self.entities)
-        for agent, entities in izip(self.agents, self.entities):
-            h = []
-            if agent == self.agent:
-                price_queue = my_prices
-            else:
-                price_queue = partner_prices
-            # This is a padded turn at the beginning
-            if len(entities) == 0:
-                price_vec = [pad, agent] + list(my_prices) + list(partner_prices)
-                h.append(price_vec)
-            else:
-                for entity in entities:
-                    if entity is not None:
-                        p = float('{:.2f}'.format(get_price(entity)))
-                        price_queue.append(p)
-                    else:
-                        p = pad
-                    # NOTE: we put the current price p at the begining, will be sliced to be the price target later
-                    price_vec = [p, agent] + list(my_prices) + list(partner_prices)
-                    h.append(price_vec)
-            assert len(h) > 0
-            price_hists.append(h)
-        return price_hists
-
-
 class DialogueBatch(object):
-    use_kb = False
-    copy = False
-
     def __init__(self, dialogues):
         self.dialogues = dialogues
 
@@ -553,6 +525,7 @@ class Preprocessor(object):
                     for token in utterance:
                         if is_entity(token):
                             mentioned_entities.add(token.canonical)
+            dialogue.flatten_turns()
             yield dialogue
 
     @classmethod
@@ -618,17 +591,18 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, use_kb=False, copy=False):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
-        self.use_kb = use_kb  # Whether to generate graph
-        self.copy = copy
-
-        DialogueBatch.use_kb = use_kb
-        DialogueBatch.copy = copy
 
         # NOTE: each dialogue is made into two examples from each agent's perspective
         self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
+
+        # Build retriever given training dialogues
+        self.retriever = retriever
+        if self.retriever and not self.retriever.loaded_index:
+            assert self.dialogues['train']
+            self.retriever.build_index(self.dialogues['train'])
 
         for fold, dialogues in self.dialogues.iteritems():
             print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
