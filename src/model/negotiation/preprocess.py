@@ -12,7 +12,6 @@ from collections import namedtuple, defaultdict, deque
 import copy
 from src.basic.negotiation.price_tracker import PriceTracker
 from src.basic.negotiation.tokenizer import tokenize
-from retriever import Retriever
 
 get_price = PriceTracker.get_price
 
@@ -189,6 +188,7 @@ class Dialogue(object):
         self.uuid = uuid
         self.agent = agent
         self.kb = kb
+        self.role = kb.facts['item']['personal']['Role']
         # KB context
         self.category = kb.facts['item']['Category']
         # TODO: remove symbols, puncts
@@ -204,6 +204,31 @@ class Dialogue(object):
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
+        self.candidates = None
+
+    def retrieve_candidates(self, retriever):
+        candidates = []
+        prev_turns = []
+        category = self.kb.facts['item']['Category']
+        title = self.kb.facts['item']['Title']
+        assert len(self.roles) == len(self.token_turns)
+        print self.roles
+        import sys; sys.exit()
+        for role, turn in izip(self.roles, self.token_turns):
+            if len(prev_turns) == 0:
+                candidates.append([])
+            else:
+                candidates.append(retriever.search(role, category, title, prev_turns))
+                print 'CONTEXT:', role
+                for t in prev_turns:
+                    print t
+                print 'CANDIDATES:'
+                for c in candidates[-1]:
+                    print c
+
+            prev_turns.append(turn)
+        assert len(candidates) == len(self.token_turns)
+        self.candidates = candidates
 
     def add_utterance(self, agent, utterances):
         # Always start from the partner agent
@@ -399,7 +424,7 @@ class DialogueBatch(object):
                     break
         return array
 
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, agents, kbs, context_batch):
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, candidates, agents, kbs, context_batch):
         if encode_turn is not None:
             # Remove <go> at the beginning of utterance
             encoder_inputs = encode_turn[:, 1:]
@@ -433,11 +458,18 @@ class DialogueBatch(object):
                  'price_targets': price_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
+                 'candidates': candidates,
                  'agents': agents,
                  'kbs': kbs,
                  'context': context_batch,
                 }
         return batch
+
+    def _get_candidates(self, i):
+        if self.dialogues[0].candidates is None:
+            return None
+        return [dialogue.candidates[i] if i < len(dialogue.candidates) else ''
+                for dialogue in self.dialogues]
 
     def _get_token_turns(self, i):
         stage = 0
@@ -464,7 +496,7 @@ class DialogueBatch(object):
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), agents, kbs, context_batch) for i in encode_turn_ids]
+        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_candidates(i+1), agents, kbs, context_batch) for i in encode_turn_ids]
 
         batch = {
                  'agent': agents,
@@ -652,6 +684,12 @@ class DataGenerator(object):
         dialogues = self.dialogues[name]
         for dialogue in dialogues:
             dialogue.convert_to_int()
+        # TODO: retrieve candidate for each dialogue, get candidate with get_token_turns
+        if self.retriever is not None:
+            for dialogue in dialogues:
+                # TODO: num of candidates
+                dialogue.retrieve_candidates(self.retriever)
+        import sys; sys.exit()
         dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))

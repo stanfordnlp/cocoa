@@ -1,13 +1,21 @@
 import os
+import shutil
 from itertools import izip
 from whoosh.fields import SchemaClass, TEXT, STORED
 from whoosh import index
 from whoosh.qparser import QueryParser, OrGroup
 from whoosh.query import Term
 from src.basic.entity import is_entity
+from preprocess import markers
+
+def add_retriever_arguments(parser):
+    parser.add_argument('--retrieve', action='store_true', help='Use retrieval-based method')
+    parser.add_argument('--retriever-context-len', default=1, type=int, help='Number of previous turns to be used as context for retrieval')
+    parser.add_argument('--index', help='Path to index directory')
+    parser.add_argument('--rewrite-index', action='store_true', help='Rewrite the saved index')
 
 class DialogueSchema(SchemaClass):
-    role = TEXT
+    role = TEXT(stored=True)
     category = TEXT
     title = TEXT
     context = TEXT
@@ -17,12 +25,15 @@ class Retriever(object):
     # NOTE: don't use <> because this is ignored by the analyzer
     START = 'startsymbol'
 
-    def __init__(self, index_dir, context_size=1):
+    def __init__(self, index_dir, context_size=1, rewrite=False):
         '''
         Load index from index_dir or build it from dialogues.
         context_size: number of previous utterances to include
         '''
-        if not index.exists_in(index_dir):
+        if (not index.exists_in(index_dir)) or rewrite:
+            if rewrite:
+                shutil.rmtree(index_dir)
+                os.makedirs(index_dir)
             self.ix = index.create_in(index_dir, schema=DialogueSchema, indexname='dialogues')
             self.loaded_index = False
         else:
@@ -36,7 +47,10 @@ class Retriever(object):
         Process entities.
         '''
         # Represent price as "[x]" where x is the normalized value
-        tokens = [str(x.canonical.value) if is_entity(x) else x for x in turn]
+        if len(turn) == 1 and turn[0] == markers.EOS:
+            tokens = [self.START]
+        else:
+            tokens = [str(x.canonical.value) if is_entity(x) else x for x in turn]
         return ' '.join(tokens)
 
     def dialogue_to_docs(self, d, context_size):
@@ -82,7 +96,7 @@ class Retriever(object):
         filter_query = Term('role', unicode(role))
         with self.ix.searcher() as searcher:
             results = searcher.search(query, filter=filter_query, limit=n)
-            results = [r['response'] for r in results]
+            results = [(r['role'], r['response']) for r in results]
         return results
 
 ########### TEST ############
@@ -103,14 +117,11 @@ if __name__ == '__main__':
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
     dialogues = preprocessor.preprocess(dataset.train_examples)
-    for d in dialogues:
-        d.token_turns = d._flatten_turns(d.token_turns, markers.EOS)
-        d.flattened = True
 
     index_dir = '/scr/hehe/game-dialogue/index'
-    retriever = Retriever(index_dir, dialogues=dialogues, context_size=1)
+    retriever = Retriever(index_dir, context_size=1, rewrite=True)
     retriever.build_index(dialogues)
-    prev_turns = ["what's your price".split()]
+    prev_turns = ["</s>".split()]
     results = retriever.search('buyer', 'bike', '', prev_turns)
     for r in results:
         print r

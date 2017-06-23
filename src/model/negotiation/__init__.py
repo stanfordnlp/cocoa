@@ -2,10 +2,12 @@ def add_data_generator_arguments(parser):
     from preprocess import add_preprocess_arguments
     from src.basic.scenario_db import add_scenario_arguments
     from src.basic.dataset import add_dataset_arguments
+    from retriever import add_retriever_arguments
 
     add_scenario_arguments(parser)
     add_preprocess_arguments(parser)
     add_dataset_arguments(parser)
+    add_retriever_arguments(parser)
 
 def get_data_generator(args, model_args, mappings, schema):
     from preprocess import DataGenerator, Preprocessor
@@ -13,18 +15,23 @@ def get_data_generator(args, model_args, mappings, schema):
     from src.basic.negotiation.price_tracker import PriceTracker
     from src.basic.dataset import read_dataset
     from src.basic.util import read_json
+    from retriever import Retriever
 
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(scenario_db, args)
     lexicon = PriceTracker()
 
     # Dataset
+    if args.retrieve:
+        retriever = Retriever(args.index, args.retriever_context_len)
+    else:
+        retriever = None
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever)
 
     return data_generator
 
