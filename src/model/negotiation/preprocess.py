@@ -188,7 +188,7 @@ class Dialogue(object):
         self.uuid = uuid
         self.agent = agent
         self.kb = kb
-        self.role = kb.facts['item']['personal']['Role']
+        self.role = kb.facts['personal']['Role']
         # KB context
         self.category = kb.facts['item']['Category']
         # TODO: remove symbols, puncts
@@ -201,7 +201,7 @@ class Dialogue(object):
         # entities: has the same structure as turns, non-entity tokens are None
         self.entities = []
         self.agents = []
-        self.roles = []
+        #self.roles = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
         self.candidates = None
@@ -211,20 +211,19 @@ class Dialogue(object):
         prev_turns = []
         category = self.kb.facts['item']['Category']
         title = self.kb.facts['item']['Title']
-        assert len(self.roles) == len(self.token_turns)
-        print self.roles
-        import sys; sys.exit()
-        for role, turn in izip(self.roles, self.token_turns):
-            if len(prev_turns) == 0:
+        role = self.role
+        assert len(self.agents) == len(self.token_turns)
+        for agent, turn in izip(self.agents, self.token_turns):
+            if agent != self.agent:
                 candidates.append([])
             else:
                 candidates.append(retriever.search(role, category, title, prev_turns))
-                print 'CONTEXT:', role
-                for t in prev_turns:
-                    print t
-                print 'CANDIDATES:'
-                for c in candidates[-1]:
-                    print c
+                #print 'CONTEXT:', role
+                #for t in prev_turns:
+                #    print t
+                #print 'CANDIDATES:'
+                #for c in candidates[-1]:
+                #    print c
 
             prev_turns.append(turn)
         assert len(candidates) == len(self.token_turns)
@@ -254,7 +253,7 @@ class Dialogue(object):
             self.entities[-1].append(entities)
         else:
             self.agents.append(agent)
-            self.roles.append(self.kb.facts['personal']['Role'])
+            #self.roles.append(self.kb.facts['personal']['Role'])
             self.token_turns.append([utterance])
             self.entities.append([entities])
 
@@ -305,7 +304,7 @@ class Dialogue(object):
         Pad turns to length num_turns.
         '''
         self.agents = self._pad_list(self.agents, num_turns, None)
-        self.roles = self._pad_list(self.roles, num_turns, None)
+        #self.roles = self._pad_list(self.roles, num_turns, None)
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
         self.price_turns = self._pad_list(self.price_turns, num_turns, [])
@@ -369,7 +368,7 @@ class DialogueBatch(object):
         for i in xrange(Dialogue.num_stages):
             try:
                 turn_batches.append([self._normalize_turn(
-                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
+                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.role for dialogue in self.dialogues])
                     for j in xrange(self.num_turns)])
             except IndexError:
                 print 'num_turns:', self.num_turns
@@ -380,7 +379,7 @@ class DialogueBatch(object):
 
     def _create_price_batches(self):
         price_batches = [self._normalize_price_turn(
-            [dialogue.price_turns[j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
+            [dialogue.price_turns[j] for dialogue in self.dialogues], [dialogue.role for dialogue in self.dialogues])
             for j in xrange(self.num_turns)]
         return price_batches
 
@@ -689,7 +688,6 @@ class DataGenerator(object):
             for dialogue in dialogues:
                 # TODO: num of candidates
                 dialogue.retrieve_candidates(self.retriever)
-        import sys; sys.exit()
         dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))

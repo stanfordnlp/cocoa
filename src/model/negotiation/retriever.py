@@ -58,12 +58,15 @@ class Retriever(object):
         Convert a dialogue to docs accoring to the schema.
         '''
         assert d.flattened
-        assert len(d.roles) == len(d.token_turns)
+        assert len(d.agents) == len(d.token_turns)
         context = []
         docs = []
-        for role, turn in izip(d.roles, d.token_turns):
+        role = d.role
+        for agent, turn in izip(d.agents, d.token_turns):
             text = self.process_turn(turn)
-            if len(context) > 0:
+            #if len(context) > 0:
+            # NOTE: the dialogue is from one agent's perspective
+            if agent == d.agent:
                 doc = {
                         'role': unicode(role),
                         'category': unicode(d.kb.facts['item']['Category']),
@@ -96,7 +99,8 @@ class Retriever(object):
         filter_query = Term('role', unicode(role))
         with self.ix.searcher() as searcher:
             results = searcher.search(query, filter=filter_query, limit=n)
-            results = [(r['role'], r['response']) for r in results]
+            #results = [(r['role'], r['response']) for r in results]
+            results = [r['response'] for r in results]
         return results
 
 ########### TEST ############
