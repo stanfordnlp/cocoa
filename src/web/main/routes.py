@@ -31,10 +31,10 @@ def generate_unique_key():
 
 
 def format_message(message, status_message):
-    timestamp = datetime.now().strftime('%x %X')
-    left_delim = "<" if status_message else ""
-    right_delim = ">" if status_message else ""
-    return "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
+    timestamp = datetime.now().strftime(u'%x %X')
+    left_delim = u"<" if status_message else u""
+    right_delim = u">" if status_message else u""
+    return u"[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
 
 
 # Required args: uid (the user ID of the current user)
@@ -80,7 +80,7 @@ def check_inbox():
     if event is not None:
         message = None
         if event.action == 'message':
-            message = format_message("Partner: {}".format(event.data), False)
+            message = format_message(u"Partner: {}".format(event.data), False)
         elif event.action == 'join':
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
@@ -130,8 +130,8 @@ def typing_event():
 @main.route('/_send_message/', methods=['GET'])
 def text():
     backend = get_backend()
-    message = request.args.get('message')
-    displayed_message = format_message("You: {}".format(message), False)
+    message = unicode(request.args.get('message'))
+    displayed_message = format_message(u"You: {}".format(message), False)
     uid = userid()
     time_taken = float(request.args.get('time_taken'))
     received_time = time.time()
