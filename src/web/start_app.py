@@ -80,6 +80,9 @@ def init_database(db_file):
         '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
         PRIMARY KEY (scenario_id, partner_type))'''
     )
+    c.execute(
+        '''CREATE TABLE feedback (name text, comments text)'''
+    )
 
     add_survey_table(c)
 

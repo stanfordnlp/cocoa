@@ -3,7 +3,11 @@
         <title>{{title}}</title>
         <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
         <style>
-    		#timer{
+    		.modal-body{
+                font-size: 16px;
+            }
+
+            #timer{
     		color: #000;
     		display: inline-block;
     		text-align: center;
@@ -25,8 +29,10 @@
     		}
         </style>
         
-        <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
-        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
         <script type="text/javascript" charset="utf-8">
             var pollInterval;
             var BASE_URL = 'http://' + document.domain + ':' + location.port;
@@ -66,6 +72,26 @@
             	});
             }
 
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "feedback": $('#report_feedback').val()
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        console.log("success return from ajax!");
+                        $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
         </script>
     </head>
     <body>
@@ -81,6 +107,29 @@
                 <!--<h4>Make sure you have read the instructions carefully, as the task is timed and the clock will start immediately once you are paired. </h4>-->
                 <h4>Make sure you have read the instructions carefully, as the task will start immediately once you are paired. </h4>
             </div>
+        </div>
+
+        <div id="report" style="clear: both; margin: 0px 20px 0px 10px; display: block;">
+            <br><br><br><br><p style="text-align: right">Having trouble with this task? Click here to send us a report.</p>
+            <button onclick="showReportModal()" style="display: block; float:right;" id="report">Report</button>
+        </div>
+        <div class="modal fade" id="report_box" role="dialog">
+          <div class="modal-dialog">
+          
+            <!-- Modal content-->
+            <div class="modal-content">
+              <div class="modal-header">
+                <h4 class="modal-title">Report Issue</h4>
+                <b><p id="modal_instruction"></p></b>
+              </div>
+              <div class="modal-body" id="report-body">
+                <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.</p>
+                <textarea id="report_feedback"></textarea>
+                <button onclick="report()" style="display: block;">Submit</button>
+              </div>
+            </div>
+            
+          </div>
         </div>
     </div>
 

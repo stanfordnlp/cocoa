@@ -331,3 +331,13 @@ def quit():
     backend.quit(userid())
     displayed_message = format_message("You chose to quit this task.", True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_report/', methods=['GET'])
+def report():
+    backend = get_backend()
+    uid = userid()
+    feedback = request.args.get('feedback')
+    print "In report()"
+    backend.report(uid, feedback)
+    return jsonify(success=True)

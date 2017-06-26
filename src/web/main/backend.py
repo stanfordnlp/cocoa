@@ -671,6 +671,14 @@ class BaseBackend(object):
         session = self._get_session(userid)
         return session.poll_inbox()
 
+    def report(self, userid, feedback):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                cursor.execute('''INSERT INTO feedback VALUES (?,?)''', (userid, feedback))
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
     def send(self, userid, event):
         session = self._get_session(userid)
         session.enqueue(event)
