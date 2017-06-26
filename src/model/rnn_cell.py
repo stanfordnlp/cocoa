@@ -29,7 +29,7 @@ def build_rnn_cell(rnn_type, rnn_size, num_layers, keep_prob, input_size=None):
         cell = tf_rnn.MultiRNNCell([cell] * num_layers)
         cell = tf_rnn.DropoutWrapper(cell, output_keep_prob=keep_prob, dtype=tf.float32, input_size=input_size)
     else:
-        cell = tf_rnn.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob)
+        cell = tf_rnn.DropoutWrapper(cell, input_keep_prob=keep_prob, output_keep_prob=keep_prob, input_size=input_size, variational_recurrent=True, dtype=tf.float32)
     return cell
 
 class MultiAttentionWrapper(AttentionWrapper):
