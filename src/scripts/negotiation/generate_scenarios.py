@@ -116,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('--scraped-data', required=True, help="Path to scraped data")
     parser.add_argument('--categories', nargs='+', required=True, help="Listing categories, JSON file path is craigslist_<category>.json")
     parser.add_argument('--fractions', nargs='+', required=True, help="Fractions of data from different categories")
-    parser.add_argument('--skip', default=0, help="Skip the first X scenarios")
+    parser.add_argument('--skip', default=0, type=int, help="Skip the first X scenarios")
     #parser.add_argument('--price-unit', default=10, help="Unit for discretizing prices")
     add_scenario_arguments(parser)
     args = parser.parse_args()
@@ -148,6 +148,8 @@ if __name__ == '__main__':
     price_unit = 1  # Just use the real price
     scenario_generator = generate_scenario(schema, base_price, price_unit, args.discounts, listings)
     for i, s in enumerate(scenario_generator):
+        if i % 100 == 0:
+            print i
         if i < args.skip:
             continue
         if len(scenario_list) == args.num_scenarios:
