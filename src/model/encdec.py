@@ -19,6 +19,7 @@ def add_basic_model_arguments(parser):
     parser.add_argument('--sampled-loss', action='store_true', help='Whether to sample negative examples')
     parser.add_argument('--batch-size', type=int, default=1, help='Number of examples per batch')
     parser.add_argument('--word-embed-size', type=int, default=20, help='Word embedding size')
+    parser.add_argument('--pretrained-wordvec', default=None, help='Path to pretrained word embeddings')
     parser.add_argument('--re-encode', default=False, action='store_true', help='Re-encode the decoded sequence')
     parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
 
@@ -208,7 +209,7 @@ class BasicDecoder(BasicEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
-        optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
+        #optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
@@ -278,16 +279,16 @@ class BasicDecoder(BasicEncoder):
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
         loss = loss * token_weights
         total_loss = tf.reduce_sum(loss)
+        num_tokens = tf.reduce_sum(token_weights)
 
         # Average over words in each sequence (batch_size, 1)
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
 
-        # Average over sequences (1,)
-        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
+        loss = total_loss / num_tokens
 
         # total_loss is used to compute perplexity
-        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
+        return loss, seq_loss, (total_loss, num_tokens)
 
     @classmethod
     def _compute_logits_loss(cls, logits, targets, pad):
@@ -348,6 +349,11 @@ class BasicDecoder(BasicEncoder):
             #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             step_preds = self.sampler.sample(logits)
+            #top_words = np.argsort(p[0][0])[::-1]
+            #if i == 0:
+            #    for j in xrange(10):
+            #        id_ = top_words[j]
+            #        print id_, p[0][0][id_], kwargs['textint_map'].vocab.to_word(id_)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
@@ -355,8 +361,8 @@ class BasicDecoder(BasicEncoder):
             feed_dict = self.get_feed_dict(
                     inputs=self.pred_to_input(step_preds, **kwargs),
                     init_state=final_state,
-                    encoder_outputs=kwargs['encoder_outputs'],
-                    context=kwargs['context'])
+                    encoder_outputs=kwargs.get('encoder_outputs', None),
+                    context=kwargs.get('context', None))
         return {'preds': preds, 'final_state': final_state}
 
 ############# dynamic import depending on task ##################

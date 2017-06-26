@@ -6,6 +6,23 @@ from src.model.sequence_embedder import AttentionRNNEmbedder
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
 
+class LM(object):
+    def __init__(self, decoder, pad):
+        self.decoder = decoder
+        self.pad = pad
+        self.decoder.build_model({}, set())
+        self.loss, self.seq_loss, self.total_loss = self.decoder.compute_loss()
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = kwargs.pop('feed_dict', {})
+        feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
+        return feed_dict
+
+    def generate(self, sess, inputs, max_len, textint_map):
+        decoder_args = {'inputs': inputs, 'textint_map': textint_map}
+        decoder_output_dict = self.decoder.run_decode(sess, max_len, 1, **decoder_args)
+        return {'preds': decoder_output_dict['preds']}
+
 # TODO: refactor this class
 class BasicEncoderDecoder(object):
     '''
@@ -133,6 +150,7 @@ class AttentionDecoder(BasicDecoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(AttentionDecoder, self).get_feed_dict(**kwargs)
+        optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
         feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
         return feed_dict
 

@@ -6,7 +6,6 @@ import os
 import time
 import tensorflow as tf
 from src.lib import logstats
-from vocab import is_entity
 import resource
 import numpy as np
 from model.util import EPS
@@ -17,6 +16,7 @@ def memory():
 
 def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
+    parser.add_argument('--unconditional', action='store_true', help='Do not pass final state to next batch')
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--min-epochs', type=int, default=10, help='Number of training epochs to run before checking for early stop')
@@ -33,12 +33,13 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
         }
 
 class BaseLearner(object):
-    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
+    def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
         self.vocab = data.mappings['vocab']
         self.batch_size = batch_size
         self.evaluator = evaluator
+        self.unconditional = unconditional
         self.verbose = verbose
 
     def _run_batch(self, dialogue_batch, sess, summary_map, test=True):
@@ -88,7 +89,9 @@ class BaseLearner(object):
         print '================== Sampling =================='
         start_time = time.time()
         results = self.evaluator.test_response_generation(sess, test_data, num_batches)
-        print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
+        # TODO: hackpy
+        if len(results) > 0:
+            print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
         results['loss'] = loss
         return results
 

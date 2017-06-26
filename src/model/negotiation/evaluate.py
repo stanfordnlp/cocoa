@@ -38,6 +38,28 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
             tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
 
+class LMEvaluator(BaseEvaluator):
+    def _stop_symbol(self):
+        return self.vocab.to_ind(markers.EOS)
+
+    def _remove_symbols(self):
+        return map(self.vocab.to_ind, (markers.PAD,))
+
+    def _generate_response(self, sess):
+        '''
+        Just do sampling.
+        '''
+        for start in (self.vocab.to_ind(markers.GO_S), self.vocab.to_ind(markers.GO_B)):
+            for i in xrange(10):
+                output_dict = self.model.generate(sess, np.array([[start]]), 20, self.data.textint_map)
+                preds = output_dict['preds']
+                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
+                print pred_tokens
+
+    def test_response_generation(self, sess, test_data, num_batches):
+        self._generate_response(sess)
+        return {}
+
 class Evaluator(BaseEvaluator):
     def _stop_symbol(self):
         return self.vocab.to_ind(markers.EOS)

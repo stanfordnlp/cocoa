@@ -1,5 +1,5 @@
 from itertools import izip
-from src.model.vocab import is_entity
+from src.basic.entity import is_entity
 from src.lib.bleu import compute_bleu
 from src.lib.bleu import bleu_stats as get_bleu_stats
 from src.lib.bleu import bleu as get_bleu
@@ -70,7 +70,10 @@ class BaseEvaluator(object):
         '''
         Return a dict of metrics to be logged.
         '''
-        return {'bleu-4': stats['bleu'][0], 'bleu-3': stats['bleu'][1], 'bleu-2': stats['bleu'][2]}
+        if 'bleu' in stats:
+            return {'bleu-4': stats['bleu'][0], 'bleu-3': stats['bleu'][1], 'bleu-2': stats['bleu'][2]}
+        else:
+            return {}
 
     def test_response_generation(self, sess, test_data, num_batches):
         '''
@@ -121,4 +124,5 @@ import importlib
 task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))
 Evaluator = task_module.Evaluator
 CheatEvaluator = task_module.CheatRetrievalEvaluator
+LMEvaluator = task_module.LMEvaluator
 pred_to_token = task_module.pred_to_token
