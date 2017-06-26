@@ -286,6 +286,26 @@
                 });
             }
 
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "feedback": $('#report_feedback').val()
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        console.log("success return from ajax!");
+                        $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
             function startedTyping() {
                 $.ajax({
                     url: BASE_URL + '/_typing_event/',
@@ -518,13 +538,9 @@
         </div>
 
         <div id="info_container">
-            <div id="topright">
-                <!-- <div id="icon">
-                    <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
-                </div> -->
-                <div style="display:none; color:#FF0000;" id="leave">
-                    <h4><a href="javascript:skipChat();">Click here</a> to quit this chat.</h4>
-                </div>
+            <div id="report">
+                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
+                <button onclick="showReportModal()" style="display: block; float:right;" id="report">Report</button>
             </div>
             <div id="facts">
                 <h3>Scenario</h3>
@@ -593,6 +609,26 @@
             <div id="quit_option">
                 <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
                 <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
+            </div>
+            
+
+            <div class="modal fade" id="report_box" role="dialog">
+              <div class="modal-dialog">
+              
+                <!-- Modal content-->
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h4 class="modal-title">Report Issue</h4>
+                    <b><p id="modal_instruction"></p></b>
+                  </div>
+                  <div class="modal-body">
+                    <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.</p>
+                    <textarea id="report_feedback"></textarea>
+                    <button onclick="report()" style="display: block;">Submit</button>
+                  </div>
+                </div>
+                
+              </div>
             </div>
 
         </div>
