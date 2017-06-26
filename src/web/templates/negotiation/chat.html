@@ -296,7 +296,6 @@
                     },
                     dataType:"json",
                     success: function(response) {
-                        console.log("success return from ajax!");
                         $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
                     }
                 });
@@ -621,7 +620,7 @@
                     <h4 class="modal-title">Report Issue</h4>
                     <b><p id="modal_instruction"></p></b>
                   </div>
-                  <div class="modal-body">
+                  <div class="modal-body" id="report-body">
                     <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.</p>
                     <textarea id="report_feedback"></textarea>
                     <button onclick="report()" style="display: block;">Submit</button>

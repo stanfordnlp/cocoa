@@ -338,6 +338,5 @@ def report():
     backend = get_backend()
     uid = userid()
     feedback = request.args.get('feedback')
-    print "In report()"
     backend.report(uid, feedback)
     return jsonify(success=True)
