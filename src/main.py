@@ -13,7 +13,7 @@ from src.basic.schema import Schema
 from src.model.preprocess import add_data_generator_arguments, get_data_generator
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, Learner
-from src.model.evaluate import Evaluator
+from src.model.evaluate import Evaluator, LMEvaluator
 # TODO
 from src.model.negotiation.evaluate import CheatRetrievalEvaluator
 from src.lib import logstats
@@ -45,6 +45,7 @@ if __name__ == '__main__':
         saved_config = read_json(config_path)
         saved_config['decoding'] = args.decoding
         saved_config['batch_size'] = args.batch_size
+        saved_config['pretrained_wordvec'] = None
         model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
@@ -90,6 +91,7 @@ if __name__ == '__main__':
 
     # Build the model
     logstats.add_args('model_args', model_args)
+    # TODO: return args as well; might be changed
     model = build_model(schema, mappings, model_args)
 
     # Tensorflow config
@@ -110,10 +112,14 @@ if __name__ == '__main__':
             evaluator.test_response_generation(None, test_data, num_batches)
         import sys; sys.exit()
 
+    # TODO:
+    if args.model == 'lm':
+        Evaluator = LMEvaluator
+
     if args.test:
         assert args.init_from and ckpt, 'No model to test'
         evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
-        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
+        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional)
         with tf.Session(config=config) as sess:
             sess.run(tf.global_variables_initializer())
             print 'Load TF model'
@@ -127,5 +133,5 @@ if __name__ == '__main__':
                 learner.log_results(split, results)
     else:
         evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
-        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
+        learner = Learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional)
         learner.learn(args, config, args.stats_file, ckpt)

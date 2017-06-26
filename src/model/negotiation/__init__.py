@@ -51,7 +51,7 @@ def build_model(schema, mappings, args):
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -68,10 +68,15 @@ def build_model(schema, mappings, args):
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
 
+    if args.pretrained_wordvec is not None:
+        word_embeddings = vocab.load_embeddings(args.pretrained_wordvec, args.word_embed_size)
+    else:
+        word_embeddings = None
+
     with tf.variable_scope('EncoderWordEmbedder'):
-        encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+        encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, word_embeddings, pad)
     with tf.variable_scope('DecoderWordEmbedder'):
-        decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, pad)
+        decoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, word_embeddings, pad)
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
@@ -93,22 +98,27 @@ def build_model(schema, mappings, args):
         context_opts['vocab_size'] = mappings['kb_vocab'].size
         context_opts['embed_size'] = args.context_size
         with tf.variable_scope('ContextWordEmbedder'):
-            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], pad)
+            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], pad=pad)
         context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
 
     if args.model == 'encdec':
         encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
         if args.context is not None:
-            #decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
+            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            #decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         else:
-            #decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
+            if args.decoder == 'rnn':
+                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            else:
+                decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
         model = BasicEncoderDecoder(encoder, decoder, pad, re_encode=re_encode)
+    elif args.model == 'lm':
+        decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+        model = LM(decoder, pad)
     else:
         raise ValueError('Unknown model')
     return model
