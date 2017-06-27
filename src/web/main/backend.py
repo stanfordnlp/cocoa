@@ -81,6 +81,7 @@ class BaseBackend(object):
         outcome = controller.get_outcome()
         self.update_chat_reward(cursor, controller.get_chat_id(), outcome)
         _update_scenario_db()
+        self.logger.debug("Setting controller for chat {:s} to inactive".format(controller.get_chat_id()))
         controller.set_inactive()
         # self.controller_map[userid] = None
 
@@ -815,13 +816,17 @@ class NegotiationBackend(BaseBackend):
 
         if game_over:
             if self.should_reject_chat(userid, 1-agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
+                self.logger.debug("Rejecting chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}),"
+                                  " and redirecting to "
                                   "waiting".format(controller.get_chat_id(), userid, 1-agent_idx))
                 self.end_chat_and_transition_to_waiting(cursor, partner_id,
                                                         message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 if not self.is_user_partner_bot(cursor, userid):
                     partner_msg, _ = self.get_completion_messages(partner_id)
+                    self.logger.debug("Accepted chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}), "
+                                      "and redirecting "
+                                      "to survey".format(controller.get_chat_id(), userid, 1-agent_idx))
                     self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
 
             if self.should_reject_chat(userid, agent_idx):
@@ -831,6 +836,8 @@ class NegotiationBackend(BaseBackend):
                                                         message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 msg, _ = self.get_completion_messages(userid)
+                self.logger.debug("Accepted chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
+                                  "survey".format(controller.get_chat_id(), userid, agent_idx))
                 self.end_chat_and_finish(cursor, userid, message=msg)
 
             return True
