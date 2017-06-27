@@ -74,25 +74,30 @@ class BaseLearner(object):
             print '----------'
             print 'ENC INPUT:', self.data.textint_map.int_to_text(encoder_inputs[i], 'encoding')
             print 'DEC INPUT:', self.data.textint_map.int_to_text(decoder_inputs[i], 'decoding')
-            print 'PRICE INPUT:', batch['decoder_price_inputs'][i]
+            #print 'PRICE INPUT:', batch['decoder_price_inputs'][i]
             print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
-            print 'PRICE TARGET:', batch['price_targets'][i]
+            #print 'PRICE TARGET:', batch['price_targets'][i]
             print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
             print 'LOSS:', loss[i]
 
     def eval(self, sess, name, test_data, num_batches):
         print '================== Eval %s ==================' % name
-        print '================== Perplexity =================='
-        start_time = time.time()
-        loss = self.test_loss(sess, test_data, num_batches)
-        print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
+        results = {}
+
+        if self.model.perplexity:
+            print '================== Perplexity =================='
+            start_time = time.time()
+            loss = self.test_loss(sess, test_data, num_batches)
+            results['loss'] = loss
+            print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
+
         print '================== Sampling =================='
         start_time = time.time()
-        results = self.evaluator.test_response_generation(sess, test_data, num_batches)
-        # TODO: hackpy
+        res = self.evaluator.test_response_generation(sess, test_data, num_batches)
+        results.update(res)
+        # TODO: hacky. for LM only.
         if len(results) > 0:
             print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
-        results['loss'] = loss
         return results
 
     def learn(self, args, config, stats_file, ckpt=None, split='train'):
@@ -162,18 +167,6 @@ class BaseLearner(object):
 
                 # Evaluate on dev
                 for split, test_data, num_batches in self.evaluator.dataset():
-                    #print '================== Eval %s ==================' % split
-                    #print '================== Perplexity =================='
-                    #start_time = time.time()
-                    #loss = self.test_loss(sess, test_data, num_batches)
-                    #print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
-                    #print '================== Sampling =================='
-                    #start_time = time.time()
-                    #results = self.evaluator.test_response_generation(sess, test_data, num_batches)
-                    #print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
-
-                    #bleu, (ent_prec, ent_recall, ent_f1), (sel_prec, sel_recall, sel_f1), (pre_prec, pre_recall, pre_f1) = self.evaluator.test_response_generation(sess, test_data, num_batches)
-                    #print 'bleu=%.4f/%.4f/%.4f entity_f1=%.4f/%.4f/%.4f select_f1=%.4f/%.4f/%.4f prepend_f1=%.4f/%.4f/%.4f time(s)=%.4f' % (bleu[0], bleu[1], bleu[2], ent_prec, ent_recall, ent_f1, sel_prec, sel_recall, sel_f1, pre_prec, pre_recall, pre_f1, time.time() - start_time)
 
                     results = self.eval(sess, split, test_data, num_batches)
 
@@ -199,7 +192,7 @@ class BaseLearner(object):
                 epoch += 1
 
     def log_results(self, name, results):
-        logstats.add(name, {'loss': results['loss']})
+        logstats.add(name, {'loss': results.get('loss', None)})
         logstats.add(name, self.evaluator.log_dict(results))
 
 
@@ -208,4 +201,5 @@ class BaseLearner(object):
 import src.config as config
 import importlib
 task_module = importlib.import_module('.'.join(('src.model', config.task, 'learner')))
-Learner = task_module.Learner
+#Learner = task_module.Learner
+get_learner = task_module.get_learner

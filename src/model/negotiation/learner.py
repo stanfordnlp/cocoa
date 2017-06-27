@@ -2,6 +2,16 @@ import numpy as np
 from src.lib import logstats
 from src.model.learner import BaseLearner
 
+def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, unconditional=False):
+    if model.name == 'ranker':
+        return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+    else:
+        return Learner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+
+class RetrievalLearner(BaseLearner):
+    def learn(self, args, config, stats_file, ckpt=None, split='train'):
+        return
+
 class Learner(BaseLearner):
     def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
         super(Learner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)

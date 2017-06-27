@@ -23,7 +23,7 @@ def get_data_generator(args, model_args, mappings, schema):
 
     # Dataset
     if args.retrieve:
-        retriever = Retriever(args.index, args.retriever_context_len)
+        retriever = Retriever(args.index, context_size=args.retriever_context_len)
     else:
         retriever = None
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
@@ -52,6 +52,7 @@ def build_model(schema, mappings, args):
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
     from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM
+    from ranker import RandomRanker, CheatRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -119,6 +120,8 @@ def build_model(schema, mappings, args):
     elif args.model == 'lm':
         decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         model = LM(decoder, pad)
+    elif args.model == 'ranker-cheat':
+        model = CheatRanker()
     else:
         raise ValueError('Unknown model')
     return model
