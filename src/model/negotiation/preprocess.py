@@ -4,16 +4,15 @@ Preprocess examples in a dataset and generate data for models.
 
 import random
 import re
+import time
 import numpy as np
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
 from collections import namedtuple, defaultdict, deque
 import copy
-from src.basic.negotiation.price_tracker import PriceTracker
+from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler
 from src.basic.negotiation.tokenizer import tokenize
-
-get_price = PriceTracker.get_price
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -112,67 +111,6 @@ class TextIntMap(object):
             #toks = ['<price>' if price_filler(x) else x for x, p in izip(toks, prices)]
         return toks
 
-class PriceScaler(object):
-    @classmethod
-    def get_price_range(cls, kb):
-        '''
-        Return the bottomline and the target
-        '''
-        b = kb.facts['personal']['Bottomline']  # 0
-        t = kb.facts['personal']['Target']  # 1
-        role = kb.facts['personal']['Role']
-
-        # TODO: should have only one case after we fix the scenarios in the end.
-        if b is None:
-            if role == 'seller':
-                b = t * 0.7
-            else:
-                b = kb.facts['item']['Price']
-        elif t is None:
-            if role == 'seller':
-                t = kb.facts['item']['Price']
-            else:
-                t = b * 0.7
-
-        return b, t
-
-    @classmethod
-    def get_parameters(cls, b, t):
-        '''
-        Return (slope, constant) parameters of the linear mapping.
-        '''
-        assert (t - b) != 0
-        w = 1. / (t - b)
-        c = -1. * b / (t - b)
-        return w, c
-
-    @classmethod
-    # TODO: this is operated on canonical entities, need to be consistent!
-    def unscale_price(cls, kb, price):
-        p = get_price(price)
-        b, t = cls.get_price_range(kb)
-        w, c = cls.get_parameters(b, t)
-        assert w != 0
-        p = (p - c) / w
-        p = int(p)
-        if isinstance(price, Entity):
-            return price._replace(canonical=price.canonical._replace(value=p))
-        else:
-            return price._replace(value=p)
-
-    @classmethod
-    def scale_price(cls, kb, price):
-        '''
-        Scale the price such that bottomline=0 and target=1.
-        '''
-        p = get_price(price)
-        b, t = cls.get_price_range(kb)
-        w, c = cls.get_parameters(b, t)
-        p = w * p + c
-        # Discretize to two digits
-        p = float('{:.2f}'.format(p))
-        return price._replace(canonical=price.canonical._replace(value=p))
-
 
 class Dialogue(object):
     textint_map = None
@@ -213,10 +151,13 @@ class Dialogue(object):
         title = self.kb.facts['item']['Title']
         role = self.role
         assert len(self.agents) == len(self.token_turns)
+        start_time = time.time()
+        n = 0
         for agent, turn in izip(self.agents, self.token_turns):
             if agent != self.agent:
                 candidates.append([])
             else:
+                n += 1
                 candidates.append(retriever.search(role, category, title, prev_turns))
                 #print 'CONTEXT:', role
                 #for t in prev_turns:
@@ -316,7 +257,7 @@ class Dialogue(object):
         pad: used to fill in non-price targets.
         '''
         def to_float_price(entity):
-            return float('{:.2f}'.format(get_price(entity)))
+            return float('{:.2f}'.format(PriceTracker.get_price(entity)))
         prices = [[to_float_price(entity) if entity else pad for entity in entities] for entities in self.entities]
         return prices
 
@@ -429,11 +370,6 @@ class DialogueBatch(object):
             encoder_inputs = encode_turn[:, 1:]
         else:
             raise ValueError
-            batch_size = decode_turn.shape[0]
-            # If there's no input to encode, use </s> as the encoder input.
-            encoder_inputs = np.full((batch_size, 1), int_markers.EOS, dtype=np.int32)
-            # encode_tokens are empty lists
-            encode_tokens = [[''] for _ in xrange(batch_size)]
         # Remove pad (<go>) at the beginning of utterance
         encoder_price_inputs = price_encode_turn[:, 1:]
 
@@ -573,9 +509,9 @@ class Preprocessor(object):
         if e.action == 'message':
             # Lower, tokenize, link entity
             if agent == e.agent:
-                entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb.facts, mentioned_entities=mentioned_entities)
+                entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities)
             else:
-                entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb.facts, mentioned_entities=mentioned_entities)
+                entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb, mentioned_entities=mentioned_entities)
             #entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 return entity_tokens
@@ -631,9 +567,6 @@ class DataGenerator(object):
 
         # Build retriever given training dialogues
         self.retriever = retriever
-        if self.retriever and not self.retriever.loaded_index:
-            assert self.dialogues['train']
-            self.retriever.build_index(self.dialogues['train'])
 
         for fold, dialogues in self.dialogues.iteritems():
             print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
@@ -681,13 +614,17 @@ class DataGenerator(object):
 
     def generator(self, name, batch_size, shuffle=True):
         dialogues = self.dialogues[name]
+
         for dialogue in dialogues:
             dialogue.convert_to_int()
+
         # TODO: retrieve candidate for each dialogue, get candidate with get_token_turns
         if self.retriever is not None:
             for dialogue in dialogues:
                 # TODO: num of candidates
                 dialogue.retrieve_candidates(self.retriever)
+            self.retriever.report_search_time()
+
         dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
