@@ -123,6 +123,6 @@ import src.config as config
 import importlib
 task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))
 Evaluator = task_module.Evaluator
-CheatEvaluator = task_module.CheatRetrievalEvaluator
+RetrievalEvaluator = task_module.RetrievalEvaluator
 LMEvaluator = task_module.LMEvaluator
 pred_to_token = task_module.pred_to_token

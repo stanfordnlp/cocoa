@@ -326,12 +326,6 @@ class BasicDecoder(BasicEncoder):
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
 
-    #def build_model(self, input_dict, tf_variables):
-    #    super(BasicDecoder, self).build_model(input_dict, tf_variables)  # outputs: (seq_len, batch_size, output_size)
-    #    with tf.variable_scope(type(self).__name__):
-    #        logits = self._build_output(self.output_dict)
-    #    self.output_dict['logits'] = logits
-
     def pred_to_input(self, preds, **kwargs):
         '''
         Convert predictions to input of the next decoding step.
