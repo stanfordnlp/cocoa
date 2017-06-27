@@ -43,7 +43,9 @@ class LMEvaluator(BaseEvaluator):
         return self.vocab.to_ind(markers.EOS)
 
     def _remove_symbols(self):
-        return map(self.vocab.to_ind, (markers.PAD,))
+        inds = map(self.vocab.to_ind, (markers.PAD,))
+        words = [makrers.PAD]
+        return inds + words
 
     def _generate_response(self, sess):
         '''
@@ -65,7 +67,9 @@ class Evaluator(BaseEvaluator):
         return self.vocab.to_ind(markers.EOS)
 
     def _remove_symbols(self):
-        return map(self.vocab.to_ind, (markers.PAD,))
+        inds = map(self.vocab.to_ind, (markers.PAD,))
+        words = [markers.PAD]
+        return inds + words
 
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
@@ -91,13 +95,10 @@ class Evaluator(BaseEvaluator):
             if self.verbose:
                 #attn_scores = output_dict.get('attn_scores', None)
                 #probs = output_dict.get('probs', None)
-                # TODO: print
                 self._print_batch(batch, pred_tokens, references, bleu_scores)
 
     def _process_target_tokens(self, tokens):
-        # TODO: hack
-        #targets = ['<%s>' % token[1][1] if is_entity(token) else token for token in tokens]
-        targets = [token[1] if is_entity(token) else token for token in tokens]
+        targets = [token.canonical if is_entity(token) else token for token in tokens]
         return targets
 
     def _print_batch(self, batch, preds, targets, bleu_scores):
@@ -113,7 +114,7 @@ class Evaluator(BaseEvaluator):
             for w in l:
                 if is_entity(w):
                     words.append('[%s]' % PriceTracker.get_price(w))
-                elif not w.startswith('<'):
+                elif w not in self.remove_symbols:
                     words.append(w)
             return ' '.join(words)
 
@@ -168,23 +169,11 @@ class Evaluator(BaseEvaluator):
         d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
 
-class CheatRetrievalEvaluator(Evaluator):
-    def __init__(self, data, model, responses, splits=('dev',), batch_size=1, verbose=True):
-        super(CheatRetrievalEvaluator, self).__init__(data, model, splits, batch_size, verbose)
-        self.responses = responses
-
-    def retrieve(self, cheat_target, role):
-        responses = self.responses[role]
-        cheat_targets = [cheat_target] * len(responses)
-        scores = self.sentence_bleu_score(responses, cheat_targets)
-        return responses[np.argmax(scores)]
-
+class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
-        kbs = dialogue_batch['kb']
-        roles = [kb.facts['personal']['Role'] for kb in kbs]
         for batch in dialogue_batch['batch_seq']:
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
-            pred_tokens = [self.retrieve(target, role) for target, role in izip(references, roles)]
+            pred_tokens = self.model.select(batch)
 
             # Metrics
             # Sentence bleu: only for verbose print
