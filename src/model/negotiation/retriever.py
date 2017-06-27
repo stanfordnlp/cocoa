@@ -1,10 +1,10 @@
 import os
 import shutil
 from itertools import izip
-from whoosh.fields import SchemaClass, TEXT, STORED
+from whoosh.fields import SchemaClass, TEXT, STORED, ID
 from whoosh import index
 from whoosh.qparser import QueryParser, OrGroup
-from whoosh.query import Term
+from whoosh.query import Term, And
 from src.basic.entity import is_entity
 from preprocess import markers
 
@@ -15,8 +15,8 @@ def add_retriever_arguments(parser):
     parser.add_argument('--rewrite-index', action='store_true', help='Rewrite the saved index')
 
 class DialogueSchema(SchemaClass):
-    role = TEXT(stored=True)
-    category = TEXT
+    role = ID(stored=True)
+    category = ID(stored=True)
     title = TEXT
     context = TEXT
     response = STORED
@@ -25,19 +25,25 @@ class Retriever(object):
     # NOTE: don't use <> because this is ignored by the analyzer
     START = 'startsymbol'
 
-    def __init__(self, index_dir, context_size=1, rewrite=False):
+    def __init__(self, index_dir, index_name='dialogues', context_size=1, rewrite=False):
         '''
         Load index from index_dir or build it from dialogues.
         context_size: number of previous utterances to include
         '''
-        if (not index.exists_in(index_dir)) or rewrite:
-            if rewrite:
+        self.index_name = index_name
+        if not index.exists_in(index_dir, indexname=index_name) or rewrite:
+            if not os.path.exists(index_dir):
+                print 'Create index in', index_dir
+                os.makedirs(index_dir)
+            elif rewrite:
+                print 'Rewrite index in', index_dir
                 shutil.rmtree(index_dir)
                 os.makedirs(index_dir)
-            self.ix = index.create_in(index_dir, schema=DialogueSchema, indexname='dialogues')
+            self.ix = index.create_in(index_dir, schema=DialogueSchema, indexname=index_name)
             self.loaded_index = False
         else:
-            self.ix = index.open_dir(index_dir)
+            print 'Load index from', index_dir
+            self.ix = index.open_dir(index_dir, indexname=index_name)
             self.loaded_index = True
         self.context_size = context_size
         self.parser = QueryParser('context', schema=self.ix.schema, group=OrGroup.factory(0.9))
@@ -96,36 +102,45 @@ class Retriever(object):
         context = unicode(' '.join([self.process_turn(t) for t in context]))
         query = self.parser.parse(context)
         # Only consider buyer/seller utterances
-        filter_query = Term('role', unicode(role))
+        filter_query = And([Term('role', unicode(role)), Term('category', unicode(category))])
         with self.ix.searcher() as searcher:
             results = searcher.search(query, filter=filter_query, limit=n)
-            #results = [(r['role'], r['response']) for r in results]
+            #results = [(r['role'], r['category'], r['response']) for r in results]
             results = [r['response'] for r in results]
         return results
 
-########### TEST ############
+
 if __name__ == '__main__':
     from src.basic.negotiation.price_tracker import PriceTracker
     from src.basic.dataset import read_dataset, add_dataset_arguments
+    from src.basic.scenario_db import add_scenario_arguments
     from src.basic.schema import Schema
     from src.model.negotiation.preprocess import Preprocessor, markers
     import argparse
+    import time
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
     add_dataset_arguments(parser)
+    add_retriever_arguments(parser)
     args = parser.parse_args()
 
     dataset = read_dataset(None, args)
     lexicon = PriceTracker()
-    schema = Schema('data/negotiation/craigslist-schema.json')
+    schema = Schema(args.schema_path)
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
     dialogues = preprocessor.preprocess(dataset.train_examples)
 
-    index_dir = '/scr/hehe/game-dialogue/index'
-    retriever = Retriever(index_dir, context_size=1, rewrite=True)
-    retriever.build_index(dialogues)
-    prev_turns = ["</s>".split()]
-    results = retriever.search('buyer', 'bike', '', prev_turns)
-    for r in results:
-        print r
+    retriever = Retriever(args.index, context_size=args.retriever_context_len, rewrite=args.rewrite_index)
+    if not retriever.loaded_index:
+        print 'Building index'
+        start_time = time.time()
+        retriever.build_index(dialogues)
+        print '[%d s]' % (time.time() - start_time)
+
+
+    #prev_turns = ["</s>".split()]
+    #results = retriever.search('buyer', 'bike', '', prev_turns)
+    #for r in results:
+    #    print r
