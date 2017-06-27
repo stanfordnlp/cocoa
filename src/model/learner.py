@@ -25,6 +25,7 @@ def add_learner_arguments(parser):
     parser.add_argument('--print-every', type=int, default=1, help='Number of examples between printing training loss')
     parser.add_argument('--init-from', help='Initial parameters')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
+    parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--gpu', type=int, default=0, help='Use GPU or not')
 
 optim = {'adagrad': tf.train.AdagradOptimizer,
