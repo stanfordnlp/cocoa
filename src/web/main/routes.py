@@ -14,8 +14,8 @@ from src.web.main.backend_utils import Status
 from src.basic.event import Event
 
 
-def generate_userid():
-    return "U_" + uuid.uuid4().hex
+def generate_userid(prefix="U_"):
+    return prefix + uuid.uuid4().hex
 
 
 def userid():
@@ -31,10 +31,10 @@ def generate_unique_key():
 
 
 def format_message(message, status_message):
-    timestamp = datetime.now().strftime('%x %X')
-    left_delim = "<" if status_message else ""
-    right_delim = ">" if status_message else ""
-    return "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
+    timestamp = datetime.now().strftime(u'%x %X')
+    left_delim = u"<" if status_message else u""
+    right_delim = u">" if status_message else u""
+    return u"[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
 
 
 # Required args: uid (the user ID of the current user)
@@ -80,7 +80,7 @@ def check_inbox():
     if event is not None:
         message = None
         if event.action == 'message':
-            message = format_message("Partner: {}".format(event.data), False)
+            message = format_message(u"Partner: {}".format(event.data), False)
         elif event.action == 'join':
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
@@ -130,8 +130,8 @@ def typing_event():
 @main.route('/_send_message/', methods=['GET'])
 def text():
     backend = get_backend()
-    message = request.args.get('message')
-    displayed_message = format_message("You: {}".format(message), False)
+    message = unicode(request.args.get('message'))
+    displayed_message = format_message(u"You: {}".format(message), False)
     uid = userid()
     time_taken = float(request.args.get('time_taken'))
     received_time = time.time()
@@ -188,7 +188,18 @@ def index():
     the session."""
 
     if not request.args.get('uid'):
-        return redirect(url_for('main.index', uid=generate_userid(), **request.args))
+        prefix = "U_"
+        if request.args.get('mturk') and int(request.args.get('mturk')) == 1:
+            # link for Turkers
+            prefix = "MT_"
+        elif request.args.get('nlp') and int(request.args.get('nlp')) == 1:
+            # link for NLP group
+            prefix = "NLP_"
+        elif request.args.get('bus') and int(request.args.get('bus')) == 1:
+            # business school link
+            prefix = "BUS_"
+
+        return redirect(url_for('main.index', uid=generate_userid(prefix), **request.args))
 
     backend = get_backend()
 
@@ -320,3 +331,12 @@ def quit():
     backend.quit(userid())
     displayed_message = format_message("You chose to quit this task.", True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_report/', methods=['GET'])
+def report():
+    backend = get_backend()
+    uid = userid()
+    feedback = request.args.get('feedback')
+    backend.report(uid, feedback)
+    return jsonify(success=True)

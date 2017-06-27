@@ -171,7 +171,7 @@ def chat_to_worker_id(cursor, code_to_wid):
         agent_wid = {}
         agent_uids = eval(agent_uids)
         for agent_id, agent_uid in agent_uids.iteritems():
-            if not (isinstance(agent_uid, basestring) and agent_uid.startswith('U_')):
+            if not (isinstance(agent_uid, basestring)): #and agent_uid.startswith('U_')):
                 agent_wid[agent_id] = None
             else:
                 cursor.execute('''SELECT mturk_code FROM mturk_task WHERE name=?''', (agent_uid,))
@@ -194,7 +194,7 @@ def log_worker_id_to_json(db_path, batch_results):
     code_to_wid = read_results_csv(batch_results)
     worker_ids = chat_to_worker_id(cursor, code_to_wid)
     output_dir = os.path.dirname(batch_results)
-    write_json(d, output_dir + '/worker_ids.json')
+    write_json(worker_ids, output_dir + '/worker_ids.json')
 
 
 if __name__ == "__main__":

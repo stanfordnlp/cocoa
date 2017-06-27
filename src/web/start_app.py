@@ -15,12 +15,14 @@ from src.basic.util import read_json
 from src.web import create_app
 from src.basic.systems import get_system, add_system_arguments
 from src.basic.systems.human_system import HumanSystem
-from gevent.wsgi import WSGIServer
+from gevent.pywsgi import WSGIServer
+from src.web.main.web_logger import WebLogger
 
 __author__ = 'anushabala'
 
 DB_FILE_NAME = 'chat_state.db'
 LOG_FILE_NAME = 'log.out'
+ERROR_LOG_FILE_NAME = 'error_log.out'
 TRANSCRIPTS_DIR = 'transcripts'
 
 
@@ -75,8 +77,11 @@ def init_database(db_file):
         start_time text)'''
     )
     c.execute(
-        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete integer, active integer,
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
         PRIMARY KEY (scenario_id, partner_type))'''
+    )
+    c.execute(
+        '''CREATE TABLE feedback (name text, comments text)'''
     )
 
     add_survey_table(c)
@@ -85,13 +90,16 @@ def init_database(db_file):
     conn.close()
 
 
-def add_scenarios_to_db(db_file, scenario_db, systems):
+def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     for scenario in scenario_db.scenarios_list:
         sid = scenario.uuid
         for agent_type in systems.keys():
-            c.execute('''INSERT INTO scenario VALUES (?,?, 0, 0)''', (sid, agent_type))
+            if update:
+                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+            else:
+                c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
 
     conn.commit()
     conn.close()
@@ -163,6 +171,7 @@ def cleanup(flask_app):
 def init(output_dir, reuse=False):
     db_file = os.path.join(output_dir, DB_FILE_NAME)
     log_file = os.path.join(output_dir, LOG_FILE_NAME)
+    error_log_file = os.path.join(output_dir, ERROR_LOG_FILE_NAME)
     transcripts_dir = os.path.join(output_dir, TRANSCRIPTS_DIR)
     if not reuse:
         if os.path.exists(output_dir):
@@ -175,7 +184,7 @@ def init(output_dir, reuse=False):
             shutil.rmtree(transcripts_dir)
         os.makedirs(transcripts_dir)
 
-    return db_file, log_file, transcripts_dir
+    return db_file, log_file, error_log_file, transcripts_dir
 
 
 if __name__ == "__main__":
@@ -189,7 +198,10 @@ if __name__ == "__main__":
     with open(params_file) as fin:
         params = json.load(fin)
 
-    db_file, log_file, transcripts_dir = init(args.output, args.reuse)
+    db_file, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
+    error_log_file = open(error_log_file, 'w')
+
+    WebLogger.initialize(log_file)
     params['db'] = {}
     params['db']['location'] = db_file
     params['logging'] = {}
@@ -241,8 +253,7 @@ if __name__ == "__main__":
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
-    if not args.reuse:
-        add_scenarios_to_db(db_file, scenario_db, systems)
+    add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
@@ -262,6 +273,6 @@ if __name__ == "__main__":
 
     print "App setup complete"
 
-    server = WSGIServer(('', args.port), app)
+    server = WSGIServer(('', args.port), app, log=WebLogger.get_logger(), error_log=error_log_file)
     atexit.register(cleanup, flask_app=app)
     server.serve_forever()

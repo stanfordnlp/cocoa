@@ -135,7 +135,7 @@ def update_stats(chat_workers, chats, surveys, worker_stats, worker_chats):
                 if agent_wid is not None:
                     workers.add(agent_wid)
                     update_summary_map(worker_stats[agent_wid], agent_stats[int(agent_id)])
-                    worker_chats[agent_wid].append(chat)
+                    worker_chats[agent_wid].append((agent_id, chat))
     print 'Update for %d workers' % len(workers)
 
 def update_worker_stats(result_path, worker_stats, worker_chats):
@@ -248,6 +248,9 @@ if __name__ == "__main__":
                                        aws_secret_access_key=config["secret_key"],
                                        host=host)
 
+    #mturk_connection.revoke_qualification('AKVDY8OXNMQED', config['quals']['bad'])
+    #import sys; sys.exit()
+
     # Collect worker performance data
     worker_stats = defaultdict(dict)
     worker_chats = defaultdict(list)
@@ -274,8 +277,8 @@ if __name__ == "__main__":
             print '========================='
             print '{} {} score={} #hits={}'.format(i, worker_id, score, len(worker_chats[worker_id]))
             print worker_stats[worker_id]
-            for chat in worker_chats[worker_id]:
-                print '==========chat=========='
+            for agent_id, chat in worker_chats[worker_id]:
+                print '==========chat %s==========' % agent_id
                 print_chat(chat)
 
     if debug:
