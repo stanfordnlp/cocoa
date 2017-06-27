@@ -17,13 +17,13 @@ def get_data_generator(args, model_args, mappings, schema):
     from src.basic.util import read_json
     from retriever import Retriever
 
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
-    dataset = read_dataset(scenario_db, args)
+    #scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    dataset = read_dataset(None, args)
     lexicon = PriceTracker()
 
     # Dataset
     if args.retrieve:
-        retriever = Retriever(args.index, context_size=args.retriever_context_len)
+        retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
     else:
         retriever = None
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
