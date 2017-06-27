@@ -20,7 +20,7 @@ for d in args.paths:
     survey_file = os.path.join(d, 'transcripts/surveys.json')
 
     chats = read_json(transcript_file)
-    all_chats.append(chats)
+    all_chats.extend(chats)
 
     surveys = read_json(survey_file)
     for i, s in enumerate(surveys):
@@ -28,5 +28,5 @@ for d in args.paths:
 
 if not os.path.isdir(args.output):
     os.makedirs(args.output)
-    write_json(all_chats, os.path.join(args.output, 'transcripts.json'))
-    write_json(all_surveys, os.path.join(args.output, 'surveys.json'))
+write_json(all_chats, os.path.join(args.output, 'transcripts.json'))
+write_json(all_surveys, os.path.join(args.output, 'surveys.json'))
