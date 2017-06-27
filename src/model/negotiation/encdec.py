@@ -12,6 +12,8 @@ class LM(object):
         self.pad = pad
         self.decoder.build_model({}, set())
         self.loss, self.seq_loss, self.total_loss = self.decoder.compute_loss()
+        self.perplexity = True
+        self.name = 'lm'
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
@@ -34,6 +36,8 @@ class BasicEncoderDecoder(object):
         self.decoder = decoder
         #self.re_encode = re_encode
         self.tf_variables = set()
+        self.perplexity = True
+        self.name = 'encdec'
         self.build_model(encoder, decoder)
 
     def compute_loss(self, output_dict):
