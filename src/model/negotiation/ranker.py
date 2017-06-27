@@ -26,6 +26,9 @@ class CheatRanker(BaseRanker):
                 response = []
             else:
                 scores = [compute_bleu(r, target) for r in c]
-                response = c[np.argmax(scores)]
+                if len(scores) == 0:
+                    response = []
+                else:
+                    response = c[np.argmax(scores)]
             responses.append(response)
         return responses

@@ -1,4 +1,5 @@
 import os
+import time
 import shutil
 from itertools import izip
 from whoosh.fields import SchemaClass, TEXT, STORED, ID
@@ -11,21 +12,22 @@ from preprocess import markers
 def add_retriever_arguments(parser):
     parser.add_argument('--retrieve', action='store_true', help='Use retrieval-based method')
     parser.add_argument('--retriever-context-len', default=1, type=int, help='Number of previous turns to be used as context for retrieval')
+    parser.add_argument('--num-candidates', default=5, type=int, help='Number of candidates to return')
     parser.add_argument('--index', help='Path to index directory')
     parser.add_argument('--rewrite-index', action='store_true', help='Rewrite the saved index')
 
 class DialogueSchema(SchemaClass):
-    role = ID(stored=True)
-    category = ID(stored=True)
+    role = ID #(stored=True)
+    category = ID #(stored=True)
     title = TEXT
     context = TEXT
     response = STORED
 
 class Retriever(object):
     # NOTE: don't use <> because this is ignored by the analyzer
-    START = 'startsymbol'
+    START = '_start_'
 
-    def __init__(self, index_dir, index_name='dialogues', context_size=1, rewrite=False):
+    def __init__(self, index_dir, index_name='dialogues', context_size=1, rewrite=False, num_candidates=5):
         '''
         Load index from index_dir or build it from dialogues.
         context_size: number of previous utterances to include
@@ -48,6 +50,12 @@ class Retriever(object):
         self.context_size = context_size
         self.parser = QueryParser('context', schema=self.ix.schema, group=OrGroup.factory(0.9))
 
+        self.num_candidates = num_candidates
+
+        self.search_time = 0.
+        self.num_query = 0.
+        self.num_empty = 0
+
     def process_turn(self, turn):
         '''
         Process entities.
@@ -56,7 +64,7 @@ class Retriever(object):
         if len(turn) == 1 and turn[0] == markers.EOS:
             tokens = [self.START]
         else:
-            tokens = [str(x.canonical.value) if is_entity(x) else x for x in turn]
+            tokens = ['_price_' if is_entity(x) else x for x in turn]
         return ' '.join(tokens)
 
     def dialogue_to_docs(self, d, context_size):
@@ -97,17 +105,30 @@ class Retriever(object):
                 writer.add_document(**doc)
         writer.commit()
 
-    def search(self, role, category, title, prev_turns, n=5):
+    def search(self, role, category, title, prev_turns):
         context = prev_turns[-1*self.context_size:]
         context = unicode(' '.join([self.process_turn(t) for t in context]))
         query = self.parser.parse(context)
         # Only consider buyer/seller utterances
         filter_query = And([Term('role', unicode(role)), Term('category', unicode(category))])
+        start_time = time.time()
         with self.ix.searcher() as searcher:
-            results = searcher.search(query, filter=filter_query, limit=n)
+            results = searcher.search(query, filter=filter_query, limit=self.num_candidates)
             #results = [(r['role'], r['category'], r['response']) for r in results]
             results = [r['response'] for r in results]
+        if len(results) == 0:
+            self.num_empty += 1
+        self.num_query += 1
+        self.search_time += (time.time() - start_time)
         return results
+
+    def report_search_time(self):
+        if self.num_query == 0:
+            time = -1
+        else:
+            time = self.search_time / self.num_query
+        print 'Average search time per query: [%f s]' % time
+        print 'Number of empty result:', self.num_empty
 
 
 if __name__ == '__main__':
