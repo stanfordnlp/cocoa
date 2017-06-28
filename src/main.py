@@ -13,7 +13,7 @@ from src.basic.schema import Schema
 from src.model.preprocess import add_data_generator_arguments, get_data_generator
 from src.model.encdec import add_model_arguments, build_model
 from src.model.learner import add_learner_arguments, get_learner #, Learner
-from src.model.evaluate import Evaluator, LMEvaluator, RetrievalEvaluator
+from src.model.evaluate import get_evaluator
 from src.lib import logstats
 
 if __name__ == '__main__':
@@ -39,14 +39,11 @@ if __name__ == '__main__':
         print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
         saved_config = read_json(config_path)
-        # Allow rewritten
-        opts = vars(args)
-        for a in saved_config:
-            if a in opts:
-                saved_config[a] = opts[a]
-        #saved_config['decoding'] = args.decoding
-        #saved_config['batch_size'] = args.batch_size
-        #saved_config['pretrained_wordvec'] = None
+        # TODO: messy. handle model args properly.
+        saved_config['decoding'] = args.decoding
+        saved_config['batch_size'] = args.batch_size
+        saved_config['pretrained_wordvec'] = None
+        saved_config['ranker'] = args.ranker
         model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
@@ -58,6 +55,7 @@ if __name__ == '__main__':
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
 
         print 'Done [%fs]' % (time.time() - start)
+
     else:
         # TODO: factor. Process args
         if args.predict_price:
@@ -110,14 +108,8 @@ if __name__ == '__main__':
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
         config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
 
-    # TODO:
-    if args.model == 'lm':
-        Evaluator = LMEvaluator
-    elif args.model.startswith('ranker'):
-        Evaluator = RetrievalEvaluator
-
     if args.test:
-        evaluator = Evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
+        evaluator = get_evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
         learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional)
 
         if args.init_from:
@@ -131,6 +123,9 @@ if __name__ == '__main__':
         else:
             sess = None
 
+        if model.name == 'ranker-encdec':
+            model.set_tf_session(sess)
+
         for split, test_data, num_batches in evaluator.dataset():
             results = learner.eval(sess, split, test_data, num_batches)
             learner.log_results(split, results)
@@ -138,6 +133,6 @@ if __name__ == '__main__':
         if sess:
             sess.close()
     else:
-        evaluator = Evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
+        evaluator = get_evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
         learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional)
         learner.learn(args, config, args.stats_file, ckpt)

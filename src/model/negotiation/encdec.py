@@ -117,7 +117,7 @@ class BasicEncoderDecoder(object):
         # Decode true utterances (so that we always condition on true prefix)
         decoder_args['inputs'] = decoder_inputs
         feed_dict = self.decoder.get_feed_dict(**decoder_args)
-        true_final_state = sess.run((self.final_state), feed_dict=feed_dict)
+        true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
         return {'preds': decoder_output_dict['preds'],
                 'prices': decoder_output_dict.get('prices', None),
                 'final_state': decoder_output_dict['final_state'],
@@ -182,8 +182,8 @@ class ContextDecoder(BasicDecoder):
         inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         # TODO: hack
-        encoder_outputs = input_dict['encoder_embeddings']
-        self.feedable_vars['encoder_outputs'] = encoder_outputs
+        #encoder_outputs = input_dict['encoder_embeddings']
+        #self.feedable_vars['encoder_outputs'] = encoder_outputs
         return inputs, mask, kwargs
 
     def get_feed_dict(self, **kwargs):

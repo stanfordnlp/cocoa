@@ -40,11 +40,13 @@ def add_model_arguments(parser):
     from src.model.sequence_embedder import add_sequence_embedder_arguments
     from price_predictor import add_price_predictor_arguments
     from context_embedder import add_context_embedder_arguments
+    from ranker import add_ranker_arguments
 
     add_basic_model_arguments(parser)
     add_sequence_embedder_arguments(parser)
     add_price_predictor_arguments(parser)
     add_context_embedder_arguments(parser)
+    add_ranker_arguments(parser)
 
 def build_model(schema, mappings, args):
     import tensorflow as tf
@@ -52,7 +54,7 @@ def build_model(schema, mappings, args):
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
     from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM
-    from ranker import RandomRanker, CheatRanker
+    from ranker import RandomRanker, CheatRanker, EncDecRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -103,11 +105,10 @@ def build_model(schema, mappings, args):
         context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
 
-    if args.model == 'encdec':
+    if args.model == 'encdec' or args.ranker == 'encdec':
         encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
         if args.context is not None:
             decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-            #decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         else:
             if args.decoder == 'rnn':
                 decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
@@ -120,9 +121,15 @@ def build_model(schema, mappings, args):
     elif args.model == 'lm':
         decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         model = LM(decoder, pad)
-    elif args.model == 'ranker-cheat':
-        model = CheatRanker()
-    else:
+    elif args.model is not None:
         raise ValueError('Unknown model')
+
+    if args.ranker == 'cheat':
+        model = CheatRanker()
+    if args.ranker == 'random':
+        model = RandomRanker()
+    elif args.ranker == 'encdec':
+        model = EncDecRanker(model)
+
     return model
 

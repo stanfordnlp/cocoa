@@ -11,7 +11,7 @@ from src.model.rnn_cell import build_rnn_cell
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 
 def add_basic_model_arguments(parser):
-    parser.add_argument('--model', default='encdec', help='Model name {encdec}')
+    parser.add_argument('--model', help='Model name {encdec}')
     # TODO: more types of encoder and decoder
     parser.add_argument('--encoder', default='rnn', choices=['rnn'], help='Encoder sequence embedder {bow, rnn}')
     parser.add_argument('--decoder', default='rnn', choices=['rnn', 'rnn-attn'], help='Decoder sequence embedder {rnn, attn}')

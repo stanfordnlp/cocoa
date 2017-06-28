@@ -7,6 +7,14 @@ from src.model.evaluate import BaseEvaluator
 from preprocess import Dialogue, price_filler
 from src.basic.negotiation.price_tracker import PriceTracker
 
+def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose=True):
+    if model.name in ('ranker-cheat', 'ranker-random'):
+        return RetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
+    elif model.name == 'ranker-encdec':
+        return EncDecRetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
+    else:
+        return Evaluator(data_generator, model, splits, batch_size, verbose)
+
 # TODO: factor this
 def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None, prices=None):
     '''
@@ -168,6 +176,72 @@ class Evaluator(BaseEvaluator):
         precision, recall, f1 = stats['entity_f1']
         d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
+
+class EncDecRetrievalEvaluator(Evaluator):
+    def _generate_response(self, sess, dialogue_batch, summary_map):
+        encoder_init_state = None
+        for batch in dialogue_batch['batch_seq']:
+            references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
+            # TODO
+            output_dict = self.model.select(batch, encoder_init_state)
+            pred_tokens = output_dict['responses']
+            encoder_init_state = output_dict['true_final_state']
+
+            # Metrics
+            # Sentence bleu: only for verbose print
+            bleu_scores = self.sentence_bleu_score(pred_tokens, references)
+            self.update_bleu_stats(summary_map, pred_tokens, references)
+            self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
+
+            if self.verbose:
+                #attn_scores = output_dict.get('attn_scores', None)
+                #probs = output_dict.get('probs', None)
+                # TODO: print
+                self._print_batch(batch, pred_tokens, references, bleu_scores, output_dict)
+
+    # TODO: refactor
+    def _print_batch(self, batch, preds, targets, bleu_scores, output_dict):
+        '''
+        inputs are integers; targets and preds are tokens (converted in test_bleu).
+        '''
+        encoder_tokens = batch['encoder_tokens']
+        inputs = batch['encoder_inputs']
+        decoder_tokens = batch['decoder_tokens']
+        kbs = batch['kbs']
+        def to_str(l):
+            words = []
+            for w in l:
+                if is_entity(w):
+                    words.append('[%s]' % PriceTracker.get_price(w))
+                elif w not in self.remove_symbols:
+                    words.append(w)
+            return ' '.join(words)
+
+        print '-------------- batch ----------------'
+        for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
+            # Skip padded turns
+            if len(decoder_tokens[i]) == 0:
+                continue
+            kb = kbs[i]
+            kb.dump()
+            #print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
+            #print 'RAW TARGET:', Dialogue.original_price(kb, target)
+            #print 'RAW INPUT:', encoder_tokens[i]
+            #print 'RAW TARGET:', target
+            print '----------'
+            print 'INPUT:', to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
+            #print 'TARGET:', Dialogue.original_price(kb, target)
+            #print 'PRED:', Dialogue.original_price(kb, pred)
+            print 'TARGET:', to_str(target)
+            print 'PRED:', to_str(pred)
+            print 'BLEU:', bleu
+            print 'CHEAT:', to_str(output_dict['cheat_responses'][i])
+            print 'IR:', to_str(output_dict['IR_responses'][i])
+            print 'ALL CANDIDATES:'
+            for c in output_dict['candidates'][i]:
+                print to_str(c)
+
+
 
 class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):

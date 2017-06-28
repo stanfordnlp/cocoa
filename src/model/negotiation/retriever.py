@@ -105,19 +105,29 @@ class Retriever(object):
                 writer.add_document(**doc)
         writer.commit()
 
-    def search(self, role, category, title, prev_turns):
-        context = prev_turns[-1*self.context_size:]
+    def get_query(self, context):
         context = unicode(' '.join([self.process_turn(t) for t in context]))
         query = self.parser.parse(context)
+        return query
+
+    def search(self, role, category, title, prev_turns):
+        query = self.get_query(prev_turns[-1*self.context_size:])
         # Only consider buyer/seller utterances
         filter_query = And([Term('role', unicode(role)), Term('category', unicode(category))])
         start_time = time.time()
         with self.ix.searcher() as searcher:
             results = searcher.search(query, filter=filter_query, limit=self.num_candidates)
+            # One more try
+            if len(results) == 0:
+                query = self.get_query(prev_turns[-1*(self.context_size+1):])
+                results = searcher.search(query, filter=filter_query, limit=self.num_candidates)
             #results = [(r['role'], r['category'], r['response']) for r in results]
             results = [r['response'] for r in results]
-        if len(results) == 0:
+        n = len(results)
+        if n == 0:
             self.num_empty += 1
+        if n < self.num_candidates:
+            results.extend([[] for _ in xrange(self.num_candidates - n)])
         self.num_query += 1
         self.search_time += (time.time() - start_time)
         return results
