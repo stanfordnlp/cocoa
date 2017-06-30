@@ -5,7 +5,9 @@ Preprocess examples in a dataset and generate data for models.
 import random
 import re
 import time
+import os
 import numpy as np
+from src.basic.util import read_pickle, write_pickle
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
@@ -18,6 +20,8 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
+    parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD'])
 markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>')
@@ -601,18 +605,23 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
-
-        # NOTE: each dialogue is made into two examples from each agent's perspective
-        self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
 
         # Build retriever given training dialogues
         self.retriever = retriever
 
-        for fold, dialogues in self.dialogues.iteritems():
-            print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
+        self.cache = cache
+        self.ignore_cache = ignore_cache
+        if (not os.path.exists(cache)) or ignore_cache:
+            # NOTE: each dialogue is made into two examples from each agent's perspective
+            self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
+
+            for fold, dialogues in self.dialogues.iteritems():
+                print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
+        else:
+            print 'Using cached data from', cache
 
         if not mappings:
             mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
@@ -656,19 +665,31 @@ class DataGenerator(object):
         return responses
 
     def generator(self, name, batch_size, shuffle=True):
-        dialogues = self.dialogues[name]
+        if not os.path.isdir(self.cache):
+            os.makedirs(self.cache)
+        cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
+        if (not os.path.exists(cache_file)) or self.ignore_cache:
+            dialogues = self.dialogues[name]
 
-        # TODO: retrieve candidate for each dialogue, get candidate with get_token_turns
-        if self.retriever is not None:
+            if self.retriever is not None:
+                for dialogue in dialogues:
+                    dialogue.retrieve_candidates(self.retriever)
+                self.retriever.report_search_time()
+
             for dialogue in dialogues:
-                # TODO: num of candidates
-                dialogue.retrieve_candidates(self.retriever)
-            self.retriever.report_search_time()
+                dialogue.convert_to_int()
 
-        for dialogue in dialogues:
-            dialogue.convert_to_int()
+            dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
+            print 'Write batches to cache:', cache_file
+            start_time = time.time()
+            write_pickle(dialogue_batches, cache_file)
+            print '[%d s]' % (time.time() - start_time)
+        else:
+            print 'Read batches from cache:', cache_file
+            start_time = time.time()
+            dialogue_batches = read_pickle(cache_file)
+            print '[%d s]' % (time.time() - start_time)
 
-        dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
         while True:
