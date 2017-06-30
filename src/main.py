@@ -134,5 +134,5 @@ if __name__ == '__main__':
             sess.close()
     else:
         evaluator = get_evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
-        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional)
+        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, unconditional=args.unconditional, sample_targets=args.sample_targets)
         learner.learn(args, config, args.stats_file, ckpt)

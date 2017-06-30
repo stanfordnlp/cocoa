@@ -17,6 +17,7 @@ def memory():
 def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
     parser.add_argument('--unconditional', action='store_true', help='Do not pass final state to next batch')
+    parser.add_argument('--sample-targets', action='store_true', help='Sample targets from candidates')
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--min-epochs', type=int, default=10, help='Number of training epochs to run before checking for early stop')

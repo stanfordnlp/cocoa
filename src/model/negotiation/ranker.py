@@ -68,11 +68,9 @@ class EncDecRanker(BaseRanker):
                 }
         return kwargs
 
-    def select(self, batch, encoder_init_state):
-        token_candidates = batch['token_candidates']
+    def score(self, batch, encoder_init_state, kwargs):
         candidates = batch['candidates']
         batch_size, num_candidate, _ = candidates.shape
-        kwargs = self._get_feed_dict_args(batch, encoder_init_state)
         candidates_loss = np.zeros([batch_size, num_candidate])  # (batch_size, num_candidates)
         for i in xrange(num_candidate):
             candidate = candidates[:, i, :]  # (batch_size, seq_len)
@@ -81,8 +79,10 @@ class EncDecRanker(BaseRanker):
             feed_dict = self.model.get_feed_dict(**kwargs)
             batch_loss = self.sess.run(self.model.seq_loss, feed_dict=feed_dict)
             candidates_loss[:, i] = batch_loss
-        #best_candidates = np.argmax(-1. * candidates_loss, axis=1)
+        return candidates_loss
 
+    def sample_candidates(self, candidates_loss):
+        batch_size, num_candidate = candidates_loss.shape
         exp_x = np.exp(-1. * candidates_loss)
         probs = exp_x / np.sum(exp_x, axis=1, keepdims=True)
         best_candidates = []
@@ -91,7 +91,16 @@ class EncDecRanker(BaseRanker):
                 best_candidates.append(np.random.choice(num_candidate, 1, p=probs[i])[0])
             except ValueError:
                 best_candidates.append(np.argmax(probs[i]))
+        return best_candidates
 
+    def select(self, batch, encoder_init_state):
+        token_candidates = batch['token_candidates']
+        kwargs = self._get_feed_dict_args(batch, encoder_init_state)
+
+        candidates_loss = self.score(batch, encoder_init_state, kwargs)
+
+        #best_candidates = np.argmax(-1. * candidates_loss, axis=1)
+        best_candidates = self.sample_candidates(candidates_loss)
 
         responses = [token_candidates[i][j] if j < len(token_candidates[i]) else []
                 for i, j in enumerate(best_candidates)]

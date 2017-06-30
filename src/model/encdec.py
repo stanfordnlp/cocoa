@@ -306,26 +306,6 @@ class BasicDecoder(BasicEncoder):
 
         return cls._mask_loss(loss, targets, pad, batch_size)
 
-
-        batch_size = tf.shape(logits)[0]
-        num_symbols = tf.shape(logits)[2]
-        # sparse_softmax_cross_entropy_with_logits only takes 2D tensors
-        logits = tf.reshape(logits, [-1, num_symbols])
-        targets = tf.reshape(targets, [-1])
-
-        # Mask padded tokens
-        token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=targets) * token_weights
-        total_loss = tf.reduce_sum(loss)
-        token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
-        # Average over words in each sequence (batch_size, 1)
-        seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
-
-        # Average over sequences (1,)
-        loss = tf.reduce_sum(seq_loss) / tf.to_float(batch_size)
-        # total_loss is used to compute perplexity
-        return loss, seq_loss, (total_loss, tf.reduce_sum(token_weights))
-
     def pred_to_input(self, preds, **kwargs):
         '''
         Convert predictions to input of the next decoding step.
