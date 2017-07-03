@@ -20,7 +20,7 @@ class DialogueSchema(SchemaClass):
     role = ID #(stored=True)
     category = ID #(stored=True)
     title = TEXT
-    context = TEXT
+    context = TEXT(stored=True)
     response = STORED
 
 class Retriever(object):
@@ -66,6 +66,41 @@ class Retriever(object):
         else:
             tokens = ['_price_' if is_entity(x) else x for x in turn]
         return ' '.join(tokens)
+
+    def retrieve_candidates(self, dialogue, json_dict=False):
+        '''
+        dialogue: a Dialogue object
+        json_dict: if True, return a list of dictionary containing kb, context etc.;
+            otherwise just a list of candidates corresponding to each turn.
+            NOTE: candidates are only available to 'agent speaking' turns.
+        return a candidate list for each 'decoding' turn.
+        '''
+        prev_turns = []
+        category = dialogue.kb.facts['item']['Category']
+        title = dialogue.kb.facts['item']['Title']
+        role = dialogue.role
+        results = []
+        for turn_id, (agent, turn) in enumerate(izip(dialogue.agents, dialogue.token_turns)):
+            if agent != dialogue.agent:
+                candidates = [[] for _ in xrange(self.num_candidates)]
+            else:
+                candidates = self.search(role, category, title, prev_turns)
+            if json_dict:
+                to_tuple = lambda x: tuple(x) if is_entity(x) else x
+                r = {
+                        'uuid': dialogue.uuid,
+                        'kb': dialogue.kb.to_dict(),
+                        'agent': agent,
+                        'turn_id': turn_id,
+                        'prev_turns': [[to_tuple(x) for x in turn] for turn in prev_turns],
+                        'target': [to_tuple(x) for x in turn],
+                        'candidates': None if agent != dialogue.agent else candidates,
+                        }
+            else:
+                r = candidates
+            results.append(r)
+            prev_turns.append(turn)
+        return results
 
     def dialogue_to_docs(self, d, context_size):
         '''
@@ -116,13 +151,16 @@ class Retriever(object):
         filter_query = And([Term('role', unicode(role)), Term('category', unicode(category))])
         start_time = time.time()
         with self.ix.searcher() as searcher:
-            results = searcher.search(query, filter=filter_query, limit=self.num_candidates)
+            results = searcher.search(query, filter=filter_query, limit=self.num_candidates, terms=True)
             # One more try
             if len(results) == 0:
                 query = self.get_query(prev_turns[-1*(self.context_size+1):])
-                results = searcher.search(query, filter=filter_query, limit=self.num_candidates)
-            #results = [(r['role'], r['category'], r['response']) for r in results]
-            results = [r['response'] for r in results]
+                results = searcher.search(query, filter=filter_query, limit=self.num_candidates, terms=True)
+
+            results = [{'response': r['response'],
+                        'context': r['context'],
+                        'hits': [x[1] for x in r.matched_terms()],
+                        } for r in results]
         n = len(results)
         if n == 0:
             self.num_empty += 1
@@ -147,11 +185,13 @@ if __name__ == '__main__':
     from src.basic.scenario_db import add_scenario_arguments
     from src.basic.schema import Schema
     from src.model.negotiation.preprocess import Preprocessor, markers
+    from src.basic.util import write_json
     import argparse
     import time
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
+    parser.add_argument('--retriever-output', help='Output path of json file containing retrieved candidates of test examples')
     add_dataset_arguments(parser)
     add_retriever_arguments(parser)
     args = parser.parse_args()
@@ -161,15 +201,25 @@ if __name__ == '__main__':
     schema = Schema(args.schema_path)
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
-    dialogues = preprocessor.preprocess(dataset.train_examples)
 
     retriever = Retriever(args.index, context_size=args.retriever_context_len, rewrite=args.rewrite_index)
     if not retriever.loaded_index:
-        print 'Building index'
+        dialogues = preprocessor.preprocess(dataset.train_examples)
+        print 'Building index from %s' % ','.join(args.train_examples_paths)
         start_time = time.time()
         retriever.build_index(dialogues)
         print '[%d s]' % (time.time() - start_time)
 
+    # Write a json file of all the candidates
+    if args.test_examples_paths and args.retriever_output:
+        dialogues = preprocessor.preprocess(dataset.test_examples)
+        print 'Retrieving candidates for %s' % ','.join(args.test_examples_paths)
+        start_time = time.time()
+        results = []
+        for dialogue in dialogues:
+            results.extend(retriever.retrieve_candidates(dialogue, json_dict=True))
+        print '[%d s]' % (time.time() - start_time)
+        write_json(results, args.retriever_output)
 
     #prev_turns = ["</s>".split()]
     #results = retriever.search('buyer', 'bike', '', prev_turns)
