@@ -23,7 +23,6 @@ if __name__ == '__main__':
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
-    parser.add_argument('--domain', type=str, choices=['MutualFriends', 'Matchmaking'])
     add_data_generator_arguments(parser)
     add_model_arguments(parser)
     add_learner_arguments(parser)
@@ -79,7 +78,7 @@ if __name__ == '__main__':
         print 'Load vocab from', vocab_path
         mappings = read_pickle(vocab_path)
 
-    schema = Schema(model_args.schema_path, model_args.domain)
+    schema = Schema(model_args.schema_path, None)
 
     data_generator = get_data_generator(args, model_args, mappings, schema)
 
