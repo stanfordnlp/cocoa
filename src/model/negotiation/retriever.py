@@ -6,8 +6,10 @@ from whoosh.fields import SchemaClass, TEXT, STORED, ID
 from whoosh import index
 from whoosh.qparser import QueryParser, OrGroup
 from whoosh.query import Term, And
-from src.basic.entity import is_entity
+from src.basic.entity import is_entity, Entity, CanonicalEntity
+from src.basic.util import read_json
 from preprocess import markers
+from collections import defaultdict
 
 def add_retriever_arguments(parser):
     parser.add_argument('--retrieve', action='store_true', help='Use retrieval-based method')
@@ -51,6 +53,7 @@ class Retriever(object):
         self.parser = QueryParser('context', schema=self.ix.schema, group=OrGroup.factory(0.9))
 
         self.num_candidates = num_candidates
+        self.empty_candidates = [[] for _ in xrange(self.num_candidates)]
 
         self.search_time = 0.
         self.num_query = 0.
@@ -82,19 +85,19 @@ class Retriever(object):
         results = []
         for turn_id, (agent, turn) in enumerate(izip(dialogue.agents, dialogue.token_turns)):
             if agent != dialogue.agent:
-                candidates = [[] for _ in xrange(self.num_candidates)]
+                candidates = None
             else:
                 candidates = self.search(role, category, title, prev_turns)
             if json_dict:
-                to_tuple = lambda x: tuple(x) if is_entity(x) else x
                 r = {
                         'uuid': dialogue.uuid,
+                        'role': dialogue.role,
                         'kb': dialogue.kb.to_dict(),
                         'agent': agent,
                         'turn_id': turn_id,
-                        'prev_turns': [[to_tuple(x) for x in turn] for turn in prev_turns],
-                        'target': [to_tuple(x) for x in turn],
-                        'candidates': None if agent != dialogue.agent else candidates,
+                        'prev_turns': prev_turns,
+                        'target': turn,
+                        'candidates': candidates,
                         }
             else:
                 r = candidates
@@ -165,7 +168,7 @@ class Retriever(object):
         if n == 0:
             self.num_empty += 1
         if n < self.num_candidates:
-            results.extend([[] for _ in xrange(self.num_candidates - n)])
+            results.extend([{} for _ in xrange(self.num_candidates - n)])
         self.num_query += 1
         self.search_time += (time.time() - start_time)
         return results
@@ -177,6 +180,22 @@ class Retriever(object):
             time = self.search_time / self.num_query
         print 'Average search time per query: [%f s]' % time
         print 'Number of empty result:', self.num_empty
+
+    def load_candidates(self, paths):
+        candidates = defaultdict(list)
+        # When dumped to json, NamedTuple becomes list. Now convert it back.
+        to_ent = lambda x: x if isinstance(x, basestring) else Entity(x[0], CanonicalEntity(*x[1]))
+        for path in paths:
+            print 'Load candidates from', path
+            results = read_json(path)
+            for r in results:
+                # r['candidates']: num_candidates responses for each turn
+                if r['candidates'] is not None:
+                    for c in r['candidates']:
+                        if 'response' in c:
+                            c['response'] = [to_ent(x) for x in c['response']]
+                candidates[(r['uuid'], r['role'])].append(r['candidates'])
+        return candidates
 
 
 if __name__ == '__main__':

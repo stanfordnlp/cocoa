@@ -7,7 +7,7 @@ import re
 import time
 import os
 import numpy as np
-from src.basic.util import read_pickle, write_pickle
+from src.basic.util import read_pickle, write_pickle, read_json
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
 from itertools import chain, izip
@@ -15,11 +15,13 @@ from collections import namedtuple, defaultdict, deque
 import copy
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler
 from src.basic.negotiation.tokenizer import tokenize
+from src.lib.bleu import compute_bleu
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
+    parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
     parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
 
@@ -122,6 +124,7 @@ class Dialogue(object):
     DEC = 1
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
+    num_candidates = None
 
     def __init__(self, agent, kb, uuid):
         '''
@@ -148,32 +151,8 @@ class Dialogue(object):
         self.flattened = False
         self.token_candidates = None
         self.candidates = None
-        self.num_candidates = None
 
-    def retrieve_candidates(self, retriever):
-        self.num_candidates = retriever.num_candidates
-        candidates = []
-        prev_turns = []
-        category = self.kb.facts['item']['Category']
-        title = self.kb.facts['item']['Title']
-        role = self.role
-        assert len(self.agents) == len(self.token_turns)
-        start_time = time.time()
-        n = 0
-        for agent, turn in izip(self.agents, self.token_turns):
-            if agent != self.agent:
-                candidates.append([[] for _ in xrange(self.num_candidates)])
-            else:
-                n += 1
-                candidates.append(retriever.search(role, category, title, prev_turns))
-                #print 'CONTEXT:', role
-                #for t in prev_turns:
-                #    print t
-                #print 'CANDIDATES:'
-                #for c in candidates[-1]:
-                #    print c
-
-            prev_turns.append(turn)
+    def add_candidates(self, candidates):
         assert len(candidates) == len(self.token_turns)
         self.token_candidates = candidates
 
@@ -218,7 +197,8 @@ class Dialogue(object):
         if self.token_candidates:
             self.candidates = []
             for turn_candidates in self.token_candidates:
-                self.candidates.append([self.textint_map.text_to_int(c, 'decoding') for c in turn_candidates])
+                c = [self.textint_map.text_to_int(c['response'], 'decoding') if 'response' in c else [] for c in turn_candidates]
+                self.candidates.append(c)
 
         self.price_turns = self.get_price_turns(int_markers.PAD)
         self.category = self.mappings['cat_vocab'].to_ind(self.category)
@@ -409,6 +389,29 @@ class DialogueBatch(object):
                     break
         return array
 
+    def pick_helpers(self, token_candidates, candidates):
+        helpers = []
+        for b, cands in enumerate(token_candidates):
+            best_score = 0
+            helper_id = -1
+            print cands
+            for i, cand in enumerate(cands):
+                if cand == []:
+                    continue
+                print cand
+                cand = cand['response']
+                if i == 0:
+                    target = cand
+                else:
+                    score = compute_bleu(cand, target)
+                    if score > best_score:
+                        best_score = score
+                        helper_id = i
+            if helper_id == -1:
+                helper_id = 0
+            helpers.append(candidates[b][helper_id])
+        return np.array(helpers)
+
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
         if encode_turn is not None:
             # Remove <go> at the beginning of utterance
@@ -428,6 +431,8 @@ class DialogueBatch(object):
 
         decoder_targets = target_turn[:, 1:]
 
+        helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
+
         # TODO: group these
         batch = {
                  'encoder_inputs': encoder_inputs,
@@ -440,6 +445,7 @@ class DialogueBatch(object):
                  'decoder_tokens': decode_tokens,
                  'token_candidates': token_candidates,
                  'candidates': candidates,
+                 'helpers': helpers,
                  'agents': agents,
                  'kbs': kbs,
                  'context': context_batch,
@@ -605,12 +611,14 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[]):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
         # Build retriever given training dialogues
         self.retriever = retriever
+        self.cached_candidates = self.retriever.load_candidates(candidates_path)
+        print 'Cached candidates for %d dialogues' % len(self.cached_candidates)
 
         self.cache = cache
         self.ignore_cache = ignore_cache
@@ -672,8 +680,17 @@ class DataGenerator(object):
             dialogues = self.dialogues[name]
 
             if self.retriever is not None:
+                Dialogue.num_candidates = self.retriever.num_candidates
                 for dialogue in dialogues:
-                    dialogue.retrieve_candidates(self.retriever)
+                    k = (dialogue.uuid, dialogue.role)
+                    # candidates: list of list containing num_candidates responses for each turn of the dialogue
+                    # None candidates means that it is not the agent's speaking turn
+                    try:
+                        candidates = self.cached_candidates[k]
+                    except KeyError:
+                        candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
+                    candidates = [c if c else self.retriever.empty_candidates for c in candidates]
+                    dialogue.add_candidates(candidates)
                 self.retriever.report_search_time()
 
             for dialogue in dialogues:
