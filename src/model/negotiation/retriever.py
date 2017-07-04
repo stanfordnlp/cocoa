@@ -221,7 +221,7 @@ if __name__ == '__main__':
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
 
-    retriever = Retriever(args.index, context_size=args.retriever_context_len, rewrite=args.rewrite_index)
+    retriever = Retriever(args.index, context_size=args.retriever_context_len, rewrite=args.rewrite_index, num_candidates=args.num_candidates)
     if not retriever.loaded_index:
         dialogues = preprocessor.preprocess(dataset.train_examples)
         print 'Building index from %s' % ','.join(args.train_examples_paths)
