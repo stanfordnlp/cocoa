@@ -394,21 +394,25 @@ class DialogueBatch(object):
         for b, cands in enumerate(token_candidates):
             best_score = 0
             helper_id = -1
-            print cands
             for i, cand in enumerate(cands):
-                if cand == []:
+                try:
+                    cand = cand['response']
+                # Actual number of candidates can be smaller than num_candidates,
+                # in which case an empty dict is returned instead
+                except KeyError:
                     continue
-                print cand
-                cand = cand['response']
                 if i == 0:
                     target = cand
+                    #print 'TARGET:', target
                 else:
                     score = compute_bleu(cand, target)
+                    #print 'CANDIDATE:', score, cand
                     if score > best_score:
                         best_score = score
                         helper_id = i
             if helper_id == -1:
                 helper_id = 0
+            #print 'HELPER:', helper_id, cands[helper_id]['response']
             helpers.append(candidates[b][helper_id])
         return np.array(helpers)
 
@@ -432,6 +436,7 @@ class DialogueBatch(object):
         decoder_targets = target_turn[:, 1:]
 
         helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
+        context_batch['helper'] = helpers
 
         # TODO: group these
         batch = {
@@ -536,7 +541,7 @@ class Preprocessor(object):
         '''
         kbs = ex.scenario.kbs
         for agent in (0, 1):
-            dialogue = Dialogue(agent, kbs[agent], ex.uuid)
+            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
             mentioned_entities = set()
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.agent, dialogue.kb, mentioned_entities)
@@ -617,12 +622,14 @@ class DataGenerator(object):
 
         # Build retriever given training dialogues
         self.retriever = retriever
-        self.cached_candidates = self.retriever.load_candidates(candidates_path)
-        print 'Cached candidates for %d dialogues' % len(self.cached_candidates)
 
         self.cache = cache
         self.ignore_cache = ignore_cache
         if (not os.path.exists(cache)) or ignore_cache:
+            if retriever is not None:
+                self.cached_candidates = self.retriever.load_candidates(candidates_path)
+                print 'Cached candidates for %d dialogues' % len(self.cached_candidates)
+
             # NOTE: each dialogue is made into two examples from each agent's perspective
             self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
 
