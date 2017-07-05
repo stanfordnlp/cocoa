@@ -19,6 +19,7 @@ class ContextEmbedder(object):
             self.category = tf.placeholder(tf.int32, shape=[None], name='category')  # (batch_size,)
             self.title = tf.placeholder(tf.int32, shape=[None, None], name='title')  # (batch_size, title_len)
             self.description = tf.placeholder(tf.int32, shape=[None, None], name='description')  # (batch_size, description_len)
+            self.helper = tf.placeholder(tf.int32, shape=[None, None], name='helper')  # (batch_size, helper_len)
 
     def one_hot_embed(self, inputs, size):
         return tf.one_hot(inputs, size, on_value=1, off_value=0)
@@ -39,11 +40,13 @@ class ContextEmbedder(object):
         category_embedding = tf.to_float(self.one_hot_embed(self.category, self.category_size))
         title_embedding = self._embed_seq(self.title, step)
         description_embedding = self._embed_seq(self.description, step)
+        helper_embedding = self._embed_seq(self.helper, step)
         # embeddings: (batch_size, embed_size)
         embeddings = {
                 'category': category_embedding,
                 'title': title_embedding,
                 'description': description_embedding,
+                'helper': helper_embedding,
                 }
         if context is None:
             return embeddings
@@ -54,4 +57,5 @@ class ContextEmbedder(object):
         feed_dict[self.category] = kwargs.pop('category')
         feed_dict[self.title] = kwargs.pop('title')
         feed_dict[self.description] = kwargs.pop('description')
+        feed_dict[self.helper] = kwargs.pop('helper')
         return feed_dict

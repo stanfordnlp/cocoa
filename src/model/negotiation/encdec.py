@@ -133,11 +133,11 @@ class AttentionDecoder(BasicDecoder):
     '''
     Attend to encoder embeddings and/or context.
     '''
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None, memory=('encoder',)):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None):
         assert isinstance(seq_embedder, AttentionRNNEmbedder)
         super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
         self.context_embedder = context_embedder
-        self.context_embedding = self.context_embedder.embed(context=('title', 'description'), step=True)  # (batch_size, context_len, embed_size)
+        self.context_embedding = self.context_embedder.embed(context=('helper',), step=True)  # (batch_size, context_len, embed_size)
 
     def get_encoder_state(self, state):
         return state.cell_state
@@ -146,7 +146,7 @@ class AttentionDecoder(BasicDecoder):
         inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(input_dict)
         encoder_outputs = input_dict['encoder_embeddings']
         self.feedable_vars['encoder_outputs'] = encoder_outputs
-        attention_memory = transpose_first_two_dims(encoder_outputs)  # (batch_size, seq_len, embed_size)
+        #attention_memory = transpose_first_two_dims(encoder_outputs)  # (batch_size, seq_len, embed_size)
         attention_memory = self.context_embedding
         # TODO: attention mask
         kwargs['attention_memory'] = attention_memory
