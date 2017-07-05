@@ -21,7 +21,7 @@ class RandomRanker(BaseRanker):
 
     @classmethod
     def select(cls, batch):
-        responses = [c[0] if len(c) > 0 else [] for c in batch['token_candidates']]
+        responses = [c[0].get('response', []) if len(c) > 0 else [] for c in batch['token_candidates']]
         return responses
 
 class CheatRanker(BaseRanker):
@@ -38,7 +38,7 @@ class CheatRanker(BaseRanker):
             if not len(target) > 0:
                 response = []
             else:
-                scores = [compute_bleu(r, target) for r in c]
+                scores = [compute_bleu(r.get('response', []), target) for r in c]
                 if len(scores) == 0:
                     response = []
                 else:
@@ -68,10 +68,12 @@ class EncDecRanker(BaseRanker):
                 }
         return kwargs
 
-    def score(self, batch, encoder_init_state, kwargs):
+    def score(self, batch, encoder_init_state, kwargs=None):
         candidates = batch['candidates']
         batch_size, num_candidate, _ = candidates.shape
         candidates_loss = np.zeros([batch_size, num_candidate])  # (batch_size, num_candidates)
+        if kwargs is None:
+            kwargs = self._get_feed_dict_args(batch, encoder_init_state)
         for i in xrange(num_candidate):
             candidate = candidates[:, i, :]  # (batch_size, seq_len)
             kwargs['decoder']['inputs'] = candidate[:, :-1]
@@ -98,11 +100,17 @@ class EncDecRanker(BaseRanker):
         kwargs = self._get_feed_dict_args(batch, encoder_init_state)
 
         candidates_loss = self.score(batch, encoder_init_state, kwargs)
+        # Never choose empty ones
+        for b, candidates in enumerate(token_candidates):
+            for i, cand in enumerate(candidates):
+                if 'response' not in cand:
+                    candidates_loss[b][i] = -10.
 
         #best_candidates = np.argmax(-1. * candidates_loss, axis=1)
         best_candidates = self.sample_candidates(candidates_loss)
 
-        responses = [token_candidates[i][j] if j < len(token_candidates[i]) else []
+        responses = [token_candidates[i][j]['response']
+                if j < len(token_candidates[i]) and 'response' in token_candidates[i][j] else []
                 for i, j in enumerate(best_candidates)]
 
         # Decoder the true utterance to get the state
