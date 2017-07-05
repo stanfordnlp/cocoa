@@ -107,13 +107,12 @@ def build_model(schema, mappings, args):
 
     if args.model == 'encdec' or args.ranker == 'encdec':
         encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
-        if args.context is not None:
+        if args.decoder == 'rnn':
+            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+        elif args.decoder == 'rnn-ctxt':
             decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         else:
-            if args.decoder == 'rnn':
-                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-            else:
-                decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
