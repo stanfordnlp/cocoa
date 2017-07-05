@@ -239,7 +239,11 @@ class EncDecRetrievalEvaluator(Evaluator):
             print 'IR:', to_str(output_dict['IR_responses'][i])
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
-                print to_str(c)
+                if c == {}:
+                    print 'null'
+                else:
+                    print 'Hits:', c['hits']
+                    print 'Response:', to_str(c['response'])
 
 
 
