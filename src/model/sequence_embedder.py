@@ -234,13 +234,14 @@ class AttentionRNNEmbedder(RNNEmbedder):
         return init_state
 
     def _build_rnn_cell(self, input_size, **kwargs):
+        attention_size = self.embed_size
+        input_size += attention_size
         cell = super(AttentionRNNEmbedder, self)._build_rnn_cell(input_size, **kwargs)
         memory = kwargs['attention_memory']  # (batch_size, mem_len, mem_size)
         mask = kwargs.get('attention_mask', None)  # (batch_size, mem_len)
-        attention_size = self.embed_size
         if not (isinstance(memory, list) or isinstance(memory, tuple)):
             memory_len = self._mask_to_memory_len(mask)
-            attention_mechanism = LuongAttention(self.embed_size, memory, memory_len)
+            attention_mechanism = BahdanauAttention(self.embed_size, memory, memory_len)
             cell = AttentionWrapper(cell, attention_mechanism, attention_size)
         else:
             if mask is not None:
