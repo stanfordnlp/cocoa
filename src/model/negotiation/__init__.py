@@ -54,7 +54,7 @@ def build_model(schema, mappings, args):
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
     from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM
-    from ranker import RandomRanker, CheatRanker, EncDecRanker
+    from ranker import IRRanker, CheatRanker, EncDecRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -125,8 +125,8 @@ def build_model(schema, mappings, args):
 
     if args.ranker == 'cheat':
         model = CheatRanker()
-    if args.ranker == 'random':
-        model = RandomRanker()
+    if args.ranker == 'ir':
+        model = IRRanker()
     elif args.ranker == 'encdec':
         model = EncDecRanker(model)
 

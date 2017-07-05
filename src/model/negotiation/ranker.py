@@ -14,10 +14,10 @@ class BaseRanker(object):
     def select(self, batch):
         raise NotImplementedError
 
-class RandomRanker(BaseRanker):
+class IRRanker(BaseRanker):
     def __init__(self):
-        super(RandomRanker, self).__init__()
-        self.name = 'ranker-random'
+        super(IRRanker, self).__init__()
+        self.name = 'ranker-ir'
 
     @classmethod
     def select(cls, batch):
@@ -123,7 +123,7 @@ class EncDecRanker(BaseRanker):
                 'responses': responses,
                 'true_final_state': true_final_state,
                 'cheat_responses': CheatRanker.select(batch),
-                'IR_responses': RandomRanker.select(batch),
+                'IR_responses': IRRanker.select(batch),
                 'candidates': token_candidates,
                 }
 
