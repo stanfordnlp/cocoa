@@ -22,3 +22,10 @@ train-neg:
 
 test-neg:
 	PYTHONPATH=. python src/main.py --schema-path data/$(data)/craigslist-schema.json --test-examples-paths data/$(data)/dev.json --train-examples-paths data/$(data)/train.json --print-every $(print) --gpu $(gpu) --batch-size $(batch_size) --test --stats-file $(stats_file).test --verbose --mappings $(mappings) --best --model encdec --init-from $(checkpoint) #--test-max-examples 4 
+
+index:
+	PYTHONPATH=. python src/model/negotiation/retriever.py --schema-path data/$(data)/craigslist-schema.json --train-examples-paths data/$(data)/train.json --index /scr/hehe/game-dialogue/index --retriever-context-len 2 --rewrite-index 
+
+split=dev
+retrieve:
+	PYTHONPATH=. python src/model/negotiation/retriever.py --schema-path data/$(data)/craigslist-schema.json --test-examples-paths data/$(data)/$(split).json --index /scr/hehe/game-dialogue/index --retriever-context-len 2 --retriever-output /scr/hehe/game-dialogue/$(split)_candidates.json --num-candidates 20 #--test-max-examples 4
