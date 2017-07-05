@@ -2,10 +2,11 @@ import numpy as np
 from src.lib import logstats
 from src.model.learner import BaseLearner
 from src.model.negotiation.ranker import EncDecRanker
+from src.lib.bleu import compute_bleu
 
 def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, unconditional=False, sample_targets=False):
     if sample_targets:
-        return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+        return PseudoTargetLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
     #if model.name == 'ranker':
     #    return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
     else:
@@ -80,28 +81,22 @@ class Learner(BaseLearner):
                 logstats.update_summary_map(summary_map, {'loss': results['loss']})
                 logstats.update_summary_map(summary_map, {'grad_norm': results['gn']})
 
-class RetrievalLearner(Learner):
+class PseudoTargetLearner(Learner):
     def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
-        super(RetrievalLearner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)
+        super(PseudoTargetLearner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)
         self.ranker = EncDecRanker(model)
 
-    def _run_batch(self, dialogue_batch, sess, summary_map, test=False):
-        '''
-        Run truncated RNN through a sequence of batch examples.
-        '''
-        self.ranker.set_tf_session(sess)
-        # TODO: put price_history into encoder/decoder_state
-        encoder_init_state = None
-        for batch in dialogue_batch['batch_seq']:
-            # Sample a target
+    def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None):
+        # Sample a target
+        if not self.test:
             candidates = batch['candidates']
             candidates_loss = self.ranker.score(batch, encoder_init_state)  # (batch_size, num_candidates)
             best_candidates = self.ranker.sample_candidates(candidates_loss)
-            for i, c in enumerate(best_candidates):
-                print 'TARGET:'
-                print batch['decoder_tokens'][i]
-                print 'CANDIDATE:'
-                print batch['token_candidates'][i][c]
+            #for i, c in enumerate(best_candidates):
+            #    print 'TARGET:'
+            #    print batch['decoder_tokens'][i]
+            #    print 'CANDIDATE TARGET:'
+            #    print batch['token_candidates'][i][c]['response']
 
             batch_size, _, seq_len = candidates.shape
             new_targets = np.zeros([batch_size, seq_len])
@@ -111,36 +106,16 @@ class RetrievalLearner(Learner):
             new_batch = dict(batch)
             new_batch['decoder_inputs'] = new_targets[:, :-1]
             new_batch['targets'] = new_targets[:, 1:]
+        else:
+            new_batch = batch
 
-            feed_dict = self._get_feed_dict(new_batch, encoder_init_state)
-            fetches = {
-                    'logits': self.model.decoder.output_dict['logits'],
-                    'loss': self.model.loss,
-                    'seq_loss': self.model.seq_loss,
-                    }
-            if not test:
-                fetches['train_op'] = self.train_op
-                fetches['gn'] = self.grad_norm
-            else:
-                fetches['total_loss'] = self.model.total_loss
-            if not self.unconditional:
-                fetches['final_state'] = self.model.final_state
+        return super(PseudoTargetLearner, self)._get_feed_dict(new_batch, encoder_init_state, init_price_history)
 
-            results = sess.run(fetches, feed_dict=feed_dict)
-
-            if not self.unconditional:
-                encoder_init_state = results['final_state']
-            else:
-                encoder_init_state = None
-
-            if self.verbose:
-                preds = np.argmax(results['logits'], axis=2)
-                self._print_batch(batch, preds, results['seq_loss'])
-
-            if test:
-                total_loss = results['total_loss']
-                logstats.update_summary_map(summary_map, {'total_loss': total_loss[0], 'num_tokens': total_loss[1]})
-            else:
-                logstats.update_summary_map(summary_map, {'loss': results['loss']})
-                logstats.update_summary_map(summary_map, {'grad_norm': results['gn']})
+    def _run_batch(self, dialogue_batch, sess, summary_map, test=False):
+        '''
+        Run truncated RNN through a sequence of batch examples.
+        '''
+        self.ranker.set_tf_session(sess)
+        self.test = test
+        super(PseudoTargetLearner, self)._run_batch(dialogue_batch, sess, summary_map, test)
 
