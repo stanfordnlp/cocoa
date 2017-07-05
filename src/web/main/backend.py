@@ -361,6 +361,13 @@ class BaseBackend(object):
         if partner_id is not None and not self.is_user_partner_bot(cursor, userid):
             self.user_finished(cursor, partner_id, message)
 
+    def end_chat_and_redirect(self, cursor, userid, message):
+        self._end_chat(cursor, userid)
+        self._update_user(cursor, userid,
+                          status=Status.Redirected,
+                          connected_status=1,
+                          message=message)
+
     def end_chat_and_transition_to_waiting(self, cursor, userid, message, partner_id=None):
         self._end_chat(cursor, userid)
         self._update_user(cursor, userid,
@@ -524,6 +531,9 @@ class BaseBackend(object):
                 try:
                     u = self._get_user_info(cursor, userid, assumed_status=None)
                     self.logger.debug("Got updated status {:s} for user {:s}".format(u.status, userid))
+                    if u.status == Status.Redirected:
+                        self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
+                        return Status.Waiting
                     return u.status
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
                     # Handle timeouts by performing the relevant update
@@ -538,6 +548,9 @@ class BaseBackend(object):
                         else:
                             self._stop_waiting_and_transition_to_finished(cursor, userid)
                             return Status.Finished
+                    elif u.status == Status.Redirected:
+                        self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
+                        return Status.Waiting
 
                     elif u.status == Status.Chat:
                         if isinstance(e, ConnectionTimeoutException):
@@ -546,7 +559,7 @@ class BaseBackend(object):
                             message = Messages.ChatExpired
 
                         self.logger.debug("User {:s} chat status expired, redirecting to waiting".format(userid))
-                        self.end_chat_and_transition_to_waiting(cursor, userid, message=message)
+                        self.end_chat_and_redirect(cursor, userid, message=message)
                         return Status.Waiting
 
                     elif u.status == Status.Finished:
@@ -592,7 +605,7 @@ class BaseBackend(object):
                     except UnexpectedStatusException:
                         self.logger.debug("User {:s}: Partner not in chat status, redirecting to "
                                           "waiting".format(userid))
-                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
+                        self.end_chat_and_redirect(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
                         self.timeout_chat_and_finish(cursor, userid,
@@ -601,8 +614,8 @@ class BaseBackend(object):
                         # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
-                        self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                                message=Messages.PartnerConnectionTimeout)
+                        self.end_chat_and_redirect(cursor, userid,
+                                                   message=Messages.PartnerConnectionTimeout)
                         self.logger.debug("User {:s}: Partner connection timed out, redirecting to "
                                           "waiting".format(userid))
                         return False
@@ -817,10 +830,9 @@ class NegotiationBackend(BaseBackend):
         if game_over:
             if self.should_reject_chat(userid, 1-agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}),"
-                                  " and redirecting to "
-                                  "waiting".format(controller.get_chat_id(), userid, 1-agent_idx))
-                self.end_chat_and_transition_to_waiting(cursor, partner_id,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                                  " and redirecting ".format(controller.get_chat_id(), userid, 1-agent_idx))
+                self.end_chat_and_redirect(cursor, partner_id,
+                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 if not self.is_user_partner_bot(cursor, userid):
                     partner_msg, _ = self.get_completion_messages(partner_id)
@@ -830,10 +842,10 @@ class NegotiationBackend(BaseBackend):
                     self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
 
             if self.should_reject_chat(userid, agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
-                                  "waiting".format(controller.get_chat_id(), userid, agent_idx))
-                self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and "
+                                  "redirecting".format(controller.get_chat_id(), userid, agent_idx))
+                self.end_chat_and_redirect(cursor, userid,
+                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 msg, _ = self.get_completion_messages(userid)
                 self.logger.debug("Accepted chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "

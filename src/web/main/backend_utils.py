@@ -9,6 +9,7 @@ class Status(object):
     Chat = "chat"
     Finished = "finished"
     Survey = "survey"
+    Redirected = "redirected"
 
 
 class UnexpectedStatusException(Exception):
