@@ -14,7 +14,10 @@
 
         "survey": {
 	        "num_seconds": -1
-	    }
+	    },
+	  	"redirected": {
+			"num_seconds": -1
+	  	}
     },
     "connection_timeout_num_seconds": 3,
   	"idle_timeout_num_seconds": 5,
