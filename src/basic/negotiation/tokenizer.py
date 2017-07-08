@@ -1,15 +1,35 @@
 from nltk.tokenize import word_tokenize
+import re
+
+def is_number(s):
+    if re.match(r'[.,0-9]+', s):
+        return True
+    else:
+        return False
 
 def stick_dollar_sign(tokens):
     '''
     '$', '1000' -> '$1000'
     '''
     new_tokens = []
-    for token in tokens:
-        if len(new_tokens) > 0 and new_tokens[-1] == '$':
-            new_tokens[-1] = '$%s' % token
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token == '$':
+            # $100
+            if i < len(tokens) - 1 and is_number(tokens[i+1]):
+                new_tokens.append(token + tokens[i+1])
+                i += 2
+            # 100$
+            elif i > 0 and is_number(tokens[i-1]):
+                new_tokens[-1] = new_tokens[-1] + token
+                i += 1
+            else:
+                new_tokens.append(token)
+                i += 1
         else:
             new_tokens.append(token)
+            i += 1
     return new_tokens
 
 def stick_marker_sign(tokens):
@@ -40,4 +60,8 @@ def tokenize(utterance):
     tokens = stick_dollar_sign(tokens)
     return tokens
 
+# ========= TEST ===========
+if __name__ == '__main__':
+    print tokenize("i have 10,000$!")
+    print tokenize("i haven't $10,000")
 
