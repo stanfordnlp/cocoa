@@ -1,5 +1,11 @@
 from src.basic.entity import Entity, CanonicalEntity
 import re
+from tokenizer import tokenize
+from src.basic.util import read_json, write_pickle, read_pickle
+from collections import defaultdict
+
+def add_price_tracker_arguments(parser):
+    parser.add_argument('--price-tracker-model', help='Path to price tracker model')
 
 class PriceScaler(object):
     @classmethod
@@ -68,6 +74,9 @@ class PriceScaler(object):
         return price._replace(canonical=price.canonical._replace(value=p))
 
 class PriceTracker(object):
+    def __init__(self, model_path):
+        self.model = read_pickle(model_path)
+
     @classmethod
     def get_price(cls, token):
         try:
@@ -88,31 +97,64 @@ class PriceTracker(object):
             pass
         return token
 
+    def is_price(self, left_context, right_context):
+        if left_context in self.model['left'] and right_context in self.model['right']:
+            return True
+        else:
+            return False
+
     def link_entity(self, raw_tokens, kb=None, partner_kb=None, mentioned_entities=None):
-        '''
-        Detect numbers:
-            ['how', 'about', '1000'] => ['how', 'about', ('1000', (1000, 'price'))]
-        '''
-        # We must know at least one KB
-        assert kb or partner_kb
+        tokens = ['<s>'] + raw_tokens + ['</s>']
         entity_tokens = []
-        N = len(raw_tokens)
-        for i, token in enumerate(raw_tokens):
+        for i in xrange(1, len(tokens)-1):
+            token = tokens[i]
             try:
                 number = float(self.process_string(token))
-                scaled_price = PriceScaler._scale_price(kb or partner_kb, number)
-                # NOTE: this should capture most non-price numbers
-                if scaled_price > 2 or scaled_price < -1:
-                    new_token = token
-                elif i + 1 < N and (\
-                        raw_tokens[i+1].startswith('mile') or\
-                        raw_tokens[i+1].startswith('year')\
-                        ):
-                    new_token = token
-                else:
-                    new_token = Entity(surface=token, canonical=CanonicalEntity(value=number, type='price'))
+                # Check context
+                if not (token[0] == '$' or token[-1] == '$') and \
+                        not self.is_price(tokens[i-1], tokens[i+1]):
+                    number = None
+                # PUNT: Check if the price is reasonable
+                #else:
+                #    scaled_price = PriceScaler._scale_price(kb or partner_kb, number)
+                #    if scaled_price > 5 or scaled_price < -3:
+                #        number = None
             except ValueError:
+                number = None
+            if number is None:
                 new_token = token
+            else:
+                new_token = Entity(surface=token, canonical=CanonicalEntity(value=number, type='price'))
             entity_tokens.append(new_token)
         return entity_tokens
 
+    @classmethod
+    def train(cls, examples, output_path=None):
+        '''
+        examples: json chats
+        Use "$xxx$ as ground truth, and record n-gram context before and after the price.
+        '''
+        context = {'left': defaultdict(int), 'right': defaultdict(int)}
+        for ex in examples:
+            for event in ex['events']:
+                if event['action'] == 'message':
+                    tokens = tokenize(event['data'])
+                    tokens = ['<s>'] + tokens + ['</s>']
+                    for i, token in enumerate(tokens):
+                        if token[0] == '$' or token[-1] == '$':
+                            context['left'][tokens[i-1]] += 1
+                            context['right'][tokens[i+1]] += 1
+        if output_path:
+            write_pickle(context, output_path)
+        return context
+
+if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train-examples-path', help='Path to training json file')
+    parser.add_argument('--output', help='Path to output model')
+    args = parser.parse_args()
+
+    examples = read_json(args.train_examples_path)
+    PriceTracker.train(examples, args.output)
