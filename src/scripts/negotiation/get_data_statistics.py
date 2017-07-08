@@ -6,7 +6,7 @@ from src.model.preprocess import tokenize
 import json
 import os
 from scipy import stats as scipy_stats
-from tf_idf import TfIdfCalculator, plot_top_tokens
+from tf_idf import *
 
 
 def get_dialogue_tokens(transcript):
@@ -179,17 +179,54 @@ def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiato
     statsfile.close()
 
 
+def tf_idf_by_category(transcripts):
+    top_features_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = group_chats_by_category(transcripts, agent_type)
+        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def tf_idf_by_winner(transcripts):
+    top_features_by_agent = []
+
+    for agent_type in args.agent_types:
+        grouped_chats = group_chats_by_winner(transcripts, agent_type)
+        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def tf_idf_by_role(transcripts):
+    top_features_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = group_chats_by_role(transcripts, agent_type)
+        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
     parser.add_argument('--agent-types', nargs='+', default=['human'], help='Types of agents to get statistics for')
+    parser.add_argument('--limit', type=int, default=-1, help='Analyze the first N transcripts')
     args = parser.parse_args()
     output_dir = args.output_dir
     if not os.path.exists(output_dir):
         raise ValueError("Output directory {:s} doesn't exist".format(output_dir))
+
     transcripts = json.load(open(os.path.join(output_dir, "transcripts", "transcripts.json"), 'r'))
+    if args.limit > 0:
+        transcripts = transcripts[:args.limit]
     survey_data = json.load(open(os.path.join(output_dir, "transcripts", "surveys.json"), 'r'))
 
     stats_output = os.path.join(output_dir, "stats")
@@ -199,11 +236,6 @@ if __name__ == "__main__":
 
     get_statistics(transcripts, survey_data)
 
-    top_features_by_agent = []
-
-    for agent_type in args.agent_types:
-        tfidf = TfIdfCalculator(transcripts, top_n=20, agent_type=agent_type)
-        top_features_by_cat = tfidf.analyze()
-        top_features_by_agent.append(top_features_by_cat)
-
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+    tf_idf_by_category(transcripts)
+    tf_idf_by_role(transcripts)
+    tf_idf_by_winner(transcripts)

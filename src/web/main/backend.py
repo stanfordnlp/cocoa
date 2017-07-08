@@ -352,9 +352,19 @@ class BaseBackend(object):
                           message=message,
                           partner_id=-1)
 
+    def skip_survey_and_finish(self, cursor, userid, message=Messages.ChatCompleted):
+        self._update_user(cursor, userid,
+                          status=Status.Incomplete,
+                          message=message,
+                          partner_id=-1)
+
     def end_chat_and_finish(self, cursor, userid, message=Messages.ChatCompleted):
         self._end_chat(cursor, userid)
         self.user_finished(cursor, userid, message)
+
+    def timeout_chat_and_skip_survey(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
+        self._end_chat(cursor, userid)
+        self.skip_survey_and_finish(cursor, userid, message)
 
     def timeout_chat_and_finish(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
         self.end_chat_and_finish(cursor, userid, message)
@@ -448,7 +458,7 @@ class BaseBackend(object):
 
         return msg, msg
 
-    def get_finished_info(self, userid, from_mturk=False):
+    def get_finished_info(self, userid, from_mturk=False, current_status=Status.Finished):
         def _generate_mturk_code(completed=True):
             if completed:
                 return "MTURK_TASK_C{}".format(str(uuid.uuid4().hex))
@@ -480,7 +490,7 @@ class BaseBackend(object):
         try:
             with self.conn:
                 cursor = self.conn.cursor()
-                u = self._get_user_info(cursor, userid, assumed_status=Status.Finished)
+                u = self._get_user_info(cursor, userid, assumed_status=current_status)
                 num_seconds = (self.config["status_params"]["finished"]["num_seconds"] +
                                u.status_timestamp) - current_timestamp_in_seconds()
                 completed = _is_chat_complete(cursor, u.chat_id)
@@ -596,9 +606,11 @@ class BaseBackend(object):
                                                  partner_id=u.partner_id)
                     return False
                 except ConnectionTimeoutException:
+                    u = self._get_user_info_unchecked(cursor, userid)
+                    self.timeout_chat_and_skip_survey(cursor, userid,
+                                                      message=Messages.ConnectionTimeout)
                     return False
 
-                self._update_user(cursor, userid, connected_status=1)
                 if not self.is_user_partner_bot(cursor, userid):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
@@ -697,6 +709,9 @@ class BaseBackend(object):
         session = self._get_session(userid)
         session.enqueue(event)
         controller = self.controller_map[userid]
+        with self.conn:
+            cursor = self.conn.cursor()
+            self._update_user(cursor, userid, connected_status=1)
         if controller is None:
             # fail silently because this just means that the user tries to send something after their partner has left
             # (but before the chat has ended)
@@ -903,6 +918,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.OfferEvent(u.agent_index,
                                                    offer,
                                                    str(time.time())))
@@ -915,6 +931,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.AcceptEvent(u.agent_index,
                                                    str(time.time())))
         except sqlite3.IntegrityError:
@@ -926,6 +943,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.RejectEvent(u.agent_index,
                                                    str(time.time())))
         except sqlite3.IntegrityError:
@@ -937,6 +955,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.QuitEvent(u.agent_index,
                                                   None,
                                                   str(time.time())))

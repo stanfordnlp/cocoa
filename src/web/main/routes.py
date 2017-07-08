@@ -229,6 +229,16 @@ def index():
                                icon=app.config['task_icon'],
                                visualize=visualize_link,
                                uid=userid())
+    elif status == Status.Incomplete:
+        finished_info = backend.get_finished_info(userid(), from_mturk=False, current_status=Status.Incomplete)
+        mturk_code = finished_info.mturk_code if mturk else None
+        return render_template('finished.html',
+                               finished_message=finished_info.message,
+                               mturk_code=mturk_code,
+                               title=app.config['task_title'],
+                               icon=app.config['task_icon'],
+                               visualize=False,
+                               uid=userid())
     elif status == Status.Chat:
         peek = False
         if request.args.get('peek') is not None and request.args.get('peek') == '1':
