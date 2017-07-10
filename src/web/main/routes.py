@@ -272,6 +272,11 @@ def index():
                                results=survey_info.result,
                                agent_idx=survey_info.agent_idx,
                                scenario_id=survey_info.scenario_id)
+    elif status == Status.Reporting:
+        return render_template('report.html',
+                               title=app.config['task_title'],
+                               uid=userid(),
+                               icon=app.config['task_icon'])
 
 
 @main.route('/visualize', methods=['GET', 'POST'])
@@ -349,4 +354,12 @@ def report():
     uid = userid()
     feedback = request.args.get('feedback')
     backend.report(uid, feedback)
+    return jsonify(success=True)
+
+
+@main.route('/_init_report/', methods=['GET'])
+def init_report():
+    backend = get_backend()
+    uid = userid()
+    backend.init_report(uid)
     return jsonify(success=True)

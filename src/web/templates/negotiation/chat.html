@@ -293,15 +293,15 @@
 
             function report() {
                 $.ajax({
-                    url: BASE_URL + '/_report/',
+                    url: BASE_URL + '/_init_report/',
                     type: "get",
                     data: {
-                        "uid": "{{ uid }}",
-                        "feedback": $('#report_feedback').val()
+                        "uid": "{{ uid }}"
                     },
                     dataType:"json",
                     success: function(response) {
-                        $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
+                        disconnect();
+                        window.location.reload(true);
                     }
                 });
             }
@@ -544,7 +544,7 @@
         <div id="info_container">
             <div id="report">
                 <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
-                <button onclick="showReportModal()" style="display: block; float:right;" id="report">Report</button>
+                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
             </div>
             <div id="facts">
                 <h3>Scenario</h3>

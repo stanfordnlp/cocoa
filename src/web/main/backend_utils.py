@@ -11,6 +11,7 @@ class Status(object):
     Survey = "survey"
     Redirected = "redirected"
     Incomplete = "incomplete"
+    Reporting = "reporting"
 
 
 class UnexpectedStatusException(Exception):

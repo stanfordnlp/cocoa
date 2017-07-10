@@ -561,7 +561,6 @@ class BaseBackend(object):
                     elif u.status == Status.Redirected:
                         self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
                         return Status.Waiting
-
                     elif u.status == Status.Chat:
                         if isinstance(e, ConnectionTimeoutException):
                             message = Messages.PartnerConnectionTimeout
@@ -579,6 +578,12 @@ class BaseBackend(object):
                     elif u.status == Status.Survey:
                         self._update_user(cursor, userid, connected_status=1)
                         return Status.Survey
+                    elif u.status == Status.Incomplete:
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Incomplete
+                    elif u.status == Status.Reporting:
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Reporting
                     else:
                         raise Exception("Unknown status: {} for user: {}".format(u.status, userid))
 
@@ -696,6 +701,14 @@ class BaseBackend(object):
         controller.step(self)
         session = self._get_session(userid)
         return session.poll_inbox()
+
+    def init_report(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                self._update_user(cursor, userid, status=Status.Reporting)
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
 
     def report(self, userid, feedback):
         try:
