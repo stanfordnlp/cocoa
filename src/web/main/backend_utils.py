@@ -39,7 +39,8 @@ class NoSuchUserException(Exception):
 class Messages(object):
     ChatExpired = 'You ran out of time!'
     PartnerConnectionTimeout = "Your partner's connection has timed out! Waiting for a new chat..."
-    ConnectionTimeout = "Your connection has timed out. Please reload this website to start a new chat!"
+    ConnectionTimeout = "Your connection has timed out. Please reenter this website using the original URL provided to " \
+                        "you to start a new chat."
     YouLeftRoom = 'You skipped the chat. '
     PartnerLeftRoom = 'Your partner has left the chat!'
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"

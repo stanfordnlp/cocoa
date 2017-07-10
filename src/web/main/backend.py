@@ -612,6 +612,8 @@ class BaseBackend(object):
                     return False
                 except ConnectionTimeoutException:
                     u = self._get_user_info_unchecked(cursor, userid)
+                    self.logger.debug("User {:s} timed out due to inactivity. "
+                                      "Redirecting to incomplete status...".format(userid))
                     self.timeout_chat_and_skip_survey(cursor, userid,
                                                       message=Messages.ConnectionTimeout)
                     return False
@@ -1007,5 +1009,6 @@ class NegotiationBackend(BaseBackend):
                                 data['fluent'], data['honest'], data['persuasive'],
                                 data['fair'], data['negotiator'], data['coherent'], data['comments']))
                 _user_finished(userid)
+                self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
