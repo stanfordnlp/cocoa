@@ -36,7 +36,7 @@ def get_winner(transcript):
         return -1
 
 
-def group_chats_by_winner(transcripts, agent_type=None):
+def group_text_by_winner(transcripts, agent_type=None):
     grouped_chats = defaultdict(str)
     for t in transcripts:
         if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
@@ -59,11 +59,10 @@ def group_chats_by_winner(transcripts, agent_type=None):
             grouped_chats[WINNER] += " {:s}".format(chat_1)
             grouped_chats[LOSER] += " {:s}".format(chat_0)
 
-
     return grouped_chats
 
 
-def group_chats_by_category(transcripts, agent_type=None):
+def group_text_by_category(transcripts, agent_type=None):
     grouped_chats = defaultdict(str)
     for t in transcripts:
         if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
@@ -75,7 +74,7 @@ def group_chats_by_category(transcripts, agent_type=None):
     return grouped_chats
 
 
-def group_chats_by_role(transcripts, agent_type=None):
+def group_text_by_role(transcripts, agent_type=None):
     grouped_chats = defaultdict(str)
     for t in transcripts:
         if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \

@@ -7,6 +7,7 @@ import json
 import os
 from scipy import stats as scipy_stats
 from tf_idf import *
+import ngram
 
 
 def get_dialogue_tokens(transcript):
@@ -182,7 +183,7 @@ def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiato
 def tf_idf_by_category(transcripts):
     top_features_by_agent = []
     for agent_type in args.agent_types:
-        grouped_chats = group_chats_by_category(transcripts, agent_type)
+        grouped_chats = group_text_by_category(transcripts, agent_type)
         tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
@@ -194,7 +195,7 @@ def tf_idf_by_winner(transcripts):
     top_features_by_agent = []
 
     for agent_type in args.agent_types:
-        grouped_chats = group_chats_by_winner(transcripts, agent_type)
+        grouped_chats = group_text_by_winner(transcripts, agent_type)
         tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
@@ -205,12 +206,50 @@ def tf_idf_by_winner(transcripts):
 def tf_idf_by_role(transcripts):
     top_features_by_agent = []
     for agent_type in args.agent_types:
-        grouped_chats = group_chats_by_role(transcripts, agent_type)
+        grouped_chats = group_text_by_role(transcripts, agent_type)
         tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
 
     plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_category(transcripts, n=5):
+    top_ngrams_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_utterances = ngram.group_text_by_category(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_utterances, n=5, agent_type=agent_type)
+
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_winner(transcripts, n=5):
+    top_ngrams_by_agent = []
+
+    for agent_type in args.agent_types:
+        grouped_chats = ngram.group_text_by_winner(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_chats, n=n, agent_type=agent_type)
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_role(transcripts, n=5):
+    top_ngrams_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = ngram.group_text_by_role(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_chats, n=n, agent_type=agent_type)
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
 
 
 if __name__ == "__main__":
@@ -219,6 +258,8 @@ if __name__ == "__main__":
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
     parser.add_argument('--agent-types', nargs='+', default=['human'], help='Types of agents to get statistics for')
     parser.add_argument('--limit', type=int, default=-1, help='Analyze the first N transcripts')
+    parser.add_argument('--tf-idf', action='store_true', help='Whether to perform tf-idf analysis or not')
+    parser.add_argument('--ngram', action='store_true', help='Whether to perform ngram analysis or not')
     args = parser.parse_args()
     output_dir = args.output_dir
     if not os.path.exists(output_dir):
@@ -236,6 +277,12 @@ if __name__ == "__main__":
 
     get_statistics(transcripts, survey_data)
 
-    tf_idf_by_category(transcripts)
-    tf_idf_by_role(transcripts)
-    tf_idf_by_winner(transcripts)
+    if args.tf_idf:
+        tf_idf_by_category(transcripts)
+        tf_idf_by_role(transcripts)
+        tf_idf_by_winner(transcripts)
+
+    if args.ngram:
+        ngram_by_category(transcripts)
+        ngram_by_role(transcripts)
+        ngram_by_winner(transcripts)
