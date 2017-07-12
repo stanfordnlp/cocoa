@@ -3,6 +3,7 @@ from src.basic.entity import is_entity
 from src.lib.bleu import compute_bleu
 from src.lib.bleu import bleu_stats as get_bleu_stats
 from src.lib.bleu import bleu as get_bleu
+from src.basic.util import write_json
 
 class BaseEvaluator(object):
     def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
@@ -63,8 +64,11 @@ class BaseEvaluator(object):
         return {'bleu': bleu}
 
     def stats2str(self, stats):
-        bleu = stats['bleu']
-        return 'bleu=%.4f/%.4f/%.4f' % (bleu[0], bleu[1], bleu[2])
+        if 'bleu' in stats:
+            bleu = stats['bleu']
+            return 'bleu=%.4f/%.4f/%.4f' % (bleu[0], bleu[1], bleu[2])
+        else:
+            return ''
 
     def log_dict(self, stats):
         '''
@@ -82,11 +86,13 @@ class BaseEvaluator(object):
         summary_map = {}
         bleu_stats = [0 for i in xrange(10)]
         summary_map['bleu_stats'] = bleu_stats
+        #results = []
 
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
             self._generate_response(sess, dialogue_batch, summary_map)
 
+        #write_json(results, 'results.json')
         return self.get_stats(summary_map)
 
     def _process_target_tokens(self, tokens):

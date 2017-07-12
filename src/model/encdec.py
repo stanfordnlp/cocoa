@@ -149,7 +149,7 @@ class BasicEncoder(object):
         self.batch_size = tf.shape(self.inputs)[0]
         self.seq_len = tf.shape(self.inputs)[1]
 
-    def build_model(self, input_dict, tf_variables):
+    def build_model(self, input_dict={}, tf_variables=None):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
@@ -317,6 +317,15 @@ class BasicDecoder(BasicEncoder):
     def run_decode(self, sess, max_len, batch_size=1, stop_symbol=None, **kwargs):
         if stop_symbol is not None:
             assert batch_size == 1, 'Early stop only works for single instance'
+
+        prefix = kwargs.pop('prefix', None)
+        if prefix is not None:
+            prefix_args = dict(kwargs)
+            prefix_args['inputs'] = prefix
+            feed_dict = self.get_feed_dict(**prefix_args)
+            final_state = sess.run(self.output_dict['final_state'], feed_dict=feed_dict)
+            kwargs['init_state'] = final_state
+
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
         for i in xrange(max_len):

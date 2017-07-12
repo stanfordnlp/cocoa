@@ -7,6 +7,8 @@ from src.lib.bleu import compute_bleu
 def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, unconditional=False, sample_targets=False):
     if sample_targets:
         return PseudoTargetLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+    elif model.name == 'lm':
+        return LMLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
     #if model.name == 'ranker':
     #    return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
     else:
@@ -90,7 +92,8 @@ class PseudoTargetLearner(Learner):
         # Sample a target
         if not self.test:
             candidates = batch['candidates']
-            candidates_loss = self.ranker.score(batch, encoder_init_state)  # (batch_size, num_candidates)
+            kwargs = self.ranker._get_feed_dict_args(batch, encoder_init_state)
+            candidates_loss, _ = self.ranker.score(candidates, kwargs)  # (batch_size, num_candidates)
             best_candidates = self.ranker.sample_candidates(candidates_loss)
             #for i, c in enumerate(best_candidates):
             #    print 'TARGET:'
@@ -119,3 +122,13 @@ class PseudoTargetLearner(Learner):
         self.test = test
         super(PseudoTargetLearner, self)._run_batch(dialogue_batch, sess, summary_map, test)
 
+class LMLearner(Learner):
+    def _get_feed_dict(self, batch, init_state=None, init_price_history=None):
+        kwargs = {
+                'inputs': batch['inputs'],
+                'targets': batch['targets'],
+                'init_state': init_state,
+                'context': batch['context'],
+                }
+        feed_dict = self.model.get_feed_dict(**kwargs)
+        return feed_dict

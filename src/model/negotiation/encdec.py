@@ -10,20 +10,47 @@ class LM(object):
     def __init__(self, decoder, pad):
         self.decoder = decoder
         self.pad = pad
-        self.decoder.build_model({}, set())
+        self.decoder.build_model()
+        self.final_state = self.decoder.output_dict['final_state']
         self.loss, self.seq_loss, self.total_loss = self.decoder.compute_loss()
         self.perplexity = True
         self.name = 'lm'
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
+        feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs)
         return feed_dict
 
-    def generate(self, sess, inputs, max_len, textint_map):
-        decoder_args = {'inputs': inputs, 'textint_map': textint_map}
-        decoder_output_dict = self.decoder.run_decode(sess, max_len, 1, **decoder_args)
-        return {'preds': decoder_output_dict['preds']}
+    def generate(self, sess, batch, init_state, max_len, textint_map=None):
+        decoder_args = {'prefix': batch['encoder_inputs'],
+                'inputs': batch['decoder_inputs'][:, [0]],
+                'init_state': init_state,
+                'textint_map': textint_map,
+                'context': batch['context'],
+                }
+        batch_size = batch['encoder_inputs'].shape[0]
+        decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
+
+        # Go over the true sequence
+        # TODO: move prefix to tf graph
+        decoder_args = {
+                'inputs': batch['encoder_inputs'],
+                'init_state': init_state,
+                'context': batch['context'],
+                }
+        feed_dict = self.decoder.get_feed_dict(**decoder_args)
+        init_state = sess.run(self.final_state, feed_dict=feed_dict)
+        decoder_args = {
+                'inputs': batch['decoder_inputs'],
+                'init_state': init_state,
+                'context': batch['context'],
+                }
+        feed_dict = self.decoder.get_feed_dict(**decoder_args)
+        true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
+
+        return {'preds': decoder_output_dict['preds'],
+                'true_final_state': true_final_state,
+                }
 
 # TODO: refactor this class
 class BasicEncoderDecoder(object):
@@ -85,8 +112,10 @@ class BasicEncoderDecoder(object):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        feed_dict = self.encoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('encoder'))
-        feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
+        if 'encoder' in kwargs:
+            feed_dict = self.encoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('encoder'))
+        if 'decoder' in kwargs:
+            feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
         return feed_dict
 
     def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None):
@@ -178,13 +207,10 @@ class ContextDecoder(BasicDecoder):
         logits = self._build_logits(outputs)
         return logits
 
-    def _build_rnn_inputs(self, input_dict):
-        inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
-        inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
-        # TODO: hack
-        #encoder_outputs = input_dict['encoder_embeddings']
-        #self.feedable_vars['encoder_outputs'] = encoder_outputs
-        return inputs, mask, kwargs
+    #def _build_rnn_inputs(self, input_dict):
+    #    inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
+    #    inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
+    #    return inputs, mask, kwargs
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)

@@ -3,14 +3,16 @@ def add_data_generator_arguments(parser):
     from src.basic.scenario_db import add_scenario_arguments
     from src.basic.dataset import add_dataset_arguments
     from retriever import add_retriever_arguments
+    from src.basic.negotiation.price_tracker import add_price_tracker_arguments
 
     add_scenario_arguments(parser)
     add_preprocess_arguments(parser)
     add_dataset_arguments(parser)
     add_retriever_arguments(parser)
+    add_price_tracker_arguments(parser)
 
 def get_data_generator(args, model_args, mappings, schema):
-    from preprocess import DataGenerator, Preprocessor
+    from preprocess import DataGenerator, LMDataGenerator, Preprocessor
     from src.basic.scenario_db import ScenarioDB
     from src.basic.negotiation.price_tracker import PriceTracker
     from src.basic.dataset import read_dataset
@@ -19,7 +21,11 @@ def get_data_generator(args, model_args, mappings, schema):
 
     #scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(None, args)
-    lexicon = PriceTracker()
+    lexicon = PriceTracker(args.price_tracker_model)
+
+    # TODO: hacky
+    if args.model == 'lm':
+        DataGenerator = LMDataGenerator
 
     # Dataset
     if args.retrieve:
@@ -100,25 +106,39 @@ def build_model(schema, mappings, args):
         context_opts = dict(opts)
         context_opts['vocab_size'] = mappings['kb_vocab'].size
         context_opts['embed_size'] = args.context_size
-        with tf.variable_scope('ContextWordEmbedder'):
-            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], pad=pad)
-        context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
-        context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, context_seq_embedder, pad)
 
-    if args.model == 'encdec' or args.ranker == 'encdec':
-        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
+        # TODO: refactor word embedding loading
+        if args.pretrained_wordvec is not None:
+            word_embeddings = mappings['kb_vocab'].load_embeddings(args.pretrained_wordvec, args.word_embed_size)
+        else:
+            word_embeddings = None
+        with tf.variable_scope('ContextWordEmbedder'):
+            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], word_embeddings, pad=pad)
+
+        with tf.variable_scope('CategoryWordEmbedder'):
+            category_word_embedder = WordEmbedder(mappings['cat_vocab'].size, 10, pad=pad)
+        context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
+        context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, category_word_embedder, context_seq_embedder, pad)
+
+    def get_decoder(args):
         if args.decoder == 'rnn':
-            decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
-        elif args.decoder == 'rnn-ctxt':
-            decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            if args.context is not None:
+                decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+            else:
+                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         else:
             decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
+        return decoder
+
+    if args.model == 'encdec' or args.ranker == 'encdec':
+        decoder = get_decoder(args)
+        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
         model = BasicEncoderDecoder(encoder, decoder, pad, re_encode=re_encode)
     elif args.model == 'lm':
-        decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+        decoder = get_decoder(args)
         model = LM(decoder, pad)
     elif args.model is not None:
         raise ValueError('Unknown model')

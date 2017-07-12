@@ -8,10 +8,12 @@ from preprocess import Dialogue, price_filler
 from src.basic.negotiation.price_tracker import PriceTracker
 
 def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose=True):
-    if model.name in ('ranker-cheat', 'ranker-random'):
+    if model.name in ('ranker-cheat', 'ranker-ir'):
         return RetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
     elif model.name == 'ranker-encdec':
         return EncDecRetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
+    elif model.name == 'lm':
+        return LMEvaluator(data_generator, model, splits, batch_size, verbose)
     else:
         return Evaluator(data_generator, model, splits, batch_size, verbose)
 
@@ -45,30 +47,6 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
             s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
             tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
-
-class LMEvaluator(BaseEvaluator):
-    def _stop_symbol(self):
-        return self.vocab.to_ind(markers.EOS)
-
-    def _remove_symbols(self):
-        inds = map(self.vocab.to_ind, (markers.PAD,))
-        words = [makrers.PAD]
-        return inds + words
-
-    def _generate_response(self, sess):
-        '''
-        Just do sampling.
-        '''
-        for start in (self.vocab.to_ind(markers.GO_S), self.vocab.to_ind(markers.GO_B)):
-            for i in xrange(10):
-                output_dict = self.model.generate(sess, np.array([[start]]), 20, self.data.textint_map)
-                preds = output_dict['preds']
-                pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map)
-                print pred_tokens
-
-    def test_response_generation(self, sess, test_data, num_batches):
-        self._generate_response(sess)
-        return {}
 
 class Evaluator(BaseEvaluator):
     def _stop_symbol(self):
@@ -173,19 +151,28 @@ class Evaluator(BaseEvaluator):
 
     def log_dict(self, stats):
         d = super(Evaluator, self).log_dict(stats)
-        precision, recall, f1 = stats['entity_f1']
-        d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
+        if 'entity_f1' in stats:
+            precision, recall, f1 = stats['entity_f1']
+            d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
 
-class EncDecRetrievalEvaluator(Evaluator):
+    def to_str(self, l):
+        words = []
+        for w in l:
+            if is_entity(w):
+                words.append('[%s]' % PriceTracker.get_price(w))
+            elif w not in self.remove_symbols:
+                words.append(w)
+        return ' '.join(words)
+
+class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
-        encoder_init_state = None
+        prev_turns = []
         for batch in dialogue_batch['batch_seq']:
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
-            # TODO
-            output_dict = self.model.select(batch, encoder_init_state)
+            prev_turns.append([self._process_target_tokens(tokens) for tokens in batch['encoder_tokens']])
+            output_dict = self.model.select(batch)
             pred_tokens = output_dict['responses']
-            encoder_init_state = output_dict['true_final_state']
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -194,13 +181,10 @@ class EncDecRetrievalEvaluator(Evaluator):
             self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
-                #attn_scores = output_dict.get('attn_scores', None)
-                #probs = output_dict.get('probs', None)
-                # TODO: print
-                self._print_batch(batch, pred_tokens, references, bleu_scores, output_dict)
+                self._print_batch(batch, prev_turns, pred_tokens, references, bleu_scores, output_dict)
+            prev_turns.append(references)
 
-    # TODO: refactor
-    def _print_batch(self, batch, preds, targets, bleu_scores, output_dict):
+    def _print_batch(self, batch, prev_turns, preds, targets, bleu_scores, output_dict=None, results=None):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
@@ -208,14 +192,6 @@ class EncDecRetrievalEvaluator(Evaluator):
         inputs = batch['encoder_inputs']
         decoder_tokens = batch['decoder_tokens']
         kbs = batch['kbs']
-        def to_str(l):
-            words = []
-            for w in l:
-                if is_entity(w):
-                    words.append('[%s]' % PriceTracker.get_price(w))
-                elif w not in self.remove_symbols:
-                    words.append(w)
-            return ' '.join(words)
 
         print '-------------- batch ----------------'
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
@@ -229,29 +205,126 @@ class EncDecRetrievalEvaluator(Evaluator):
             #print 'RAW INPUT:', encoder_tokens[i]
             #print 'RAW TARGET:', target
             print '----------'
-            print 'INPUT:', to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
+            print 'CONTEXT:'
+            for turn in prev_turns[-3:]:
+                print self.to_str(turn[i])
+            #print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
             #print 'TARGET:', Dialogue.original_price(kb, target)
             #print 'PRED:', Dialogue.original_price(kb, pred)
-            print 'TARGET:', to_str(target)
-            print 'PRED:', to_str(pred)
+            print 'TARGET:', self.to_str(target)
+            print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
-            print 'CHEAT:', to_str(output_dict['cheat_responses'][i])
-            print 'IR:', to_str(output_dict['IR_responses'][i])
+            print 'ALL CANDIDATES:'
+            for c in output_dict['candidates'][i]:
+                if c != {}:
+                    print 'Hits:', c['hits']
+                    print 'Response:', self.to_str(c['response'])
+
+            # Output this to a json file
+            if results is not None:
+                result = {
+                        'kb': kb.to_dict(),
+                        'context': [self.to_str(turn[i]) for turn in prev_turns[-3:]],
+                        'target': self.to_str(target),
+                        'encdec': self.to_str(pred),
+                        }
+                results.append(result)
+
+class EncDecRetrievalEvaluator(RetrievalEvaluator):
+    def _generate_response(self, sess, dialogue_batch, summary_map, results):
+        encoder_init_state = None
+        prev_turns  =[]
+        for batch in dialogue_batch['batch_seq']:
+            references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
+            prev_turns.append([self._process_target_tokens(tokens) for tokens in batch['encoder_tokens']])
+            # TODO
+            output_dict = self.model.select(batch, encoder_init_state)
+            pred_tokens = output_dict['responses']
+            encoder_init_state = output_dict['true_final_state']
+
+            # Metrics
+            # Sentence bleu: only for verbose print
+            bleu_scores = self.sentence_bleu_score(pred_tokens, references)
+            self.update_bleu_stats(summary_map, pred_tokens, references)
+            self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
+
+            if self.verbose:
+                self._print_batch(batch, prev_turns, pred_tokens, references, bleu_scores, output_dict, results)
+            prev_turns.append(references)
+
+    def _print_batch(self, batch, prev_turns, preds, targets, bleu_scores, output_dict=None, results=None):
+        '''
+        inputs are integers; targets and preds are tokens (converted in test_bleu).
+        '''
+        encoder_tokens = batch['encoder_tokens']
+        inputs = batch['encoder_inputs']
+        decoder_tokens = batch['decoder_tokens']
+        kbs = batch['kbs']
+
+        print '-------------- batch ----------------'
+        for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
+            # Skip padded turns
+            if len(decoder_tokens[i]) == 0:
+                continue
+            kb = kbs[i]
+            kb.dump()
+            #print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
+            #print 'RAW TARGET:', Dialogue.original_price(kb, target)
+            #print 'RAW INPUT:', encoder_tokens[i]
+            #print 'RAW TARGET:', target
+            print '----------'
+            print 'CONTEXT:'
+            for turn in prev_turns[-3:]:
+                print self.to_str(turn[i])
+            #print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
+            #print 'TARGET:', Dialogue.original_price(kb, target)
+            #print 'PRED:', Dialogue.original_price(kb, pred)
+            print 'TARGET:', self.to_str(target)
+            print 'PRED:', self.to_str(pred)
+            print 'BLEU:', bleu
+            print 'CHEAT:', self.to_str(output_dict['cheat_responses'][i])
+            print 'IR:', self.to_str(output_dict['IR_responses'][i])
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
                 if c == {}:
                     print 'null'
                 else:
                     print 'Hits:', c['hits']
-                    print 'Response:', to_str(c['response'])
+                    print 'Response:', self.to_str(c['response'])
 
+            # Output this to a json file
+            result = {
+                    'kb': kb.to_dict(),
+                    'context': [self.to_str(turn[i]) for turn in prev_turns[-3:]],
+                    'target': self.to_str(target),
+                    'encdec': self.to_str(pred),
+                    'cheat': self.to_str(output_dict['cheat_responses'][i]),
+                    'ir': self.to_str(output_dict['IR_responses'][i]),
+                    }
+            results.append(result)
 
+class LMEvaluator(Evaluator):
+    def _stop_symbol(self):
+        return self.vocab.to_ind(markers.EOS)
 
-class RetrievalEvaluator(Evaluator):
+    def _remove_symbols(self):
+        inds = map(self.vocab.to_ind, (markers.PAD,))
+        words = [markers.PAD]
+        return inds + words
+
     def _generate_response(self, sess, dialogue_batch, summary_map):
-        for batch in dialogue_batch['batch_seq']:
+        init_state = None
+        for batch in dialogue_batch['eval_batch_seq']:
+            targets = batch['targets']
+            max_len = targets.shape[1] + 10
+            output_dict = self.model.generate(sess, batch, init_state, max_len, textint_map=self.data.textint_map)
+            preds = output_dict['preds']
+            true_final_state = output_dict['true_final_state']
+            init_state = true_final_state
+            num_sents = np.sum(targets == self.stop_symbol, axis=1)
+            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents)
+
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
-            pred_tokens = self.model.select(batch)
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -262,6 +335,12 @@ class RetrievalEvaluator(Evaluator):
             if self.verbose:
                 #attn_scores = output_dict.get('attn_scores', None)
                 #probs = output_dict.get('probs', None)
-                # TODO: print
                 self._print_batch(batch, pred_tokens, references, bleu_scores)
 
+    #def _print_batch(self, preds, targets, bleu_scores):
+    #    for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
+    #        print '----------'
+    #        #print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
+    #        print 'TARGET:', self.to_str(target)
+    #        print 'PRED:', self.to_str(pred)
+    #        print 'BLEU:', bleu

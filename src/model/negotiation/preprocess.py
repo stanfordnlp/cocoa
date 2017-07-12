@@ -66,7 +66,7 @@ def build_kb_vocab(dialogues, special_symbols=[]):
         vocab.add_words(dialogue.description)
         cat_vocab.add_word(dialogue.category)
     print 'KB vocabulary size:', vocab.size
-    print 'Category size:', vocab.size
+    print 'Category size:', cat_vocab.size
     return vocab, cat_vocab
 
 def create_mappings(dialogues, schema, entity_forms):
@@ -134,6 +134,8 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.role = kb.facts['personal']['Role']
+        partner_role = 'buyer' if self.role == 'seller' else 'seller'
+        self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
         # KB context
         self.category = kb.facts['item']['Category']
         # TODO: remove symbols, puncts
@@ -146,11 +148,23 @@ class Dialogue(object):
         # entities: has the same structure as turns, non-entity tokens are None
         self.entities = []
         self.agents = []
-        #self.roles = []
+        self.roles = []
         self.is_int = False  # Whether we've converted it to integers
         self.flattened = False
         self.token_candidates = None
         self.candidates = None
+
+    def join_turns(self):
+        all_turns = []
+        role_to_id = {'buyer': int_markers.GO_B, 'seller': int_markers.GO_S}
+        for agent, turn in izip(self.agents, self.turns[0]):
+            start_symbol = role_to_id[self.agent_to_role[agent]]
+            all_turns.append([start_symbol] + turn)
+        all_tokens = [x for turn in all_turns for x in turn]
+        return all_tokens, all_turns
+
+    def num_tokens(self):
+        return sum([len(t) for t in self.token_turns])
 
     def add_candidates(self, candidates):
         assert len(candidates) == len(self.token_turns)
@@ -180,7 +194,7 @@ class Dialogue(object):
             self.entities[-1].append(entities)
         else:
             self.agents.append(agent)
-            #self.roles.append(self.kb.facts['personal']['Role'])
+            self.roles.append(self.agent_to_role[agent])
             self.token_turns.append([utterance])
             self.entities.append([entities])
 
@@ -239,7 +253,7 @@ class Dialogue(object):
         Pad turns to length num_turns.
         '''
         self.agents = self._pad_list(self.agents, num_turns, None)
-        #self.roles = self._pad_list(self.roles, num_turns, None)
+        self.roles = self._pad_list(self.roles, num_turns, None)
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
         self.price_turns = self._pad_list(self.price_turns, num_turns, [])
@@ -334,7 +348,7 @@ class DialogueBatch(object):
         for i in xrange(Dialogue.num_stages):
             try:
                 turn_batches.append([self._normalize_turn(
-                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.role for dialogue in self.dialogues])
+                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
                     for j in xrange(self.num_turns)])
             except IndexError:
                 print 'num_turns:', self.num_turns
@@ -435,8 +449,8 @@ class DialogueBatch(object):
 
         decoder_targets = target_turn[:, 1:]
 
-        helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
-        context_batch['helper'] = helpers
+        #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
+        #context_batch['helper'] = helpers
 
         # TODO: group these
         batch = {
@@ -450,11 +464,13 @@ class DialogueBatch(object):
                  'decoder_tokens': decode_tokens,
                  'token_candidates': token_candidates,
                  'candidates': candidates,
-                 'helpers': helpers,
                  'agents': agents,
                  'kbs': kbs,
                  'context': context_batch,
                 }
+        for d, tokens in izip(self.dialogues, decode_tokens):
+            print d.uuid, d.role
+            print ' '.join(['_price_' if is_entity(x) else x for x in tokens])
         return batch
 
     def _get_token_candidates(self, i):
@@ -471,14 +487,12 @@ class DialogueBatch(object):
         return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else ''
                 for dialogue in self.dialogues]
 
-    def create_batches(self):
+    def create_batch(self):
         self._normalize_dialogue()
         turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
         price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
         candidate_batches = self._create_candidate_batches()  # (batch_size, num_candidate, seq_len)
-        # A sequence of batches should be processed in turn as the state of each batch is
-        # passed on to the next batch
-        batches = []
+
         enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
 
         # Add agents and kbs
@@ -491,14 +505,91 @@ class DialogueBatch(object):
         encode_turn_ids = range(0, self.num_turns-1, 2)
         batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_token_candidates(i+1), candidate_batches[i+1] if candidate_batches else None, agents, kbs, context_batch) for i in encode_turn_ids]
 
+        # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
+        # passed on to the next batch
         batch = {
                  'agent': agents,
                  'kb': kbs,
                  'batch_seq': batch_seq,
                 }
-        batches.append(batch)
 
-        return batches
+        return batch
+
+class LMDialogueBatch(DialogueBatch):
+    def _create_one_batch_lm(self, tokens):
+        inputs = tokens[:, :-1]
+        targets = tokens[:, 1:]
+        batch = {
+                'inputs': inputs,
+                'targets': targets,
+                }
+        return batch
+
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
+        encoder_inputs = encode_turn
+
+        # Remove pad (<go>) at the beginning of utterance
+        #encoder_price_inputs = price_encode_turn[:, 1:]
+
+        # Decoder inputs: start from <go> to generate, i.e. <go> <token>
+        assert decode_turn.shape == target_turn.shape
+        decoder_inputs = np.copy(decode_turn)
+
+        # Include pad (<go>) at the beginning of utterance
+        #decoder_price_inputs = price_decode_turn[:, :-1]
+        #price_targets = price_decode_turn[:, 1:]
+
+        decoder_targets = target_turn[:, 1:]
+
+        #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
+        #context_batch['helper'] = helpers
+
+        # TODO: group these
+        batch = {
+                 'encoder_inputs': encoder_inputs,
+                 'decoder_inputs': decoder_inputs,
+                 'targets': decoder_targets,
+                 'encoder_tokens': encode_tokens,
+                 'decoder_tokens': decode_tokens,
+                 'token_candidates': token_candidates,
+                 'candidates': candidates,
+                 'agents': agents,
+                 'kbs': kbs,
+                 'context': context_batch,
+                }
+        return batch
+
+    def create_batch(self, bptt_steps):
+        lm_batch = self._create_lm_batch(bptt_steps)
+        batch = super(LMDialogueBatch, self).create_batch()
+        context = batch['batch_seq'][0]['context']
+        batch['eval_batch_seq'] = batch['batch_seq']
+        for b in lm_batch:
+            b['context'] = context
+        batch['batch_seq'] = lm_batch
+        return batch
+
+    def _create_lm_batch(self, bptt_steps=35):
+        data = [d.join_turns() for d in self.dialogues]
+        dialogue_tokens = [d[0] for d in data]
+        # TODO: don't need dialogue_turns
+        dialogue_turns = [d[1] for d in data]
+        max_len = max([len(tokens) for tokens in dialogue_tokens])
+        batch_size = len(self.dialogues)
+        T = np.full([batch_size, max_len], int_markers.PAD, dtype=np.int32)
+        for i, tokens in enumerate(dialogue_tokens):
+            T[i, :len(tokens)] = tokens
+
+        batch_seq = []
+        for i in range(0, max_len, bptt_steps):
+            if i + bptt_steps > max_len - 5:
+                batch_seq.append(self._create_one_batch_lm(T[:, i:]))
+                break
+            else:
+                batch_seq.append(self._create_one_batch_lm(T[:, i:i+bptt_steps]))
+
+        return batch_seq
+
 
 class Preprocessor(object):
     '''
@@ -570,7 +661,7 @@ class Preprocessor(object):
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities)
             else:
                 entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb, mentioned_entities=mentioned_entities)
-            #entity_tokens = [x if not is_entity(x) else x for x in entity_tokens]
+            #entity_tokens = ['_price_' if is_entity(x) else x for x in entity_tokens]
             if entity_tokens:
                 return entity_tokens
             else:
@@ -667,7 +758,7 @@ class DataGenerator(object):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.extend(DialogueBatch(dialogue_batch).create_batches())
+            dialogue_batches.append(DialogueBatch(dialogue_batch).create_batch())
             start = end
         return dialogue_batches
 
@@ -692,9 +783,9 @@ class DataGenerator(object):
                     k = (dialogue.uuid, dialogue.role)
                     # candidates: list of list containing num_candidates responses for each turn of the dialogue
                     # None candidates means that it is not the agent's speaking turn
-                    try:
+                    if k in self.cached_candidates:
                         candidates = self.cached_candidates[k]
-                    except KeyError:
+                    else:
                         candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
                     candidates = [c if c else self.retriever.empty_candidates for c in candidates]
                     dialogue.add_candidates(candidates)
@@ -704,14 +795,14 @@ class DataGenerator(object):
                 dialogue.convert_to_int()
 
             dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
-            print 'Write batches to cache:', cache_file
+            print 'Write %d batches to cache %s' % (len(dialogue_batches), cache_file)
             start_time = time.time()
             write_pickle(dialogue_batches, cache_file)
             print '[%d s]' % (time.time() - start_time)
         else:
-            print 'Read batches from cache:', cache_file
             start_time = time.time()
             dialogue_batches = read_pickle(cache_file)
+            print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
             print '[%d s]' % (time.time() - start_time)
 
         yield len(dialogue_batches)
@@ -721,3 +812,19 @@ class DataGenerator(object):
                 random.shuffle(inds)
             for ind in inds:
                 yield dialogue_batches[ind]
+
+class LMDataGenerator(DataGenerator):
+    def create_dialogue_batches(self, dialogues, batch_size, bptt_steps=35):
+        dialogue_batches = []
+        # TODO: only need diaogue from one direction
+        dialogues.sort(key=lambda d: d.num_tokens())
+        N = len(dialogues)
+        start = 0
+        while start < N:
+            # NOTE: last batch may have a smaller size if we don't have enough examples
+            end = min(start + batch_size, N)
+            dialogue_batch = dialogues[start:end]
+            dialogue_batches.append(LMDialogueBatch(dialogue_batch).create_batch(bptt_steps))
+            start = end
+        return dialogue_batches
+

@@ -86,20 +86,23 @@ class BaseLearner(object):
         print '================== Eval %s ==================' % name
         results = {}
 
-        if self.model.perplexity:
+        # TODO: print_batch doesn't work for model=lm
+        if (not name == 'test') and self.model.perplexity:
             print '================== Perplexity =================='
             start_time = time.time()
             loss = self.test_loss(sess, test_data, num_batches)
             results['loss'] = loss
             print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
 
-        print '================== Sampling =================='
-        start_time = time.time()
-        res = self.evaluator.test_response_generation(sess, test_data, num_batches)
-        results.update(res)
-        # TODO: hacky. for LM only.
-        if len(results) > 0:
-            print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
+        if name == 'test':
+        #if True:
+            print '================== Sampling =================='
+            start_time = time.time()
+            res = self.evaluator.test_response_generation(sess, test_data, num_batches)
+            results.update(res)
+            # TODO: hacky. for LM only.
+            if len(results) > 0:
+                print '%s time(s)=%.4f' % (self.evaluator.stats2str(results), time.time() - start_time)
         return results
 
     def learn(self, args, config, stats_file, ckpt=None, split='train'):
