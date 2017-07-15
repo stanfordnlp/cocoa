@@ -4,17 +4,20 @@ def add_data_generator_arguments(parser):
     from src.basic.dataset import add_dataset_arguments
     from retriever import add_retriever_arguments
     from src.basic.negotiation.price_tracker import add_price_tracker_arguments
+    from src.basic.negotiation.slot_detector import add_slot_detector_arguments
 
     add_scenario_arguments(parser)
     add_preprocess_arguments(parser)
     add_dataset_arguments(parser)
     add_retriever_arguments(parser)
     add_price_tracker_arguments(parser)
+    add_slot_detector_arguments(parser)
 
 def get_data_generator(args, model_args, mappings, schema):
     from preprocess import DataGenerator, LMDataGenerator, Preprocessor
     from src.basic.scenario_db import ScenarioDB
     from src.basic.negotiation.price_tracker import PriceTracker
+    from src.basic.negotiation.slot_detector import SlotDetector
     from src.basic.dataset import read_dataset
     from src.basic.util import read_json
     from retriever import Retriever
@@ -22,6 +25,7 @@ def get_data_generator(args, model_args, mappings, schema):
     #scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(None, args)
     lexicon = PriceTracker(args.price_tracker_model)
+    slot_detector = SlotDetector(args.slot_fillers)
 
     # TODO: hacky
     if args.model == 'lm':
@@ -35,9 +39,9 @@ def get_data_generator(args, model_args, mappings, schema):
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, slot_detector=slot_detector)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, slot_detector=slot_detector)
 
     return data_generator
 
@@ -113,6 +117,8 @@ def build_model(schema, mappings, args):
         else:
             word_embeddings = None
         with tf.variable_scope('ContextWordEmbedder'):
+            #if word_embedding is not None:
+                #assert context_opts['embed_size'] == args.word_embed_size
             context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], word_embeddings, pad=pad)
 
         with tf.variable_scope('CategoryWordEmbedder'):

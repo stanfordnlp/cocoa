@@ -48,6 +48,10 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
             tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
 
+# TODO: remove
+from src.basic.negotiation.slot_detector import SlotDetector
+slot_detector = SlotDetector('/scr/hehe/game-dialogue/slot_fillers.pkl')
+
 class Evaluator(BaseEvaluator):
     def _stop_symbol(self):
         return self.vocab.to_ind(markers.EOS)
@@ -156,12 +160,17 @@ class Evaluator(BaseEvaluator):
             d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
 
+    # TODO: hacky!
     def to_str(self, l):
+        return ' '.join([str(w.encode('utf-8')) if not is_entity(w) else str(w) for w in l if w not in self.remove_symbols])
         words = []
         for w in l:
-            if is_entity(w):
-                words.append('[%s]' % PriceTracker.get_price(w))
-            elif w not in self.remove_symbols:
+            #if is_entity(w):
+            #    if w.canonical.type == 'price':
+            #        words.append('[%s]' % PriceTracker.get_price(w))
+            #    else:
+            #        words.append('[%s]' % w.surface)
+            if w not in self.remove_symbols:
                 words.append(w)
         return ' '.join(words)
 
@@ -214,24 +223,15 @@ class RetrievalEvaluator(Evaluator):
             print 'TARGET:', self.to_str(target)
             print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
+            print 'FILLERS:', slot_detector.get_context(kb)
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
                 if c != {}:
                     print 'Hits:', c['hits']
                     print 'Response:', self.to_str(c['response'])
 
-            # Output this to a json file
-            if results is not None:
-                result = {
-                        'kb': kb.to_dict(),
-                        'context': [self.to_str(turn[i]) for turn in prev_turns[-3:]],
-                        'target': self.to_str(target),
-                        'encdec': self.to_str(pred),
-                        }
-                results.append(result)
-
 class EncDecRetrievalEvaluator(RetrievalEvaluator):
-    def _generate_response(self, sess, dialogue_batch, summary_map, results):
+    def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
         prev_turns  =[]
         for batch in dialogue_batch['batch_seq']:
@@ -249,7 +249,7 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
-                self._print_batch(batch, prev_turns, pred_tokens, references, bleu_scores, output_dict, results)
+                self._print_batch(batch, prev_turns, pred_tokens, references, bleu_scores, output_dict)
             prev_turns.append(references)
 
     def _print_batch(self, batch, prev_turns, preds, targets, bleu_scores, output_dict=None, results=None):
@@ -283,25 +283,12 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
             print 'CHEAT:', self.to_str(output_dict['cheat_responses'][i])
-            print 'IR:', self.to_str(output_dict['IR_responses'][i])
+            #print 'IR:', self.to_str(output_dict['IR_responses'][i])
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
-                if c == {}:
-                    print 'null'
-                else:
+                if c != {}:
                     print 'Hits:', c['hits']
                     print 'Response:', self.to_str(c['response'])
-
-            # Output this to a json file
-            result = {
-                    'kb': kb.to_dict(),
-                    'context': [self.to_str(turn[i]) for turn in prev_turns[-3:]],
-                    'target': self.to_str(target),
-                    'encdec': self.to_str(pred),
-                    'cheat': self.to_str(output_dict['cheat_responses'][i]),
-                    'ir': self.to_str(output_dict['IR_responses'][i]),
-                    }
-            results.append(result)
 
 class LMEvaluator(Evaluator):
     def _stop_symbol(self):
