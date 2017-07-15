@@ -2,9 +2,11 @@ from itertools import izip
 import random
 from src.lib.bleu import compute_bleu
 import numpy as np
+from preprocess import markers
+from retriever import Retriever
 
 def add_ranker_arguments(parser):
-    parser.add_argument('--ranker', choices=['random', 'cheat', 'encdec'], help='Ranking model')
+    parser.add_argument('--ranker', choices=['ir', 'cheat', 'encdec'], help='Ranking model')
 
 class BaseRanker(object):
     def __init__(self):
@@ -21,8 +23,21 @@ class IRRanker(BaseRanker):
 
     @classmethod
     def select(cls, batch):
-        responses = [c[0].get('response', []) if len(c) > 0 else [] for c in batch['token_candidates']]
-        return responses
+        batch_candidates = batch['token_candidates']
+
+        responses = [c[0].get('response', []) if len(c) > 0 else [] for c in batch_candidates]
+        return {
+                'responses': responses,
+                'candidates': batch['token_candidates'],
+                }
+        #responses = []
+        #for c in batch['token_candidates']:
+        #    if len(c) == 0:
+        #        responses.append([])
+        #    else:
+        #        r = np.random.choice([x for x in c if 'response' in x])
+        #        responses.append(r['response'])
+        #return responses
 
 class CheatRanker(BaseRanker):
     def __init__(self):
@@ -36,14 +51,14 @@ class CheatRanker(BaseRanker):
         responses = []
         for c, target in izip(candidates, targets):
             if not len(target) > 0:
-                response = []
+                response = {}
             else:
                 scores = [compute_bleu(r.get('response', []), target) for r in c]
                 if len(scores) == 0:
-                    response = []
+                    response = {}
                 else:
                     response = c[np.argmax(scores)]
-            responses.append(response)
+            responses.append(response.get('response', []))
         return responses
 
 class EncDecRanker(BaseRanker):
@@ -68,20 +83,25 @@ class EncDecRanker(BaseRanker):
                 }
         return kwargs
 
-    def score(self, batch, encoder_init_state, kwargs=None):
-        candidates = batch['candidates']
+    def score(self, candidates, kwargs, states=False):
+        #candidates = batch['candidates']
         batch_size, num_candidate, _ = candidates.shape
         candidates_loss = np.zeros([batch_size, num_candidate])  # (batch_size, num_candidates)
-        if kwargs is None:
-            kwargs = self._get_feed_dict_args(batch, encoder_init_state)
+        #if kwargs is None:
+        #    kwargs = self._get_feed_dict_args(batch, encoder_init_state)
+        final_states = []
         for i in xrange(num_candidate):
             candidate = candidates[:, i, :]  # (batch_size, seq_len)
             kwargs['decoder']['inputs'] = candidate[:, :-1]
             kwargs['decoder']['targets'] = candidate[:, 1:]
             feed_dict = self.model.get_feed_dict(**kwargs)
-            batch_loss = self.sess.run(self.model.seq_loss, feed_dict=feed_dict)
+            if not states:
+                batch_loss = self.sess.run(self.model.seq_loss, feed_dict=feed_dict)
+            else:
+                batch_loss, final_state = self.sess.run((self.model.seq_loss, self.model.final_state), feed_dict=feed_dict)
+                final_states.append(final_state)
             candidates_loss[:, i] = batch_loss
-        return candidates_loss
+        return candidates_loss, final_states
 
     def sample_candidates(self, candidates_loss):
         batch_size, num_candidate = candidates_loss.shape
@@ -99,12 +119,28 @@ class EncDecRanker(BaseRanker):
         token_candidates = batch['token_candidates']
         kwargs = self._get_feed_dict_args(batch, encoder_init_state)
 
-        candidates_loss = self.score(batch, encoder_init_state, kwargs)
+        candidates_loss, _ = self.score(batch['candidates'], kwargs)
+
         # Never choose empty ones
         for b, candidates in enumerate(token_candidates):
             for i, cand in enumerate(candidates):
                 if 'response' not in cand:
-                    candidates_loss[b][i] = -10.
+                    candidates_loss[b][i] = 20.
+
+        # Filter <accept>/<reject>
+        # TODO: filter this in search
+        prev_utterances = batch['encoder_tokens']
+        offered = []
+        for u in prev_utterances:
+            if len(u) > 0 and markers.OFFER in u:
+                offered.append(True)
+            else:
+                offered.append(False)
+        for b, candidates in enumerate(token_candidates):
+            has_offered = offered[b]
+            for i, cand in enumerate(candidates):
+                if 'response' in cand and (not has_offered) and (markers.ACCEPT in cand['response'] or markers.REJECT in cand['response']):
+                    candidates_loss[b][i] = 20.
 
         #best_candidates = np.argmax(-1. * candidates_loss, axis=1)
         best_candidates = self.sample_candidates(candidates_loss)
@@ -123,7 +159,7 @@ class EncDecRanker(BaseRanker):
                 'responses': responses,
                 'true_final_state': true_final_state,
                 'cheat_responses': CheatRanker.select(batch),
-                'IR_responses': IRRanker.select(batch),
+                'IR_responses': IRRanker.select(batch)['responses'][0],
                 'candidates': token_candidates,
                 }
 
