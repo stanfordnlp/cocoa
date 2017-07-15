@@ -61,6 +61,7 @@ class Vocabulary(object):
                 if word in self.word_to_ind:
                     num_exist += 1
                     vec = np.array([float(x) for x in ss[1:]])
+                    assert vec.shape[0] == dim
                     embeddings[self.word_to_ind[word]] = vec
         print '[%d s]' % (time.time() - start_time)
         print '%d pretrained' % num_exist
