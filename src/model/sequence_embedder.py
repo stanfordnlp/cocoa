@@ -63,9 +63,10 @@ class SequenceEmbedder(object):
 
     def zero_masked_embeddings(self, embeddings, mask):
         batch_size = tf.shape(embeddings)[1]
-        embeddings = tf.reshape(embeddings, [-1, self.embed_size])
+        embed_size = embeddings.get_shape().as_list()[-1]
+        embeddings = tf.reshape(embeddings, [-1, embed_size])
         mask = tf.reshape(mask, [-1])
-        masked_embeddings = tf.reshape(tf.where(mask, embeddings, tf.zeros_like(embeddings)), [-1, batch_size, self.embed_size])
+        masked_embeddings = tf.reshape(tf.where(mask, embeddings, tf.zeros_like(embeddings)), [-1, batch_size, embed_size])
         return masked_embeddings
 
     def sum(self, sequence, mask):
