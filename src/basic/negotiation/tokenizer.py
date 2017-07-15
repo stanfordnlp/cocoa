@@ -55,13 +55,15 @@ def tokenize(utterance):
     'hi there!' => ['hi', 'there', '!']
     '''
     utterance = utterance.encode('utf-8').lower()
-    tokens = word_tokenize(utterance.decode('utf-8'))
+    # NLTK would not tokenize "xx..", so normalize dots to "...".
+    utterance = re.sub(r'\.{2,}', '...', utterance)
+    tokens = word_tokenize(utterance)
     tokens = stick_marker_sign(tokens)
     tokens = stick_dollar_sign(tokens)
     return tokens
 
 # ========= TEST ===========
 if __name__ == '__main__':
-    print tokenize("i have 10,000$!")
+    print tokenize("i have 10,000$!..")
     print tokenize("i haven't $10,000")
 
