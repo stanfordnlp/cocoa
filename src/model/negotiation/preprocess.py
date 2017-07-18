@@ -10,7 +10,7 @@ import numpy as np
 from src.basic.util import read_pickle, write_pickle, read_json
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
-from itertools import chain, izip
+from itertools import chain, izip, izip_longest
 from collections import namedtuple, defaultdict, deque
 import copy
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler
@@ -22,11 +22,12 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
     parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
+    parser.add_argument('--slot-filling', action='store_true', help='Where to do slot filling')
     parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD'])
-markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD', 'START_SLOT', 'END_SLOT'])
+markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>', START_SLOT='<slot>', END_SLOT='</slot>')
 START_PRICE = -1
 
 def price_filler(x):
@@ -59,6 +60,7 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
 def build_kb_vocab(dialogues, special_symbols=[]):
     vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
+    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'])
     for dialogue in dialogues:
         assert dialogue.is_int is False
         # TODO: remove symbols, puncts
@@ -76,6 +78,13 @@ def create_mappings(dialogues, schema, entity_forms):
             'kb_vocab': kb_vocab,
             'cat_vocab': cat_vocab,
             }
+
+def pad_list_to_array(l, fillvalue, dtype):
+    '''
+    l: list of lists with unequal length
+    return: np array with minimal padding
+    '''
+    return np.array(list(izip_longest(*l, fillvalue=fillvalue)), dtype=dtype).T
 
 class TextIntMap(object):
     '''
@@ -114,7 +123,6 @@ class TextIntMap(object):
         if prices is not None:
             assert len(inds) == len(prices)
             toks = [CanonicalEntity(value=p, type='price') if price_filler(x) else x for x, p in izip(toks, prices)]
-            #toks = ['<price>' if price_filler(x) else x for x, p in izip(toks, prices)]
         return toks
 
 
@@ -138,9 +146,8 @@ class Dialogue(object):
         self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
         # KB context
         self.category = kb.facts['item']['Category']
-        # TODO: remove symbols, puncts
-        self.title = tokenize(kb.facts['item']['Title'])
-        self.description = tokenize(' '.join(kb.facts['item']['Description']))
+        self.title = tokenize(re.sub(r'[^\w0-9]', ' ', kb.facts['item']['Title']))
+        self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = []
         # turns: input tokens of encoder, decoder input and target, later converted to integers
@@ -150,7 +157,6 @@ class Dialogue(object):
         self.agents = []
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
-        self.flattened = False
         self.token_candidates = None
         self.candidates = None
 
@@ -185,18 +191,39 @@ class Dialogue(object):
         s = [cls._original_price(kb, x) if is_entity(x) else x for x in utterance]
         return s
 
+    def _insert_markers(self, agent, utterance, new_turn):
+        # Mark end of sentence
+        utterance.append(markers.EOS)
+
+        # Insert GO
+        if new_turn:
+            role = self.agent_to_role[agent]
+            start_symbol = markers.GO_S if role == 'seller' else markers.GO_B
+            utterance.insert(0, start_symbol)
+
+        return utterance
+
     def _add_utterance(self, agent, utterance):
-        utterance = self.scale_price(self.kb, utterance)
-        entities = [x if is_entity(x) else None for x in utterance]
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
-            self.token_turns[-1].append(utterance)
-            self.entities[-1].append(entities)
+            new_turn = False
+        else:
+            new_turn = True
+
+        utterance = self.scale_price(self.kb, utterance)
+        utterance = self._insert_markers(agent, utterance, new_turn)
+        entities = [x if is_entity(x) else None for x in utterance]
+
+        if not new_turn:
+            self.token_turns[-1].extend(utterance)
+            self.entities[-1].extend(entities)
         else:
             self.agents.append(agent)
-            self.roles.append(self.agent_to_role[agent])
-            self.token_turns.append([utterance])
-            self.entities.append([entities])
+            role = self.agent_to_role[agent]
+            self.roles.append(role)
+
+            self.token_turns.append(utterance)
+            self.entities.append(entities)
 
     def convert_to_int(self):
         if self.is_int:
@@ -208,10 +235,13 @@ class Dialogue(object):
                 #    for utterance in turn])
                 turns.append(self.textint_map.text_to_int(turn, stage))
 
+        def remove_slot(tokens):
+            return [x.surface if is_entity(x) and x.canonical.type == 'slot' else x for x in tokens]
+
         if self.token_candidates:
             self.candidates = []
             for turn_candidates in self.token_candidates:
-                c = [self.textint_map.text_to_int(c['response'], 'decoding') if 'response' in c else [] for c in turn_candidates]
+                c = [self.textint_map.text_to_int(remove_slot(c['response']), 'decoding') if 'response' in c else [] for c in turn_candidates]
                 self.candidates.append(c)
 
         self.price_turns = self.get_price_turns(int_markers.PAD)
@@ -219,29 +249,6 @@ class Dialogue(object):
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
         self.is_int = True
-
-    def _flatten_turns(self, turns, EOS):
-        flat_turns = []
-        for turn in turns:
-            for utterance in turn:
-                utterance.append(EOS)
-            flat_turns.append([x for x in chain.from_iterable(turn)])
-        return flat_turns
-
-    def flatten_turns(self):
-        '''
-        Flatten turns to a list of tokens with </s> between utterances and </t> at the end.
-        '''
-        if self.flattened:
-            return
-
-        #for i, turns in enumerate(self.turns):
-        #    self.turns[i] = self._flatten_turns(turns, int_markers.EOS)
-        self.token_turns = self._flatten_turns(self.token_turns, markers.EOS)
-        self.entities = self._flatten_turns(self.entities, None)
-        #self.price_turns = self.get_price_turns(int_markers.PAD)
-
-        self.flattened = True
 
     def _pad_list(self, l, size, pad):
         for i in xrange(len(l), size):
@@ -258,7 +265,7 @@ class Dialogue(object):
             self._pad_list(turns, num_turns, [])
         self.price_turns = self._pad_list(self.price_turns, num_turns, [])
         if self.candidates:
-            self.candidates = self._pad_list(self.candidates, num_turns, [[] for _ in xrange(self.num_candidates)])
+            self.candidates = self._pad_list(self.candidates, num_turns, [{} for _ in xrange(self.num_candidates)])
         assert len(self.price_turns) == len(self.turns[0])
 
     def get_price_turns(self, pad):
@@ -272,8 +279,9 @@ class Dialogue(object):
         return prices
 
 class DialogueBatch(object):
-    def __init__(self, dialogues):
+    def __init__(self, dialogues, slot_filling):
         self.dialogues = dialogues
+        self.slot_filling = slot_filling
 
     def _normalize_dialogue(self):
         '''
@@ -281,38 +289,8 @@ class DialogueBatch(object):
         '''
         max_num_turns = max([len(d.turns[0]) for d in self.dialogues])
         for dialogue in self.dialogues:
-            dialogue.flatten_turns()
             dialogue.pad_turns(max_num_turns)
         self.num_turns = len(self.dialogues[0].turns[0])
-
-    @classmethod
-    def _normalize_turn(cls, turn_batch, roles):
-        '''
-        All turns at the same time step should have the same number of tokens.
-        '''
-        max_num_tokens = max([len(t) for t in turn_batch])
-        batch_size = len(turn_batch)
-        T = np.full([batch_size, max_num_tokens+1], int_markers.PAD, dtype=np.int32)
-        for i, (turn, role) in enumerate(izip(turn_batch, roles)):
-            T[i, 1:len(turn)+1] = turn
-            # Insert <go> at the beginning at each turn because for decoding we want to
-            # start from <go> to generate, except for padded turns
-            if T[i][1] != int_markers.PAD:
-                T[i][0] = int_markers.GO_S if role == 'seller' else int_markers.GO_B
-        return T
-
-    @classmethod
-    def _normalize_price_turn(cls, price_batch, roles):
-        '''
-        Perform the same ops as _normalize turn: pad price for padded tokens.
-        '''
-        max_num_tokens = max([len(t) for t in price_batch])
-        batch_size = len(price_batch)
-        T = np.full([batch_size, max_num_tokens+1], int_markers.PAD, dtype=np.float32)
-        for i, (turn, role) in enumerate(izip(price_batch, roles)):
-            # T[:, 0, :] corresponds to <go> - padded price
-            T[i, 1:len(turn)+1] = turn
-        return T
 
     @classmethod
     def _normalize_candidates(cls, candidate_batch, roles):
@@ -347,8 +325,8 @@ class DialogueBatch(object):
         turn_batches = []
         for i in xrange(Dialogue.num_stages):
             try:
-                turn_batches.append([self._normalize_turn(
-                    [dialogue.turns[i][j] for dialogue in self.dialogues], [dialogue.roles[j] for dialogue in self.dialogues])
+                turn_batches.append([pad_list_to_array(
+                    [d.turns[i][j] for d in self.dialogues], int_markers.PAD, np.int32)
                     for j in xrange(self.num_turns)])
             except IndexError:
                 print 'num_turns:', self.num_turns
@@ -358,25 +336,17 @@ class DialogueBatch(object):
         return turn_batches
 
     def _create_price_batches(self):
-        price_batches = [self._normalize_price_turn(
-            [dialogue.price_turns[j] for dialogue in self.dialogues], [dialogue.role for dialogue in self.dialogues])
+        price_batches = [pad_list_to_array(
+            [dialogue.price_turns[j] for dialogue in self.dialogues], int_markers.PAD, np.float32)
             for j in xrange(self.num_turns)]
         return price_batches
-
-    def _normalize_list(self, lists, pad):
-        max_len = max([len(l) for l in lists])
-        batch_size = len(lists)
-        T = np.full([batch_size, max_len], pad, dtype=np.int32)
-        for i, l in enumerate(lists):
-            T[i, :len(l)] = l
-        return T
 
     def _create_context_batch(self):
         category_batch = np.array([d.category for d in self.dialogues], dtype=np.int32)
         # TODO: hacky
         pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        title_batch = self._normalize_list([d.title for d in self.dialogues], pad)
-        description_batch = self._normalize_list([d.description for d in self.dialogues], pad)
+        title_batch = pad_list_to_array([d.title for d in self.dialogues], pad, np.int32)
+        description_batch = pad_list_to_array([d.description for d in self.dialogues], pad, np.int32)
         return {
                 'category': category_batch,
                 'title': title_batch,
@@ -388,20 +358,6 @@ class DialogueBatch(object):
 
     def _get_kb_batch(self):
         return [dialogue.kb for dialogue in self.dialogues]
-
-    def _replace_eos(self, array, value):
-        '''
-        For each row, replace (in place) the last occurence of value to <pad>.
-        The last token input to decoder should not be </s> otherwise the model will learn
-        </s> <pad> (deterministically).
-        '''
-        nrows, ncols = array.shape
-        for i in xrange(nrows):
-            for j in xrange(ncols-1, -1, -1):
-                if array[i][j] == value:
-                    array[i][j] = int_markers.PAD
-                    break
-        return array
 
     def pick_helpers(self, token_candidates, candidates):
         helpers = []
@@ -430,6 +386,31 @@ class DialogueBatch(object):
             helpers.append(candidates[b][helper_id])
         return np.array(helpers)
 
+    def _mask_slots(self, targets):
+        '''
+        targets: target sequence (interger)
+        return: mask (set to 1) words between <slot> and </slot> (including </slot> but not <slot>)
+        '''
+        mask = np.zeros_like(targets)
+        for i, target in enumerate(targets):
+            delimiters = np.where((target == int_markers.START_SLOT) | (target == int_markers.END_SLOT))[0]
+            assert len(delimiters) % 2 == 0
+            for j in xrange(0, delimiters.shape[0], 2):
+                start, end = delimiters[j], delimiters[j+1]
+                # Include </slot> but not <slot>
+                mask[i][start+1:end+1] = 1
+        targets[mask == 0] = int_markers.PAD
+        return targets
+
+    def _remove_last(self, array, value):
+        nrows, ncols = array.shape
+        for i in xrange(nrows):
+            for j in xrange(ncols-1, -1, -1):
+                if array[i][j] == value:
+                    array[i][j] = int_markers.PAD
+                    break
+        return array
+
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
         if encode_turn is not None:
             # Remove <go> at the beginning of utterance
@@ -442,12 +423,18 @@ class DialogueBatch(object):
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
         decoder_inputs = np.copy(decode_turn)
-        decoder_inputs = self._replace_eos(decoder_inputs, int_markers.EOS)[:, :-1]
-        # Include pad (<go>) at the beginning of utterance
+        # NOTE: For each row, replace the last <eos> to <pad> to be consistent:
+        # 1) The longest sequence does not have </s> as input.
+        # 2) At inference time, decoder stops at </s>.
+        decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_price_inputs = price_decode_turn[:, :-1]
-        price_targets = price_decode_turn[:, 1:]
 
+        price_targets = price_decode_turn[:, 1:]
         decoder_targets = target_turn[:, 1:]
+
+        # Mask for slots
+        if self.slot_filling:
+            decoder_targets = self._mask_slots(decoder_targets)
 
         #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
         #context_batch['helper'] = helpers
@@ -458,7 +445,7 @@ class DialogueBatch(object):
                  'decoder_inputs': decoder_inputs,
                  'targets': decoder_targets,
                  'decoder_price_inputs': decoder_price_inputs,
-                 'encoder_price_inputs': decoder_price_inputs,
+                 'encoder_price_inputs': encoder_price_inputs,
                  'price_targets': price_targets,
                  'encoder_tokens': encode_tokens,
                  'decoder_tokens': decode_tokens,
@@ -468,9 +455,6 @@ class DialogueBatch(object):
                  'kbs': kbs,
                  'context': context_batch,
                 }
-        for d, tokens in izip(self.dialogues, decode_tokens):
-            print d.uuid, d.role
-            print ' '.join(['_price_' if is_entity(x) else x for x in tokens])
         return batch
 
     def _get_token_candidates(self, i):
@@ -508,8 +492,6 @@ class DialogueBatch(object):
         # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
         batch = {
-                 'agent': agents,
-                 'kb': kbs,
                  'batch_seq': batch_seq,
                 }
 
@@ -596,13 +578,18 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
         self.entity_forms = {'encoding': entity_encoding_form,
                 'decoding': entity_decoding_form,
                 'target': entity_target_form}
+
+        if slot_filling:
+            assert slot_detector is not None
+        self.slot_filling = slot_filling
+        self.slot_detector = slot_detector
 
     @classmethod
     def get_entity_form(cls, entity, form):
@@ -615,7 +602,7 @@ class Preprocessor(object):
         elif form == 'type':
             return '<%s>' % entity.canonical.type
         elif form == 'canonical':
-            return entity.canonical
+            return entity._replace(surface='')
         else:
             raise ValueError('Unknown entity form %s' % form)
 
@@ -633,15 +620,10 @@ class Preprocessor(object):
         kbs = ex.scenario.kbs
         for agent in (0, 1):
             dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
-            mentioned_entities = set()
             for e in ex.events:
-                utterance = self.process_event(e, dialogue.agent, dialogue.kb, mentioned_entities)
+                utterance = self.process_event(e, dialogue.agent, dialogue.kb)
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance)
-                    for token in utterance:
-                        if is_entity(token):
-                            mentioned_entities.add(token.canonical)
-            dialogue.flatten_turns()
             yield dialogue
 
     @classmethod
@@ -649,19 +631,39 @@ class Preprocessor(object):
         #return (price, (price, 'price'))
         return Entity(price, CanonicalEntity(price, 'price'))
 
-    def process_event(self, e, agent, kb, mentioned_entities=None):
+    def _mark_slots(self, utterance):
         '''
-        Convert event to two lists of tokens and entities for encoding and decoding.
-        agent: from this agent's perspective
-        kb: the agent's (known) kb
+        Insert START_SLOT and END_SLOT around slot words and convert slot entity back
+        to normal tokens.
+        NOTE: assuming slot words are not joined (see SlotDetector.detect_slot).
+        '''
+        new_utterance = []
+        in_slot = False
+        for token in utterance:
+            if is_entity(token) and token.canonical.type == 'slot':
+                if not in_slot:
+                    new_utterance.append(markers.START_SLOT)
+                    in_slot = True
+                new_utterance.append(token.surface)
+            else:
+                if in_slot:
+                    new_utterance.append(markers.END_SLOT)
+                    in_slot = False
+                new_utterance.append(token)
+        if in_slot:
+            new_utterance.append(markers.END_SLOT)
+        return new_utterance
+
+    def process_event(self, e, agent, kb):
+        '''
+        Tokenize, link entities
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            if agent == e.agent:
-                entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, mentioned_entities=mentioned_entities)
-            else:
-                entity_tokens = self.lexicon.link_entity(tokenize(e.data), partner_kb=kb, mentioned_entities=mentioned_entities)
-            #entity_tokens = ['_price_' if is_entity(x) else x for x in entity_tokens]
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
+            if self.slot_filling:
+                entity_tokens = self.slot_detector.detect_slots(entity_tokens, kb=kb, join=False)
+                entity_tokens = self._mark_slots(entity_tokens)
             if entity_tokens:
                 return entity_tokens
             else:
@@ -714,6 +716,8 @@ class DataGenerator(object):
         # Build retriever given training dialogues
         self.retriever = retriever
 
+        self.slot_filling = preprocessor.slot_filling
+
         self.cache = cache
         self.ignore_cache = ignore_cache
         if (not os.path.exists(cache)) or ignore_cache:
@@ -758,7 +762,7 @@ class DataGenerator(object):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.append(DialogueBatch(dialogue_batch).create_batch())
+            dialogue_batches.append(DialogueBatch(dialogue_batch, self.slot_filling).create_batch())
             start = end
         return dialogue_batches
 
@@ -770,6 +774,24 @@ class DataGenerator(object):
                 responses[role].extend(turn)
         return responses
 
+    def rewrite_candidate(self, fillers, candidate):
+        rewritten = []
+        tokens = candidate.get('response', [])
+        if not tokens:
+            return rewritten
+        for i, tok in enumerate(tokens):
+            if is_entity(tok) and tok.canonical.type == 'slot':
+                for filler in fillers:
+                    ss = filler.split()
+                    new_tokens = list(tokens)
+                    del new_tokens[i]
+                    for j, s in enumerate(ss):
+                        new_tokens.insert(i+j, Entity(s, CanonicalEntity('', 'slot')))
+                    new_cand = dict(candidate)
+                    new_cand['response'] = new_tokens
+                    rewritten.append(new_cand)
+        return rewritten
+
     def generator(self, name, batch_size, shuffle=True):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
@@ -778,7 +800,7 @@ class DataGenerator(object):
             dialogues = self.dialogues[name]
 
             if self.retriever is not None:
-                Dialogue.num_candidates = self.retriever.num_candidates
+                Dialogue.num_candidates = 50
                 for dialogue in dialogues:
                     k = (dialogue.uuid, dialogue.role)
                     # candidates: list of list containing num_candidates responses for each turn of the dialogue
@@ -787,8 +809,25 @@ class DataGenerator(object):
                         candidates = self.cached_candidates[k]
                     else:
                         candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
+
                     candidates = [c if c else self.retriever.empty_candidates for c in candidates]
-                    dialogue.add_candidates(candidates)
+
+                    kb_context = self.slot_detector.context_to_fillers(dialogue.kb)
+                    new_candidates = []
+                    for i, turn_candidates in enumerate(candidates):
+                        rewritten_cands = []
+                        for candidate in turn_candidates:
+                            rewritten_cands.append(candidate)
+                            rewritten = self.rewrite_candidate(kb_context, candidate)
+                            rewritten_cands.extend(rewritten)
+                        new_candidates.append(rewritten_cands)
+                    for i, cands in enumerate(new_candidates):
+                        if len(cands) < Dialogue.num_candidates:
+                            cands.extend([{} for _ in xrange(Dialogue.num_candidates - len(cands))])
+                        else:
+                            new_candidates[i] = cands[:Dialogue.num_candidates]
+
+                    dialogue.add_candidates(new_candidates)
                 self.retriever.report_search_time()
 
             for dialogue in dialogues:
