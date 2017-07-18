@@ -1,25 +1,34 @@
 {
     "status_params": {
-	    "waiting": {
-	        "num_seconds": 180
-	    },
+	"waiting": {
+	    "num_seconds": 180
+	},
 
-	    "chat": {
-	        "num_seconds": 1200
-	    },
+	"chat": {
+	    "num_seconds": 1200
+	},
 
-	    "finished": {
-	        "num_seconds": 15
-	    },
+	"finished": {
+	    "num_seconds": -1
+	},
 
-        "survey": {
-	        "num_seconds": -1
-	    }
+	"survey": {
+	    "num_seconds": -1
+	},
+	"redirected": {
+	    "num_seconds": -1
+	},
+	"incomplete": {
+	    "num_seconds": -1
+	},
+	"reporting": {
+	    "num_seconds": -1
+	}
     },
     "connection_timeout_num_seconds": 3,
-  	"idle_timeout_num_seconds": 5,
+    "idle_timeout_num_seconds": 210,
     "templates_dir": "/home/hehe/game-dialogue/src/web/templates/negotiation",
-  	"images_base": "/home/hehe/game-dialogue/images",
+    "images_base": "/home/hehe/game-dialogue/images",
     "instructions": "/home/hehe/game-dialogue/data/web/negotiation/craiglist-instructions.html",
     "task_title": "Let's Negotiate!",
     "icon": "handshake.jpg",

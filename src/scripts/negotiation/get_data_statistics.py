@@ -1,12 +1,13 @@
 __author__ = 'anushabala'
 
-from src.turk.accept_negotiation_hits import reject_transcript, get_turns_per_agent, get_total_tokens_per_agent
 from argparse import ArgumentParser
 from src.model.preprocess import tokenize
 import json
 import os
 from scipy import stats as scipy_stats
-from tf_idf import TfIdfCalculator, plot_top_tokens
+import tf_idf
+import ngram
+import utils
 
 
 def get_dialogue_tokens(transcript):
@@ -80,13 +81,6 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-def get_avg_time_taken(transcript):
-    events = transcript["events"]
-    start_time = float(events[0]["time"])
-    end_time = float(events[-1]["time"])
-    return end_time - start_time
-
-
 def compute_basic_statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total":0.}
     total_tokens = {"total": 0.}
@@ -95,9 +89,9 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
     for t in transcripts:
         if t["uuid"] not in surveyed_chats:
             continue
-        turns = get_turns_per_agent(t)
-        tokens = get_total_tokens_per_agent(t)
-        time = get_avg_time_taken(t)
+        turns = utils.get_turns_per_agent(t)
+        tokens = utils.get_total_tokens_per_agent(t)
+        time = utils.get_avg_time_taken(t)
 
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
@@ -179,17 +173,94 @@ def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiato
     statsfile.close()
 
 
+def tf_idf_by_category(transcripts):
+    top_features_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = tf_idf.group_text_by_category(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def tf_idf_by_winner(transcripts):
+    top_features_by_agent = []
+
+    for agent_type in args.agent_types:
+        grouped_chats = tf_idf.group_text_by_winner(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def tf_idf_by_role(transcripts):
+    top_features_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = tf_idf.group_text_by_role(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        top_features_by_cat = tfidf.analyze()
+        top_features_by_agent.append(top_features_by_cat)
+
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_category(transcripts, n=5):
+    top_ngrams_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_utterances = ngram.group_text_by_category(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_utterances, n=5, agent_type=agent_type)
+
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_winner(transcripts, n=5):
+    top_ngrams_by_agent = []
+
+    for agent_type in args.agent_types:
+        grouped_chats = ngram.group_text_by_winner(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_chats, n=n, agent_type=agent_type)
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
+def ngram_by_role(transcripts, n=5):
+    top_ngrams_by_agent = []
+    for agent_type in args.agent_types:
+        grouped_chats = ngram.group_text_by_role(transcripts, agent_type)
+        analyzer = ngram.NgramAnalyzer(grouped_chats, n=n, agent_type=agent_type)
+        top_ngrams_by_cat = analyzer.analyze()
+        top_ngrams_by_agent.append(top_ngrams_by_cat)
+
+    ngram.plot_top_ngrams(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+    ngram.write_to_file(top_ngrams_by_agent, agents=args.agent_types, output_dir=stats_output)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
     parser.add_argument('--agent-types', nargs='+', default=['human'], help='Types of agents to get statistics for')
+    parser.add_argument('--limit', type=int, default=-1, help='Analyze the first N transcripts')
+    parser.add_argument('--tf-idf', action='store_true', help='Whether to perform tf-idf analysis or not')
+    parser.add_argument('--ngram', action='store_true', help='Whether to perform ngram analysis or not')
     args = parser.parse_args()
     output_dir = args.output_dir
     if not os.path.exists(output_dir):
         raise ValueError("Output directory {:s} doesn't exist".format(output_dir))
+
     transcripts = json.load(open(os.path.join(output_dir, "transcripts", "transcripts.json"), 'r'))
+    if args.limit > 0:
+        transcripts = transcripts[:args.limit]
     survey_data = json.load(open(os.path.join(output_dir, "transcripts", "surveys.json"), 'r'))
 
     stats_output = os.path.join(output_dir, "stats")
@@ -199,11 +270,12 @@ if __name__ == "__main__":
 
     get_statistics(transcripts, survey_data)
 
-    top_features_by_agent = []
+    if args.tf_idf:
+        tf_idf_by_category(transcripts)
+        tf_idf_by_role(transcripts)
+        tf_idf_by_winner(transcripts)
 
-    for agent_type in args.agent_types:
-        tfidf = TfIdfCalculator(transcripts, top_n=20, agent_type=agent_type)
-        top_features_by_cat = tfidf.analyze()
-        top_features_by_agent.append(top_features_by_cat)
-
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+    if args.ngram:
+        ngram_by_category(transcripts)
+        ngram_by_role(transcripts)
+        ngram_by_winner(transcripts)

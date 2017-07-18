@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import csv
 import sqlite3
 import json
-from src.model.preprocess import tokenize
+from utils import get_total_tokens_per_agent, get_turns_per_agent
 
 MIN_TOKENS = 40
 
@@ -41,41 +41,6 @@ def process_db(cursor):
         agent_ids[cid] = user_ids
 
     return survey_codes, agent_ids
-
-
-def get_turns_per_agent(transcript):
-    turns = {0: 0, 1: 0}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            turns[event["agent"]] += 1
-
-    return turns
-
-
-def get_avg_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    utterances = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-            utterances[event["agent"]] += 1
-
-    if utterances[0] != 0:
-        tokens[0] /= utterances[0]
-    if utterances[1] != 0:
-        tokens[1] /= utterances[1]
-
-    return tokens
-
-def get_total_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-
-    return tokens
 
 
 def is_chat_valid(transcript, idx):

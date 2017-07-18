@@ -352,14 +352,31 @@ class BaseBackend(object):
                           message=message,
                           partner_id=-1)
 
+    def skip_survey_and_finish(self, cursor, userid, message=Messages.ChatCompleted):
+        self._update_user(cursor, userid,
+                          status=Status.Incomplete,
+                          message=message,
+                          partner_id=-1)
+
     def end_chat_and_finish(self, cursor, userid, message=Messages.ChatCompleted):
         self._end_chat(cursor, userid)
         self.user_finished(cursor, userid, message)
+
+    def timeout_chat_and_skip_survey(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
+        self._end_chat(cursor, userid)
+        self.skip_survey_and_finish(cursor, userid, message)
 
     def timeout_chat_and_finish(self, cursor, userid, message=Messages.ChatExpired, partner_id=None):
         self.end_chat_and_finish(cursor, userid, message)
         if partner_id is not None and not self.is_user_partner_bot(cursor, userid):
             self.user_finished(cursor, partner_id, message)
+
+    def end_chat_and_redirect(self, cursor, userid, message):
+        self._end_chat(cursor, userid)
+        self._update_user(cursor, userid,
+                          status=Status.Redirected,
+                          connected_status=1,
+                          message=message)
 
     def end_chat_and_transition_to_waiting(self, cursor, userid, message, partner_id=None):
         self._end_chat(cursor, userid)
@@ -441,7 +458,7 @@ class BaseBackend(object):
 
         return msg, msg
 
-    def get_finished_info(self, userid, from_mturk=False):
+    def get_finished_info(self, userid, from_mturk=False, current_status=Status.Finished):
         def _generate_mturk_code(completed=True):
             if completed:
                 return "MTURK_TASK_C{}".format(str(uuid.uuid4().hex))
@@ -473,7 +490,7 @@ class BaseBackend(object):
         try:
             with self.conn:
                 cursor = self.conn.cursor()
-                u = self._get_user_info(cursor, userid, assumed_status=Status.Finished)
+                u = self._get_user_info(cursor, userid, assumed_status=current_status)
                 num_seconds = (self.config["status_params"]["finished"]["num_seconds"] +
                                u.status_timestamp) - current_timestamp_in_seconds()
                 completed = _is_chat_complete(cursor, u.chat_id)
@@ -524,6 +541,9 @@ class BaseBackend(object):
                 try:
                     u = self._get_user_info(cursor, userid, assumed_status=None)
                     self.logger.debug("Got updated status {:s} for user {:s}".format(u.status, userid))
+                    if u.status == Status.Redirected:
+                        self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
+                        return Status.Waiting
                     return u.status
                 except (UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException) as e:
                     # Handle timeouts by performing the relevant update
@@ -538,7 +558,9 @@ class BaseBackend(object):
                         else:
                             self._stop_waiting_and_transition_to_finished(cursor, userid)
                             return Status.Finished
-
+                    elif u.status == Status.Redirected:
+                        self._update_user(cursor, userid, connected_status=1, status=Status.Waiting)
+                        return Status.Waiting
                     elif u.status == Status.Chat:
                         if isinstance(e, ConnectionTimeoutException):
                             message = Messages.PartnerConnectionTimeout
@@ -546,7 +568,7 @@ class BaseBackend(object):
                             message = Messages.ChatExpired
 
                         self.logger.debug("User {:s} chat status expired, redirecting to waiting".format(userid))
-                        self.end_chat_and_transition_to_waiting(cursor, userid, message=message)
+                        self.end_chat_and_redirect(cursor, userid, message=message)
                         return Status.Waiting
 
                     elif u.status == Status.Finished:
@@ -556,6 +578,12 @@ class BaseBackend(object):
                     elif u.status == Status.Survey:
                         self._update_user(cursor, userid, connected_status=1)
                         return Status.Survey
+                    elif u.status == Status.Incomplete:
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Incomplete
+                    elif u.status == Status.Reporting:
+                        self._update_user(cursor, userid, connected_status=1)
+                        return Status.Reporting
                     else:
                         raise Exception("Unknown status: {} for user: {}".format(u.status, userid))
 
@@ -583,16 +611,20 @@ class BaseBackend(object):
                                                  partner_id=u.partner_id)
                     return False
                 except ConnectionTimeoutException:
+                    u = self._get_user_info_unchecked(cursor, userid)
+                    self.logger.debug("User {:s} timed out due to inactivity. "
+                                      "Redirecting to incomplete status...".format(userid))
+                    self.timeout_chat_and_skip_survey(cursor, userid,
+                                                      message=Messages.ConnectionTimeout)
                     return False
 
-                self._update_user(cursor, userid, connected_status=1)
                 if not self.is_user_partner_bot(cursor, userid):
                     try:
                         u2 = self._get_user_info(cursor, u.partner_id, assumed_status=Status.Chat)
                     except UnexpectedStatusException:
                         self.logger.debug("User {:s}: Partner not in chat status, redirecting to "
                                           "waiting".format(userid))
-                        self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.PartnerLeftRoom)
+                        self.end_chat_and_redirect(cursor, userid, message=Messages.PartnerLeftRoom)
                         return False
                     except StatusTimeoutException:
                         self.timeout_chat_and_finish(cursor, userid,
@@ -601,8 +633,8 @@ class BaseBackend(object):
                         # self.end_chat_and_transition_to_waiting(cursor, userid, message=Messages.ChatExpired)
                         return False
                     except ConnectionTimeoutException:
-                        self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                                message=Messages.PartnerConnectionTimeout)
+                        self.end_chat_and_redirect(cursor, userid,
+                                                   message=Messages.PartnerConnectionTimeout)
                         self.logger.debug("User {:s}: Partner connection timed out, redirecting to "
                                           "waiting".format(userid))
                         return False
@@ -672,6 +704,14 @@ class BaseBackend(object):
         session = self._get_session(userid)
         return session.poll_inbox()
 
+    def init_report(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                self._update_user(cursor, userid, status=Status.Reporting)
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
     def report(self, userid, feedback):
         try:
             with self.conn:
@@ -684,6 +724,9 @@ class BaseBackend(object):
         session = self._get_session(userid)
         session.enqueue(event)
         controller = self.controller_map[userid]
+        with self.conn:
+            cursor = self.conn.cursor()
+            self._update_user(cursor, userid, connected_status=1)
         if controller is None:
             # fail silently because this just means that the user tries to send something after their partner has left
             # (but before the chat has ended)
@@ -817,10 +860,9 @@ class NegotiationBackend(BaseBackend):
         if game_over:
             if self.should_reject_chat(userid, 1-agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}),"
-                                  " and redirecting to "
-                                  "waiting".format(controller.get_chat_id(), userid, 1-agent_idx))
-                self.end_chat_and_transition_to_waiting(cursor, partner_id,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                                  " and redirecting ".format(controller.get_chat_id(), userid, 1-agent_idx))
+                self.end_chat_and_redirect(cursor, partner_id,
+                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 if not self.is_user_partner_bot(cursor, userid):
                     partner_msg, _ = self.get_completion_messages(partner_id)
@@ -830,10 +872,10 @@ class NegotiationBackend(BaseBackend):
                     self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
 
             if self.should_reject_chat(userid, agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
-                                  "waiting".format(controller.get_chat_id(), userid, agent_idx))
-                self.end_chat_and_transition_to_waiting(cursor, userid,
-                                                        message=Messages.NegotiationRedirect + " " + Messages.Waiting)
+                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and "
+                                  "redirecting".format(controller.get_chat_id(), userid, agent_idx))
+                self.end_chat_and_redirect(cursor, userid,
+                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 msg, _ = self.get_completion_messages(userid)
                 self.logger.debug("Accepted chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
@@ -891,6 +933,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.OfferEvent(u.agent_index,
                                                    offer,
                                                    str(time.time())))
@@ -903,6 +946,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.AcceptEvent(u.agent_index,
                                                    str(time.time())))
         except sqlite3.IntegrityError:
@@ -914,6 +958,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.RejectEvent(u.agent_index,
                                                    str(time.time())))
         except sqlite3.IntegrityError:
@@ -925,6 +970,7 @@ class NegotiationBackend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
                 self.send(userid, Event.QuitEvent(u.agent_index,
                                                   None,
                                                   str(time.time())))
@@ -963,5 +1009,6 @@ class NegotiationBackend(BaseBackend):
                                 data['fluent'], data['honest'], data['persuasive'],
                                 data['fair'], data['negotiator'], data['coherent'], data['comments']))
                 _user_finished(userid)
+                self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")

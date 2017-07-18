@@ -29,7 +29,10 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
             events.append((agent, action, time, data, time))
         logged_events = events
     cursor.execute('SELECT scenario_id, outcome FROM chat WHERE chat_id=?', (chat_id,))
-    (uuid, outcome) = cursor.fetchone()
+    result = cursor.fetchone()
+    if result is None:
+        return None
+    (uuid, outcome) = result
     try:
         outcome = json.loads(outcome)
     except ValueError:
@@ -85,6 +88,8 @@ def log_transcripts_to_json(scenario_db, db_path, json_path, uids):
     for chat_id in ids:
         # Skip single-agent chat
         ex = convert_events_to_json(chat_id[0], cursor, scenario_db)
+        if ex is None:
+            continue
         if not single_agent(ex):
             examples.append(ex)
 

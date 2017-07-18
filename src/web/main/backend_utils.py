@@ -9,6 +9,9 @@ class Status(object):
     Chat = "chat"
     Finished = "finished"
     Survey = "survey"
+    Redirected = "redirected"
+    Incomplete = "incomplete"
+    Reporting = "reporting"
 
 
 class UnexpectedStatusException(Exception):
@@ -36,7 +39,8 @@ class NoSuchUserException(Exception):
 class Messages(object):
     ChatExpired = 'You ran out of time!'
     PartnerConnectionTimeout = "Your partner's connection has timed out! Waiting for a new chat..."
-    ConnectionTimeout = "Your connection has timed out!"
+    ConnectionTimeout = "Your connection has timed out. Please reenter this website using the original URL provided to " \
+                        "you to start a new chat."
     YouLeftRoom = 'You skipped the chat. '
     PartnerLeftRoom = 'Your partner has left the chat!'
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"
