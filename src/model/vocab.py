@@ -1,8 +1,3 @@
-#def is_entity(word):
-#    if not isinstance(word, basestring):
-#        return True
-#    return False
-
 import numpy as np
 import time
 
@@ -52,7 +47,7 @@ class Vocabulary(object):
     def load_embeddings(self, wordvec_file, dim):
         print 'Loading pretrained word vectors:', wordvec_file
         start_time = time.time()
-        embeddings = np.random.uniform(-1., 1., [len(self.word_to_ind), dim])
+        embeddings = np.random.uniform(-1., 1., [self.size, dim])
         num_exist = 0
         with open(wordvec_file, 'r') as f:
             for line in f:
@@ -61,7 +56,6 @@ class Vocabulary(object):
                 if word in self.word_to_ind:
                     num_exist += 1
                     vec = np.array([float(x) for x in ss[1:]])
-                    assert vec.shape[0] == dim
                     embeddings[self.word_to_ind[word]] = vec
         print '[%d s]' % (time.time() - start_time)
         print '%d pretrained' % num_exist
