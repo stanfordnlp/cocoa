@@ -1,13 +1,13 @@
 __author__ = 'anushabala'
 
-from src.turk.accept_negotiation_hits import reject_transcript, get_turns_per_agent, get_total_tokens_per_agent
 from argparse import ArgumentParser
 from src.model.preprocess import tokenize
 import json
 import os
 from scipy import stats as scipy_stats
-from tf_idf import *
+import tf_idf
 import ngram
+import utils
 
 
 def get_dialogue_tokens(transcript):
@@ -81,13 +81,6 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-def get_avg_time_taken(transcript):
-    events = transcript["events"]
-    start_time = float(events[0]["time"])
-    end_time = float(events[-1]["time"])
-    return end_time - start_time
-
-
 def compute_basic_statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total":0.}
     total_tokens = {"total": 0.}
@@ -96,9 +89,9 @@ def compute_basic_statistics(transcripts, stats, surveyed_chats):
     for t in transcripts:
         if t["uuid"] not in surveyed_chats:
             continue
-        turns = get_turns_per_agent(t)
-        tokens = get_total_tokens_per_agent(t)
-        time = get_avg_time_taken(t)
+        turns = utils.get_turns_per_agent(t)
+        tokens = utils.get_total_tokens_per_agent(t)
+        time = utils.get_avg_time_taken(t)
 
         # Note: this check is redundant now because we already filter for chats that have surveys, and only chats
         # that are complete / partial can be submitted with surveys. This check is just here to be compatible with
@@ -183,35 +176,35 @@ def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiato
 def tf_idf_by_category(transcripts):
     top_features_by_agent = []
     for agent_type in args.agent_types:
-        grouped_chats = group_text_by_category(transcripts, agent_type)
-        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        grouped_chats = tf_idf.group_text_by_category(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
 
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
 
 
 def tf_idf_by_winner(transcripts):
     top_features_by_agent = []
 
     for agent_type in args.agent_types:
-        grouped_chats = group_text_by_winner(transcripts, agent_type)
-        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        grouped_chats = tf_idf.group_text_by_winner(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
 
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
 
 
 def tf_idf_by_role(transcripts):
     top_features_by_agent = []
     for agent_type in args.agent_types:
-        grouped_chats = group_text_by_role(transcripts, agent_type)
-        tfidf = TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
+        grouped_chats = tf_idf.group_text_by_role(transcripts, agent_type)
+        tfidf = tf_idf.TfIdfCalculator(grouped_chats, top_n=20, agent_type=agent_type)
         top_features_by_cat = tfidf.analyze()
         top_features_by_agent.append(top_features_by_cat)
 
-    plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
+    tf_idf.plot_top_tokens(top_features_by_agent, agents=args.agent_types, output_dir=stats_output)
 
 
 def ngram_by_category(transcripts, n=5):

@@ -6,34 +6,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 import matplotlib.pyplot as plt
 from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
+from utils import *
 
-
-BUYER = "buyer"
-SELLER = "seller"
-ROLES = [BUYER, SELLER]
-WINNER = "winner"
-LOSER = "loser"
-OUTCOMES = [WINNER, LOSER]
-
-
-def get_winner(transcript):
-    if transcript["outcome"] is None or transcript["outcome"]["reward"] != 1:
-        return None
-    final_price = transcript["outcome"]["offer"]["price"]
-    scenario = transcript["scenario"]
-    roles = {
-        scenario["kbs"][0]["personal"]["Role"]: 0,
-        scenario["kbs"][1]["personal"]["Role"]: 1
-    }
-
-    buyer_target = scenario["kbs"][roles[BUYER]]["personal"]["Target"]
-    seller_target = scenario["kbs"][roles[SELLER]]["personal"]["Target"]
-    if np.abs(buyer_target - final_price) > np.abs(seller_target - final_price):
-        return roles[BUYER]
-    elif np.abs(seller_target - final_price) > np.abs(buyer_target - final_price):
-        return roles[SELLER]
-    else:
-        return -1
 
 
 def group_text_by_winner(transcripts, agent_type=None):

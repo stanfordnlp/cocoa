@@ -16,13 +16,14 @@ DATE_FMT = "%a %b %d %H:%M:%S %Z %Y"
 
 
 def assign_bonus(duration):
-    if 7 < duration <= 11:
+    if 7 < duration <= 10:
         return 0.25
-    elif 11 < duration <= 14:
+    elif 10 < duration <= 13:
         return 0.5
-    elif 14 < duration <= 25:
+    elif 13 < duration <= 25:
         return 0.75
     elif duration > 25:
+        print "t>25"
         return 2
     else:
         return 0.
@@ -129,6 +130,13 @@ def get_bonuses():
     hist, bins = np.histogram(times)
     print bins
 
+    # width = np.diff(bins)
+    # center = (bins[:-1] + bins[1:]) / 2
+    #
+    # fig, ax = plt.subplots(figsize=(8,3))
+    # ax.bar(center, hist, align='center', width=width)
+    # ax.set_xticks(bins)
+    # plt.show()
 
     return bonuses
 
