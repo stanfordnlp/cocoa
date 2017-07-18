@@ -5,6 +5,7 @@ from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
 from src.model.sequence_embedder import AttentionRNNEmbedder
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
+from itertools import izip
 
 class LM(object):
     def __init__(self, decoder, pad):
@@ -131,16 +132,7 @@ class BasicEncoderDecoder(object):
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
-        # TODO: get_decoder_args for refactor
-        price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
-        decoder_args = {'inputs': decoder_inputs[:, [0]],
-                'init_cell_state': encoder_output_dict['final_state'],
-                'price_symbol': textint_map.vocab.to_ind('<price>'),
-                'price_predictor': price_args,
-                'textint_map': textint_map,
-                'context': batch['context'],
-                'encoder_outputs': encoder_output_dict['outputs'],
-                }
+        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
@@ -171,6 +163,14 @@ class AttentionDecoder(BasicDecoder):
     def get_encoder_state(self, state):
         return state.cell_state
 
+    def get_inference_args(self, batch, encoder_output_dict, textint_map):
+        decoder_args = super(AttentionDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+        decoder_args.update({
+            'context': batch['context'],
+            'encoder_outputs': encoder_output_dict['outputs'],
+            })
+        return decoder_args
+
     def _build_rnn_inputs(self, input_dict):
         inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(input_dict)
         encoder_outputs = input_dict['encoder_embeddings']
@@ -197,24 +197,33 @@ class ContextDecoder(BasicDecoder):
         #self.context = context
         self.context_embedding = self.context_embedder.embed(context)
 
-    def _build_output(self, output_dict):
-        outputs = output_dict['outputs']
-        embed_size = outputs.get_shape().as_list()[-1]
-        outputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, outputs)
-        outputs = tf.layers.dense(outputs, embed_size, activation=tf.nn.tanh)
-        # Linear layer
-        outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
-        logits = self._build_logits(outputs)
-        return logits
+    #def _build_output(self, output_dict):
+    #    outputs = output_dict['outputs']
+    #    embed_size = outputs.get_shape().as_list()[-1]
+    #    outputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, outputs)
+    #    outputs = tf.layers.dense(outputs, embed_size, activation=tf.nn.tanh)
+    #    # Linear layer
+    #    outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
+    #    logits = self._build_logits(outputs)
+    #    return logits
 
-    #def _build_rnn_inputs(self, input_dict):
-    #    inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
-    #    inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
-    #    return inputs, mask, kwargs
+    def _build_rnn_inputs(self, input_dict):
+        inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
+        inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
+        return inputs, mask, kwargs
+
+    def get_inference_args(self, batch, encoder_output_dict, textint_map):
+        decoder_args = super(ContextDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+        decoder_args['context'] = batch['context']
+        return decoder_args
 
     def get_feed_dict(self, **kwargs):
-        feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)
-        feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
+        feed_dict = super(ContextDecoder, self).get_feed_dict(**kwargs)\
+        # TODO: context should always be in feed_dict. however sometimes we want to update
+        # values in the feed_dict and context might have already been there. should
+        # check that it's true though.
+        if 'context' in kwargs:
+            feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
         return feed_dict
 
 class PriceEncoder(object):
@@ -242,6 +251,96 @@ class PriceEncoder(object):
         feed_dict = self.price_predictor.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('price_predictor'))
         return feed_dict
 
+class DecoderWrapper(object):
+    '''
+    Wrapper around a decoder.
+    '''
+    def __init__(self, decoder):
+        self.decoder = decoder
+        self.sampler = decoder.sampler
+
+    def build_model(self, *args, **kwargs):
+        with tf.variable_scope(type(self).__name__):
+            self.decoder.build_model(*args, **kwargs)
+        self.output_dict = dict(self.decoder.output_dict)
+
+    def get_inference_args(self, *args):
+        return self.decoder.get_inference_args(*args)
+
+    def get_feed_dict(self, **kwargs):
+        return self.decoder.get_feed_dict(**kwargs)
+
+    def pred_to_input(self, preds, textint_map):
+        return self.decoder.pred_to_input(preds, textint_map)
+
+    def get_encoder_state(self, state):
+        return self.decoder.get_encoder_state(state)
+
+    def compute_loss(self):
+        return self.decoder.compute_loss()
+
+class SlotFillingDecoder(DecoderWrapper):
+    def _fill_in_slots(self, sess, feed_dict, curr_state, init_input, preds, textint_map, stop_symbol=None, max_len=10):
+        feed_dict = self.get_feed_dict(feed_dict=feed_dict, inputs=init_input, init_state=curr_state)
+        preds.append(init_input)
+        for i in xrange(max_len):
+            logits, curr_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
+            step_preds = self.sampler.sample(logits)
+            preds.append(step_preds)
+            if step_preds[0][0] == stop_symbol:
+                break
+            # Update inputs and init_state
+            feed_dict = self.get_feed_dict(
+                    inputs=self.pred_to_input(step_preds, textint_map),
+                    init_state=curr_state,
+                    feed_dict=feed_dict)
+        return curr_state
+
+    def _read_prefix(self, sess, feed_dict, curr_state, prefix, preds):
+        feed_dict = self.get_feed_dict(feed_dict=feed_dict, inputs=prefix, init_state=curr_state)
+        preds.append(prefix)
+        curr_state = sess.run(self.output_dict['final_state'], feed_dict=feed_dict)
+        return curr_state
+
+    def get_inference_args(self, batch, encoder_output_dict, textint_map):
+        decoder_args = super(SlotFillingDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+        decoder_args['inputs'] = batch['decoder_inputs']
+        return decoder_args
+
+    def run_decode(self, sess, max_len=10, batch_size=1, **kwargs):
+        assert batch_size == 1
+        textint_map = kwargs['textint_map']
+        end_slot = textint_map.vocab.to_ind(markers.END_SLOT)
+        start_slot = textint_map.vocab.to_ind(markers.START_SLOT)
+        feed_dict = self.get_feed_dict(**kwargs)
+        inputs = kwargs['inputs']
+        N = inputs.shape[1]
+        slot_pos = np.where((inputs == start_slot) | (inputs == end_slot))[1].tolist()
+        slot_pos.insert(0, -1)
+        slot_pos.append(N)
+        iter_slot_pos = iter(slot_pos)
+        print 'slot pos:', slot_pos
+        preds = []
+        curr_state = None
+        def to_str(a):
+            return kwargs['textint_map'].int_to_text(list(a))
+        for prev_slot_end, curr_slot_start in izip(iter_slot_pos, iter_slot_pos):
+            # Go through prefix
+            prefix = inputs[:, prev_slot_end+1:curr_slot_start]
+            print 'prefix:', to_str(prefix[0])
+            if prefix.shape[1] > 0:
+                curr_state = self._read_prefix(sess, feed_dict, curr_state, prefix, preds)
+
+            # Start to generate
+            if curr_slot_start < N:
+                init_input = inputs[:, [curr_slot_start]]  # START_SLOT
+                curr_state = self._fill_in_slots(sess, feed_dict, curr_state, init_input, preds, textint_map, stop_symbol=end_slot, max_len=max_len)
+
+            print 'preds:', preds[0]
+
+        preds = np.concatenate(tuple(preds), axis=1)
+        return {'preds': preds, 'final_state': curr_state}
+
 class PriceDecoder(object):
     '''
     A wrapper of a decoder that outputs <price> and a price predictor that fills in the actual price.
@@ -249,6 +348,13 @@ class PriceDecoder(object):
     def __init__(self, decoder, price_predictor):
         self.decoder = decoder
         self.price_predictor = price_predictor
+
+    def get_inference_args(self, batch, encoder_output_dict, textint_map):
+        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
+        price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
+        decoder_args['price_predictor'] = price_args
+        decoder_args['price_symbol'] = textint_map.vocab.to_ind('<price>'),
+        return decoder_args
 
     def build_model(self, word_embedder, input_dict, tf_variables, pad=0, scope=None):
         with tf.variable_scope(type(self).__name__):
@@ -286,11 +392,10 @@ class PriceDecoder(object):
         '''
         return self.decoder.get_encoder_state(state)
 
-    def pred_to_input(self, preds, **kwargs):
+    def pred_to_input(self, preds, textint_map):
         '''
         Convert predictions to input of the next decoding step.
         '''
-        textint_map = kwargs.pop('textint_map')
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
@@ -324,7 +429,7 @@ class PriceDecoder(object):
 
             price_batch = price_buffer.to_price_batch()
             #print price_batch
-            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, **kwargs),
+            feed_dict = self.get_feed_dict(inputs=self.pred_to_input(step_preds, kwargs['textint_map']),
                     price_predictor={'inputs': price_batch},
                     init_state=final_state)
 
