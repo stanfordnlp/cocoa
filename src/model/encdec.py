@@ -213,7 +213,14 @@ class BasicDecoder(BasicEncoder):
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    def _build_inputs(self, input_dict, pad=0):
+    def get_inference_args(self, batch, encoder_output_dict, textint_map):
+        decoder_args = {'inputs': batch['decoder_inputs'][:, [0]],
+                'init_cell_state': encoder_output_dict['final_state'],
+                'textint_map': textint_map,
+                }
+        return decoder_args
+
+    def _build_inputs(self, input_dict):
         super(BasicDecoder, self)._build_inputs(input_dict)
         self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
 
@@ -278,14 +285,15 @@ class BasicDecoder(BasicEncoder):
         # Mask padded tokens
         token_weights = tf.cast(tf.not_equal(targets, tf.constant(pad)), tf.float32)
         loss = loss * token_weights
-        total_loss = tf.reduce_sum(loss)
-        num_tokens = tf.reduce_sum(token_weights)
 
-        # Average over words in each sequence (batch_size, 1)
+        # Loss per seq
         token_weights_sum = tf.reduce_sum(tf.reshape(token_weights, [batch_size, -1]), 1) + EPS
         seq_loss = tf.reduce_sum(tf.reshape(loss, [batch_size, -1]), 1) / token_weights_sum
 
-        loss = total_loss / num_tokens
+        # Loss per token
+        total_loss = tf.reduce_sum(loss)
+        num_tokens = tf.reduce_sum(token_weights)
+        loss = total_loss / (num_tokens + EPS)
 
         # total_loss is used to compute perplexity
         return loss, seq_loss, (total_loss, num_tokens)
@@ -306,11 +314,10 @@ class BasicDecoder(BasicEncoder):
 
         return cls._mask_loss(loss, targets, pad, batch_size)
 
-    def pred_to_input(self, preds, **kwargs):
+    def pred_to_input(self, preds, textint_map):
         '''
         Convert predictions to input of the next decoding step.
         '''
-        textint_map = kwargs.pop('textint_map')
         inputs = textint_map.pred_to_input(preds)
         return inputs
 
@@ -340,7 +347,7 @@ class BasicDecoder(BasicEncoder):
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break
-            # TODO: hacky for context
+            # TODO: directly change feed_dict item (inputs and init_state)
             feed_dict = self.get_feed_dict(
                     inputs=self.pred_to_input(step_preds, **kwargs),
                     init_state=final_state,
