@@ -48,10 +48,6 @@ def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=Non
             tokens.append(s)
     return tokens, entities if len(entities) > 0 else None
 
-# TODO: remove
-from src.basic.negotiation.slot_detector import SlotDetector
-slot_detector = SlotDetector('/scr/hehe/game-dialogue/slot_fillers.pkl')
-
 class Evaluator(BaseEvaluator):
     def _stop_symbol(self):
         return self.vocab.to_ind(markers.EOS)
@@ -91,6 +87,10 @@ class Evaluator(BaseEvaluator):
         targets = [token.canonical if is_entity(token) else token for token in tokens]
         return targets
 
+    def to_str(self, words):
+        return ' '.join([str(w) for w in words if w not in self.remove_symbols])
+
+    # TODO: refactor print batch
     def _print_batch(self, batch, preds, targets, bleu_scores):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
@@ -99,14 +99,6 @@ class Evaluator(BaseEvaluator):
         inputs = batch['encoder_inputs']
         decoder_tokens = batch['decoder_tokens']
         kbs = batch['kbs']
-        def to_str(l):
-            words = []
-            for w in l:
-                if is_entity(w):
-                    words.append('[%s]' % PriceTracker.get_price(w))
-                elif w not in self.remove_symbols:
-                    words.append(w)
-            return ' '.join(words)
 
         print '-------------- batch ----------------'
         for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
@@ -120,11 +112,9 @@ class Evaluator(BaseEvaluator):
             #print 'RAW INPUT:', encoder_tokens[i]
             #print 'RAW TARGET:', target
             print '----------'
-            print 'INPUT:', to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
-            #print 'TARGET:', Dialogue.original_price(kb, target)
-            #print 'PRED:', Dialogue.original_price(kb, pred)
-            print 'TARGET:', to_str(target)
-            print 'PRED:', to_str(pred)
+            print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
+            print 'TARGET:', self.to_str(target)
+            print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
@@ -159,20 +149,6 @@ class Evaluator(BaseEvaluator):
             precision, recall, f1 = stats['entity_f1']
             d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
-
-    # TODO: hacky!
-    def to_str(self, l):
-        return ' '.join([str(w.encode('utf-8')) if not is_entity(w) else str(w) for w in l if w not in self.remove_symbols])
-        words = []
-        for w in l:
-            #if is_entity(w):
-            #    if w.canonical.type == 'price':
-            #        words.append('[%s]' % PriceTracker.get_price(w))
-            #    else:
-            #        words.append('[%s]' % w.surface)
-            if w not in self.remove_symbols:
-                words.append(w)
-        return ' '.join(words)
 
 class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
