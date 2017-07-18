@@ -38,11 +38,13 @@ if __name__ == '__main__':
         print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
         saved_config = read_json(config_path)
-        # TODO: messy. handle model args properly.
+
+        # NOTE: args below can be overwritten
         saved_config['decoding'] = args.decoding
         saved_config['batch_size'] = args.batch_size
-        saved_config['pretrained_wordvec'] = None
+        saved_config['pretrained_wordvec'] = args.pretrained_wordvec
         saved_config['ranker'] = args.ranker
+
         model_args = argparse.Namespace(**saved_config)
 
         # Checkpoint
@@ -116,7 +118,7 @@ if __name__ == '__main__':
             sess.run(tf.global_variables_initializer())
             print 'Load TF model'
             start = time.time()
-            saver = tf.train.Saver()
+            saver = tf.train.Saver(max_to_keep=5)
             saver.restore(sess, ckpt.model_checkpoint_path)
             print 'Done [%fs]' % (time.time() - start)
         else:
