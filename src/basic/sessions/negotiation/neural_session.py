@@ -23,13 +23,9 @@ class NeuralSession(Session):
         self.model = env.model
         self.kb = kb
         self.role = self.kb.facts['personal']['Role']
-        self.matched_item = None
-        self.sent_entity = False
         self.mentioned_entities = set()
         #self.log = open('chat.debug.log', 'a')
         #self.log.write('-------------------------------------\n')
-
-        self.capitalize = random.choice([True, False])
 
     def encode(self, entity_tokens):
         raise NotImplementedError
@@ -38,9 +34,6 @@ class NeuralSession(Session):
         raise NotImplementedError
 
     def receive(self, event):
-        #self.log.write('receive event:%s\n' % str(event.to_dict()))
-        # Reset status
-        self.sent_entity = False
         # Parse utterance
         entity_tokens = self.env.preprocessor.process_event(event, self.agent, self.kb, mentioned_entities=self.mentioned_entities)
         print entity_tokens
