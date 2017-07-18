@@ -103,7 +103,7 @@ class PriceTracker(object):
         else:
             return False
 
-    def link_entity(self, raw_tokens, kb=None, partner_kb=None, mentioned_entities=None):
+    def link_entity(self, raw_tokens, kb=None):
         tokens = ['<s>'] + raw_tokens + ['</s>']
         entity_tokens = []
         for i in xrange(1, len(tokens)-1):
@@ -116,7 +116,7 @@ class PriceTracker(object):
                     number = None
                 # PUNT: Check if the price is reasonable
                 #else:
-                #    scaled_price = PriceScaler._scale_price(kb or partner_kb, number)
+                #    scaled_price = PriceScaler._scale_price(kb, number)
                 #    if scaled_price > 5 or scaled_price < -3:
                 #        number = None
             except ValueError:
