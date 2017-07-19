@@ -24,8 +24,8 @@ def get_data_generator(args, model_args, mappings, schema):
 
     #scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(None, args)
-    lexicon = PriceTracker(args.price_tracker_model)
-    slot_detector = SlotDetector(args.slot_fillers)
+    lexicon = PriceTracker(model_args.price_tracker_model)
+    slot_detector = SlotDetector(model_args.slot_fillers)
 
     # TODO: hacky
     if args.model == 'lm':
@@ -36,12 +36,12 @@ def get_data_generator(args, model_args, mappings, schema):
         retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
     else:
         retriever = None
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, slot_filling=model_args.slot_filling, slot_detector=slot_detector)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, slot_detector=slot_detector)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, slot_detector=slot_detector)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
 
     return data_generator
 
@@ -58,16 +58,30 @@ def add_model_arguments(parser):
     add_context_embedder_arguments(parser)
     add_ranker_arguments(parser)
 
+def check_model_args(args):
+    if args.pretrained_wordvec:
+        with open(args.pretrained_wordvec, 'r') as fin:
+            pretrained_word_embed_size = len(fin.readline().strip().split()) - 1
+        assert pretrained_word_embed_size == args.word_embed_size
+
+        if args.context and args.context_encoder == 'bow':
+            assert pretrained_word_embed_size == args.context_size
+
+    if args.slot_filling and args.test:
+        assert args.batch_size == 1
+
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder
     from ranker import IRRanker, CheatRanker, EncDecRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
+
+    check_model_args(args)
 
     tf.reset_default_graph()
     tf.set_random_seed(args.random_seed)
@@ -81,10 +95,13 @@ def build_model(schema, mappings, args):
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
 
+    # Word embeddings
+    word_embeddings = None
+    context_word_embeddings = None
     if args.pretrained_wordvec is not None:
         word_embeddings = vocab.load_embeddings(args.pretrained_wordvec, args.word_embed_size)
-    else:
-        word_embeddings = None
+        if args.context:
+            context_word_embeddings = mappings['kb_vocab'].load_embeddings(args.pretrained_wordvec, args.word_embed_size)
 
     with tf.variable_scope('EncoderWordEmbedder'):
         encoder_word_embedder = WordEmbedder(vocab.size, args.word_embed_size, word_embeddings, pad)
@@ -111,15 +128,8 @@ def build_model(schema, mappings, args):
         context_opts['vocab_size'] = mappings['kb_vocab'].size
         context_opts['embed_size'] = args.context_size
 
-        # TODO: refactor word embedding loading
-        if args.pretrained_wordvec is not None:
-            word_embeddings = mappings['kb_vocab'].load_embeddings(args.pretrained_wordvec, args.word_embed_size)
-        else:
-            word_embeddings = None
         with tf.variable_scope('ContextWordEmbedder'):
-            #if word_embedding is not None:
-                #assert context_opts['embed_size'] == args.word_embed_size
-            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], word_embeddings, pad=pad)
+            context_word_embedder = WordEmbedder(context_opts['vocab_size'], context_opts['embed_size'], context_word_embeddings, pad=pad)
 
         with tf.variable_scope('CategoryWordEmbedder'):
             category_word_embedder = WordEmbedder(mappings['cat_vocab'].size, 10, pad=pad)
@@ -134,9 +144,14 @@ def build_model(schema, mappings, args):
                 decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
         else:
             decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
+
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
+
+        if args.slot_filling:
+            decoder = SlotFillingDecoder(decoder)
+
         return decoder
 
     if args.model == 'encdec' or args.ranker == 'encdec':
