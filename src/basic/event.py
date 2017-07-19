@@ -1,4 +1,4 @@
-class Event(object):
+class BaseEvent(object):
     """
     An atomic event of a dialogue, which could be someone talking or making a selection.
 
@@ -16,6 +16,7 @@ class Event(object):
         self.action = action
         self.data = data
         self.start_time = start_time
+        self.data = self.data
 
     @staticmethod
     def from_dict(raw):
@@ -28,10 +29,6 @@ class Event(object):
     @staticmethod
     def MessageEvent(agent, data, time=None, start_time=None):
         return Event(agent, time, 'message', data, start_time=start_time)
-
-    @staticmethod
-    def SelectionEvent(agent, data, time=None):
-        return Event(agent, time, 'select', data)
 
     @staticmethod
     def JoinEvent(agent, userid=None, time=None):
@@ -60,3 +57,10 @@ class Event(object):
     @staticmethod
     def TypingEvent(agent, data, time=None):
         return Event(agent, time, 'typing', data)
+
+
+
+import src.config as config
+import importlib
+task_module = importlib.import_module('.'.join(('src.basic', config.task, 'event')))
+Event = task_module.Event

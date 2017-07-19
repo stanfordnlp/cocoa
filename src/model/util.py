@@ -1,9 +1,11 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
-from tensorflow.python.ops.rnn_cell import _linear as linear
+from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
 from itertools import izip
 
 EPS = 1e-12
+
+linear = _linear
 
 def embedding_lookup(embeddings, indices, zero_ind=None):
     '''
