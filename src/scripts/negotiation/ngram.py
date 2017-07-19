@@ -2,9 +2,8 @@ import os
 
 __author__ = 'anushabala'
 from collections import defaultdict
-from tf_idf import BUYER, SELLER, WINNER, LOSER, get_winner, ROLES
+from tf_idf import WINNER, LOSER, get_winner, ROLES
 from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
-import numpy as np
 from src.model.preprocess import tokenize
 import matplotlib.pyplot as plt
 

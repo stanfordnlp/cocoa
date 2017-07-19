@@ -9,7 +9,6 @@ from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
 from utils import *
 
 
-
 def group_text_by_winner(transcripts, agent_type=None):
     grouped_chats = defaultdict(str)
     for t in transcripts:

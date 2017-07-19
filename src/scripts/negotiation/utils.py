@@ -93,12 +93,12 @@ def get_win_margin(transcript):
         target = scenario["kbs"][winner]["personal"]["Target"]
         partner_target = scenario["kbs"][1 - winner]["personal"]["Target"]
 
-    midpoint = np.abs(partner_target - target) / 2.
-
-    margin = np.abs(target - final_price) / midpoint
-    if margin > 5:
-        print "Winner target: {:.1f}\tPartner target: {:.1f}\tMidpoint: {:.1f}" \
-              "\tFinal price: {:.1f}\tMargin: {:.1f}".format(target, partner_target,
-                                                             midpoint, final_price,
-                                                             margin)
+    midpoint = np.abs(partner_target + target) / 2.
+    norm_factor = np.abs(midpoint - target)
+    margin = np.abs(midpoint - final_price) / norm_factor
+    # if margin > 5:
+    # print "Winner target: {:.1f}\tPartner target: {:.1f}\tMidpoint: {:.1f}" \
+    #       "\tNorm factor: {:.1f}\tFinal price: {:.1f}\tMargin: {:.1f}".format(target, partner_target,
+    #                                                      midpoint, norm_factor, final_price,
+    #                                                      margin)
     return margin

@@ -247,7 +247,6 @@ def ngram_by_role(transcripts, n=5):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
     parser.add_argument('--agent-types', nargs='+', default=['human'], help='Types of agents to get statistics for')
     parser.add_argument('--limit', type=int, default=-1, help='Analyze the first N transcripts')
