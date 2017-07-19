@@ -14,8 +14,8 @@ from src.web.main.backend_utils import Status
 from src.basic.event import Event
 
 
-def generate_userid():
-    return "U_" + uuid.uuid4().hex
+def generate_userid(prefix="U_"):
+    return prefix + uuid.uuid4().hex
 
 
 def userid():
@@ -31,10 +31,10 @@ def generate_unique_key():
 
 
 def format_message(message, status_message):
-    timestamp = datetime.now().strftime('%x %X')
-    left_delim = "<" if status_message else ""
-    right_delim = ">" if status_message else ""
-    return "[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
+    timestamp = datetime.now().strftime(u'%x %X')
+    left_delim = u"<" if status_message else u""
+    right_delim = u">" if status_message else u""
+    return u"[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
 
 
 # Required args: uid (the user ID of the current user)
@@ -80,7 +80,7 @@ def check_inbox():
     if event is not None:
         message = None
         if event.action == 'message':
-            message = format_message("Partner: {}".format(event.data), False)
+            message = format_message(u"Partner: {}".format(event.data), False)
         elif event.action == 'join':
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
@@ -90,7 +90,18 @@ def check_inbox():
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),
                                      True)
         elif event.action == 'offer':
-            message = format_message("Your partner offered: $%d" % event.data, True)
+            message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
+            if 'sides' not in event.data.keys():
+                sides = None
+            return jsonify(message=message, received=True, price=event.data['price'], sides=None)
+
+        elif event.action == 'accept':
+            message = format_message("Congrats, your partner accepted your offer!", True)
+            return jsonify(message=message, received=True)
+        elif event.action == 'reject':
+            message = format_message("Sorry, your partner rejected your offer.", True)
+            return jsonify(message=message, received=True)
+
         elif event.action == 'typing':
             if event.data == 'started':
                 message = "Your partner is typing..."
@@ -119,8 +130,8 @@ def typing_event():
 @main.route('/_send_message/', methods=['GET'])
 def text():
     backend = get_backend()
-    message = request.args.get('message')
-    displayed_message = format_message("You: {}".format(message), False)
+    message = unicode(request.args.get('message'))
+    displayed_message = format_message(u"You: {}".format(message), False)
     uid = userid()
     time_taken = float(request.args.get('time_taken'))
     received_time = time.time()
@@ -177,7 +188,18 @@ def index():
     the session."""
 
     if not request.args.get('uid'):
-        return redirect(url_for('main.index', uid=generate_userid(), **request.args))
+        prefix = "U_"
+        if request.args.get('mturk') and int(request.args.get('mturk')) == 1:
+            # link for Turkers
+            prefix = "MT_"
+        elif request.args.get('nlp') and int(request.args.get('nlp')) == 1:
+            # link for NLP group
+            prefix = "NLP_"
+        elif request.args.get('bus') and int(request.args.get('bus')) == 1:
+            # business school link
+            prefix = "BUS_"
+
+        return redirect(url_for('main.index', uid=generate_userid(prefix), **request.args))
 
     backend = get_backend()
 
@@ -206,6 +228,16 @@ def index():
                                title=app.config['task_title'],
                                icon=app.config['task_icon'],
                                visualize=visualize_link,
+                               uid=userid())
+    elif status == Status.Incomplete:
+        finished_info = backend.get_finished_info(userid(), from_mturk=False, current_status=Status.Incomplete)
+        mturk_code = finished_info.mturk_code if mturk else None
+        return render_template('finished.html',
+                               finished_message=finished_info.message,
+                               mturk_code=mturk_code,
+                               title=app.config['task_title'],
+                               icon=app.config['task_icon'],
+                               visualize=False,
                                uid=userid())
     elif status == Status.Chat:
         peek = False
@@ -238,7 +270,13 @@ def index():
                                attributes=[attr.name for attr in survey_info.attributes],
                                message=survey_info.message,
                                results=survey_info.result,
-                               agent_idx=survey_info.agent_idx)
+                               agent_idx=survey_info.agent_idx,
+                               scenario_id=survey_info.scenario_id)
+    elif status == Status.Reporting:
+        return render_template('report.html',
+                               title=app.config['task_title'],
+                               uid=userid(),
+                               icon=app.config['task_icon'])
 
 
 @main.route('/visualize', methods=['GET', 'POST'])
@@ -270,13 +308,36 @@ def select():
 @main.route('/_offer/', methods=['GET'])
 def offer():
     backend = get_backend()
-    offer = float(request.args.get('offer'))
-    if offer == -1:
-        return
+    price = float(request.args.get('price'))
+    sides = request.args.get('sides')
+
+    offer = {'price': price,
+             'sides': sides}
+
+    if offer is None or price == -1:
+        return jsonify(message=format_message("You made an invalid offer. Please try again.", True))
     backend.make_offer(userid(), offer)
 
-    displayed_message = format_message("You proposed: $%d" % offer, True)
+    displayed_message = format_message("You made an offer!", True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_accept_offer/', methods=['GET'])
+def accept_offer():
+    backend = get_backend()
+    backend.accept_offer(userid())
+
+    msg = format_message("You accepted the offer!", True)
+    return jsonify(message=msg)
+
+
+@main.route('/_reject_offer/', methods=['GET'])
+def reject_offer():
+    backend = get_backend()
+    backend.reject_offer(userid())
+
+    msg = format_message("You rejected the offer.", True)
+    return jsonify(message=msg)
 
 
 @main.route('/_quit/', methods=['GET'])
@@ -285,3 +346,20 @@ def quit():
     backend.quit(userid())
     displayed_message = format_message("You chose to quit this task.", True)
     return jsonify(message=displayed_message)
+
+
+@main.route('/_report/', methods=['GET'])
+def report():
+    backend = get_backend()
+    uid = userid()
+    feedback = request.args.get('feedback')
+    backend.report(uid, feedback)
+    return jsonify(success=True)
+
+
+@main.route('/_init_report/', methods=['GET'])
+def init_report():
+    backend = get_backend()
+    uid = userid()
+    backend.init_report(uid)
+    return jsonify(success=True)

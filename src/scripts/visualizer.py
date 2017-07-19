@@ -1,13 +1,15 @@
 '''
 Visualize evaluation results.
 '''
+import json
 
 import src.config as config
 from src.basic.util import read_json, write_json
+from src.basic.dataset import Example
 from html_visualizer import HTMLVisualizer, add_html_visualizer_arguments
 from collections import defaultdict
 import numpy as np
-from itertools import izip
+from itertools import izip, chain
 from scipy.stats import ttest_ind as ttest
 #import matplotlib
 #matplotlib.use('Agg')
@@ -32,16 +34,34 @@ class BaseVisualizer(object):
     # Agent names to show in the output
     agent_labels = None
 
-    def __init__(self, chats, surveys=None):
-        self.chats = read_json(chats)
+    def __init__(self, chats, surveys=None, worker_ids=None):
+        self.chats = []
+        for f in chats:
+            self.chats.extend(read_json(f))
         self.uuid_to_chat = {chat['uuid']: chat for chat in self.chats}
         if surveys:
             # This is a list because we might have multiple batches of surveys
             self.surveys = [read_json(survey) for survey in surveys]
-            mask = self.filter(self.surveys)
-            self.question_scores = self.read_eval(self.surveys, mask)
+        if worker_ids:
+            self.worker_ids = {}
+            for f in worker_ids:
+                self.worker_ids.update(read_json(f))
+        else:
+            self.worker_ids = None
 
-    def filter(self, evals):
+    def worker_stats(self):
+        job_counts = defaultdict(int)
+        for chat_id, agent_wid in self.worker_ids.iteritems():
+            if len(agent_wid) == 2:
+                for agent_id, wid in agent_wid.iteritems():
+                    # TODO: refactor to is_human
+                    if wid != 0:
+                        job_counts[wid] += 1
+        counts = sorted(job_counts.items(), key=lambda x: x[1], reverse=True)
+        for wid, c in counts:
+            print wid, c
+
+    def filter(self, *args):
         return None
 
     def read_eval(self, surveys, mask=None):
@@ -56,7 +76,7 @@ class BaseVisualizer(object):
         dialogue_agents = trans[0]
         dialogue_scores = trans[1]
         for dialogue_id, agent_dict in dialogue_agents.iteritems():
-            if mask and not dialogue_id in mask:
+            if mask is not None and not dialogue_id in mask:
                 continue
             scores = dialogue_scores[dialogue_id]
             if isinstance(agent_dict, basestring):
@@ -161,7 +181,7 @@ class BaseVisualizer(object):
         for summary_stat in summary_stats:
             print '=========== %s ===========' % summary_stat
             for question, agent_scores in question_scores.iteritems():
-                if self.question_type(question) == 'str':
+                if self.question_type(question) == 'str' or question not in self.questions:
                     continue
                 results = [(agent, self.summarize_scores(scores, summary_stat), self.get_total(scores)) for agent, scores in agent_scores.iteritems()]
                 results = sorted(results, key=lambda x: x[1][0], reverse=True)
@@ -205,38 +225,129 @@ class BaseVisualizer(object):
         for question, agent_scores in question_scores.iteritems():
             for agent, scores in agent_scores.iteritems():
                 for dialogue_id, agent_id, response in scores:
-                    chat = self.uuid_to_chat[dialogue_id]
+                    try:
+                        chat = self.uuid_to_chat[dialogue_id]
+                    except KeyError:
+                        continue
                     scenario_id = chat['scenario_uuid']
                     dialogue_responses[dialogue_id][agent_id][question] = response
         return dialogue_responses
 
-    def html_visualize(self, viewer_mode, html_output, css_file=None):
-        dialogue_responses = self.get_dialogue_responses(self.question_scores)
-
-        # Put chats in the order of responses
+    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None, worker_ids=None):
         chats = []
         scenario_to_chats = defaultdict(set)
-        for dialogue_id, agent_responses in dialogue_responses.iteritems():
-            chat = self.uuid_to_chat[dialogue_id]
-            scenario_id = chat['scenario_uuid']
-            chats.append((scenario_id, chat))
-            scenario_to_chats[scenario_id].add(dialogue_id)
-        chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+        dialogue_responses = None
+        if self.question_scores:
+            dialogue_responses = self.get_dialogue_responses(self.question_scores)
+
+            # Put chats in the order of responses
+            chats_with_survey = set()
+            for dialogue_id, agent_responses in dialogue_responses.iteritems():
+                chat = self.uuid_to_chat[dialogue_id]
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                chats_with_survey.add(dialogue_id)
+                scenario_to_chats[scenario_id].add(dialogue_id)
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+            # Incomplete chats (redirected, no survey)
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                if dialogue_id not in chats_with_survey:
+                    chats.append(chat)
+        else:
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                scenario_to_chats[scenario_id].add(dialogue_id)
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
         html_visualizer = HTMLVisualizer.get_html_visualizer()
-        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file)
+        html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file, img_path=img_path, worker_ids=worker_ids)
 
 class NegotiationVisualizer(BaseVisualizer):
     agents = ('human', 'rulebased')
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'honest', 'persuasive', 'fair')
-    question_labels = {"fluent": 'Fluency', "honest": 'Honesty', 'persuasive': 'Persuasiveness', "fair": 'Fairness'}
+    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    question_labels = {"fluent": 'Fluency', "negotiator": 'Humanlikeness', 'persuasive': 'Persuasiveness', "fair": 'Fairness', 'coherent': 'Coherence'}
+
+    def __init__(self, chats, surveys=None, worker_ids=None):
+        super(NegotiationVisualizer, self).__init__(chats, surveys, worker_ids)
+        # mask = self.filter(('A3OE4LKJ2ORFZS',))
+        mask = None
+        # self.chats = [x for x in self.chats if x['uuid'] in mask]
+        self.question_scores = None
+        if surveys:
+            self.question_scores = self.read_eval(self.surveys, mask)
 
     def question_type(self, question):
         if question == 'comments':
             return 'str'
         else:
             return 'num'
+
+    def _compute_effectiveness(self, examples, system):
+        num_success = 0
+        final_offer = 0
+        for ex in examples:
+            if ex.agents['0'] == system:
+                eval_agent = 0
+            else:
+                eval_agent = 1
+            b = ex.scenario.kbs[eval_agent].facts['personal']['Bottomline']
+            t = ex.scenario.kbs[eval_agent].facts['personal']['Target']
+            # l = ex.scenario.kbs[eval_agent].facts['item']['Price']
+            if ex.outcome is None or ex.outcome["reward"] == 0:
+                continue
+            else:
+                num_success += 1
+                for event in ex.events:
+                    if event.action == 'offer':
+                        p = float(event.data['price'])
+                        if ex.scenario.kbs[eval_agent].facts['personal']['Role'] == 'buyer':
+                            if b is not None:
+                                diff = (b - p)/b
+                            else:
+                                diff = (p - t)/t
+                        else:
+                            if b is not None:
+                                diff = (p - b)/b
+                            else:
+                                diff = (t - p)/t
+
+                        final_offer += diff
+                        break
+        return {'success rate': num_success / float(len(examples)),
+                'agreed offer': final_offer / float(num_success),
+                }
+
+    def compute_effectiveness(self):
+        chats = defaultdict(list)
+        for raw in self.chats:
+            ex = Example.from_dict(None, raw)
+            if ex.agents['0'] == 'human' and ex.agents['1'] == 'human':
+                chats['human'].append(ex)
+            elif ex.agents['0'] != 'human':
+                chats[ex.agents['0']].append(ex)
+            elif ex.agents['1'] != 'human':
+                chats[ex.agents['1']].append(ex)
+
+        results = {}
+        for system, examples in chats.iteritems():
+            results[system] = self._compute_effectiveness(examples, system)
+            print system, results[system]
+
+    def filter(self, bad_worker_ids):
+        good_dialogues = []
+        for chat_id, wid in self.worker_ids.iteritems():
+            if len(wid) < 2:
+                continue
+            good = True
+            for agent_id, agent_wid in wid.iteritems():
+                if agent_wid in bad_worker_ids:
+                    good = False
+                    break
+            if good:
+                good_dialogues.append(chat_id)
+        return set(good_dialogues)
 
 
 class MutualFriendsVisualizer(BaseVisualizer):
@@ -245,6 +356,12 @@ class MutualFriendsVisualizer(BaseVisualizer):
     questions = ("fluent", "correct", 'cooperative', "humanlike")
     question_labels = {"fluent": 'Fluency', "correct": 'Correctness', 'cooperative': 'Cooperation', "humanlike": 'Human-likeness'}
     colors = ("#33a02c", "#b2df8a", "#1f78b4", "#a6cee3")
+
+    def __init__(self, chats, surveys=None, worker_ids=None):
+        super(MutualFriendsVisualizer, self).__init__(chats, surveys, worker_ids)
+        if surveys:
+            mask = self.filter(self.surveys)
+            self.question_scores = self.read_eval(self.surveys, mask)
 
     def question_type(self, question):
         if question == 'comments' or question.endswith('text'):
@@ -288,7 +405,8 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('--survey-transcripts', nargs='+', help='Path to directory containing evaluation transcripts')
-    parser.add_argument('--dialogue-transcripts', help='Path to directory containing dialogue transcripts')
+    parser.add_argument('--dialogue-transcripts', nargs='+', help='Path to directory containing dialogue transcripts')
+    parser.add_argument('--worker-ids', nargs='+', help='Path to json file containing chat_id to worker_id mappings')
     parser.add_argument('--summary', default=False, action='store_true', help='Summarize human ratings')
     parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
     parser.add_argument('--html-visualize', action='store_true', help='Output html files')
@@ -298,7 +416,9 @@ if __name__ == '__main__':
     add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 
-    visualizer = Visualizer.get_visualizer(args.dialogue_transcripts, args.survey_transcripts)
+    visualizer = Visualizer.get_visualizer(args.dialogue_transcripts, args.survey_transcripts, args.worker_ids)
+
+    visualizer.compute_effectiveness()
 
     if args.hist:
         visualizer.hist(question_scores, args.outdir, partner=args.partner)
@@ -307,6 +427,9 @@ if __name__ == '__main__':
         summary = visualizer.summarize()
         write_json(summary, args.stats)
 
+    #if args.worker_ids:
+    #    visualizer.worker_stats()
+
     if args.html_output:
-        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file)
+        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file, img_path=args.img_path, worker_ids=visualizer.worker_ids)
 

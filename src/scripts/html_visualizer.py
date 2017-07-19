@@ -19,6 +19,7 @@ def add_html_visualizer_arguments(parser):
     parser.add_argument('--html-output', help='Name of directory to write HTML report to')
     parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
     parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+    parser.add_argument('--img-path', help='path to images')
 
 class HTMLVisualizer(object):
     @staticmethod
@@ -29,6 +30,7 @@ class HTMLVisualizer(object):
             return NegotiationHTMLVisualizer(*args)
         else:
             raise ValueError('Unknown task: %s.' % config.task)
+
 
 class BaseHTMLVisualizer(object):
     agent_labels = None
@@ -46,18 +48,24 @@ class BaseHTMLVisualizer(object):
         return None
 
     @classmethod
-    def render_chat(cls, chat, agent=None, partner_type='human'):
+    def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
         events = [Event.from_dict(e) for e in chat["events"]]
 
         if len(events) == 0:
-            return False, None
+            return False, False, None
+
+        def get_worker_id(agent_id):
+            if worker_ids is None:
+                return 'N/A'
+            id_ = worker_ids.get(str(agent_id), None)
+            return id_ if id_ is not None else ''
 
         chat_html= ['<div class=\"chatLog\">',
-                '<div class=\"divTitle\"> Chat Log: %s </div>' % chat['uuid'],
+                '<div class=\"divTitle\"> Chat Log: %s <br> Agent 0: %s Agent 1: %s </div>' % (chat['uuid'], get_worker_id(0), get_worker_id(1)),
                 '<table class=\"chat\">']
-        agent_str = {0: '', 1: ''}
 
         # Used for visualizing chat during debugging
+        agent_str = {0: '', 1: ''}
         if agent is not None:
             agent_str[agent] = 'Agent %d (you)' % agent
             agent_str[1 - agent] = 'Agent %d (%s)' % (1 - agent, partner_type)
@@ -69,7 +77,11 @@ class BaseHTMLVisualizer(object):
                 agent_str[agent] = 'Agent %d (%s)' % (agent, 'unknown')
 
         for event in events:
-            t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
+            # TODO: fix event.tim
+            if not event.time:
+                t = None
+            else:
+                t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
             a = agent_str[event.agent]
             # TODO: factor render_event
             if event.action == 'message':
@@ -77,9 +89,13 @@ class BaseHTMLVisualizer(object):
             elif event.action == 'select':
                 s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
             elif event.action == 'offer':
-                s = 'OFFER $%.1f' % float(event.data)
+                s = 'OFFER %s' % json.dumps(event.data)
             elif event.action == 'quit':
                 s = 'QUIT'
+            elif event.action == 'accept':
+                s = 'ACCEPT OFFER'
+            elif event.action == 'reject':
+                s = 'REJECT OFFER'
             else:
                 continue
             row = '<tr class=\"agent%d\">\
@@ -93,7 +109,8 @@ class BaseHTMLVisualizer(object):
         chat_html.extend(['</table>', '</div>'])
 
         completed = False if chat["outcome"] is None or chat["outcome"]["reward"] == 0 else True
-        return completed, chat_html
+
+        return completed, True, chat_html
 
     @classmethod
     def _render_response(cls, response, agent_id, agent):
@@ -149,29 +166,30 @@ class BaseHTMLVisualizer(object):
         return html_lines
 
     @classmethod
-    def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None):
-        completed, chat_html = cls.render_chat(chat, agent, partner_type)
+    def visualize_chat(cls, chat, agent=None, partner_type='Human', responses=None, id_=None, img_path=None, worker_ids=None):
+        chat_worker_ids = worker_ids.get(chat['uuid'], None) if worker_ids else None
+        completed, rejected, chat_html = cls.render_chat(chat, agent, partner_type, chat_worker_ids)
         if chat_html is None:
-            return False, None
+            return False, False, None
 
         html_lines = []
 
-        scenario_html = cls.render_scenario(cls.get_scenario(chat))
+        scenario_html = cls.render_scenario(cls.get_scenario(chat), img_path)
         html_lines.extend(scenario_html)
 
         html_lines.extend(chat_html)
 
-        if responses:
-            dialogue_id = chat['uuid']
+        dialogue_id = chat['uuid']
+        if responses and dialogue_id in responses:
             agents = chat['agents']
             response_html = cls.render_response(responses[dialogue_id], agents)
             html_lines.extend(response_html)
 
-        return completed, html_lines
+        return completed, rejected, html_lines
 
 
     @classmethod
-    def aggregate_chats(cls, transcripts, responses=None, css_file=None):
+    def aggregate_chats(cls, transcripts, responses=None, css_file=None, img_path=None, worker_ids=None):
         html = ['<!DOCTYPE html>','<html>',
                 '<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
                 'tr:nth-child(n) { border: solid thin;}</style></head><body>']
@@ -184,38 +202,49 @@ class BaseHTMLVisualizer(object):
                     html.append(line.strip())
             html.append('</style>')
 
-        completed_chats = []
-        incomplete_chats = []
+        accepted_chats = {'completed': [], 'incompleted': []}
+        rejected_chats = {'completed': [], 'incompleted': []}
+        num_accepted = {'completed': 0, 'incompleted': 0}
+        num_rejected = {'completed': 0, 'incompleted': 0}
         total = 0
-        num_completed = 0
+        def add_chat(chats, chat_html):
+            chats.extend(chat_html)
+            chats.append('</div>')
+            chats.append("<hr>")
+        transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
         for (idx, chat) in enumerate(transcripts):
-            completed, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx)
-            if completed:
-                num_completed += 1
-                completed_chats.extend(chat_html)
-                completed_chats.append('</div>')
-                completed_chats.append("<hr>")
+            completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx, img_path=img_path, worker_ids=worker_ids)
+            if chat_html is None:
+                continue
+            k = 'completed' if completed else 'incompleted'
+            if not rejected:
+                add_chat(accepted_chats[k], chat_html)
+                num_accepted[k] += 1
             else:
-                if chat_html is not None:
-                    incomplete_chats.extend(chat_html)
-                    incomplete_chats.append('</div>')
-                    incomplete_chats.append("<hr>")
+                add_chat(rejected_chats[k], chat_html)
+                num_rejected[k] += 1
             total += 1
 
-        html.extend(['<h3>Total number of chats: %d</h3>' % total,
-                     '<h3>Number of chats completed: %d</h3>' % num_completed,
-                     '<hr>'])
-        html.extend(completed_chats)
-        html.extend(incomplete_chats)
+        naccepted = sum(num_accepted.values())
+        nrejected = sum(num_rejected.values())
+        html.extend([
+            '<h3>Total number of chats: %d</h3>' % total,
+            '<h3>Number of chats accepted: %d (completed %d, incompleted %d)</h3>' % (naccepted, num_accepted['completed'], num_accepted['incompleted']),
+            '<h3>Number of chats rejected: %d (completed %d, incompleted %d)</h3>' % (nrejected, num_rejected['completed'], num_rejected['incompleted'])])
+        html.append('<hr>')
+        html.extend(accepted_chats['completed'])
+        html.extend(accepted_chats['incompleted'])
+        html.extend(rejected_chats['completed'])
+        html.extend(rejected_chats['incompleted'])
         html.append('</body></html>')
         return html
 
     @classmethod
-    def visualize_transcripts(cls, html_output, transcripts, responses=None, css_file=None):
+    def visualize_transcripts(cls, html_output, transcripts, responses=None, css_file=None, img_path=None, worker_ids=None):
         if not os.path.exists(os.path.dirname(html_output)) and len(os.path.dirname(html_output)) > 0:
             os.makedirs(os.path.dirname(html_output))
 
-        html_lines = cls.aggregate_chats(transcripts, responses, css_file)
+        html_lines = cls.aggregate_chats(transcripts, responses, css_file, img_path, worker_ids)
 
         outfile = open(html_output, 'w')
         for line in html_lines:
@@ -229,7 +258,7 @@ class BaseHTMLVisualizer(object):
             os.mkdir(outdir)
         for chat in transcripts:
             dialogue_id = chat['uuid']
-            _, chat_html = cls.visualize_chat(chat, responses=responses)
+            _, _, chat_html = cls.visualize_chat(chat, responses=responses)
             if not chat_html:
                 continue
             with open(os.path.join(outdir, dialogue_id+'.html'), 'w') as fout:
@@ -276,20 +305,20 @@ class BaseHTMLVisualizer(object):
         cls.write_chat_htmls(transcripts, html_output, responses)
 
     @classmethod
-    def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None):
+    def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None, img_path=None, worker_ids=None):
         if viewer_mode:
             # External js and css
             cls.write_viewer_data(html_output, chats, responses=responses)
         else:
             # Inline style
-            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses)
+            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses, img_path=img_path, worker_ids=worker_ids)
 
 class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
     questions = ("fluent", "correct", 'cooperative', "humanlike")
 
     @classmethod
-    def render_scenario(cls, scenario):
+    def render_scenario(cls, scenario, img_path=None):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
         for (idx, kb) in enumerate(scenario.kbs):
             kb_dict = kb.to_dict()
@@ -319,15 +348,17 @@ class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
 
 class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'honest', 'persuasive', 'fair')
+    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
 
     @classmethod
-    def render_scenario(cls, scenario):
+    def render_scenario(cls, scenario, img_path=None):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
         # Post
         facts = scenario.kbs[0].facts
-        html.append("<p>%s</p>" % facts['item']['Title'])
+        html.append("<p><b>%s ($%d)</b></p>" % (facts['item']['Title'], facts['item']['Price']))
         html.append("<p>%s</p>" % '<br>'.join(facts['item']['Description']))
+        if img_path and len(facts['item']['Images']) > 0:
+            html.append("<p><img src=%s></p>" % os.path.join(img_path, facts['item']['Images'][0]))
         # Private info
         for (idx, kb) in enumerate(scenario.kbs):
             kb_dict = kb.to_dict()
@@ -343,3 +374,10 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
 
         html.append("</div>")
         return html
+
+    @classmethod
+    def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
+        complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type, worker_ids=worker_ids)
+        from src.turk.accept_negotiation_hits import reject_transcript
+        rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
+        return complete, rejected, html_lines

@@ -66,7 +66,7 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         fluentVal = $("#fluent").val();
-        
+        coherentVal = $("#coherent").val();
         persuasiveVal = $("#persuasive").val();
         fairVal = $("#fair").val();
         negotiatorVal = $("#negotiator").val();
@@ -76,11 +76,15 @@
         console.log("FLUENT: " + fluentVal);
         console.log("PERSUASIVE: " + persuasiveVal);
         console.log("FAIR: " + fairVal);
+        console.log("COHERENT:" + coherentVal);
+        console.log("NEGOTIATOR: " + negotiatorVal)
+
 
         if (fluentVal == null || 
             persuasiveVal == null || 
             fairVal == null ||
-            negotiatorVal == null ) {
+            negotiatorVal == null ||
+            coherentVal == null ) {
             return false;
         }
         else{
@@ -89,6 +93,7 @@
             questionAnswers["persuasive"] = persuasiveVal;
             questionAnswers["fair"] = fairVal;
             questionAnswers["negotiator"] = negotiatorVal;
+            questionAnswers["coherent"] = coherentVal;
             if(comments == null) {
             	comments = "";
             }
@@ -98,13 +103,19 @@
     }
 
     $(document).ready(function() {
-    	$.ajax({
+    	window.scrollTo(0,0);
+        $.ajax({
 			url: '/_connect/',
 			type: "get",
 			data: {"uid": "{{ uid }}" },
 			dataType: "json"
 		});
-		
+		questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
+
+
+
         $("#submit").click(function() {
             allAnswered = ensureAllAnswered()
             if (allAnswered){
@@ -141,13 +152,6 @@
 			});
 		}
     });
-
-    window.onload = function(){
-        questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
-        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
-        questionAnswers["agent_id"] = {{ agent_id|safe|tojson}};
-        console.log("AGENT: " + questionAnswers["agent_id"]);
-    }
 
 </script>
 
@@ -196,7 +200,7 @@
 
          <div class="q">
 
-            <p style="text-align:center;">How <strong>fluent</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>fluent</strong> was your partner? I.e., are the sentences complete and grammatical? </p> <br>
             <form id="q_f">
                 <p style="float:left;">Not fluent at all</p>
                 <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:13%;" >
@@ -221,7 +225,7 @@
         
 
         <div class="q">
-            <p style="text-align:center;">How <strong>persuasive</strong> was your partner?</p> <br>
+            <p style="text-align:center;">How <strong>persuasive</strong> was your partner? Being persuasive means providing <strong>concrete evidence</strong> for each request instead of simply asking for a price.</p> <br>
             <form id="q_s">
                 <p style="float:left;">Not persuasive</p>
                 <input type="range" id="persuasive" min="1" max="5" style="width:50%; margin-left:13%" >
@@ -232,7 +236,7 @@
         <br> <br>
 
         <div class="q">
-            <p style="text-align:center;">How <strong>fair</strong> was the final price that you agreed on?</p> <br>
+            <p style="text-align:center;">How <strong>fair</strong> was the final offer that you agreed on?</p> <br>
 
             <form id="q_h">
                 <p style="float:left;">Not fair at all</p>
@@ -244,12 +248,25 @@
         <br> <br>
 
         <div class="q">
-            <p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>
+            <p style="text-align:center;">How <strong>coherent</strong> was your partner? Being coherent means saying things related to the context and not self-contradicting; an incoherent speaker might repeat him/herself, frequently switch topics, and/or ignore what the partner said.</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not coherent at all</p>
+                <input type="range" id="coherent" min="1" max="5" style="width:50%; margin-left:14%;" >
+                <p style="float:right;">Very coherent</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <!--<p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
 
             <form id="q_h">
                 <p style="float:left;">Not at all</p>
                 <input type="range" id="negotiator" min="1" max="5" style="width:50%; margin-left:17%;" >
-                <p style="float:right;">Extremely</p>
+                <p style="float:right;">Definitely</p>
             </form>
         </div>
         

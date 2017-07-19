@@ -3,9 +3,6 @@
         <title>{{title}}</title>
         <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
         <style>
-    		.modal-body{
-                font-size: 16px;
-            }
 
             #timer{
     		color: #000;
@@ -28,9 +25,9 @@
     			margin-left:-3px;
     		}
 
-            div#report {
+            div#report-body {
                 color:#ff0000;
-                font-weight: bold;
+                font-size: 16px;
             }
         </style>
         
@@ -48,24 +45,8 @@
             		data: {"uid": "{{ uid }}" },
             		dataType: "json"
             	});
-          		pollInterval = setInterval(pollServer, 1000);
                 window.onbeforeunload = disconnect;
             });
-    
-            function pollServer() {
-            	$.ajax({
-            		url: BASE_URL +'/_check_status_change/',
-            		type: "get",
-            		data: {"uid": "{{ uid }}", "assumed_status": "waiting"},
-            		dataType: "json",
-            		success: function(response) {
-            			if (response['status_change']) {
-            				disconnect();
-            				window.location.reload(true);
-                    	}
-            		}
-            	});
-            }
 
             function disconnect() {
             	clearInterval(pollInterval);
@@ -79,15 +60,15 @@
 
             function report() {
                 $.ajax({
-                    url: BASE_URL + '/_init_report/',
+                    url: BASE_URL + '/_report/',
                     type: "get",
                     data: {
-                        "uid": "{{ uid }}"
+                        "uid": "{{ uid }}",
+                        "feedback": $('#report_feedback').val()
                     },
                     dataType:"json",
                     success: function(response) {
-                        disconnect();
-                        window.location.reload(true);
+                        $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
                     }
                 });
             }
@@ -106,35 +87,14 @@
             </div>
             <div style="float:left">
                 <h2>{{title}}</h2>
-                <h3>{{ waiting_message }}</h3>
-
-                <!--<h4>Make sure you have read the instructions carefully, as the task is timed and the clock will start immediately once you are paired. </h4>-->
-                <h4>Make sure you have read the instructions carefully, as the task will start immediately once you are paired. </h4>
             </div>
         </div>
+        <div id="report-body" style="clear:both; display: block; margin: 0px 20px 0px 20px;">
+            <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.<span style="color: #ff0000"><b> Please also include your Mechanical Turk worker ID in the feedback so that we can grant you a bonus if you have significant trouble.</b></span></p>
+            <textarea id="report_feedback"></textarea>
+            <button onclick="report()" style="clear:both; display: block;">Submit</button>
+        </div>
 
-        <div id="report" style="clear: both; margin: 0px 20px 0px 10px; display: block;">
-            <br><br><br><br><p style="text-align: right">Having trouble with this task? Click here to send us a report.</p>
-            <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
-        </div>
-        <div class="modal fade" id="report_box" role="dialog">
-          <div class="modal-dialog">
-          
-            <!-- Modal content-->
-            <div class="modal-content">
-              <div class="modal-header">
-                <h4 class="modal-title">Report Issue</h4>
-                <b><p id="modal_instruction"></p></b>
-              </div>
-              <div class="modal-body" id="report-body">
-                <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.<span style="color: #ff0000"><b> Please also include your Mechanical Turk worker ID in the feedback so that we can grant you a bonus if you have significant trouble.</b></span></p>
-                <textarea id="report_feedback"></textarea>
-                <button onclick="report()" style="display: block;">Submit</button>
-              </div>
-            </div>
-            
-          </div>
-        </div>
     </div>
 
     </body>

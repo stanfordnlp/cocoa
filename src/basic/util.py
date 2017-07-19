@@ -2,6 +2,7 @@ import random
 import json
 import string
 import cPickle as pickle
+import numpy as np
 
 def random_multinomial(probs):
     target = random.random()
@@ -33,3 +34,10 @@ def read_pickle(path):
 def write_pickle(obj, path):
     with open(path, 'wb') as fout:
         pickle.dump(obj, fout)
+
+def normalize(a):
+    ma = np.max(a)
+    mi = np.min(a)
+    assert ma > mi
+    a = (a - mi) / (ma - mi)
+    return a
