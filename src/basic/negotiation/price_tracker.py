@@ -114,6 +114,9 @@ class PriceTracker(object):
                 if not (token[0] == '$' or token[-1] == '$') and \
                         not self.is_price(tokens[i-1], tokens[i+1]):
                     number = None
+                # Avoid 'infinity' being recognized as a number
+                if number == float('inf') or number == float('-inf'):
+                    number = None
                 # PUNT: Check if the price is reasonable
                 #else:
                 #    scaled_price = PriceScaler._scale_price(kb, number)
