@@ -124,7 +124,8 @@ class PriceTracker(object):
             if number is None:
                 new_token = token
             else:
-                new_token = Entity(surface=token, canonical=CanonicalEntity(value=number, type='price'))
+                scaled_price = PriceScaler._scale_price(kb, number)
+                new_token = Entity(surface=token, canonical=CanonicalEntity(value=scaled_price, type='price'))
             entity_tokens.append(new_token)
         return entity_tokens
 
