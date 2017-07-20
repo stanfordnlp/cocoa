@@ -29,6 +29,8 @@ class SpeechActs(object):
     GREETING = 'greeting'
     AGREEMENT = 'agreement'
 
+    ACTS = [GEN_QUESTION, PRICE_QUESTION, GEN_STATEMENT, PRICE_STATEMENT, GREETING, AGREEMENT]
+
 
 class SpeechActAnalyzer(object):
     agreement_patterns = [
@@ -47,7 +49,9 @@ class SpeechActAnalyzer(object):
     def get_question_type(cls, tokens):
         if not cls.is_question(tokens):
             return None
-        return cls.is_price_statement(tokens)
+        if cls.is_price_statement(tokens):
+            return SpeechActs.PRICE_QUESTION
+        return SpeechActs.GEN_QUESTION
 
     @classmethod
     def is_agreement(cls, raw_sentence):
@@ -59,7 +63,7 @@ class SpeechActAnalyzer(object):
     @classmethod
     def is_price_statement(cls, tokens):
         for token in tokens:
-            if isinstance(token, Entity) and token.type == 'price':
+            if isinstance(token, Entity) and token.canonical.type == 'price':
                 return True
             else:
                 return False
@@ -89,7 +93,7 @@ class StrategyAnalyzer(object):
     def __init__(self, transcripts_path, stats_path, price_tracker_model, debug=False):
         transcripts = json.load(open(transcripts_path, 'r'))
         if debug:
-            transcripts = transcripts[:50]
+            transcripts = transcripts[:100]
         self.dataset = self.filter_rejected_chats(transcripts)
 
         self.nltk_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
@@ -297,7 +301,7 @@ class StrategyAnalyzer(object):
                 linked_tokens = self.price_tracker.link_entity(raw_tokens,
                                                                kb=kbs[e['agent']])
                 for token in linked_tokens:
-                    if isinstance(token, Entity) and token.type == 'price':
+                    if isinstance(token, Entity) and token.canonical.type == 'price':
                         prices += 1
 
         return prices
@@ -307,28 +311,69 @@ class StrategyAnalyzer(object):
         return self.nltk_tokenizer.tokenize(turn)
 
     def get_speech_acts(self, chat, agent=None):
+        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
+        # print chat['scenario']
+        kbs = scenario.kbs
+        acts = []
         for e in chat['events']:
-            
+            if e['action'] != 'message':
+                continue
+            if agent is not None and e['agent'] != agent:
+                continue
+            sentences = self.split_turn(e['data'])
+
+            for s in sentences:
+                tokens = tokenize(s)
+                linked_tokens = self.price_tracker.link_entity(tokens, kb=kbs[e['agent']])
+                acts.append(SpeechActAnalyzer.get_speech_act(s, linked_tokens))
+
+        return acts
+
     def plot_speech_acts(self):
         labels = ['buyer_wins', 'seller_wins']
         for (group, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
             plt.figure(figsize=(10, 6))
-            mentions = []
+            speech_act_counts = dict((act, defaultdict(list)) for act in SpeechActs.ACTS)
             for chat in group:
                 winner = utils.get_winner(chat)
                 margin = utils.get_win_margin(chat)
-                if margin > 1.0 or margin < 0.:
+                if margin > 1.5 or margin < 0.:
                     continue
                 if winner is None:
                     continue
 
                 if winner == -1 or winner == 0:
-                    num_mentions = self._get_price_mentions(chat, agent=0)
-                    mentions.append((margin, chat, num_mentions))
+                    speech_acts = self.get_speech_acts(chat, agent=0)
+                    # print "Chat {:s}\tWinner: {:d}".format(chat['uuid'], winner)
+                    # print speech_acts
+                    for act in SpeechActs.ACTS:
+                        frac = float(speech_acts.count(act))/float(len(speech_acts))
+                        speech_act_counts[act][margin].append(frac)
                 if winner == -1 or winner == 1:
-                    num_mentions = self._get_price_mentions(chat, agent=1)
-                    if len(trend) > 1:
-                        mentions.append((margin, chat,  trend))
+                    speech_acts = self.get_speech_acts(chat, agent=1)
+                    # print "Chat {:s}\tWinner: {:d}".format(chat['uuid'], winner)
+                    # print speech_acts
+                    for act in SpeechActs.ACTS:
+                        frac = float(speech_acts.count(act))/float(len(speech_acts))
+                        speech_act_counts[act][margin].append(frac)
+
+            for act in SpeechActs.ACTS:
+                counts = speech_act_counts[act]
+                margins = list(sorted(counts.keys()))
+                fracs = [np.mean(counts[m]) for m in margins]
+                errors = [stats.sem(counts[m]) for m in margins]
+
+                plt.errorbar(margins, fracs, yerr=errors, label=act, fmt='--o')
+
+            plt.xlabel('Margin of victory')
+            plt.ylabel('Fraction of speech act occurences')
+            plt.title('Speech act frequency vs. margin of victory')
+            plt.legend()
+            save_path = os.path.join(self.stats_path, '{:s}_speech_acts.png'.format(lbl))
+            plt.savefig(save_path)
+
+
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -346,4 +391,5 @@ if __name__ == "__main__":
     analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, args.debug)
     # analyzer.plot_length_histograms()
     # analyzer.plot_length_vs_margin()
-    analyzer.plot_price_trends()
+    # analyzer.plot_price_trends()
+    analyzer.plot_speech_acts()
