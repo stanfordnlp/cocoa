@@ -1,7 +1,7 @@
 __author__ = 'anushabala'
 
 from argparse import ArgumentParser
-from src.model.preprocess import tokenize
+from src.basic.negotiation.tokenizer import tokenize
 import json
 import os
 from scipy import stats as scipy_stats

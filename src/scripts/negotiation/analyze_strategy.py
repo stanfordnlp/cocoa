@@ -8,18 +8,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from scipy import stats
-from src.basic.price_tracker import PriceTracker
-from src.model.preprocess import tokenize
+from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
+from src.basic.negotiation.tokenizer import tokenize
+from src.model.negotiation.preprocess import Preprocessor
+from src.basic.scenario_db import NegotiationScenario
+from src.basic.entity import Entity
+from src.basic.dataset import Example
 
 
 THRESHOLD = 50.0
 
 
 class StrategyAnalyzer(object):
-    def __init__(self, transcripts_path, stats_path):
-        self.transcripts = json.load(open(transcripts_path, 'r'))
+    def __init__(self, transcripts_path, stats_path, price_tracker_model, debug=False):
+        transcripts = json.load(open(transcripts_path, 'r'))
+        if debug:
+            transcripts = transcripts[:50]
+        self.dataset = self.filter_rejected_chats(transcripts)
 
-        self.price_tracker = PriceTracker()
+        self.price_tracker = PriceTracker(price_tracker_model)
         # group chats depending on whether the seller or the buyer wins
         self.buyer_wins, self.seller_wins = self.group_outcomes_and_roles()
 
@@ -27,26 +34,35 @@ class StrategyAnalyzer(object):
         if not os.path.exists(self.stats_path):
             os.makedirs(self.stats_path)
 
+    @staticmethod
+    def filter_rejected_chats(transcripts):
+        examples = []
+        for chat in transcripts:
+            ex = Example.from_dict(None, chat)
+            if not Preprocessor.skip_example(ex):
+                examples.append(chat)
+        return examples
+
     def group_outcomes_and_roles(self):
         buyer_wins = []
         seller_wins = []
         ties = 0
         total_chats = 0
-        for t in self.transcripts:
-            roles = {0: t["scenario"]["kbs"][0]["personal"]["Role"],
-                     1: t["scenario"]["kbs"][1]["personal"]["Role"]}
-            winner = utils.get_winner(t)
+        for ex in self.dataset:
+            roles = {0: ex["scenario"]["kbs"][0]["personal"]["Role"],
+                     1: ex["scenario"]["kbs"][1]["personal"]["Role"]}
+            winner = utils.get_winner(ex)
             if winner is None:
                 continue
             total_chats += 1
             if winner == -1:
-                buyer_wins.append(t)
-                seller_wins.append(t)
+                buyer_wins.append(ex)
+                seller_wins.append(ex)
                 ties += 1
             elif roles[winner] == utils.BUYER:
-                buyer_wins.append(t)
+                buyer_wins.append(ex)
             elif roles[winner] == utils.SELLER:
-                seller_wins.append(t)
+                seller_wins.append(ex)
 
         print "# of ties: {:d}".format(ties)
         print "Total chats with outcomes: {:d}".format(total_chats)
@@ -58,10 +74,10 @@ class StrategyAnalyzer(object):
 
         for (chats, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
             margins = defaultdict(list)
-            for t in chats:
-                turns = utils.get_turns_per_agent(t)
+            for ex in chats:
+                turns = utils.get_turns_per_agent(ex)
                 total_turns = turns[0] + turns[1]
-                margin = utils.get_win_margin(t)
+                margin = utils.get_win_margin(ex)
                 if margin > 2.5 or margin < 0.:
                     continue
 
@@ -89,11 +105,11 @@ class StrategyAnalyzer(object):
 
     def plot_length_histograms(self):
         lengths = []
-        for t in self.transcripts:
-            winner = utils.get_winner(t)
+        for ex in self.dataset:
+            winner = utils.get_winner(ex)
             if winner is None:
                 continue
-            turns = utils.get_turns_per_agent(t)
+            turns = utils.get_turns_per_agent(ex)
             total_turns = turns[0] + turns[1]
             lengths.append(total_turns)
 
@@ -109,41 +125,103 @@ class StrategyAnalyzer(object):
         save_path = os.path.join(self.stats_path, 'turns_histogram.png')
         plt.savefig(save_path)
 
-    def _get_price_trend(self, chat):
+    def _get_price_trend(self, chat, agent=None):
         def _normalize_price(seen_price):
-            return (seller_target - seen_price) / (seller_target - buyer_target)
+            return (float(seller_target) - float(seen_price)) / (float(seller_target) - float(buyer_target))
 
-        kbs = chat['scenario']['kbs']
+        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
+        # print chat['scenario']
+        kbs = scenario.kbs
         roles = {
-            kbs[0]['personal']['Role']: 0,
-            kbs[1]['personal']['Role']: 1
+            kbs[0].facts['personal']['Role']: 0,
+            kbs[1].facts['personal']['Role']: 1
         }
 
-        buyer_target = kbs[roles[utils.BUYER]]['personal']['Target']
-        seller_target = kbs[roles[utils.SELLER]]['personal']['Target']
+        buyer_target = kbs[roles[utils.BUYER]].facts['personal']['Target']
+        seller_target = kbs[roles[utils.SELLER]].facts['personal']['Target']
 
         prices = []
         # todo process events separately for seller vs buyer - for each price trend plot, show change in prices
         # mentioned by seller vs change in prices mentioned by buyer
         for e in chat['events']:
             if e['action'] == 'message':
-                tokens = tokenize(e['data'])
+                if agent is not None and e['agent'] != agent:
+                    continue
+                raw_tokens = tokenize(e['data'])
                 # link entity
-                linked_tokens = self.price_tracker.link_entity(tokens,
-                                                               kb=kbs[e['agent']],
-                                                               partner_kb=kbs[1-e['agent']])
+                linked_tokens = self.price_tracker.link_entity(raw_tokens,
+                                                               kb=kbs[e['agent']])
+                for token in linked_tokens:
+                    if isinstance(token, Entity):
+                        try:
+                            replaced = PriceScaler.unscale_price(kbs[e['agent']], token)
+                        except OverflowError:
+                            print "Raw tokens: ", raw_tokens
+                            print "Overflow error: {:s}".format(token)
+                            print kbs[e['agent']].facts
+                            print "-------"
+                            continue
+                        norm_price = _normalize_price(replaced.canonical.value)
+                        if 0. <= norm_price <= 2.:
+                            # if the number is greater than the list price or significantly lower than the buyer's
+                            # target it's probably not a price
+                            prices.append(norm_price)
                 # do some stuff here
             elif e['action'] == 'offer':
-                prices.append(_normalize_price(e['data']))
+                norm_price = _normalize_price(e['data']['price'])
+                if 0. <= norm_price <= 2.:
+                    prices.append(norm_price)
+                # prices.append(e['data']['price'])
 
-        pass
+        # print "Chat: {:s}".format(chat['uuid'])
+        # print "Trend:", prices
 
-    def plot_price_trends(self):
-        pass
+        return prices
+
+    def plot_price_trends(self, top_n=10):
+        labels = ['buyer_wins', 'seller_wins']
+        for (group, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
+            plt.figure(figsize=(10, 6))
+            trends = []
+            for chat in group:
+                winner = utils.get_winner(chat)
+                margin = utils.get_win_margin(chat)
+                if margin > 1.0 or margin < 0.:
+                    continue
+                if winner is None:
+                    continue
+
+                # print "Winner: Agent {:d}\tWin margin: {:.2f}".format(winner, margin)
+                if winner == -1 or winner == 0:
+                    trend = self._get_price_trend(chat, agent=0)
+                    if len(trend) > 1:
+                        trends.append((margin, chat, trend))
+                if winner == -1 or winner == 1:
+                    trend = self._get_price_trend(chat, agent=1)
+                    if len(trend) > 1:
+                        trends.append((margin, chat,  trend))
+
+                # print ""
+
+            sorted_trends = sorted(trends, key=lambda x:x[0], reverse=True)
+            for (idx, (margin, chat, trend)) in enumerate(sorted_trends[:top_n]):
+                print '{:s}: Chat {:s}\tMargin: {:.2f}'.format(lbl, chat['uuid'], margin)
+                print 'Trend: ', trend
+                print chat['scenario']['kbs']
+                print ""
+                plt.plot(trend, label='Margin={:.2f}'.format(margin))
+            plt.legend()
+            plt.xlabel('N-th price mentioned in chat')
+            plt.ylabel('Value of mentioned price')
+            out_path = os.path.join(self.stats_path, '{:s}_trend.png'.format(lbl))
+            plt.savefig(out_path)
+
 
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
+    parser.add_argument('--debug', action='store_true', help='Run in debug mode (only run on 50 chats)')
+    add_price_tracker_arguments(parser)
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -152,6 +230,7 @@ if __name__ == "__main__":
     transcripts_path = os.path.join(args.output_dir, 'transcripts', 'transcripts.json')
     stats_output = os.path.join(args.output_dir, 'stats')
 
-    analyzer = StrategyAnalyzer(transcripts_path, stats_output)
-    analyzer.plot_length_histograms()
-    analyzer.plot_length_vs_margin()
+    analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, args.debug)
+    # analyzer.plot_length_histograms()
+    # analyzer.plot_length_vs_margin()
+    analyzer.plot_price_trends()

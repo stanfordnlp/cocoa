@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 import numpy as np
-from src.model.preprocess import tokenize
+from src.basic.negotiation.tokenizer import tokenize
 
 
 BUYER = "buyer"
