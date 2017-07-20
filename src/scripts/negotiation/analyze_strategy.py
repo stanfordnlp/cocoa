@@ -1,7 +1,5 @@
 from collections import defaultdict
 import json
-
-__author__ = 'anushabala'
 import utils
 from argparse import ArgumentParser
 import matplotlib.pyplot as plt
@@ -14,9 +12,77 @@ from src.model.negotiation.preprocess import Preprocessor
 from src.basic.scenario_db import NegotiationScenario
 from src.basic.entity import Entity
 from src.basic.dataset import Example
+import nltk.data
+import re
+
+__author__ = 'anushabala'
 
 
 THRESHOLD = 50.0
+
+
+class SpeechActs(object):
+    GEN_QUESTION = 'general_question'
+    PRICE_QUESTION = 'price_request'
+    GEN_STATEMENT = 'general_statement'
+    PRICE_STATEMENT = 'price_statement'
+    GREETING = 'greeting'
+    AGREEMENT = 'agreement'
+
+
+class SpeechActAnalyzer(object):
+    agreement_patterns = [
+        r'that works',
+        r'i could do',
+        r'[^a-zA-Z]ok[^a-zA-Z]|okay',
+        r'great'
+    ]
+    @classmethod
+    def is_question(cls, tokens):
+        last_word = tokens[-1]
+        first_word = tokens[0]
+        return last_word == '?' or first_word in ('how', 'do', 'does', 'are', 'is', 'what', 'would', 'will')
+
+    @classmethod
+    def get_question_type(cls, tokens):
+        if not cls.is_question(tokens):
+            return None
+        return cls.is_price_statement(tokens)
+
+    @classmethod
+    def is_agreement(cls, raw_sentence):
+        for pattern in cls.agreement_patterns:
+            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+                return True
+        return False
+
+    @classmethod
+    def is_price_statement(cls, tokens):
+        for token in tokens:
+            if isinstance(token, Entity) and token.type == 'price':
+                return True
+            else:
+                return False
+
+    @classmethod
+    def is_greeting(cls, tokens):
+        for token in tokens:
+            if token in ('hi', 'hello', 'hey', 'hiya', 'howdy'):
+                return True
+        return False
+
+    @classmethod
+    def get_speech_act(cls, sentence, linked_tokens):
+        if cls.is_question(linked_tokens):
+            return cls.get_question_type(linked_tokens)
+        if cls.is_price_statement(linked_tokens):
+            return SpeechActs.PRICE_STATEMENT
+        if cls.is_agreement(sentence):
+            return SpeechActs.AGREEMENT
+        if cls.is_greeting(linked_tokens):
+            return SpeechActs.GREETING
+
+        return SpeechActs.GEN_STATEMENT
 
 
 class StrategyAnalyzer(object):
@@ -26,7 +92,9 @@ class StrategyAnalyzer(object):
             transcripts = transcripts[:50]
         self.dataset = self.filter_rejected_chats(transcripts)
 
+        self.nltk_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
         self.price_tracker = PriceTracker(price_tracker_model)
+
         # group chats depending on whether the seller or the buyer wins
         self.buyer_wins, self.seller_wins = self.group_outcomes_and_roles()
 
@@ -141,8 +209,6 @@ class StrategyAnalyzer(object):
         seller_target = kbs[roles[utils.SELLER]].facts['personal']['Target']
 
         prices = []
-        # todo process events separately for seller vs buyer - for each price trend plot, show change in prices
-        # mentioned by seller vs change in prices mentioned by buyer
         for e in chat['events']:
             if e['action'] == 'message':
                 if agent is not None and e['agent'] != agent:
@@ -216,6 +282,53 @@ class StrategyAnalyzer(object):
             out_path = os.path.join(self.stats_path, '{:s}_trend.png'.format(lbl))
             plt.savefig(out_path)
 
+    def _get_price_mentions(self, chat, agent=None):
+        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
+        # print chat['scenario']
+        kbs = scenario.kbs
+
+        prices = 0
+        for e in chat['events']:
+            if agent is not None and e['agent'] != agent:
+                    continue
+            if e['action'] == 'message':
+                raw_tokens = tokenize(e['data'])
+                # link entity
+                linked_tokens = self.price_tracker.link_entity(raw_tokens,
+                                                               kb=kbs[e['agent']])
+                for token in linked_tokens:
+                    if isinstance(token, Entity) and token.type == 'price':
+                        prices += 1
+
+        return prices
+
+    def split_turn(self, turn):
+        # a single turn can be comprised of multiple sentences
+        return self.nltk_tokenizer.tokenize(turn)
+
+    def get_speech_acts(self, chat, agent=None):
+        for e in chat['events']:
+            
+    def plot_speech_acts(self):
+        labels = ['buyer_wins', 'seller_wins']
+        for (group, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
+            plt.figure(figsize=(10, 6))
+            mentions = []
+            for chat in group:
+                winner = utils.get_winner(chat)
+                margin = utils.get_win_margin(chat)
+                if margin > 1.0 or margin < 0.:
+                    continue
+                if winner is None:
+                    continue
+
+                if winner == -1 or winner == 0:
+                    num_mentions = self._get_price_mentions(chat, agent=0)
+                    mentions.append((margin, chat, num_mentions))
+                if winner == -1 or winner == 1:
+                    num_mentions = self._get_price_mentions(chat, agent=1)
+                    if len(trend) > 1:
+                        mentions.append((margin, chat,  trend))
 
 if __name__ == "__main__":
     parser = ArgumentParser()
