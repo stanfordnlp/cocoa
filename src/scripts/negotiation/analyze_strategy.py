@@ -18,7 +18,13 @@ import re
 __author__ = 'anushabala'
 
 
-THRESHOLD = 50.0
+THRESHOLD = 30.0
+MAX_MARGIN = 2.4
+MIN_MARGIN = -2.0
+
+
+def round_partial(value, resolution=0.1):
+    return round (value / resolution) * resolution
 
 
 class SpeechActs(object):
@@ -149,8 +155,8 @@ class StrategyAnalyzer(object):
             for ex in chats:
                 turns = utils.get_turns_per_agent(ex)
                 total_turns = turns[0] + turns[1]
-                margin = utils.get_win_margin(ex)
-                if margin > 2.5 or margin < 0.:
+                margin = utils.get_margin(ex)
+                if margin > MAX_MARGIN or margin < 0.:
                     continue
 
                 margins[total_turns].append(margin)
@@ -174,6 +180,31 @@ class StrategyAnalyzer(object):
 
         save_path = os.path.join(self.stats_path, out_name)
         plt.savefig(save_path)
+
+    def plot_margin_histograms(self):
+        for (lbl, group) in zip(['buyer_wins', 'seller_wins'], [self.buyer_wins, self.seller_wins]):
+            margins = []
+            for ex in group:
+                winner = utils.get_winner(ex)
+                if winner is None:
+                    continue
+                margin = utils.get_margin(ex)
+                if 0 <= margin <= MAX_MARGIN:
+                    margins.append(margin)
+
+            b = np.linspace(0, MAX_MARGIN, num=int(MAX_MARGIN/0.2)+2)
+            print b
+            hist, bins = np.histogram(margins, bins=b)
+
+            width = np.diff(bins)
+            center = (bins[:-1] + bins[1:]) / 2
+
+            fig, ax = plt.subplots(figsize=(8,3))
+            ax.bar(center, hist, align='center', width=width)
+            ax.set_xticks(bins)
+
+            save_path = os.path.join(self.stats_path, '{:s}_wins_margins_histogram.png'.format(lbl))
+            plt.savefig(save_path)
 
     def plot_length_histograms(self):
         lengths = []
@@ -255,7 +286,7 @@ class StrategyAnalyzer(object):
             trends = []
             for chat in group:
                 winner = utils.get_winner(chat)
-                margin = utils.get_win_margin(chat)
+                margin = utils.get_margin(chat)
                 if margin > 1.0 or margin < 0.:
                     continue
                 if winner is None:
@@ -310,16 +341,24 @@ class StrategyAnalyzer(object):
         # a single turn can be comprised of multiple sentences
         return self.nltk_tokenizer.tokenize(turn)
 
-    def get_speech_acts(self, chat, agent=None):
+    def get_speech_acts(self, chat, agent=None, role=None):
         scenario = NegotiationScenario.from_dict(None, chat['scenario'])
-        # print chat['scenario']
         kbs = scenario.kbs
+        roles = {
+            kbs[0].facts["personal"]["Role"]: 0,
+            kbs[1].facts["personal"]["Role"]: 1
+        }
+        # print chat['scenario']
+
         acts = []
         for e in chat['events']:
             if e['action'] != 'message':
                 continue
             if agent is not None and e['agent'] != agent:
                 continue
+            if role is not None and roles[role] != e['agent']:
+                continue
+
             sentences = self.split_turn(e['data'])
 
             for s in sentences:
@@ -336,11 +375,13 @@ class StrategyAnalyzer(object):
             speech_act_counts = dict((act, defaultdict(list)) for act in SpeechActs.ACTS)
             for chat in group:
                 winner = utils.get_winner(chat)
-                margin = utils.get_win_margin(chat)
-                if margin > 1.5 or margin < 0.:
+                margin = utils.get_margin(chat)
+                if margin > MAX_MARGIN or margin < 0.:
                     continue
                 if winner is None:
                     continue
+
+                margin = round_partial(margin) # round the margin to the nearest 0.1 to reduce noise
 
                 if winner == -1 or winner == 0:
                     speech_acts = self.get_speech_acts(chat, agent=0)
@@ -359,9 +400,17 @@ class StrategyAnalyzer(object):
 
             for act in SpeechActs.ACTS:
                 counts = speech_act_counts[act]
-                margins = list(sorted(counts.keys()))
-                fracs = [np.mean(counts[m]) for m in margins]
-                errors = [stats.sem(counts[m]) for m in margins]
+                margins = []
+                fracs = []
+                errors = []
+                bin_totals = 0.
+                for m in sorted(counts.keys()):
+                    if len(counts[m]) > THRESHOLD:
+                        bin_totals += len(counts[m])
+                        margins.append(m)
+                        fracs.append(np.mean(counts[m]))
+                        errors.append(stats.sem(counts[m]))
+                print bin_totals / float(len(margins))
 
                 plt.errorbar(margins, fracs, yerr=errors, label=act, fmt='--o')
 
@@ -372,6 +421,44 @@ class StrategyAnalyzer(object):
             save_path = os.path.join(self.stats_path, '{:s}_speech_acts.png'.format(lbl))
             plt.savefig(save_path)
 
+    def plot_speech_acts_by_role(self):
+        labels = utils.ROLES
+        for lbl in labels:
+            plt.figure(figsize=(10, 6))
+            speech_act_counts = dict((act, defaultdict(list)) for act in SpeechActs.ACTS)
+            for chat in self.dataset:
+                if utils.get_winner(chat) is None:
+                    # skip chats with no outcomes
+                    continue
+                speech_acts = self.get_speech_acts(chat, role=lbl)
+                agent = 1 if chat['scenario']['kbs'][1]['personal']['Role'] == lbl else 0
+                margin = utils.get_margin(chat, agent=agent)
+                if margin > MAX_MARGIN:
+                    continue
+                margin = round_partial(margin)
+                for act in SpeechActs.ACTS:
+                    frac = float(speech_acts.count(act))/float(len(speech_acts))
+                    speech_act_counts[act][margin].append(frac)
+
+            for act in SpeechActs.ACTS:
+                counts = speech_act_counts[act]
+                margins = []
+                fracs = []
+                errors = []
+                for m in sorted(counts.keys()):
+                    if len(counts[m]) > THRESHOLD:
+                        margins.append(m)
+                        fracs.append(np.mean(counts[m]))
+                        errors.append(stats.sem(counts[m]))
+
+                plt.errorbar(margins, fracs, yerr=errors, label=act, fmt='--o')
+
+            plt.xlabel('Margin of victory')
+            plt.ylabel('Fraction of speech act occurences')
+            plt.title('Speech act frequency vs. margin of victory')
+            plt.legend()
+            save_path = os.path.join(self.stats_path, '{:s}_speech_acts.png'.format(lbl))
+            plt.savefig(save_path)
 
 
 
@@ -390,6 +477,8 @@ if __name__ == "__main__":
 
     analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, args.debug)
     # analyzer.plot_length_histograms()
+    # analyzer.plot_margin_histograms()
     # analyzer.plot_length_vs_margin()
     # analyzer.plot_price_trends()
     analyzer.plot_speech_acts()
+    analyzer.plot_speech_acts_by_role()

@@ -79,26 +79,31 @@ def get_winner(transcript):
         return -1
 
 
-def get_win_margin(transcript):
-    winner = get_winner(transcript)
-    if winner is None:
-        return -1
-
+def get_margin(transcript, agent=None):
+    if agent is None:
+        # by default, get margin for winner
+        winner = get_winner(transcript)
+        if winner is None:
+            return -1
+        if winner == -1:
+            winner = 0
+        agent = winner
     scenario = transcript["scenario"]
     final_price = transcript["outcome"]["offer"]["price"]
-    if winner == -1:
-        target = scenario["kbs"][0]["personal"]["Target"]
-        partner_target = scenario["kbs"][1]["personal"]["Target"]
-    else:
-        target = scenario["kbs"][winner]["personal"]["Target"]
-        partner_target = scenario["kbs"][1 - winner]["personal"]["Target"]
 
-    midpoint = np.abs(partner_target + target) / 2.
-    norm_factor = np.abs(midpoint - target)
-    margin = np.abs(midpoint - final_price) / norm_factor
-    # if margin > 5:
-    # print "Winner target: {:.1f}\tPartner target: {:.1f}\tMidpoint: {:.1f}" \
-    #       "\tNorm factor: {:.1f}\tFinal price: {:.1f}\tMargin: {:.1f}".format(target, partner_target,
-    #                                                      midpoint, norm_factor, final_price,
-    #                                                      margin)
+    agent_role = scenario['kbs'][agent]['personal']['Role']
+    agent_target = scenario["kbs"][agent]["personal"]["Target"]
+    partner_target = scenario["kbs"][1 - agent]["personal"]["Target"]
+    midpoint = (agent_target + partner_target) / 2.
+    norm_factor = np.abs(midpoint - agent_target)
+    if agent_role == SELLER:
+        margin = (final_price - midpoint) / norm_factor
+    else:
+        margin = (midpoint - final_price) / norm_factor
+
+    # print 'Chat {:s}\tAgent: {:d}\tAgent role: {:s}\tAgent target: {:.2f}\t' \
+    #       'Partner target: {:.2f}\tMidpoint: {:.2f}\tNorm factor: {:.2f}\t' \
+    #       'Final offer: {:.2f}\tMargin{:.2f}'.format(transcript['uuid'], agent, agent_role,
+    #                                                  agent_target, partner_target, midpoint, norm_factor,
+    #                                                  final_price, margin)
     return margin
