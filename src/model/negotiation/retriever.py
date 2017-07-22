@@ -12,6 +12,7 @@ from preprocess import markers
 from collections import defaultdict
 from src.lib.bleu import compute_bleu
 from src.basic.util import generate_uuid
+import random
 
 def add_retriever_arguments(parser):
     parser.add_argument('--retrieve', action='store_true', help='Use retrieval-based method')
@@ -107,7 +108,7 @@ class Retriever(object):
                         'prev_roles': list(prev_roles),
                         'target': turn,
                         'candidates': candidates,
-                        'kb_context': self.slot_detector.get_context(dialogue.kb),
+                        'kb_context': self.slot_detector.get_context_tokens(dialogue.kb),
                         }
             else:
                 r = candidates
@@ -134,13 +135,12 @@ class Retriever(object):
         '''
         Convert a dialogue to docs accoring to the schema.
         '''
-        assert d.flattened
         assert len(d.agents) == len(d.token_turns)
         context = []
         docs = []
         role = d.role
         L = float(len(d.token_turns)) - 1
-        kb_context = self.slot_detector.get_context(d.kb)
+        kb_context = self.slot_detector.get_context_tokens((d.kb,))
         for i, (agent, turn) in enumerate(izip(d.agents, d.token_turns)):
             text = self.process_turn(turn)
             # NOTE: the dialogue is from one agent's perspective
@@ -150,9 +150,9 @@ class Retriever(object):
                         'category': unicode(d.kb.facts['item']['Category']),
                         'title': unicode(d.kb.facts['item']['Title']),
                         'pos': i / L,
-                        'immediate_context': unicode(context[-1]),
-                        'prev_context': unicode(' '.join(context[-1*context_size:-1])),
-                        'response': self.slot_detector.detect_slots(turn, context=kb_context),
+                        'immediate_context': unicode(context[-1], 'utf8'),
+                        'prev_context': unicode(' '.join(context[-1*context_size:-1]), 'utf8'),
+                        'response': self.slot_detector.detect_slots(turn, d.kb, context=kb_context),
                         }
                 docs.append(doc)
             context.append(text)
@@ -169,8 +169,8 @@ class Retriever(object):
 
     def get_query(self, context, title):
         turns = [self.process_turn(t) for t in context]
-        q1 = self.parser_icontext.parse(unicode(turns[-1]))
-        q2 = self.parser_pcontext.parse(unicode(' '.join(turns[:-1])))
+        q1 = self.parser_icontext.parse(unicode(turns[-1], 'utf8'))
+        q2 = self.parser_pcontext.parse(unicode(' '.join(turns[:-1]), 'utf8'))
         q3 = self.parser_title.parse(unicode(' '.join(title)))
         terms = list(q1.all_terms()) + list(q2.all_terms()) + list(q3.all_terms())
         query = Or([Term(*x) for x in terms])
@@ -274,15 +274,18 @@ if __name__ == '__main__':
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
     parser.add_argument('--retriever-output', help='Output path of json file containing retrieved candidates of test examples')
     parser.add_argument('--verbose', action='store_true', help='Print retrieved candidates')
+    parser.add_argument('--seed', default=0, type=int, help='Random seed for generating exid')
     add_dataset_arguments(parser)
     add_retriever_arguments(parser)
     add_price_tracker_arguments(parser)
     add_slot_detector_arguments(parser)
     args = parser.parse_args()
 
+    random.seed(args.seed)
+
     dataset = read_dataset(None, args)
     lexicon = PriceTracker(args.price_tracker_model)
-    slot_detector = SlotDetector(args.slot_fillers)
+    slot_detector = SlotDetector(slot_scores_path=args.slot_scores)
     schema = Schema(args.schema_path)
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
