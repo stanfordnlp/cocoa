@@ -6,7 +6,7 @@ from preprocess import markers
 from retriever import Retriever
 
 def add_ranker_arguments(parser):
-    parser.add_argument('--ranker', choices=['ir', 'cheat', 'encdec'], help='Ranking model')
+    parser.add_argument('--ranker', choices=['ir', 'cheat', 'encdec', 'sf'], help='Ranking model')
 
 class BaseRanker(object):
     def __init__(self):
@@ -115,7 +115,7 @@ class EncDecRanker(BaseRanker):
                 best_candidates.append(np.argmax(probs[i]))
         return best_candidates
 
-    def select(self, batch, encoder_init_state):
+    def select(self, batch, encoder_init_state, textint_map=None):
         token_candidates = batch['token_candidates']
         kwargs = self._get_feed_dict_args(batch, encoder_init_state)
 
@@ -163,3 +163,47 @@ class EncDecRanker(BaseRanker):
                 'candidates': token_candidates,
                 }
 
+class SlotFillingRanker(EncDecRanker):
+    def __init__(self, model):
+        super(SlotFillingRanker, self).__init__(model)
+        self.name = 'ranker-sf'
+
+    def rewrite(self, batch, encoder_init_state, textint_map):
+        candidates = batch['candidates']
+        batch_size, num_candidate, _ = candidates.shape
+
+        # Encoding
+        encoder_args = {'inputs': batch['encoder_inputs'],
+                'init_cell_state': encoder_init_state,
+                }
+        encoder_output_dict = self.model.encoder.run_encode(self.sess, **encoder_args)
+
+        decoder_args = self.model.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
+
+        true_inputs = decoder_args['inputs']
+
+        rewritten_candidates = []
+        for i in xrange(num_candidate):
+            candidate = candidates[:, i, :]  # (batch_size, seq_len)
+            decoder_args['inputs'] = candidate
+            decoder_output_dict = self.model.decoder.run_decode(self.sess, **decoder_args)
+            rewritten_candidates.append(decoder_output_dict['preds'][0])
+
+        # True final state
+        decoder_args['inputs'] = true_inputs
+        feed_dict = self.model.decoder.get_feed_dict(**decoder_args)
+        true_final_state = self.sess.run(self.model.final_state, feed_dict=feed_dict)
+
+        return rewritten_candidates, true_final_state
+
+    def select(self, batch, encoder_init_state, textint_map=None):
+        rewritten_candidates, true_final_state = self.rewrite(batch, encoder_init_state, textint_map)
+        token_rewritten_candidates = [textint_map.int_to_text(c) for c in rewritten_candidates]
+        token_rewritten_candidates  = [' '.join([str(x) for x in c if x != markers.PAD])
+                for c in token_rewritten_candidates]
+        return {
+                'responses': token_candidates[:1],
+                'true_final_state': true_final_state,
+                'candidates': batch['token_candidates'],
+                'rewritten': token_rewritten_candidates,
+                }
