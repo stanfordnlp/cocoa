@@ -119,7 +119,7 @@ class BasicEncoderDecoder(object):
             feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
         return feed_dict
 
-    def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None):
+    def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None, true_inputs=None):
         encoder_inputs = batch['encoder_inputs']
         decoder_inputs = batch['decoder_inputs']
         batch_size = encoder_inputs.shape[0]
@@ -136,7 +136,9 @@ class BasicEncoderDecoder(object):
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # Decode true utterances (so that we always condition on true prefix)
-        decoder_args['inputs'] = decoder_inputs
+        if true_inputs is None:
+            true_inputs = decoder_inputs
+        decoder_args['inputs'] = true_inputs
         feed_dict = self.decoder.get_feed_dict(**decoder_args)
         true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
         return {'preds': decoder_output_dict['preds'],
@@ -319,7 +321,6 @@ class SlotFillingDecoder(DecoderWrapper):
         slot_pos.insert(0, -1)
         slot_pos.append(N)
         iter_slot_pos = iter(slot_pos)
-        print 'slot pos:', slot_pos
         preds = []
         curr_state = None
         def to_str(a):
@@ -327,7 +328,6 @@ class SlotFillingDecoder(DecoderWrapper):
         for prev_slot_end, curr_slot_start in izip(iter_slot_pos, iter_slot_pos):
             # Go through prefix
             prefix = inputs[:, prev_slot_end+1:curr_slot_start]
-            print 'prefix:', to_str(prefix[0])
             if prefix.shape[1] > 0:
                 curr_state = self._read_prefix(sess, feed_dict, curr_state, prefix, preds)
 
@@ -335,8 +335,6 @@ class SlotFillingDecoder(DecoderWrapper):
             if curr_slot_start < N:
                 init_input = inputs[:, [curr_slot_start]]  # START_SLOT
                 curr_state = self._fill_in_slots(sess, feed_dict, curr_state, init_input, preds, textint_map, stop_symbol=end_slot, max_len=max_len)
-
-            print 'preds:', preds[0]
 
         preds = np.concatenate(tuple(preds), axis=1)
         return {'preds': preds, 'final_state': curr_state}

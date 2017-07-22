@@ -298,17 +298,19 @@ class DialogueBatch(object):
         All turns at the same time step should have the same number of tokens.
         return: (batch_size, num_candidates, candidate_len)
         '''
+        #return pad_list_to_array(candidate_batch, int_markers.PAD, np.int32)
+        # TODO: clean up
         num_candidates = len(candidate_batch[0])  # Same for all instance
         max_num_tokens = max([max([len(c) for c in candidates]) for candidates in candidate_batch])
         batch_size = len(candidate_batch)
-        T = np.full([batch_size, num_candidates, max_num_tokens+1], int_markers.PAD, dtype=np.int32)
+        T = np.full([batch_size, num_candidates, max_num_tokens], int_markers.PAD, dtype=np.int32)
         for i, (candidates, role) in enumerate(izip(candidate_batch, roles)):
             for j, candidate in enumerate(candidates):
-                T[i, j, 1:len(candidate)+1] = candidate
+                T[i, j, :len(candidate)] = candidate
                 # Insert <go> at the beginning at each turn because for decoding we want to
                 # start from <go> to generate, except for padded turns
-                if max_num_tokens == 0 or T[i][j][1] != int_markers.PAD:
-                    T[i][j][0] = int_markers.GO_S if role == 'seller' else int_markers.GO_B
+                #if max_num_tokens == 0 or T[i][j][1] != int_markers.PAD:
+                #    T[i][j][0] = int_markers.GO_S if role == 'seller' else int_markers.GO_B
         return T
 
     def _create_candidate_batches(self):
@@ -433,8 +435,8 @@ class DialogueBatch(object):
         decoder_targets = target_turn[:, 1:]
 
         # Mask for slots
-        if self.slot_filling:
-            decoder_targets = self._mask_slots(decoder_targets)
+        #if self.slot_filling:
+        #    decoder_targets = self._mask_slots(decoder_targets)
 
         #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
         #context_batch['helper'] = helpers
@@ -631,7 +633,8 @@ class Preprocessor(object):
         #return (price, (price, 'price'))
         return Entity(price, CanonicalEntity(price, 'price'))
 
-    def _mark_slots(self, utterance):
+    @classmethod
+    def _mark_slots(cls, utterance):
         '''
         Insert START_SLOT and END_SLOT around slot words and convert slot entity back
         to normal tokens.
@@ -810,24 +813,32 @@ class DataGenerator(object):
                     else:
                         candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
 
+                    # TODO: slot_filling option
+                    for turn_candidates in candidates:
+                        if turn_candidates:
+                            for c in turn_candidates:
+                                if 'response' in c:
+                                    c['response'] = Preprocessor._mark_slots(c['response'])
+                                    #print c['response']
                     candidates = [c if c else self.retriever.empty_candidates for c in candidates]
+                    #import sys; sys.exit()
 
-                    kb_context = self.slot_detector.context_to_fillers(dialogue.kb)
-                    new_candidates = []
-                    for i, turn_candidates in enumerate(candidates):
-                        rewritten_cands = []
-                        for candidate in turn_candidates:
-                            rewritten_cands.append(candidate)
-                            rewritten = self.rewrite_candidate(kb_context, candidate)
-                            rewritten_cands.extend(rewritten)
-                        new_candidates.append(rewritten_cands)
-                    for i, cands in enumerate(new_candidates):
-                        if len(cands) < Dialogue.num_candidates:
-                            cands.extend([{} for _ in xrange(Dialogue.num_candidates - len(cands))])
-                        else:
-                            new_candidates[i] = cands[:Dialogue.num_candidates]
+                    #kb_context = self.slot_detector.context_to_fillers(dialogue.kb)
+                    #new_candidates = []
+                    #for i, turn_candidates in enumerate(candidates):
+                    #    rewritten_cands = []
+                    #    for candidate in turn_candidates:
+                    #        rewritten_cands.append(candidate)
+                    #        rewritten = self.rewrite_candidate(kb_context, candidate)
+                    #        rewritten_cands.extend(rewritten)
+                    #    new_candidates.append(rewritten_cands)
+                    #for i, cands in enumerate(new_candidates):
+                    #    if len(cands) < Dialogue.num_candidates:
+                    #        cands.extend([{} for _ in xrange(Dialogue.num_candidates - len(cands))])
+                    #    else:
+                    #        new_candidates[i] = cands[:Dialogue.num_candidates]
 
-                    dialogue.add_candidates(new_candidates)
+                    dialogue.add_candidates(candidates)
                 self.retriever.report_search_time()
 
             for dialogue in dialogues:
