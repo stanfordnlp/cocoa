@@ -25,7 +25,7 @@ def get_data_generator(args, model_args, mappings, schema):
     #scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
     dataset = read_dataset(None, args)
     lexicon = PriceTracker(model_args.price_tracker_model)
-    slot_detector = SlotDetector(model_args.slot_fillers)
+    slot_detector = SlotDetector(slot_scores_path=model_args.slot_scores)
 
     # TODO: hacky
     if args.model == 'lm':
@@ -76,7 +76,7 @@ def build_model(schema, mappings, args):
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
     from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder
-    from ranker import IRRanker, CheatRanker, EncDecRanker
+    from ranker import IRRanker, CheatRanker, EncDecRanker, SlotFillingRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
     from src.model.sequence_embedder import get_sequence_embedder
@@ -170,6 +170,8 @@ def build_model(schema, mappings, args):
         model = IRRanker()
     elif args.ranker == 'encdec':
         model = EncDecRanker(model)
+    elif args.ranker == 'sf':
+        model = SlotFillingRanker(model)
 
     return model
 
