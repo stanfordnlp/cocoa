@@ -118,13 +118,14 @@ if __name__ == '__main__':
             sess.run(tf.global_variables_initializer())
             print 'Load TF model'
             start = time.time()
-            saver = tf.train.Saver(max_to_keep=5)
+            saver = tf.train.Saver(max_to_keep=3)
             saver.restore(sess, ckpt.model_checkpoint_path)
             print 'Done [%fs]' % (time.time() - start)
         else:
             sess = None
 
-        if model.name == 'ranker-encdec':
+        # TODO
+        if model.name in ('ranker-encdec', 'ranker-sf'):
             model.set_tf_session(sess)
 
         for split, test_data, num_batches in evaluator.dataset():
