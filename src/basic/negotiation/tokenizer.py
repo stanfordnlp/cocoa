@@ -58,9 +58,9 @@ def tokenize(utterance):
     # NLTK would not tokenize "xx..", so normalize dots to "...".
     utterance = re.sub(r'\.{2,}', '...', utterance)
     # Remove some weird chars
-    utterance = re.sub(r'\\', '', utterance)
+    utterance = re.sub(r'\\|>|/', ' ', utterance)
     tokens = word_tokenize(utterance)
-    tokens = stick_marker_sign(tokens)
+    #tokens = stick_marker_sign(tokens)
     tokens = stick_dollar_sign(tokens)
     return tokens
 
