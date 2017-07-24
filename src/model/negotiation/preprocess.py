@@ -133,6 +133,7 @@ class Dialogue(object):
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
     num_candidates = None
+    num_context = 1
 
     def __init__(self, agent, kb, uuid):
         '''
@@ -414,11 +415,16 @@ class DialogueBatch(object):
         return array
 
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
-        if encode_turn is not None:
-            # Remove <go> at the beginning of utterance
-            encoder_inputs = encode_turn[:, 1:]
-        else:
-            raise ValueError
+        num_context = Dialogue.num_context
+        # Remove <go> at the beginning of utterance
+        encoder_inputs = encode_turn[-1][:, 1:]
+        encoder_context = [turn[:, 1:] for turn in encode_turn[-1*(num_context+1):-1]]
+        if len(encoder_context) < num_context:
+            batch_size = encode_turn[0].shape[0]
+            empty_context = np.full([batch_size, 1], int_markers.PAD, np.int32)
+            for i in xrange(num_context - len(encoder_context)):
+                encoder_context.insert(0, empty_context)
+
         # Remove pad (<go>) at the beginning of utterance
         encoder_price_inputs = price_encode_turn[:, 1:]
 
@@ -444,6 +450,7 @@ class DialogueBatch(object):
         # TODO: group these
         batch = {
                  'encoder_inputs': encoder_inputs,
+                 'encoder_context': encoder_context,
                  'decoder_inputs': decoder_inputs,
                  'targets': decoder_targets,
                  'decoder_price_inputs': decoder_price_inputs,
@@ -489,7 +496,7 @@ class DialogueBatch(object):
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][i], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_token_candidates(i+1), candidate_batches[i+1] if candidate_batches else None, agents, kbs, context_batch) for i in encode_turn_ids]
+        batch_seq = [self._create_one_batch(turn_batches[enc][:i+1], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_token_candidates(i+1), candidate_batches[i+1] if candidate_batches else None, agents, kbs, context_batch) for i in encode_turn_ids]
 
         # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
@@ -712,7 +719,7 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[]):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1):
         examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -744,6 +751,7 @@ class DataGenerator(object):
         Dialogue.mappings = mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
+        Dialogue.num_context = num_context
 
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
