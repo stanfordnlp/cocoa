@@ -23,6 +23,7 @@ def add_basic_model_arguments(parser):
     parser.add_argument('--pretrained-wordvec', default=None, help='Path to pretrained word embeddings')
     parser.add_argument('--decoding', nargs='+', default=['sample', 0, 'select'], help='Decoding method')
     parser.add_argument('--tied', action='store_true', help='Tie weights of word embedding and output')
+    parser.add_argument('--stateful', action='store_true', help='Pass final state to next batch')
 
 def optional_add(feed_dict, key, value):
     if value is not None:

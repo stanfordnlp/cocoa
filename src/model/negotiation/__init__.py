@@ -75,6 +75,9 @@ def check_model_args(args):
     if args.decoder == 'rnn-attn':
         assert args.attention_memory is not None
 
+    if args.num_context > 0:
+        assert not args.stateful
+
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
@@ -164,7 +167,7 @@ def build_model(schema, mappings, args):
             encoder = ContextEncoder(encoder_word_embedder, encoder_seq_embedder, args.num_context, pad, keep_prob)
         else:
             encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
-        model = BasicEncoderDecoder(encoder, decoder, pad, keep_prob)
+        model = BasicEncoderDecoder(encoder, decoder, pad, keep_prob, stateful=args.stateful)
     elif args.model == 'lm':
         decoder = get_decoder(args)
         model = LM(decoder, pad)

@@ -4,19 +4,19 @@ from src.model.learner import BaseLearner
 from src.model.negotiation.ranker import EncDecRanker
 from src.lib.bleu import compute_bleu
 
-def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, unconditional=False, sample_targets=False):
+def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, sample_targets=False):
     if sample_targets:
-        return PseudoTargetLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+        return PseudoTargetLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
     elif model.name == 'lm':
-        return LMLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+        return LMLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
     #if model.name == 'ranker':
-    #    return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+    #    return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
     else:
-        return Learner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, unconditional=unconditional)
+        return Learner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
 
 class Learner(BaseLearner):
-    def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
-        super(Learner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)
+    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
+        super(Learner, self).__init__(data, model, evaluator, batch_size, verbose)
 
     def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None, test=False):
         # NOTE: We need to do the processing here instead of in preprocess because the
@@ -67,12 +67,12 @@ class Learner(BaseLearner):
                 fetches['gn'] = self.grad_norm
             else:
                 fetches['total_loss'] = self.model.total_loss
-            if not self.unconditional:
+            if self.model.stateful:
                 fetches['final_state'] = self.model.final_state
 
             results = sess.run(fetches, feed_dict=feed_dict)
 
-            if not self.unconditional:
+            if self.model.stateful:
                 encoder_init_state = results['final_state']
             else:
                 encoder_init_state = None
@@ -89,8 +89,8 @@ class Learner(BaseLearner):
                 logstats.update_summary_map(summary_map, {'grad_norm': results['gn']})
 
 class PseudoTargetLearner(Learner):
-    def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
-        super(PseudoTargetLearner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)
+    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
+        super(PseudoTargetLearner, self).__init__(data, model, evaluator, batch_size, verbose)
         self.ranker = EncDecRanker(model)
 
     def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None):

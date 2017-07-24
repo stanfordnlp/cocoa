@@ -62,7 +62,7 @@ class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
     '''
-    def __init__(self, encoder, decoder, pad, keep_prob):
+    def __init__(self, encoder, decoder, pad, keep_prob, stateful=False):
         self.pad = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
@@ -71,6 +71,8 @@ class BasicEncoderDecoder(object):
         self.perplexity = True
         self.name = 'encdec'
         self.keep_prob = keep_prob
+        # stateful: initialize state with state from the previous batch
+        self.stateful = stateful
         self.build_model(encoder, decoder)
 
     def compute_loss(self, output_dict):

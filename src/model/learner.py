@@ -16,7 +16,6 @@ def memory():
 
 def add_learner_arguments(parser):
     parser.add_argument('--optimizer', default='sgd', help='Optimization method')
-    parser.add_argument('--unconditional', action='store_true', help='Do not pass final state to next batch')
     parser.add_argument('--sample-targets', action='store_true', help='Sample targets from candidates')
     parser.add_argument('--grad-clip', type=int, default=5, help='Min and max values of gradients')
     parser.add_argument('--learning-rate', type=float, default=0.1, help='Learning rate')
@@ -35,13 +34,12 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
         }
 
 class BaseLearner(object):
-    def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
+    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
         self.vocab = data.mappings['vocab']
         self.batch_size = batch_size
         self.evaluator = evaluator
-        self.unconditional = unconditional
         self.verbose = verbose
 
     def _run_batch(self, dialogue_batch, sess, summary_map, test=True):
