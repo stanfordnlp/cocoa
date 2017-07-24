@@ -39,20 +39,22 @@ def get_data_generator(args, model_args, mappings, schema):
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, slot_filling=model_args.slot_filling, slot_detector=slot_detector)
     if args.test:
         model_args.dropout = 0
-        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
+        data_generator = DataGenerator(None, None, dataset.test_examples, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=args.num_context)
     else:
-        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path)
+        data_generator = DataGenerator(dataset.train_examples, dataset.test_examples, None, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=args.num_context)
 
     return data_generator
 
 def add_model_arguments(parser):
     from src.model.encdec import add_basic_model_arguments
     from src.model.sequence_embedder import add_sequence_embedder_arguments
+    from encdec import add_model_arguments
     from price_predictor import add_price_predictor_arguments
     from context_embedder import add_context_embedder_arguments
     from ranker import add_ranker_arguments
 
     add_basic_model_arguments(parser)
+    add_model_arguments(parser)
     add_sequence_embedder_arguments(parser)
     add_price_predictor_arguments(parser)
     add_context_embedder_arguments(parser)
@@ -70,12 +72,15 @@ def check_model_args(args):
     if args.slot_filling and args.test:
         assert args.batch_size == 1
 
+    if args.decoder == 'rnn-attn':
+        assert args.attention_memory is not None
+
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder
     from ranker import IRRanker, CheatRanker, EncDecRanker, SlotFillingRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
@@ -90,7 +95,8 @@ def build_model(schema, mappings, args):
         if args.test:
             keep_prob = tf.constant(1.)
         else:
-            keep_prob = tf.constant(1. - args.dropout)
+            # When test on dev set, we need to feed in keep_prob = 1.0
+            keep_prob = tf.placeholder_with_default(tf.constant(1. - args.dropout), shape=[], name='keep_prob')
 
     vocab = mappings['vocab']
     pad = vocab.to_ind(markers.PAD)
@@ -113,8 +119,6 @@ def build_model(schema, mappings, args):
         sampler = Sampler(sample_t)
     else:
         raise('Unknown decoding method')
-
-    re_encode = args.re_encode
 
     opts = vars(args)
     opts['vocab_size'] = vocab.size
@@ -139,11 +143,11 @@ def build_model(schema, mappings, args):
     def get_decoder(args):
         if args.decoder == 'rnn':
             if args.context is not None:
-                decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+                decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied)
             else:
-                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss)
+                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied)
         else:
-            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder, attention_memory=args.attention_memory)
 
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
@@ -156,8 +160,11 @@ def build_model(schema, mappings, args):
 
     if args.model == 'encdec' or args.ranker == 'encdec':
         decoder = get_decoder(args)
-        encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
-        model = BasicEncoderDecoder(encoder, decoder, pad, re_encode=re_encode)
+        if args.num_context > 0:
+            encoder = ContextEncoder(encoder_word_embedder, encoder_seq_embedder, args.num_context, pad, keep_prob)
+        else:
+            encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
+        model = BasicEncoderDecoder(encoder, decoder, pad, keep_prob)
     elif args.model == 'lm':
         decoder = get_decoder(args)
         model = LM(decoder, pad)

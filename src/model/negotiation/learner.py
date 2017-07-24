@@ -18,7 +18,7 @@ class Learner(BaseLearner):
     def __init__(self, data, model, evaluator, batch_size=1, unconditional=False, verbose=False):
         super(Learner, self).__init__(data, model, evaluator, batch_size, unconditional, verbose)
 
-    def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None):
+    def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None, test=False):
         # NOTE: We need to do the processing here instead of in preprocess because the
         # graph is dynamic; also the original batch data should not be modified.
         targets = batch['targets']
@@ -26,6 +26,7 @@ class Learner(BaseLearner):
         price_args = {'init_price_history': init_price_history,
                 }
         encoder_args = {'inputs': batch['encoder_inputs'],
+                'context': batch['encoder_context'],
                 'init_state': encoder_init_state,
                 'price_inputs': batch['encoder_price_inputs'],
                 'price_predictor': price_args,
@@ -42,6 +43,10 @@ class Learner(BaseLearner):
                 }
 
         feed_dict = self.model.get_feed_dict(**kwargs)
+
+        if test:
+            feed_dict[self.model.keep_prob] = 1.0
+
         return feed_dict
 
     def _run_batch(self, dialogue_batch, sess, summary_map, test=False):
@@ -51,7 +56,7 @@ class Learner(BaseLearner):
         # TODO: put price_history into encoder/decoder_state
         encoder_init_state = None
         for batch in dialogue_batch['batch_seq']:
-            feed_dict = self._get_feed_dict(batch, encoder_init_state)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, test=test)
             fetches = {
                     'logits': self.model.decoder.output_dict['logits'],
                     'loss': self.model.loss,
