@@ -56,7 +56,10 @@ class ContextEmbedder(object):
                 }
         if context is None:
             return embeddings
-        return tf.concat([embeddings[k] for k in context], axis=1)
+        if not step:
+            return tf.concat([embeddings[k] for k in context], axis=1)
+        else:
+            return [embeddings[k] for k in context]
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
