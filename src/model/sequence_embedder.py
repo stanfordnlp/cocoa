@@ -97,11 +97,12 @@ class SequenceEmbedder(object):
         raise ValueError('Unknown aggregation')
 
 class BoWEmbedder(SequenceEmbedder):
-    def __init__(self, vocab_size, embed_size=None, word_embedder=None, aggregation='sum'):
+    def __init__(self, vocab_size=None, embed_size=None, word_embedder=None, aggregation='sum'):
         assert aggregation in ('sum', 'max', 'mean')
         super(BoWEmbedder, self).__init__(embed_size, aggregation)
 
         if word_embedder:
+            self.vocab_size = word_embedder.num_symbols
             self.word_embedder = word_embedder
             self.embed_size = word_embedder.embed_size
         else:
@@ -219,7 +220,7 @@ class AttentionRNNEmbedder(RNNEmbedder):
         mask: (batch_size, mem_len)
         '''
         if mask is not None:
-            memory_len = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 0)  # (batch_size,)
+            memory_len = tf.reduce_sum(tf.where(mask, tf.ones_like(mask, dtype=tf.int32), tf.zeros_like(mask, dtype=tf.int32)), 1)  # (batch_size,)
         else:
             memory_len = None
         return memory_len
@@ -242,7 +243,7 @@ class AttentionRNNEmbedder(RNNEmbedder):
         mask = kwargs.get('attention_mask', None)  # (batch_size, mem_len)
         if not (isinstance(memory, list) or isinstance(memory, tuple)):
             memory_len = self._mask_to_memory_len(mask)
-            attention_mechanism = BahdanauAttention(self.embed_size, memory, memory_len)
+            attention_mechanism = LuongAttention(self.embed_size, memory, memory_sequence_length=memory_len, scale=True)
             cell = AttentionWrapper(cell, attention_mechanism, attention_size)
         else:
             if mask is not None:
