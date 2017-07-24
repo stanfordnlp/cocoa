@@ -143,22 +143,22 @@ class BasicEncoderDecoder(object):
         decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
-        # Decode true utterances (so that we always condition on true prefix)
-        if true_inputs is None:
-            true_inputs = decoder_inputs
-        decoder_args['inputs'] = true_inputs
-        feed_dict = self.decoder.get_feed_dict(**decoder_args)
-        true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
+        # If model is stateful, we need to pass the last state to the next batch.
+        # Therefore we need to decode true utterances to condition on true prefix.
+        if self.stateful:
+            if true_inputs is None:
+                true_inputs = decoder_inputs
+            decoder_args['inputs'] = true_inputs
+            feed_dict = self.decoder.get_feed_dict(**decoder_args)
+            true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
+        else:
+            true_final_state = None
+
         return {'preds': decoder_output_dict['preds'],
                 'prices': decoder_output_dict.get('prices', None),
                 'final_state': decoder_output_dict['final_state'],
                 'true_final_state': true_final_state,
                 }
-        #return {'preds': decoder_output_dict['preds'],
-        #        'prices': None,
-        #        'final_state': decoder_output_dict['final_state'],
-        #        'true_final_state': true_final_state,
-        #        }
 
 class ContextEncoder(BasicEncoder):
     def __init__(self, word_embedder, seq_embedder, num_context, pad, keep_prob):
