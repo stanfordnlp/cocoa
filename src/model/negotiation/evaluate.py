@@ -10,7 +10,7 @@ from src.basic.negotiation.price_tracker import PriceTracker
 def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose=True):
     if model.name in ('ranker-cheat', 'ranker-ir'):
         return RetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
-    elif model.name == 'ranker-encdec':
+    elif model.name in ('ranker-encdec',):
         return EncDecRetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
     elif model.name == 'lm':
         return LMEvaluator(data_generator, model, splits, batch_size, verbose)
@@ -199,7 +199,6 @@ class RetrievalEvaluator(Evaluator):
             print 'TARGET:', self.to_str(target)
             print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
-            print 'FILLERS:', slot_detector.get_context(kb)
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
                 if c != {}:
@@ -214,7 +213,7 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
             prev_turns.append([self._process_target_tokens(tokens) for tokens in batch['encoder_tokens']])
             # TODO
-            output_dict = self.model.select(batch, encoder_init_state)
+            output_dict = self.model.select(batch, encoder_init_state, self.data.textint_map)
             pred_tokens = output_dict['responses']
             encoder_init_state = output_dict['true_final_state']
 
@@ -257,13 +256,13 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             #print 'PRED:', Dialogue.original_price(kb, pred)
             print 'TARGET:', self.to_str(target)
             print 'PRED:', self.to_str(pred)
-            print 'BLEU:', bleu
-            print 'CHEAT:', self.to_str(output_dict['cheat_responses'][i])
+            #print 'BLEU:', bleu
+            #print 'CHEAT:', self.to_str(output_dict['cheat_responses'][i])
             #print 'IR:', self.to_str(output_dict['IR_responses'][i])
             print 'ALL CANDIDATES:'
             for c in output_dict['candidates'][i]:
                 if c != {}:
-                    print 'Hits:', c['hits']
+                    #print 'Hits:', c['hits']
                     print 'Response:', self.to_str(c['response'])
 
 class LMEvaluator(Evaluator):
