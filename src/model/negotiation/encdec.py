@@ -2,10 +2,14 @@ import tensorflow as tf
 import numpy as np
 from src.model.util import transpose_first_two_dims, batch_embedding_lookup, EPS
 from src.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
-from src.model.sequence_embedder import AttentionRNNEmbedder
+from src.model.sequence_embedder import AttentionRNNEmbedder, BoWEmbedder
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
 from itertools import izip
+
+def add_model_arguments(parser):
+    parser.add_argument('--attention-memory', nargs='*', default=None, help='Attention memory: title, description, encoder outputs')
+    parser.add_argument('--num-context', default=0, type=int, help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
 
 class LM(object):
     def __init__(self, decoder, pad):
@@ -58,7 +62,7 @@ class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
     '''
-    def __init__(self, encoder, decoder, pad, re_encode=False):
+    def __init__(self, encoder, decoder, pad, keep_prob):
         self.pad = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
@@ -66,6 +70,7 @@ class BasicEncoderDecoder(object):
         self.tf_variables = set()
         self.perplexity = True
         self.name = 'encdec'
+        self.keep_prob = keep_prob
         self.build_model(encoder, decoder)
 
     def compute_loss(self, output_dict):
@@ -80,9 +85,10 @@ class BasicEncoderDecoder(object):
         # TODO: clearner way to add price_history - put this in the state,
         # maybe just return encoder_output_dict...
         return {
-                'init_cell_state': encoder_output_dict['final_state'],
+                'init_cell_state': self.decoder._init_state(encoder_output_dict),
                 'encoder_embeddings': encoder_output_dict['outputs'],
                 'price_history': encoder_output_dict.get('price_history', None),
+                'encoder_context': encoder_output_dict.get('context_embedding', None),
                }
 
     def build_model(self, encoder, decoder):
@@ -152,15 +158,60 @@ class BasicEncoderDecoder(object):
         #        'true_final_state': true_final_state,
         #        }
 
+class ContextEncoder(BasicEncoder):
+    def __init__(self, word_embedder, seq_embedder, num_context, pad, keep_prob):
+        super(ContextEncoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
+        self.context_embedder = BoWEmbedder(word_embedder=word_embedder)
+        self.num_context = num_context
+
+    def _build_inputs(self, input_dict):
+        super(ContextEncoder, self)._build_inputs(input_dict)
+        self.context = [tf.placeholder(tf.int32, shape=[None, None], name='context_%d' % i) for i in xrange(self.num_context)]  # (batch_size, context_seq_len)
+
+    def embed_context(self):
+        embeddings = []
+        for i in xrange(self.num_context):
+            inputs, mask = self.context_embedder.build_seq_inputs(self.context[i], self.word_embedder, self.pad, time_major=False)
+            embeddings.append(self.context_embedder.embed(inputs, mask, integer=False)['embedding'])
+        embeddings = tf.stack(embeddings)  # (num_context, batch_size, embed_size)
+        embeddings = transpose_first_two_dims(embeddings)
+        embeddings = tf.reduce_sum(embeddings, axis=1)
+        return embeddings  # (batch_size, embed_size)
+
+    def build_model(self, input_dict={}, tf_variables=None):
+        '''
+        inputs: (batch_size, seq_len, input_size)
+        '''
+        with tf.variable_scope(type(self).__name__):
+            self._build_inputs(input_dict)
+
+            inputs, mask, kwargs = self._build_rnn_inputs(input_dict)
+            with tf.variable_scope('Embed'):
+                embeddings = self.seq_embedder.embed(inputs, mask, **kwargs)
+            with tf.variable_scope('ContextEmbed'):
+                context_embedding = self.embed_context()
+
+            self._build_output_dict(embeddings, context_embedding)
+
+    def _build_output_dict(self, embeddings, context_embedding):
+        super(ContextEncoder, self)._build_output_dict(embeddings)
+        self.output_dict['context_embedding'] = context_embedding
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(ContextEncoder, self).get_feed_dict(**kwargs)
+        feed_dict.update({i: d for i, d in izip(self.context, kwargs['context'])})
+        return feed_dict
+
 class AttentionDecoder(BasicDecoder):
     '''
     Attend to encoder embeddings and/or context.
     '''
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None, attention_memory=('title',)):
         assert isinstance(seq_embedder, AttentionRNNEmbedder)
         super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
         self.context_embedder = context_embedder
-        self.context_embedding = self.context_embedder.embed(context=('helper',), step=True)  # (batch_size, context_len, embed_size)
+        context = tuple([x for x in attention_memory if x in self.context_embedder.context_names])
+        self.context_embedding = self.context_embedder.embed(context=context, step=True)  # (batch_size, context_len, embed_size)
 
     def get_encoder_state(self, state):
         return state.cell_state
@@ -175,17 +226,18 @@ class AttentionDecoder(BasicDecoder):
 
     def _build_rnn_inputs(self, input_dict):
         inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(input_dict)
-        encoder_outputs = input_dict['encoder_embeddings']
-        self.feedable_vars['encoder_outputs'] = encoder_outputs
+        #encoder_outputs = input_dict['encoder_embeddings']
+        #self.feedable_vars['encoder_outputs'] = encoder_outputs
         #attention_memory = transpose_first_two_dims(encoder_outputs)  # (batch_size, seq_len, embed_size)
         attention_memory = self.context_embedding
-        # TODO: attention mask
         kwargs['attention_memory'] = attention_memory
+        # mask doesn't seem to matter
+        #kwargs['attention_mask'] = self.context_embedder.get_mask('title')
         return inputs, mask, kwargs
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(AttentionDecoder, self).get_feed_dict(**kwargs)
-        optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
+        #optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
         feed_dict = self.context_embedder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('context'))
         return feed_dict
 
@@ -193,8 +245,8 @@ class ContextDecoder(BasicDecoder):
     '''
     Add a context vector (category, title, description) to each decoding step.
     '''
-    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False):
-        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
+    def __init__(self, word_embedder, seq_embedder, context_embedder, context, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, tied=False):
+        super(ContextDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss, tied)
         self.context_embedder = context_embedder
         #self.context = context
         self.context_embedding = self.context_embedder.embed(context)
@@ -211,6 +263,7 @@ class ContextDecoder(BasicDecoder):
 
     def _build_rnn_inputs(self, input_dict):
         inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
+        encoder_context = input_dict.get('encoder_context', None)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         return inputs, mask, kwargs
 

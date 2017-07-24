@@ -13,6 +13,7 @@ class ContextEmbedder(object):
         self.cat_embedder = cat_embedder
         self.seq_embedder = seq_embedder
         self.pad = pad
+        self.context_names = ('category', 'title', 'description')
         self._build_inputs()
 
     def _build_inputs(self):
@@ -21,6 +22,11 @@ class ContextEmbedder(object):
             self.title = tf.placeholder(tf.int32, shape=[None, None], name='title')  # (batch_size, title_len)
             self.description = tf.placeholder(tf.int32, shape=[None, None], name='description')  # (batch_size, description_len)
             #self.helper = tf.placeholder(tf.int32, shape=[None, None], name='helper')  # (batch_size, helper_len)
+
+    #def get_mask(self, context_name):
+    #    if context_name == 'title':
+    #        return tf.not_equal(self.title, self.pad)
+    #    raise ValueError
 
     def one_hot_embed(self, inputs, size):
         return tf.one_hot(inputs, size, on_value=1, off_value=0)
