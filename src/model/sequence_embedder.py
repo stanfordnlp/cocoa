@@ -241,10 +241,12 @@ class AttentionRNNEmbedder(RNNEmbedder):
         cell = super(AttentionRNNEmbedder, self)._build_rnn_cell(input_size, **kwargs)
         memory = kwargs['attention_memory']  # (batch_size, mem_len, mem_size)
         mask = kwargs.get('attention_mask', None)  # (batch_size, mem_len)
-        if not (isinstance(memory, list) or isinstance(memory, tuple)):
+        #if not (isinstance(memory, list) or isinstance(memory, tuple)):
+        if len(memory) == 1:
+            memory = memory[0]
             memory_len = self._mask_to_memory_len(mask)
             attention_mechanism = LuongAttention(attention_size, memory, memory_sequence_length=memory_len, scale=True)
-            cell = AttentionWrapper(cell, attention_mechanism, attention_size)
+            cell = AttentionWrapper(cell, attention_mechanism, attention_layer_size=attention_size)
         else:
             if mask is not None:
                 assert len(memory) == len(mask)
@@ -252,6 +254,7 @@ class AttentionRNNEmbedder(RNNEmbedder):
             else:
                 memory_len = [None] * len(memory)
             attention_mechanisms = [LuongAttention(attention_size, m, l, scale=True) for m, l in izip(memory, memory_len)]
-            cell = MultiAttentionWrapper(cell, attention_mechanisms, attention_size)
+            # attention_size: project size of multiple context
+            cell = MultiAttentionWrapper(cell, attention_mechanisms, attention_size, attention_layer_size=attention_size)
         return cell
 

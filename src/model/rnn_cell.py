@@ -38,11 +38,33 @@ class MultiAttentionMechanisumWrapper(object):
     def __init__(self, attention_mechanisms):
         self.attention_mechanisms = attention_mechanisms
         self.num_mechanisms = len(attention_mechanisms)
-        self.alignments_size = tf.stack([m.alignments_size for m in self.attention_mechanisms])  # (num_mecha, 1)
+        print 'multiple mechanism:', self.num_mechanisms
+        self.alignments_sizes = tf.stack([m.alignments_size for m in self.attention_mechanisms])  # (num_mecha,)
+        # We will concatenate alignments of different mechanisums.
+        # To separate these alignments later, we need to remember where each alignment start.
+        self.alignments_start_inds = tf.cumsum(self.alignments_sizes, exclusive=True)
+        self.alignments_size = tf.reduce_sum(self.alignments_sizes)  # ()
         self.batch_size = self.attention_mechanisms[0].batch_size
 
     def initial_alignments(self, batch_size, dtype):
-        return tf.stack([m.initial_alignments(batch_size, dtype) for m in self.attention_mechanisms])
+        a = [m.initial_alignments(batch_size, dtype) for m in self.attention_mechanisms]  # [(batch_size, alignments_size),]
+        a = self.combine_alignments(a)
+        return a
+
+    def separate_alignments(self, alignments):
+        # alignments: (batch_size, \sum_m alignments_size_m)
+        multi_alignments = []
+        for i in xrange(self.num_mechanisms):
+            start = self.alignments_start_inds[i]
+            end = start + self.alignments_sizes[i]
+            a = alignments[:, start:end]
+            multi_alignments.append(a)
+        return multi_alignments
+
+    def combine_alignments(self, alignments):
+        # alignments: list of (batch_size, alignments_size)
+        # return: (batch_size, \sum_m alignments_size_m)
+        return tf.concat(alignments, axis=1)
 
 class MultiAttentionWrapper(AttentionWrapper):
     '''
@@ -108,10 +130,10 @@ class MultiAttentionWrapper(AttentionWrapper):
 
         multi_context = []
         multi_alignments = []
-        for i, attention_mechanism in enumerate(self._attention_mechanism.attention_mechanisms):
-            prev_alignments = state.alignments[i, :, :]
+        prev_alignments = self._attention_mechanism.separate_alignments(state.alignments)  # list of (batch_size, alignments_size)
+        for attention_mechanism, prev_a in izip(self._attention_mechanism.attention_mechanisms, prev_alignments):
             alignments = attention_mechanism(
-                cell_output, previous_alignments=prev_alignments)
+                cell_output, previous_alignments=prev_a)
 
             # Reshape from [batch_size, memory_time] to [batch_size, 1, memory_time]
             expanded_alignments = array_ops.expand_dims(alignments, 1)
@@ -137,7 +159,7 @@ class MultiAttentionWrapper(AttentionWrapper):
             context = tf.layers.dense(context, self._multi_attention_size, use_bias=False, activation=tf.nn.relu)
 
         # Combine alignments
-        alignments = tf.stack(multi_alignments)
+        alignments = self._attention_mechanism.combine_alignments(multi_alignments)  # (batch_size, \sum_{m} alignments_size_m)
 
         if self._attention_layer is not None:
           attention = self._attention_layer(
