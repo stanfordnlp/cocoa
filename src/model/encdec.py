@@ -87,6 +87,12 @@ class BasicEncoder(object):
         self.output_dict = {}
         self.feedable_vars = {}
 
+    def get_inference_args(self, batch, encoder_init_state):
+        encoder_args = {'inputs': batch['encoder_inputs'],
+                'init_cell_state': encoder_init_state,
+                }
+        return encoder_args
+
     def _build_rnn_inputs(self, input_dict):
         inputs = input_dict.get('inputs', self.inputs)
         inputs, mask = self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)

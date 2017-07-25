@@ -128,15 +128,10 @@ class BasicEncoderDecoder(object):
         return feed_dict
 
     def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None, true_inputs=None):
-        encoder_inputs = batch['encoder_inputs']
-        decoder_inputs = batch['decoder_inputs']
-        batch_size = encoder_inputs.shape[0]
+        batch_size = batch['encoder_inputs'].shape[0]
 
         # Encode true prefix
-        # TODO: get_encoder_args
-        encoder_args = {'inputs': encoder_inputs,
-                'init_cell_state': encoder_init_state,
-                }
+        encoder_args = self.encoder.get_inference_args(batch, encoder_init_state)
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
@@ -147,7 +142,7 @@ class BasicEncoderDecoder(object):
         # Therefore we need to decode true utterances to condition on true prefix.
         if self.stateful:
             if true_inputs is None:
-                true_inputs = decoder_inputs
+                true_inputs = batch['decoder_inputs']
             decoder_args['inputs'] = true_inputs
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
@@ -165,6 +160,11 @@ class ContextEncoder(BasicEncoder):
         super(ContextEncoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
         self.context_embedder = BoWEmbedder(word_embedder=word_embedder)
         self.num_context = num_context
+
+    def get_inference_args(self, batch, init_state):
+        encoder_args = super(ContextEncoder, self).get_inference_args(batch, init_state)
+        encoder_args['context'] = batch['encoder_context']
+        return encoder_args
 
     def _build_inputs(self, input_dict):
         super(ContextEncoder, self)._build_inputs(input_dict)
