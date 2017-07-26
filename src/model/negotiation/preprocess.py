@@ -417,8 +417,7 @@ class DialogueBatch(object):
                     break
         return array
 
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
-        num_context = Dialogue.num_context
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context):
         # Remove <go> at the beginning of utterance
         encoder_inputs = encode_turn[-1][:, 1:]
         encoder_context = [turn[:, 1:] for turn in encode_turn[-1*(num_context+1):-1]]
@@ -500,7 +499,7 @@ class DialogueBatch(object):
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(turn_batches[enc][:i+1], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_token_candidates(i+1), candidate_batches[i+1] if candidate_batches else None, agents, kbs, context_batch) for i in encode_turn_ids]
+        batch_seq = [self._create_one_batch(turn_batches[enc][:i+1], turn_batches[dec][i+1], turn_batches[tgt][i+1], price_batches[i], price_batches[i+1], self._get_token_turns(i), self._get_token_turns(i+1), self._get_token_candidates(i+1), candidate_batches[i+1] if candidate_batches else None, agents, kbs, context_batch, Dialogue.num_context) for i in encode_turn_ids]
 
         # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
         # passed on to the next batch
@@ -913,12 +912,14 @@ class EvalDialogueBatch(DialogueBatch):
         context_batch = self._create_context_batch(pad)
 
         # We just need one batch (context, response, candidates, scores)
+        # TODO: better way to handle Dialogue/EvalDialogue static variables
         batch = [self._create_one_batch(
                 turn_batches[enc][:-1], turn_batches[dec][-1], turn_batches[tgt][-1],
                 None, None,
                 self._get_context(), self._get_response(),
                 self._get_token_candidates(), None,
-                agents, kbs, context_batch)]
+                agents, kbs, context_batch,
+                EvalDialogue.num_context)]
         return {'batch_seq': batch}
 
     def _get_context(self):
