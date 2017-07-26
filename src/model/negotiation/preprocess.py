@@ -959,8 +959,9 @@ class EvalDataGenerator(DataGenerator):
         Make sure the utterance matches preprocessor processed utterance.
         '''
         # Convert list in json file to Entity
-        # Remove <go> at the beginning because this will be added in _add_utterance
-        utterance = [self.tuple_to_entity(x) for x in utterance[1:]]
+        # Remove <go> at the beginning and </s> at the end
+        # because they will be added in _add_utterance
+        utterance = [self.tuple_to_entity(x) for x in utterance[1:-1]]
         return utterance
 
     def process_example(self, ex):
