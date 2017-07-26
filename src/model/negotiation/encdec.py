@@ -204,6 +204,10 @@ class ContextEncoder(BasicEncoder):
         feed_dict.update({i: d for i, d in izip(self.context, kwargs['context'])})
         return feed_dict
 
+    def run_encode(self, sess, **kwargs):
+        feed_dict = self.get_feed_dict(**kwargs)
+        return self.run(sess, ('final_state', 'outputs', 'context_embedding'), feed_dict)
+
 class AttentionDecoder(BasicDecoder):
     '''
     Attend to encoder embeddings and/or context.
