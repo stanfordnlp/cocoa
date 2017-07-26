@@ -4,7 +4,7 @@ __author__ = 'anushabala'
 from collections import defaultdict
 from tf_idf import WINNER, LOSER, get_winner, ROLES
 from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
-from src.model.preprocess import tokenize
+from src.basic.negotiation.tokenizer import tokenize
 import matplotlib.pyplot as plt
 
 
@@ -81,7 +81,7 @@ def json_to_utterances(transcript, agent_type=None, role=None, agent_id=-1):
     return chat
 
 
-def plot_top_ngrams(top_ngrams_by_agent, agents=["human"], output_dir="./"):
+def plot_top_ngrams(top_ngrams_by_agent, agents=["human"], output_dir="./", suffix=""):
     num_subplots = len(top_ngrams_by_agent)
     categories = top_ngrams_by_agent[0].keys()
     for cat in categories:
@@ -105,17 +105,17 @@ def plot_top_ngrams(top_ngrams_by_agent, agents=["human"], output_dir="./"):
             plt.title("Agent type: {:s} Category: {:s}".format(agents[i], cat))
 
         plt.tight_layout()
-        outpath = os.path.join(output_dir, "ngram_{:s}.png".format(cat))
+        outpath = os.path.join(output_dir, "ngram_{:s}{:s}.png".format(cat))
 
         plt.savefig(outpath)
         plt.clf()
 
 
-def write_to_file(top_ngrams_by_agent, agents=["human"], output_dir="./"):
+def write_to_file(top_ngrams_by_agent, agents=["human"], output_dir="./", suffix=""):
     for (idx, agent) in enumerate(agents):
         top_ngrams_by_cat = top_ngrams_by_agent[idx]
         for cat in top_ngrams_by_cat.keys():
-            outpath = os.path.join(output_dir, "top_ngrams_{:s}_{:s}.txt".format(agent, cat))
+            outpath = os.path.join(output_dir, "top_ngrams_{:s}_{:s}{:s}.txt".format(agent, cat, suffix))
             outfile = open(outpath, 'w')
             print "N-grams: Agent type: {:s}\tCategory: {:s}".format(agent, cat)
             for (ngram, count) in top_ngrams_by_cat[cat]:
