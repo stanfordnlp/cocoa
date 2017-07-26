@@ -52,7 +52,7 @@ def get_data_generator(args, model_args, mappings, schema):
             train, dev, test = None, None, dataset.test_examples
         else:
             train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=args.num_context)
+        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context)
 
     return data_generator
 
