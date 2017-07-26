@@ -125,7 +125,6 @@ class TextIntMap(object):
             toks = [CanonicalEntity(value=p, type='price') if price_filler(x) else x for x, p in izip(toks, prices)]
         return toks
 
-
 class Dialogue(object):
     textint_map = None
     ENC = 0
@@ -226,16 +225,7 @@ class Dialogue(object):
             self.token_turns.append(utterance)
             self.entities.append(entities)
 
-    def convert_to_int(self):
-        if self.is_int:
-            return
-
-        for turn in self.token_turns:
-            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                #turns.append([self.textint_map.text_to_int(utterance, stage)
-                #    for utterance in turn])
-                turns.append(self.textint_map.text_to_int(turn, stage))
-
+    def candidates_to_int(self):
         def remove_slot(tokens):
             return [x.surface if is_entity(x) and x.canonical.type == 'slot' else x for x in tokens]
 
@@ -245,6 +235,19 @@ class Dialogue(object):
                 c = [self.textint_map.text_to_int(remove_slot(c['response']), 'decoding') if 'response' in c else [] for c in turn_candidates]
                 self.candidates.append(c)
 
+    # TODO: candidates
+    def convert_to_int(self, candidates=False):
+        if self.is_int:
+            return
+
+        for turn in self.token_turns:
+            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+                #turns.append([self.textint_map.text_to_int(utterance, stage)
+                #    for utterance in turn])
+                turns.append(self.textint_map.text_to_int(turn, stage))
+
+        if candidates:
+            self.candidates_to_int()
         self.price_turns = self.get_price_turns(int_markers.PAD)
         self.category = self.mappings['cat_vocab'].to_ind(self.category)
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
@@ -344,10 +347,10 @@ class DialogueBatch(object):
             for j in xrange(self.num_turns)]
         return price_batches
 
-    def _create_context_batch(self):
+    def _create_context_batch(self, pad):
         category_batch = np.array([d.category for d in self.dialogues], dtype=np.int32)
         # TODO: hacky
-        pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
+        #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
         title_batch = pad_list_to_array([d.title for d in self.dialogues], pad, np.int32)
         description_batch = pad_list_to_array([d.description for d in self.dialogues], pad, np.int32)
         return {
@@ -426,7 +429,7 @@ class DialogueBatch(object):
                 encoder_context.insert(0, empty_context)
 
         # Remove pad (<go>) at the beginning of utterance
-        encoder_price_inputs = price_encode_turn[:, 1:]
+        encoder_price_inputs = price_encode_turn[:, 1:] if price_encode_turn is not None else None
 
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decode_turn.shape == target_turn.shape
@@ -435,9 +438,9 @@ class DialogueBatch(object):
         # 1) The longest sequence does not have </s> as input.
         # 2) At inference time, decoder stops at </s>.
         decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
-        decoder_price_inputs = price_decode_turn[:, :-1]
+        decoder_price_inputs = price_decode_turn[:, :-1] if price_decode_turn is not None else None
 
-        price_targets = price_decode_turn[:, 1:]
+        price_targets = price_decode_turn[:, 1:] if price_decode_turn is not None else None
         decoder_targets = target_turn[:, 1:]
 
         # Mask for slots
@@ -492,7 +495,8 @@ class DialogueBatch(object):
         agents = self._get_agent_batch(1)  # Decoding agent
         kbs = self._get_kb_batch()
 
-        context_batch = self._create_context_batch()
+        pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
+        context_batch = self._create_context_batch(pad)
 
         # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
         encode_turn_ids = range(0, self.num_turns-1, 2)
@@ -764,16 +768,23 @@ class DataGenerator(object):
             for dialogue in dialogues:
                 dialogue.convert_to_int()
 
+    def get_dialogue_batch(self, dialogues, slot_filling):
+        return DialogueBatch(dialogues, slot_filling).create_batch()
+
+    def dialogue_sort_score(self, d):
+        # Sort dialogues by number o turns
+        return len(d.turns[0])
+
     def create_dialogue_batches(self, dialogues, batch_size):
         dialogue_batches = []
-        dialogues.sort(key=lambda d: len(d.turns[0]))
+        dialogues.sort(key=lambda d: self.dialogue_sort_score(d))
         N = len(dialogues)
         start = 0
         while start < N:
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.append(DialogueBatch(dialogue_batch, self.slot_filling).create_batch())
+            dialogue_batches.append(self.get_dialogue_batch(dialogue_batch, self.slot_filling))
             start = end
         return dialogue_batches
 
@@ -862,6 +873,119 @@ class DataGenerator(object):
             dialogue_batches = read_pickle(cache_file)
             print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
             print '[%d s]' % (time.time() - start_time)
+
+        yield len(dialogue_batches)
+        inds = range(len(dialogue_batches))
+        while True:
+            if shuffle:
+                random.shuffle(inds)
+            for ind in inds:
+                yield dialogue_batches[ind]
+
+class EvalDialogue(Dialogue):
+    def __init__(self, agent, kb, uuid):
+        super(EvalDialogue, self).__init__(agent, kb, uuid)
+        self.candidate_scores = None
+
+    def context_len(self):
+        return sum([len(t) for t in self.token_turns[:-1]])
+
+    def _pad_list(self, l, size, pad):
+        # NOTE: for dialogues without enough turns/context, we need to pad at the beginning, the last utterance is the target
+        for i in xrange(len(l), size):
+            l.insert(0, pad)
+        return l
+
+class EvalDialogueBatch(DialogueBatch):
+    def create_batch(self):
+        self._normalize_dialogue()
+        turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
+        price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
+        candidate_batches = self._create_candidate_batches()  # (batch_size, num_candidate, seq_len)
+
+        enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
+
+        # Add agents and kbs
+        agents = self._get_agent_batch(1)  # Decoding agent
+        kbs = self._get_kb_batch()
+
+        pad = EvalDialogue.mappings['kb_vocab'].to_ind(markers.PAD)
+        context_batch = self._create_context_batch(pad)
+
+        # We just need one batch (context, response, candidates, scores)
+        batch = [self._create_one_batch(
+                turn_batches[enc][:-1], turn_batches[dec][-1], turn_batches[tgt][-1],
+                None, None,
+                self._get_context(), self._get_response(),
+                self._get_token_candidates(), None,
+                agents, kbs, context_batch)]
+        return {'batch_seq': batch}
+
+    def _get_context(self):
+        return [dialogue.token_turns[:-1] for dialogue in self.dialogues]
+
+    def _get_response(self):
+        return [dialogue.token_turns[-1] for dialogue in self.dialogues]
+
+    def _get_token_candidates(self):
+        return [dialogue.token_candidates for dialogue in self.dialogues]
+
+class EvalDataGenerator(DataGenerator):
+    def __init__(self, examples, preprocessor, mappings, num_context=1):
+        self.dialogues = {'eval': [self.process_example(ex) for ex in examples]}
+        self.num_examples = {k: len(v) if v else 0 for k, v in self.dialogues.iteritems()}
+        print '%d eval examples' % self.num_examples['eval']
+
+        self.slot_filling = preprocessor.slot_filling
+        self.mappings = mappings
+        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+
+        EvalDialogue.mappings = mappings
+        EvalDialogue.textint_map = self.textint_map
+        EvalDialogue.preprocessor = preprocessor
+        EvalDialogue.num_context = num_context
+
+        global int_markers
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+
+    def tuple_to_entity(self, token):
+        if isinstance(token, list):
+            return Entity(token[0], CanonicalEntity(*token[1]))
+        else:
+            return token
+
+    def _process_utterance(self, utterance):
+        '''
+        Make sure the utterance matches preprocessor processed utterance.
+        '''
+        # Convert list in json file to Entity
+        # Remove <go> at the beginning because this will be added in _add_utterance
+        utterance = [self.tuple_to_entity(x) for x in utterance[1:]]
+        return utterance
+
+    def process_example(self, ex):
+        d = EvalDialogue(ex.agent, ex.kb, ex.ex_id)
+        for role, utterance in izip(ex.prev_roles, ex.prev_turns):
+            agent = ex.agent if role == ex.role else (1 - ex.agent)
+            d.add_utterance(agent, self._process_utterance(utterance))
+        d.add_utterance(ex.agent, self._process_utterance(ex.target))
+        d.token_candidates = ex.candidates
+        d.candidate_scores = ex.scores
+        return d
+
+    def dialogue_sort_score(self, d):
+        # Sort dialogues by number o turns
+        return d.context_len()
+
+    def get_dialogue_batch(self, dialogues, slot_filling):
+        return EvalDialogueBatch(dialogues, slot_filling).create_batch()
+
+    def generator(self, split, batch_size, shuffle=True):
+        dialogues = self.dialogues['eval']
+
+        for dialogue in dialogues:
+            dialogue.convert_to_int()
+        dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
 
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
