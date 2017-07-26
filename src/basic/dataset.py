@@ -5,6 +5,7 @@ Data structures for events, examples, and datasets.
 from util import read_json
 from event import Event
 from scenario_db import Scenario
+from kb import KB
 
 class Example(object):
     '''
@@ -57,6 +58,34 @@ class Dataset(object):
         self.train_examples = train_examples
         self.test_examples = test_examples
 
+class EvalExample(object):
+    '''
+    Context-response pairs with scores from turkes.
+    '''
+    def __init__(self, uuid, kb, agent, role, prev_turns, prev_roles, target, candidates, scores):
+        self.ex_id = uuid
+        self.kb = kb
+        self.agent = agent
+        self.role = role
+        self.prev_turns = prev_turns
+        self.prev_roles = prev_roles
+        self.target = target
+        self.candidates = candidates
+        self.scores = scores
+
+    @staticmethod
+    def from_dict(schema, raw):
+        ex_id = raw['exid']
+        kb = KB.from_dict(schema.attributes, raw['kb'])
+        agent = raw['agent']
+        role = raw['role']
+        prev_turns = raw['prev_turns']
+        prev_roles = raw['prev_roles']
+        target = raw['target']
+        candidates = raw['candidates']
+        scores = raw['results']
+        return EvalExample(ex_id, kb, agent, role, prev_turns, prev_roles, target, candidates, scores)
+
 ############################################################
 
 def read_examples(scenario_db, paths, max_examples):
@@ -79,6 +108,7 @@ def add_dataset_arguments(parser):
     parser.add_argument('--test-examples-paths', help='Input test examples', nargs='*', default=[])
     parser.add_argument('--train-max-examples', help='Maximum number of training examples', type=int)
     parser.add_argument('--test-max-examples', help='Maximum number of test examples', type=int)
+    parser.add_argument('--eval-examples-paths', help='Path to multi-response evaluation files', nargs='*', default=[])
 
 def read_dataset(scenario_db, args):
     '''
