@@ -57,6 +57,20 @@ class Evaluator(BaseEvaluator):
         words = [markers.PAD]
         return inds + words
 
+    def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, summary_map):
+        for candidates, scores, preds in izip(batch_candidates, batch_candidate_scores, batch_preds):
+            candidates = [c['response'] for c in candidates if 'response' in c]
+            assert len(candidates) == len(scores)
+            candidates = [self._process_target_tokens(
+                [self.data.tuple_to_entity(x) for x in c]
+                ) for c in candidates]
+
+            bleus = [self.sentence_bleu_score([preds], [c])[0] for c in candidates]
+            most_similar_candidate = np.argmax(bleus)
+            weighted_bleu = bleus[most_similar_candidate] * float(sum(scores[most_similar_candidate]))
+
+            logstats.update_summary_map(summary_map, {'multi_score': weighted_bleu})
+
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
         for batch in dialogue_batch['batch_seq']:
@@ -72,6 +86,9 @@ class Evaluator(BaseEvaluator):
 
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 
+            if 'token_candidates' in batch:
+                self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, summary_map)
+
             # Metrics
             # Sentence bleu: only for verbose print
             bleu_scores = self.sentence_bleu_score(pred_tokens, references)
@@ -84,7 +101,8 @@ class Evaluator(BaseEvaluator):
                 self._print_batch(batch, pred_tokens, references, bleu_scores)
 
     def _process_target_tokens(self, tokens):
-        targets = [token.canonical if is_entity(token) else token for token in tokens]
+        remove_tokens = (markers.GO_B, markers.GO_S)
+        targets = [token.canonical if is_entity(token) else token for token in tokens if not token in remove_tokens]
         return targets
 
     def to_str(self, words):
@@ -112,6 +130,10 @@ class Evaluator(BaseEvaluator):
             #print 'RAW INPUT:', encoder_tokens[i]
             #print 'RAW TARGET:', target
             print '----------'
+            if 'encoder_context' in batch:
+                print 'CONTEXT:'
+                for c in batch['encoder_context']:
+                    print self.to_str(self.data.textint_map.int_to_text(c[i], 'encoding'))
             print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
             print 'TARGET:', self.to_str(target)
             print 'PRED:', self.to_str(pred)
@@ -120,12 +142,16 @@ class Evaluator(BaseEvaluator):
     def get_stats(self, summary_map):
         output = super(Evaluator, self).get_stats(summary_map)
         output['entity_f1'] = self.get_f1(summary_map, 'entity_')
+        if 'multi_score' in summary_map:
+            output['multi_score'] = summary_map['multi_score']['mean']
         return output
 
     def stats2str(self, stats):
         s = [super(Evaluator, self).stats2str(stats)]
         for m in ('entity_f1',):
             s.append('%s=%.4f/%.4f/%.4f' % (m, stats[m][0], stats[m][1],stats[m][2]))
+        if 'multi_score' in stats:
+            s.append('%s=%.4f' % ('multi_score', stats['multi_score']))
         return ' '.join(s)
 
     # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
@@ -264,6 +290,7 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
                 if c != {}:
                     #print 'Hits:', c['hits']
                     print 'Response:', self.to_str(c['response'])
+
 
 class LMEvaluator(Evaluator):
     def _stop_symbol(self):
