@@ -65,7 +65,7 @@ class Sampler(object):
             for i in xrange(batch_size):
                 for j in xrange(seq_len):
                     try:
-                        preds[i][j] = np.random.choice(num_symbols, 1, p=p[i][j])[0]
+                        preds[i][j] = np.where(np.random.multinomial(1, p[i][j]) == 1)[0][0]
                     # p[i][j] do not sum to 1
                     except ValueError:
                         preds[i][j] = np.argmax(p[i][j])
