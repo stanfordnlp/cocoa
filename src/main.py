@@ -41,7 +41,9 @@ if __name__ == '__main__':
         saved_config = read_json(config_path)
 
         # NOTE: args below can be overwritten
+        # TODO: separate temperature from decoding arg
         saved_config['decoding'] = args.decoding
+        saved_config['temperature'] = args.temperature
         saved_config['batch_size'] = args.batch_size
         saved_config['pretrained_wordvec'] = args.pretrained_wordvec
         saved_config['ranker'] = args.ranker

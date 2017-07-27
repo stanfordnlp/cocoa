@@ -7,6 +7,7 @@ from retriever import Retriever
 
 def add_ranker_arguments(parser):
     parser.add_argument('--ranker', choices=['ir', 'cheat', 'encdec', 'sf'], help='Ranking model')
+    parser.add_argument('--temperature', default=0., type=float, help='Temperature for sampling candidates')
 
 class BaseRanker(object):
     def __init__(self):
@@ -62,9 +63,10 @@ class CheatRanker(BaseRanker):
         return responses
 
 class EncDecRanker(BaseRanker):
-    def __init__(self, model):
+    def __init__(self, model, temp):
         super(EncDecRanker, self).__init__()
         self.model = model
+        self.temp = temp
         self.name = 'ranker-encdec'
 
     def set_tf_session(self, sess):
@@ -73,6 +75,7 @@ class EncDecRanker(BaseRanker):
     def _get_feed_dict_args(self, batch, encoder_init_state=None):
         encoder_args = {'inputs': batch['encoder_inputs'],
                 'init_state': encoder_init_state,
+                'context': batch['encoder_context'],
                 }
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'targets': batch['targets'],
@@ -104,8 +107,11 @@ class EncDecRanker(BaseRanker):
         return candidates_loss, final_states
 
     def sample_candidates(self, candidates_loss):
+        if self.temp == 0:
+            return np.argmax(-1. * candidates_loss, axis=1)
+
         batch_size, num_candidate = candidates_loss.shape
-        exp_x = np.exp(-1. * candidates_loss)
+        exp_x = np.exp(-1. * candidates_loss / self.temp)
         probs = exp_x / np.sum(exp_x, axis=1, keepdims=True)
         best_candidates = []
         for i in xrange(batch_size):
@@ -150,10 +156,13 @@ class EncDecRanker(BaseRanker):
                 for i, j in enumerate(best_candidates)]
 
         # Decoder the true utterance to get the state
-        kwargs['decoder']['inputs'] = batch['decoder_inputs']
-        kwargs['decoder']['targets'] = batch['targets']
-        feed_dict = self.model.get_feed_dict(**kwargs)
-        true_final_state = self.sess.run(self.model.final_state, feed_dict=feed_dict)
+        if self.model.stateful:
+            kwargs['decoder']['inputs'] = batch['decoder_inputs']
+            kwargs['decoder']['targets'] = batch['targets']
+            feed_dict = self.model.get_feed_dict(**kwargs)
+            true_final_state = self.sess.run(self.model.final_state, feed_dict=feed_dict)
+        else:
+            true_final_state = None
 
         return {
                 'responses': responses,

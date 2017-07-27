@@ -89,6 +89,8 @@ def check_model_args(args):
     if args.num_context > 0:
         assert not args.stateful
 
+    assert args.temperature >= 0
+
 def build_model(schema, mappings, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
@@ -190,7 +192,7 @@ def build_model(schema, mappings, args):
     if args.ranker == 'ir':
         model = IRRanker()
     elif args.ranker == 'encdec':
-        model = EncDecRanker(model)
+        model = EncDecRanker(model, args.temperature)
     elif args.ranker == 'sf':
         model = SlotFillingRanker(model)
 
