@@ -42,7 +42,7 @@ def group_text_by_category(transcripts, agent_type=None):
                 or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
             continue
         chat = json_to_text(t, agent_type)
-        category = t["scenario"]["category"]
+        category = get_category(t)
         grouped_chats[category] += " {:s}".format(chat)
     return grouped_chats
 
@@ -65,7 +65,7 @@ def group_by_category_and_role(transcripts, agent_type=None):
         if (not is_chat_valid(t, 0) and not is_partial_chat(t, 0)) \
                 or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
             continue
-        category = t["scenario"]["category"]
+        category = get_category(t)
         for r in ROLES:
             chat = json_to_text(t, agent_type, r)
             key = "{:s}_{:s}".format(category, r)
@@ -88,7 +88,7 @@ def group_by_category_role_winner(transcripts, agent_type=None):
         if winner is None or winner == -1:
             # ignore ties as well, there are so few of them
             continue
-        category = t["scenario"]["category"]
+        category = get_category(t)
         chat_winner = json_to_text(t, agent_type, agent_id=winner)
         chat_loser = json_to_text(t, agent_type, agent_id=1-winner)
         if roles[winner] == BUYER:

@@ -2,7 +2,7 @@ import os
 
 __author__ = 'anushabala'
 from collections import defaultdict
-from tf_idf import WINNER, LOSER, get_winner, ROLES
+from utils import WINNER, LOSER, get_winner, ROLES, get_category
 from src.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
 from src.basic.negotiation.tokenizer import tokenize
 import matplotlib.pyplot as plt
@@ -41,7 +41,7 @@ def group_text_by_category(transcripts, agent_type=None):
                 or (not is_chat_valid(t, 1) and not is_partial_chat(t, 1)):
             continue
         utterances = json_to_utterances(t, agent_type)
-        category = t["scenario"]["category"]
+        category = get_category(t)
         grouped_chats[category].extend(utterances)
     return grouped_chats
 

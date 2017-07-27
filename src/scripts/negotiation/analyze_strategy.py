@@ -8,10 +8,8 @@ import os
 from scipy import stats
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
 from src.basic.negotiation.tokenizer import tokenize
-from src.model.negotiation.preprocess import Preprocessor
 from src.basic.scenario_db import NegotiationScenario
 from src.basic.entity import Entity
-from src.basic.dataset import Example
 import nltk.data
 import re
 
@@ -45,6 +43,7 @@ class SpeechActAnalyzer(object):
         r'[^a-zA-Z]ok[^a-zA-Z]|okay',
         r'great'
     ]
+
     @classmethod
     def is_question(cls, tokens):
         last_word = tokens[-1]
@@ -96,13 +95,14 @@ class SpeechActAnalyzer(object):
 
 
 class StrategyAnalyzer(object):
+    nltk_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+
     def __init__(self, transcripts_path, stats_path, price_tracker_model, debug=False):
         transcripts = json.load(open(transcripts_path, 'r'))
         if debug:
             transcripts = transcripts[:100]
-        self.dataset = self.filter_rejected_chats(transcripts)
+        self.dataset = utils.filter_rejected_chats(transcripts)
 
-        self.nltk_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
         self.price_tracker = PriceTracker(price_tracker_model)
 
         # group chats depending on whether the seller or the buyer wins
@@ -112,14 +112,90 @@ class StrategyAnalyzer(object):
         if not os.path.exists(self.stats_path):
             os.makedirs(self.stats_path)
 
-    @staticmethod
-    def filter_rejected_chats(transcripts):
-        examples = []
-        for chat in transcripts:
-            ex = Example.from_dict(None, chat)
-            if not Preprocessor.skip_example(ex):
-                examples.append(chat)
-        return examples
+    @classmethod
+    def get_price_trend(cls, price_tracker, chat, agent=None):
+        def _normalize_price(seen_price):
+            return (float(seller_target) - float(seen_price)) / (float(seller_target) - float(buyer_target))
+
+        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
+        # print chat['scenario']
+        kbs = scenario.kbs
+        roles = {
+            kbs[0].facts['personal']['Role']: 0,
+            kbs[1].facts['personal']['Role']: 1
+        }
+
+        buyer_target = kbs[roles[utils.BUYER]].facts['personal']['Target']
+        seller_target = kbs[roles[utils.SELLER]].facts['personal']['Target']
+
+        prices = []
+        for e in chat['events']:
+            if e['action'] == 'message':
+                if agent is not None and e['agent'] != agent:
+                    continue
+                raw_tokens = tokenize(e['data'])
+                # link entity
+                linked_tokens = price_tracker.link_entity(raw_tokens,
+                                                               kb=kbs[e['agent']])
+                for token in linked_tokens:
+                    if isinstance(token, Entity):
+                        try:
+                            replaced = PriceScaler.unscale_price(kbs[e['agent']], token)
+                        except OverflowError:
+                            print "Raw tokens: ", raw_tokens
+                            print "Overflow error: {:s}".format(token)
+                            print kbs[e['agent']].facts
+                            print "-------"
+                            continue
+                        norm_price = _normalize_price(replaced.canonical.value)
+                        if 0. <= norm_price <= 2.:
+                            # if the number is greater than the list price or significantly lower than the buyer's
+                            # target it's probably not a price
+                            prices.append(norm_price)
+                # do some stuff here
+            elif e['action'] == 'offer':
+                norm_price = _normalize_price(e['data']['price'])
+                if 0. <= norm_price <= 2.:
+                    prices.append(norm_price)
+                # prices.append(e['data']['price'])
+
+        # print "Chat: {:s}".format(chat['uuid'])
+        # print "Trend:", prices
+
+        return prices
+
+    @classmethod
+    def split_turn(cls, turn):
+        # a single turn can be comprised of multiple sentences
+        return cls.nltk_tokenizer.tokenize(turn)
+
+    @classmethod
+    def get_speech_acts(cls, chat, price_tracker, agent=None, role=None):
+        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
+        kbs = scenario.kbs
+        roles = {
+            kbs[0].facts["personal"]["Role"]: 0,
+            kbs[1].facts["personal"]["Role"]: 1
+        }
+        # print chat['scenario']
+
+        acts = []
+        for e in chat['events']:
+            if e['action'] != 'message':
+                continue
+            if agent is not None and e['agent'] != agent:
+                continue
+            if role is not None and roles[role] != e['agent']:
+                continue
+
+            sentences = cls.split_turn(e['data'])
+
+            for s in sentences:
+                tokens = tokenize(s)
+                linked_tokens = price_tracker.link_entity(tokens, kb=kbs[e['agent']])
+                acts.append(SpeechActAnalyzer.get_speech_act(s, linked_tokens))
+
+        return acts
 
     def group_outcomes_and_roles(self):
         buyer_wins = []
@@ -228,57 +304,6 @@ class StrategyAnalyzer(object):
         save_path = os.path.join(self.stats_path, 'turns_histogram.png')
         plt.savefig(save_path)
 
-    def _get_price_trend(self, chat, agent=None):
-        def _normalize_price(seen_price):
-            return (float(seller_target) - float(seen_price)) / (float(seller_target) - float(buyer_target))
-
-        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
-        # print chat['scenario']
-        kbs = scenario.kbs
-        roles = {
-            kbs[0].facts['personal']['Role']: 0,
-            kbs[1].facts['personal']['Role']: 1
-        }
-
-        buyer_target = kbs[roles[utils.BUYER]].facts['personal']['Target']
-        seller_target = kbs[roles[utils.SELLER]].facts['personal']['Target']
-
-        prices = []
-        for e in chat['events']:
-            if e['action'] == 'message':
-                if agent is not None and e['agent'] != agent:
-                    continue
-                raw_tokens = tokenize(e['data'])
-                # link entity
-                linked_tokens = self.price_tracker.link_entity(raw_tokens,
-                                                               kb=kbs[e['agent']])
-                for token in linked_tokens:
-                    if isinstance(token, Entity):
-                        try:
-                            replaced = PriceScaler.unscale_price(kbs[e['agent']], token)
-                        except OverflowError:
-                            print "Raw tokens: ", raw_tokens
-                            print "Overflow error: {:s}".format(token)
-                            print kbs[e['agent']].facts
-                            print "-------"
-                            continue
-                        norm_price = _normalize_price(replaced.canonical.value)
-                        if 0. <= norm_price <= 2.:
-                            # if the number is greater than the list price or significantly lower than the buyer's
-                            # target it's probably not a price
-                            prices.append(norm_price)
-                # do some stuff here
-            elif e['action'] == 'offer':
-                norm_price = _normalize_price(e['data']['price'])
-                if 0. <= norm_price <= 2.:
-                    prices.append(norm_price)
-                # prices.append(e['data']['price'])
-
-        # print "Chat: {:s}".format(chat['uuid'])
-        # print "Trend:", prices
-
-        return prices
-
     def plot_price_trends(self, top_n=10):
         labels = ['buyer_wins', 'seller_wins']
         for (group, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
@@ -294,11 +319,11 @@ class StrategyAnalyzer(object):
 
                 # print "Winner: Agent {:d}\tWin margin: {:.2f}".format(winner, margin)
                 if winner == -1 or winner == 0:
-                    trend = self._get_price_trend(chat, agent=0)
+                    trend = self.get_price_trend(self.price_tracker, chat, agent=0)
                     if len(trend) > 1:
                         trends.append((margin, chat, trend))
                 if winner == -1 or winner == 1:
-                    trend = self._get_price_trend(chat, agent=1)
+                    trend = self.get_price_trend(self.price_tracker, chat, agent=1)
                     if len(trend) > 1:
                         trends.append((margin, chat,  trend))
 
@@ -336,37 +361,6 @@ class StrategyAnalyzer(object):
                         prices += 1
 
         return prices
-
-    def split_turn(self, turn):
-        # a single turn can be comprised of multiple sentences
-        return self.nltk_tokenizer.tokenize(turn)
-
-    def get_speech_acts(self, chat, agent=None, role=None):
-        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
-        kbs = scenario.kbs
-        roles = {
-            kbs[0].facts["personal"]["Role"]: 0,
-            kbs[1].facts["personal"]["Role"]: 1
-        }
-        # print chat['scenario']
-
-        acts = []
-        for e in chat['events']:
-            if e['action'] != 'message':
-                continue
-            if agent is not None and e['agent'] != agent:
-                continue
-            if role is not None and roles[role] != e['agent']:
-                continue
-
-            sentences = self.split_turn(e['data'])
-
-            for s in sentences:
-                tokens = tokenize(s)
-                linked_tokens = self.price_tracker.link_entity(tokens, kb=kbs[e['agent']])
-                acts.append(SpeechActAnalyzer.get_speech_act(s, linked_tokens))
-
-        return acts
 
     def plot_speech_acts(self):
         labels = ['buyer_wins', 'seller_wins']

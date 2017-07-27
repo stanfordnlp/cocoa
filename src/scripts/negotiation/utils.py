@@ -1,6 +1,8 @@
 __author__ = 'anushabala'
 import numpy as np
 from src.basic.negotiation.tokenizer import tokenize
+from src.model.negotiation.preprocess import Preprocessor
+from src.basic.dataset import Example
 
 
 BUYER = "buyer"
@@ -9,6 +11,28 @@ ROLES = [BUYER, SELLER]
 WINNER = "winner"
 LOSER = "loser"
 OUTCOMES = [WINNER, LOSER]
+
+
+def filter_rejected_chats(transcripts):
+    filtered = []
+    for chat in transcripts:
+        ex = Example.from_dict(None, chat)
+        if not Preprocessor.skip_example(ex):
+            filtered.append(chat)
+    return filtered
+
+
+def filter_incomplete_chats(transcripts):
+    filtered = []
+    for chat in transcripts:
+        winner = get_winner(chat)
+        if winner is not None:
+            filtered.append(chat)
+    return filtered
+
+
+def get_category(transcript):
+    return transcript['scenario']['category']
 
 
 def get_turns_per_agent(transcript):
@@ -79,7 +103,15 @@ def get_winner(transcript):
         return -1
 
 
-def get_margin(transcript, agent=None):
+def get_margin(transcript, agent=None, role=None):
+    if role is not None:
+        scenario = transcript["scenario"]
+        roles = {
+            scenario["kbs"][0]["personal"]["Role"]: 0,
+            scenario["kbs"][1]["personal"]["Role"]: 1
+        }
+        agent = roles[role]
+
     if agent is None:
         # by default, get margin for winner
         winner = get_winner(transcript)
