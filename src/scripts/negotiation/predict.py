@@ -243,15 +243,21 @@ class Featurizer(object):
 
 
 class MarginClassifier(object):
-    POSITIVE_THRESHOLD = 0.5
-    NEGATIVE_THRESHOLD = -0.5
+    POSITIVE_THRESHOLD = 0.7
+    NEGATIVE_THRESHOLD = 0.3
 
     def __init__(self, transcripts, featurizer, split=0.8):
         self.featurizer = featurizer
         X = [featurizer.create_feature_vector(t) for t in transcripts]
-        y = [1 if utils.get_margin(t, role=utils.BUYER) >= self.POSITIVE_THRESHOLD else 0 for t in transcripts]
+        margins = [utils.get_margin(t, role=utils.BUYER) for t in transcripts]
+        new_X = []
+        y = []
+        for (idx, margin) in enumerate(margins):
+            if margin >= self.POSITIVE_THRESHOLD or margin < self.NEGATIVE_THRESHOLD:
+                new_X.append(X[idx])
+                y.append(margin)
         print "# of chats with buyer margin >= {:.1f}: {:d}".format(self.POSITIVE_THRESHOLD, y.count(1))
-        print "# of chats with buyer margin < {:.1f}: {:d}".format(self.POSITIVE_THRESHOLD, y.count(0))
+        print "# of chats with buyer margin < {:.1f}: {:d}".format(self.NEGATIVE_THRESHOLD, y.count(0))
 
         X, y = self.shuffle_data(X, y)
         self.train_X = None
