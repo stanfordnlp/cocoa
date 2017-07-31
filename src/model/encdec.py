@@ -7,7 +7,6 @@ import tensorflow as tf
 import numpy as np
 from itertools import izip
 from tensorflow.python.util import nest
-from tensorflow.contrib.rnn import LSTMStateTuple
 from src.model.rnn_cell import build_rnn_cell
 from src.model.util import transpose_first_two_dims, batch_linear, batch_embedding_lookup, EPS
 
@@ -29,7 +28,6 @@ def optional_add(feed_dict, key, value):
     if value is not None:
         feed_dict[key] = value
 
-# TODO: fix sampler
 class Sampler(object):
     '''
     Return a symbol from output/logits (batch_size, seq_len, vocab_size).
@@ -160,52 +158,14 @@ class BasicDecoder(BasicEncoder):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = super(BasicDecoder, self).get_feed_dict(**kwargs)
-        #optional_add(feed_dict, self.feedable_vars['encoder_outputs'], kwargs.pop('encoder_outputs', None))
-        optional_add(feed_dict, self.feedable_vars['encoder_final_state'], kwargs.pop('encoder_final_state', None))
-        optional_add(feed_dict, self.feedable_vars['encoder_context'], kwargs.pop('encoder_context', None))
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    # TODO: put this into encoder_output_dict
-    def _init_state(self, encoder_output_dict):
-        encoder_final_state = encoder_output_dict['final_state']
-        #return encoder_final_state
-        encoder_context = encoder_output_dict.get('context_embedding', None)
-        # TODO: no need to do this if we combine these directly in encoder['final_state']
-        self.feedable_vars['encoder_final_state'] = encoder_final_state
-        self.feedable_vars['encoder_context'] = encoder_context
-        if encoder_context is not None:
-            with tf.variable_scope('EncoderState2DecoderState'):
-                init_state_c = tf.layers.dense(
-                        tf.concat([encoder_final_state.c, encoder_context], axis=1),
-                        self.seq_embedder.embed_size,
-                        use_bias=False,
-                        activation=tf.nn.relu
-                        )
-                init_state_h = tf.layers.dense(
-                        tf.concat([encoder_final_state.h, encoder_context], axis=1),
-                        self.seq_embedder.embed_size,
-                        use_bias=False,
-                        activation=tf.nn.relu
-                        )
-                init_state = LSTMStateTuple(init_state_c, init_state_h)
-        else:
-            init_state = encoder_final_state
-        return init_state
-
-    # TODO: hack
     def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        if 'context_embedding' in encoder_output_dict:
-            decoder_args = {'inputs': batch['decoder_inputs'][:, [0]],
-                    'encoder_final_state': encoder_output_dict['final_state'],
-                    'encoder_context': encoder_output_dict['context_embedding'],
-                    'textint_map': textint_map,
-                    }
-        else:
-            decoder_args = {'inputs': batch['decoder_inputs'][:, [0]],
-                    'init_cell_state': encoder_output_dict['final_state'],
-                    'textint_map': textint_map,
-                    }
+        decoder_args = {'inputs': batch['decoder_inputs'][:, [0]],
+                'init_cell_state': encoder_output_dict['final_state'],
+                'textint_map': textint_map,
+                }
         return decoder_args
 
     def _build_inputs(self, input_dict):
