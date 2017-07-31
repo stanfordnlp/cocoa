@@ -79,6 +79,7 @@ if __name__ == '__main__':
     if not os.path.exists(vocab_path):
         print 'Vocab not found at', vocab_path
         mappings = None
+        args.ignore_cache = True
     else:
         print 'Load vocab from', vocab_path
         mappings = read_pickle(vocab_path)
