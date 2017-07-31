@@ -82,6 +82,8 @@ if __name__ == '__main__':
     else:
         print 'Load vocab from', vocab_path
         mappings = read_pickle(vocab_path)
+        for k, v in mappings.iteritems():
+            print k, v.size
 
     schema = Schema(model_args.schema_path, None)
 
