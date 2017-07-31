@@ -53,20 +53,23 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
                     vocab.add_word(token)
 
     # Add special symbols
-    vocab.add_words(special_symbols)
+    vocab.add_words(special_symbols, special=True)
+    vocab.finish(size_threshold=10000)
     print 'Utterance vocabulary size:', vocab.size
     return vocab
 
 def build_kb_vocab(dialogues, special_symbols=[]):
     vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
-    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'])
+    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'], special=True)
     for dialogue in dialogues:
         assert dialogue.is_int is False
-        # TODO: remove symbols, puncts
         vocab.add_words(dialogue.title)
         vocab.add_words(dialogue.description)
         cat_vocab.add_word(dialogue.category)
+    vocab.add_words(special_symbols, special=True)
+    vocab.finish(freq_threshold=5)
+    cat_vocab.finish()
     print 'KB vocabulary size:', vocab.size
     print 'Category size:', cat_vocab.size
     return vocab, cat_vocab
@@ -235,8 +238,7 @@ class Dialogue(object):
                 c = [self.textint_map.text_to_int(remove_slot(c['response']), 'decoding') if 'response' in c else [] for c in turn_candidates]
                 self.candidates.append(c)
 
-    # TODO: candidates
-    def convert_to_int(self, candidates=False):
+    def convert_to_int(self):
         if self.is_int:
             return
 
@@ -246,8 +248,8 @@ class Dialogue(object):
                 #    for utterance in turn])
                 turns.append(self.textint_map.text_to_int(turn, stage))
 
-        if candidates:
-            self.candidates_to_int()
+        self.candidates_to_int()
+
         self.price_turns = self.get_price_turns(int_markers.PAD)
         self.category = self.mappings['cat_vocab'].to_ind(self.category)
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
@@ -297,7 +299,7 @@ class DialogueBatch(object):
         self.num_turns = len(self.dialogues[0].turns[0])
 
     @classmethod
-    def _normalize_candidates(cls, candidate_batch, roles):
+    def _normalize_candidates(cls, candidate_batch):
         '''
         All turns at the same time step should have the same number of tokens.
         return: (batch_size, num_candidates, candidate_len)
@@ -308,13 +310,9 @@ class DialogueBatch(object):
         max_num_tokens = max([max([len(c) for c in candidates]) for candidates in candidate_batch])
         batch_size = len(candidate_batch)
         T = np.full([batch_size, num_candidates, max_num_tokens], int_markers.PAD, dtype=np.int32)
-        for i, (candidates, role) in enumerate(izip(candidate_batch, roles)):
+        for i, candidates in enumerate(candidate_batch):
             for j, candidate in enumerate(candidates):
                 T[i, j, :len(candidate)] = candidate
-                # Insert <go> at the beginning at each turn because for decoding we want to
-                # start from <go> to generate, except for padded turns
-                #if max_num_tokens == 0 or T[i][j][1] != int_markers.PAD:
-                #    T[i][j][0] = int_markers.GO_S if role == 'seller' else int_markers.GO_B
         return T
 
     def _create_candidate_batches(self):
@@ -323,7 +321,7 @@ class DialogueBatch(object):
         for dialogue in self.dialogues:
             assert len(dialogue.candidates) == self.num_turns
         candidate_batches = ([self._normalize_candidates(
-            [dialogue.candidates[j] for dialogue in self.dialogues], [dialogue.role for dialogue in self.dialogues])
+            [dialogue.candidates[j] for dialogue in self.dialogues])
             for j in xrange(self.num_turns)])
         return candidate_batches
 
@@ -349,7 +347,7 @@ class DialogueBatch(object):
 
     def _create_context_batch(self, pad):
         category_batch = np.array([d.category for d in self.dialogues], dtype=np.int32)
-        # TODO: hacky
+        # TODO: make sure pad is consistent
         #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
         title_batch = pad_list_to_array([d.title for d in self.dialogues], pad, np.int32)
         description_batch = pad_list_to_array([d.description for d in self.dialogues], pad, np.int32)
@@ -889,6 +887,17 @@ class EvalDialogue(Dialogue):
     def context_len(self):
         return sum([len(t) for t in self.token_turns[:-1]])
 
+    def pad_turns(self, num_turns):
+        '''
+        Pad turns to length num_turns.
+        '''
+        self.agents = self._pad_list(self.agents, num_turns, None)
+        self.roles = self._pad_list(self.roles, num_turns, None)
+        for turns in self.turns:
+            self._pad_list(turns, num_turns, [])
+        self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+        assert len(self.price_turns) == len(self.turns[0])
+
     def _pad_list(self, l, size, pad):
         # NOTE: for dialogues without enough turns/context, we need to pad at the beginning, the last utterance is the target
         for i in xrange(len(l), size):
@@ -896,6 +905,16 @@ class EvalDialogue(Dialogue):
         return l
 
 class EvalDialogueBatch(DialogueBatch):
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context, candidate_scores):
+        batch = super(EvalDialogueBatch, self)._create_one_batch(encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context)
+        batch['candidate_scores'] = candidate_scores
+        return batch
+
+    def _create_candidate_batches(self):
+        candidate_batches = [self._normalize_candidates(
+            [dialogue.candidates[0] for dialogue in self.dialogues])]
+        return candidate_batches
+
     def create_batch(self):
         self._normalize_dialogue()
         turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
@@ -913,13 +932,15 @@ class EvalDialogueBatch(DialogueBatch):
 
         # We just need one batch (context, response, candidates, scores)
         # TODO: better way to handle Dialogue/EvalDialogue static variables
+        # TODO: add candidates batch
         batch = [self._create_one_batch(
                 turn_batches[enc][:-1], turn_batches[dec][-1], turn_batches[tgt][-1],
                 None, None,
                 self._get_context(), self._get_response(),
-                self._get_token_candidates(), None,
+                self._get_token_candidates(), candidate_batches[0],
                 agents, kbs, context_batch,
-                EvalDialogue.num_context)]
+                EvalDialogue.num_context,
+                self._get_candidate_scores())]
         return {'batch_seq': batch}
 
     def _get_context(self):
@@ -929,7 +950,10 @@ class EvalDialogueBatch(DialogueBatch):
         return [dialogue.token_turns[-1] for dialogue in self.dialogues]
 
     def _get_token_candidates(self):
-        return [dialogue.token_candidates for dialogue in self.dialogues]
+        return [dialogue.token_candidates[0] for dialogue in self.dialogues]
+
+    def _get_candidate_scores(self):
+        return [dialogue.candidate_scores for dialogue in self.dialogues]
 
 class EvalDataGenerator(DataGenerator):
     def __init__(self, examples, preprocessor, mappings, num_context=1):
@@ -949,12 +973,14 @@ class EvalDataGenerator(DataGenerator):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
-    def tuple_to_entity(self, token):
+    @classmethod
+    def tuple_to_entity(cls, token):
         if isinstance(token, list):
             return Entity(token[0], CanonicalEntity(*token[1]))
         else:
             return token
 
+    # TODO: move this to EvalExample, do it during reading
     def _process_utterance(self, utterance):
         '''
         Make sure the utterance matches preprocessor processed utterance.
@@ -971,7 +997,12 @@ class EvalDataGenerator(DataGenerator):
             agent = ex.agent if role == ex.role else (1 - ex.agent)
             d.add_utterance(agent, self._process_utterance(utterance))
         d.add_utterance(ex.agent, self._process_utterance(ex.target))
-        d.token_candidates = ex.candidates
+
+        for c in ex.candidates:
+            if 'response' in c:
+                c['response'] = self._process_utterance(c['response'])
+        d.token_candidates = [ex.candidates]
+
         d.candidate_scores = ex.scores
         return d
 
