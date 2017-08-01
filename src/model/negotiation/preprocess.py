@@ -26,9 +26,17 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD', 'START_SLOT', 'END_SLOT'])
-markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>', START_SLOT='<slot>', END_SLOT='</slot>')
+SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD', 'START_SLOT', 'END_SLOT', 'C_car', 'C_phone', 'C_housing', 'C_electronics', 'C_furniture', 'C_bike'])
+markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>', START_SLOT='<slot>', END_SLOT='</slot>', C_car='<car>', C_phone='<phone>', C_housing='<housing>', C_electronics='<electronics>', C_furniture='<furniture>', C_bike='<bike>')
 START_PRICE = -1
+category_to_marker = {
+        'car': markers.C_car,
+        'phone': markers.C_phone,
+        'housing': markers.C_housing,
+        'bike': markers.C_bike,
+        'furniture': markers.C_furniture,
+        'electronics': markers.C_electronics,
+        }
 
 def price_filler(x):
     return x == '<price>'
@@ -200,6 +208,9 @@ class Dialogue(object):
 
         # Insert GO
         if new_turn:
+            cat_symbol = category_to_marker[self.category]
+            utterance.insert(0, cat_symbol)
+
             role = self.agent_to_role[agent]
             start_symbol = markers.GO_S if role == 'seller' else markers.GO_B
             utterance.insert(0, start_symbol)
