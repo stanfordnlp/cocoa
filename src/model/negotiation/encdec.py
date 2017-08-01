@@ -91,7 +91,6 @@ class BasicEncoderDecoder(object):
                 'init_cell_state': encoder_output_dict['final_state'],
                 'encoder_embeddings': encoder_output_dict['outputs'],
                 'price_history': encoder_output_dict.get('price_history', None),
-                'encoder_context': encoder_output_dict.get('context_embedding', None),
                }
 
     def build_model(self, encoder, decoder):
@@ -136,7 +135,7 @@ class BasicEncoderDecoder(object):
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
-        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
+        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=2)
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # If model is stateful, we need to pass the last state to the next batch.
@@ -157,6 +156,9 @@ class BasicEncoderDecoder(object):
                 }
 
 class ContextEncoder(BasicEncoder):
+    '''
+    Encode previous utterances as a context vector which is combined with the current hidden state.
+    '''
     def __init__(self, word_embedder, seq_embedder, num_context, pad, keep_prob):
         super(ContextEncoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
         self.context_embedder = BoWEmbedder(word_embedder=word_embedder)
@@ -223,7 +225,7 @@ class ContextEncoder(BasicEncoder):
 
     def run_encode(self, sess, **kwargs):
         feed_dict = self.get_feed_dict(**kwargs)
-        return self.run(sess, ('final_state', 'outputs', 'context_embedding'), feed_dict)
+        return self.run(sess, ('final_state', 'outputs'), feed_dict)
 
 class AttentionDecoder(BasicDecoder):
     '''
@@ -239,8 +241,8 @@ class AttentionDecoder(BasicDecoder):
     def get_encoder_state(self, state):
         return state.cell_state
 
-    def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        decoder_args = super(AttentionDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        decoder_args = super(AttentionDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
         decoder_args.update({
             'context': batch['context'],
             'encoder_outputs': encoder_output_dict['outputs'],
@@ -286,12 +288,11 @@ class ContextDecoder(BasicDecoder):
 
     def _build_rnn_inputs(self, input_dict):
         inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
-        encoder_context = input_dict.get('encoder_context', None)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         return inputs, mask, kwargs
 
-    def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        decoder_args = super(ContextDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        decoder_args = super(ContextDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
         decoder_args['context'] = batch['context']
         return decoder_args
 
@@ -380,8 +381,8 @@ class SlotFillingDecoder(DecoderWrapper):
         curr_state = sess.run(self.output_dict['final_state'], feed_dict=feed_dict)
         return curr_state
 
-    def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        decoder_args = super(SlotFillingDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map)
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        decoder_args = super(SlotFillingDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
         decoder_args['inputs'] = batch['decoder_inputs']
         return decoder_args
 
@@ -423,8 +424,8 @@ class PriceDecoder(object):
         self.decoder = decoder
         self.price_predictor = price_predictor
 
-    def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map)
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
         price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
         decoder_args['price_predictor'] = price_args
         decoder_args['price_symbol'] = textint_map.vocab.to_ind('<price>'),

@@ -161,8 +161,8 @@ class BasicDecoder(BasicEncoder):
         optional_add(feed_dict, self.targets, kwargs.pop('targets', None))
         return feed_dict
 
-    def get_inference_args(self, batch, encoder_output_dict, textint_map):
-        decoder_args = {'inputs': batch['decoder_inputs'][:, [0]],
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        decoder_args = {'inputs': batch['decoder_inputs'][:, :prefix_len],
                 'init_cell_state': encoder_output_dict['final_state'],
                 'textint_map': textint_map,
                 }
@@ -294,6 +294,8 @@ class BasicDecoder(BasicEncoder):
         for i in xrange(max_len):
             #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
+            # logits might have length > 1 if inputs has > 1 words. (batch_size, seq_len, vocab_size)
+            logits = logits[:, -1:, :]
             step_preds = self.sampler.sample(logits)
             #top_words = np.argsort(p[0][0])[::-1]
             #if i == 0:
