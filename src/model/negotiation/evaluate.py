@@ -57,19 +57,35 @@ class Evaluator(BaseEvaluator):
         words = [markers.PAD]
         return inds + words
 
-    def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, summary_map):
-        for candidates, scores, preds in izip(batch_candidates, batch_candidate_scores, batch_preds):
+    def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, batch_targets, summary_map):
+        best_candidates = []
+        for candidates, scores, preds, target in izip(batch_candidates, batch_candidate_scores, batch_preds, batch_targets):
             candidates = [c['response'] for c in candidates if 'response' in c]
             assert len(candidates) == len(scores)
-            candidates = [self._process_target_tokens(
-                [self.data.tuple_to_entity(x) for x in c]
-                ) for c in candidates]
+            scores = [sum(s) for s in scores]
+            candidates = [self._process_target_tokens(c) for i, c in enumerate(candidates) if scores[i] > 0]
+            candidates.append(target)
+
+            self.preds.append(preds)
+            self.references.append(candidates)
+            self.targets.append([target])
 
             bleus = [self.sentence_bleu_score([preds], [c])[0] for c in candidates]
             most_similar_candidate = np.argmax(bleus)
-            weighted_bleu = bleus[most_similar_candidate] * float(sum(scores[most_similar_candidate]))
+            best_candidates.append(candidates[most_similar_candidate])
+            self.most_similar_references.append([candidates[most_similar_candidate]])
+            #weighted_bleu = bleus[most_similar_candidate] * float(sum(scores[most_similar_candidate]))
+            #print bleus[most_similar_candidate]
+            #if bleus[most_similar_candidate] < 0.5:
+            #    print 'preds:', preds
+            #    print 'cand:', candidates[most_similar_candidate]
+            #    #for c in candidates:
+            #    #    print c
+            #weighted_bleu = self.sentence_multi_bleu_score(preds, candidates)
 
-            logstats.update_summary_map(summary_map, {'multi_score': weighted_bleu})
+            #logstats.update_summary_map(summary_map, {'multi_score': weighted_bleu})
+
+        return best_candidates
 
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
@@ -84,10 +100,13 @@ class Evaluator(BaseEvaluator):
             num_sents = np.sum(targets == self.stop_symbol, axis=1)
             pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
 
+            # TODO: handle process consistently
+            pred_tokens = [self._process_target_tokens(tokens) for tokens in pred_tokens]
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 
-            if 'token_candidates' in batch:
-                self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, summary_map)
+            best_candidates = None
+            #if 'token_candidates' in batch:
+            #    best_candidates = self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, references, summary_map)
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -98,18 +117,19 @@ class Evaluator(BaseEvaluator):
             if self.verbose:
                 #attn_scores = output_dict.get('attn_scores', None)
                 #probs = output_dict.get('probs', None)
-                self._print_batch(batch, pred_tokens, references, bleu_scores)
+                self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
 
     def _process_target_tokens(self, tokens):
         remove_tokens = (markers.GO_B, markers.GO_S)
-        targets = [token.canonical if is_entity(token) else token for token in tokens if not token in remove_tokens]
+        process_entity = lambda e: e.canonical if e.canonical.type == 'price' else e.surface
+        targets = [process_entity(token) if is_entity(token) else token for token in tokens if not token in remove_tokens]
         return targets
 
     def to_str(self, words):
         return ' '.join([str(w) for w in words if w not in self.remove_symbols])
 
     # TODO: refactor print batch
-    def _print_batch(self, batch, preds, targets, bleu_scores):
+    def _print_batch(self, batch, preds, targets, bleu_scores, best_candidates=None):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
@@ -136,14 +156,18 @@ class Evaluator(BaseEvaluator):
                     print self.to_str(self.data.textint_map.int_to_text(c[i], 'encoding'))
             print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
             print 'TARGET:', self.to_str(target)
+            #print 'BEST CANDIDATES:', self.to_str(best_cand)
             print 'PRED:', self.to_str(pred)
             print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
         output = super(Evaluator, self).get_stats(summary_map)
         output['entity_f1'] = self.get_f1(summary_map, 'entity_')
-        if 'multi_score' in summary_map:
-            output['multi_score'] = summary_map['multi_score']['mean']
+        #if 'multi_score' in summary_map:
+        #    output['multi_score'] = summary_map['multi_score']['mean']
+        output['multi_score'] = self.multi_bleu_score(self.preds, self.references)[0]
+        output['single_score'] = self.multi_bleu_score(self.preds, self.targets)[0]
+        output['most_similar_score'] = self.multi_bleu_score(self.preds, self.most_similar_references)[0]
         return output
 
     def stats2str(self, stats):
@@ -152,6 +176,8 @@ class Evaluator(BaseEvaluator):
             s.append('%s=%.4f/%.4f/%.4f' % (m, stats[m][0], stats[m][1],stats[m][2]))
         if 'multi_score' in stats:
             s.append('%s=%.4f' % ('multi_score', stats['multi_score']))
+            s.append('%s=%.4f' % ('single_score', stats['single_score']))
+            s.append('%s=%.4f' % ('most_similar_score', stats['most_similar_score']))
         return ' '.join(s)
 
     # NOTE: both batch_preds and batch_targets must use canonical entity form: (name, type)
@@ -183,7 +209,10 @@ class RetrievalEvaluator(Evaluator):
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
             prev_turns.append([self._process_target_tokens(tokens) for tokens in batch['encoder_tokens']])
             output_dict = self.model.select(batch)
-            pred_tokens = output_dict['responses']
+            pred_tokens = self._process_target_tokens(output_dict['responses'])
+
+            if 'token_candidates' in batch:
+                self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, summary_map)
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -241,7 +270,13 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             # TODO
             output_dict = self.model.select(batch, encoder_init_state, self.data.textint_map)
             pred_tokens = output_dict['responses']
+            pred_tokens = [self._process_target_tokens(tokens) for tokens in pred_tokens]
             encoder_init_state = output_dict['true_final_state']
+            references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
+
+            # TODO: refactor
+            if 'token_candidates' in batch:
+                self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, references, summary_map)
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -285,11 +320,11 @@ class EncDecRetrievalEvaluator(RetrievalEvaluator):
             #print 'BLEU:', bleu
             #print 'CHEAT:', self.to_str(output_dict['cheat_responses'][i])
             #print 'IR:', self.to_str(output_dict['IR_responses'][i])
-            print 'ALL CANDIDATES:'
-            for c in output_dict['candidates'][i]:
-                if c != {}:
-                    #print 'Hits:', c['hits']
-                    print 'Response:', self.to_str(c['response'])
+            #print 'ALL CANDIDATES:'
+            #for c in output_dict['candidates'][i]:
+            #    if c != {}:
+            #        #print 'Hits:', c['hits']
+            #        print 'Response:', self.to_str(c['response'])
 
 
 class LMEvaluator(Evaluator):

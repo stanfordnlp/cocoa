@@ -4,6 +4,7 @@ from src.lib.bleu import compute_bleu
 from src.lib.bleu import bleu_stats as get_bleu_stats
 from src.lib.bleu import bleu as get_bleu
 from src.basic.util import write_json
+from src.lib import multi_bleu
 
 class BaseEvaluator(object):
     def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
@@ -14,11 +15,17 @@ class BaseEvaluator(object):
         self.verbose = verbose
 
         # Prepare dataset
-        self.eval_data = {split: data.generator(split, self.batch_size, shuffle=False) for split in splits}
+        self.eval_data = {split: data.generator(split, shuffle=False) for split in splits}
         self.num_batches = {split: data.next() for split, data in self.eval_data.iteritems()}
 
         self.stop_symbol = self._stop_symbol()
         self.remove_symbols = self._remove_symbols()
+
+        # TODO: hacky
+        self.preds = []
+        self.references = []
+        self.targets = []
+        self.most_similar_references = []
 
     def _stop_symbol(self):
         '''
@@ -45,6 +52,9 @@ class BaseEvaluator(object):
             if len(targets) > 0:
                 stats = [sum(scores) for scores in izip(stats, get_bleu_stats(preds, targets))]
         summary_map['bleu_stats'] = stats
+
+    def multi_bleu_score(self, preds, targets):
+        return multi_bleu.multi_bleu(preds, targets)
 
     def sentence_bleu_score(self, batch_preds, batch_targets):
         scores = []
