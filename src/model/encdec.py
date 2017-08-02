@@ -32,13 +32,14 @@ class Sampler(object):
     '''
     Return a symbol from output/logits (batch_size, seq_len, vocab_size).
     '''
-    def __init__(self, t, select=None):
+    def __init__(self, t, select=None, trie=None):
         self.t = t  # Temperature
         self.repeat_penalty = 2.
         # If select is not None, we will down weight <select> during sampling
         self.select = select
+        self.trie = trie
 
-    def sample(self, logits, prev_words=None, masked_words=None):
+    def sample(self, logits, prev_words=None, masked_words=None, prefix=None):
         assert logits.shape[1] == 1
         if prev_words is not None:
             prev_words = np.expand_dims(prev_words, 1)
@@ -51,6 +52,14 @@ class Sampler(object):
 
         if self.select is not None:
             logits[:, 0, self.select] -= np.log(2)
+
+        if self.trie is not None:
+            prefix = prefix[:, -5:]  # (batch_size, seq_len)
+            mask = np.zeros_like(logits)
+            for i, p in enumerate(prefix):
+                allowed = self.trie.get_children(p)
+                mask[i, :, allowed] = 1
+            logits = np.where(mask == 1, logits, float('-inf'))
 
         # Greedy
         if self.t == 0:
@@ -143,12 +152,14 @@ class BasicEncoder(object):
         return self.run(sess, ('final_state', 'outputs'), feed_dict)
 
 class BasicDecoder(BasicEncoder):
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, tied=False):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, tied=False, prompt_len=1):
         super(BasicDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob)
         self.num_symbols = num_symbols
         self.sampler = sampler
         self.sampled_loss = sampled_loss
         self.tied = tied
+        # Number of symbols before the actual utterance, e.g. <go>
+        self.prompt_len = prompt_len
 
     def get_encoder_state(self, state):
         '''
@@ -288,15 +299,17 @@ class BasicDecoder(BasicEncoder):
             final_state = sess.run(self.output_dict['final_state'], feed_dict=feed_dict)
             kwargs['init_state'] = final_state
 
+        textint_map = kwargs['textint_map']
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
-        textint_map = kwargs['textint_map']
         for i in xrange(max_len):
             #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
             # logits might have length > 1 if inputs has > 1 words. (batch_size, seq_len, vocab_size)
             logits = logits[:, -1:, :]
-            step_preds = self.sampler.sample(logits)
+            # TODO: hacky: insert <category> at the beginning
+            #step_preds = self.sampler.sample(logits, prefix=np.concatenate([inputs[:, [1]], preds[:, :i]], axis=1))
+            step_preds = self.sampler.sample(logits, prefix=preds[:, :i])
             #top_words = np.argsort(p[0][0])[::-1]
             #if i == 0:
             #    for j in xrange(10):

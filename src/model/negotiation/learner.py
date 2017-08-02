@@ -37,6 +37,7 @@ class Learner(BaseLearner):
                 'price_inputs': batch['decoder_price_inputs'],
                 'price_predictor': {},
                 'context': batch['context'],
+                'mask': batch['mask'],
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,

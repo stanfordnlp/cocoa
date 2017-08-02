@@ -16,6 +16,7 @@ import copy
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler
 from src.basic.negotiation.tokenizer import tokenize
 from src.lib.bleu import compute_bleu
+from trie import Trie
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -426,7 +427,7 @@ class DialogueBatch(object):
                     break
         return array
 
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context):
+    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context, trie=None):
         # Remove <go> at the beginning of utterance
         encoder_inputs = encode_turn[-1][:, 1:]
         encoder_context = [turn[:, 1:] for turn in encode_turn[-1*(num_context+1):-1]]
@@ -445,6 +446,7 @@ class DialogueBatch(object):
         # NOTE: For each row, replace the last <eos> to <pad> to be consistent:
         # 1) The longest sequence does not have </s> as input.
         # 2) At inference time, decoder stops at </s>.
+        # 3) Only matters when the model is stateful (decoder state is passed on).
         decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
         decoder_price_inputs = price_decode_turn[:, :-1] if price_decode_turn is not None else None
 
@@ -731,8 +733,11 @@ class Preprocessor(object):
         return dialogues
 
 class DataGenerator(object):
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1):
-        examples = {'train': train_examples or [], 'dev': dev_examples or [], 'test': test_examples or []}
+    # TODO: hack
+    trie = None
+
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None):
+        examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
         # Build retriever given training dialogues
@@ -748,11 +753,12 @@ class DataGenerator(object):
                 print 'Cached candidates for %d dialogues' % len(self.cached_candidates)
 
             # NOTE: each dialogue is made into two examples from each agent's perspective
-            self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems()}
+            self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems() if v}
 
             for fold, dialogues in self.dialogues.iteritems():
                 print '%s: %d dialogues out of %d examples' % (fold, len(dialogues), self.num_examples[fold])
         else:
+            self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
         if not mappings:
@@ -768,6 +774,30 @@ class DataGenerator(object):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
+        self.batches = {k: self.create_batches(k, dialogues, batch_size) for k, dialogues in self.dialogues.iteritems()}
+
+        # NOTE: Trie should be built after batches are created
+        self.trie = self.create_trie(self.batches.get('train', None), trie_path)
+        for name, batches in self.batches.iteritems():
+            for batch in batches:
+                for b in batch['batch_seq']:
+                    b['mask'] = self.get_mask(b['targets'], name)
+
+    def get_mask(self, decoder_targets, split):
+        batch_size, seq_len = decoder_targets.shape
+        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
+        for batch_id, targets in enumerate(decoder_targets):
+            for time_step, t in enumerate(targets):
+                prefix = tuple(targets[:time_step][-5:])
+                try:
+                    allowed = self.trie.get_children(prefix)
+                    if split == 'train':
+                        assert t in allowed
+                    mask[batch_id, time_step, allowed] = True
+                except KeyError:
+                    mask[batch_id, time_step, :] = True
+        return mask
+
     def convert_to_int(self):
         '''
         Convert tokens to integers.
@@ -776,6 +806,7 @@ class DataGenerator(object):
             for dialogue in dialogues:
                 dialogue.convert_to_int()
 
+    # TODO: DialogueBatch -> DialogueBatcher
     def get_dialogue_batch(self, dialogues, slot_filling):
         return DialogueBatch(dialogues, slot_filling).create_batch()
 
@@ -822,13 +853,11 @@ class DataGenerator(object):
                     rewritten.append(new_cand)
         return rewritten
 
-    def generator(self, name, batch_size, shuffle=True):
+    def create_batches(self, name, dialogues, batch_size):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
         if (not os.path.exists(cache_file)) or self.ignore_cache:
-            dialogues = self.dialogues[name]
-
             if self.retriever is not None:
                 Dialogue.num_candidates = 50
                 for dialogue in dialogues:
@@ -848,22 +877,6 @@ class DataGenerator(object):
                                     c['response'] = Preprocessor._mark_slots(c['response'])
                                     #print c['response']
                     candidates = [c if c else self.retriever.empty_candidates for c in candidates]
-                    #import sys; sys.exit()
-
-                    #kb_context = self.slot_detector.context_to_fillers(dialogue.kb)
-                    #new_candidates = []
-                    #for i, turn_candidates in enumerate(candidates):
-                    #    rewritten_cands = []
-                    #    for candidate in turn_candidates:
-                    #        rewritten_cands.append(candidate)
-                    #        rewritten = self.rewrite_candidate(kb_context, candidate)
-                    #        rewritten_cands.extend(rewritten)
-                    #    new_candidates.append(rewritten_cands)
-                    #for i, cands in enumerate(new_candidates):
-                    #    if len(cands) < Dialogue.num_candidates:
-                    #        cands.extend([{} for _ in xrange(Dialogue.num_candidates - len(cands))])
-                    #    else:
-                    #        new_candidates[i] = cands[:Dialogue.num_candidates]
 
                     dialogue.add_candidates(candidates)
                 self.retriever.report_search_time()
@@ -881,7 +894,10 @@ class DataGenerator(object):
             dialogue_batches = read_pickle(cache_file)
             print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
             print '[%d s]' % (time.time() - start_time)
+        return dialogue_batches
 
+    def generator(self, name, shuffle=True):
+        dialogue_batches = self.batches[name]
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
         while True:
@@ -889,6 +905,28 @@ class DataGenerator(object):
                 random.shuffle(inds)
             for ind in inds:
                 yield dialogue_batches[ind]
+
+    def create_trie(self, batches, path):
+        if path is None:
+            return None
+        def seq_iter(batches):
+            for batch in batches:
+                for b in batch['batch_seq']:
+                    targets = b['targets']
+                    for target in targets:
+                        yield target
+        if not os.path.exists(path):
+            trie = Trie()
+            print 'Build prefix trie of length', trie.max_prefix_len
+            start_time = time.time()
+            trie.build_trie(seq_iter(batches))
+            print '[%d s]' % (time.time() - start_time)
+            print 'Write trie to', path
+            write_pickle(trie, path)
+        else:
+            print 'Read trie from', path
+            trie = read_pickle(path)
+        return trie
 
 class EvalDialogue(Dialogue):
     def __init__(self, agent, kb, uuid):
@@ -1024,6 +1062,7 @@ class EvalDataGenerator(DataGenerator):
     def get_dialogue_batch(self, dialogues, slot_filling):
         return EvalDialogueBatch(dialogues, slot_filling).create_batch()
 
+    # TODO: new interface: create_batches
     def generator(self, split, batch_size, shuffle=True):
         dialogues = self.dialogues['eval']
 

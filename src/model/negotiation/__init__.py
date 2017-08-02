@@ -21,6 +21,7 @@ def get_data_generator(args, model_args, mappings, schema):
     from src.basic.dataset import read_dataset, EvalExample
     from src.basic.util import read_json
     from retriever import Retriever
+    import os.path
 
     # TODO: move this to dataset
     if args.eval:
@@ -44,6 +45,8 @@ def get_data_generator(args, model_args, mappings, schema):
 
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, slot_filling=model_args.slot_filling, slot_detector=slot_detector)
 
+    trie_path = os.path.join(model_args.mappings, 'trie.pkl')
+
     if args.eval:
         data_generator = EvalDataGenerator(dataset, preprocessor, mappings, model_args.num_context)
     else:
@@ -52,7 +55,7 @@ def get_data_generator(args, model_args, mappings, schema):
             train, dev, test = None, None, dataset.test_examples
         else:
             train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context)
+        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size)
 
     return data_generator
 
@@ -91,12 +94,12 @@ def check_model_args(args):
 
     assert args.temperature >= 0
 
-def build_model(schema, mappings, args):
+def build_model(schema, mappings, trie, args):
     import tensorflow as tf
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder, TrieDecoder
     from ranker import IRRanker, CheatRanker, EncDecRanker, SlotFillingRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
@@ -132,7 +135,7 @@ def build_model(schema, mappings, args):
 
     if args.decoding[0] == 'sample':
         sample_t = float(args.decoding[1])
-        sampler = Sampler(sample_t)
+        sampler = Sampler(sample_t, trie=trie)
     else:
         raise('Unknown decoding method')
 
@@ -157,13 +160,14 @@ def build_model(schema, mappings, args):
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, category_word_embedder, context_seq_embedder, pad)
 
     def get_decoder(args):
+        prompt_len = 2
         if args.decoder == 'rnn':
             if args.context is not None:
-                decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied)
+                decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied, prompt_len=prompt_len)
             else:
-                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied)
+                decoder = BasicDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied, prompt_len=prompt_len)
         else:
-            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder, attention_memory=args.attention_memory)
+            decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder, attention_memory=args.attention_memory, prompt_len=prompt_len)
 
         if args.predict_price:
             price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
@@ -172,6 +176,7 @@ def build_model(schema, mappings, args):
         if args.slot_filling:
             decoder = SlotFillingDecoder(decoder)
 
+        decoder = TrieDecoder(decoder)
         return decoder
 
     if args.model == 'encdec' or args.ranker == 'encdec':

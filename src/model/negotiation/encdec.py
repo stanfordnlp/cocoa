@@ -135,7 +135,7 @@ class BasicEncoderDecoder(object):
         encoder_output_dict = self.encoder.run_encode(sess, **encoder_args)
 
         # Decode max_len steps
-        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=2)
+        decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=self.decoder.prompt_len)
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # If model is stateful, we need to pass the last state to the next batch.
@@ -231,9 +231,9 @@ class AttentionDecoder(BasicDecoder):
     '''
     Attend to encoder embeddings and/or context.
     '''
-    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None, attention_memory=('title',)):
+    def __init__(self, word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler=Sampler(0), sampled_loss=False, context_embedder=None, attention_memory=('title',), prompt_len=1):
         assert isinstance(seq_embedder, AttentionRNNEmbedder)
-        super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss)
+        super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss, prompt_len=prompt_len)
         self.context_embedder = context_embedder
         context = tuple([x for x in attention_memory if x in self.context_embedder.context_names])
         self.context_embedding = self.context_embedder.embed(context=context, step=True)  # (batch_size, context_len, embed_size)
@@ -357,6 +357,24 @@ class DecoderWrapper(object):
 
     def compute_loss(self):
         return self.decoder.compute_loss()
+
+class TrieDecoder(DecoderWrapper):
+    def build_model(self, *args, **kwargs):
+        super(TrieDecoder, self).build_model(*args, **kwargs)
+        logits = self.output_dict['logits']
+        mask = tf.placeholder(tf.bool, shape=logits.get_shape().as_list(), name='mask')
+        self.decoder.feedable_vars['mask'] = mask
+        self.output_dict['logits'] = tf.where(mask, logits, -10.*tf.ones_like(logits))
+
+    def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
+        args = super(TrieDecoder, self).get_inference_args(*args)
+        args['mask'] = batch['mask'][:, :prefix_len, :]
+        return args
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(TrieDecoder, self).get_feed_dict(**kwargs)
+        feed_dict[self.decoder.feedable_vars['mask']] = kwargs['mask']
+        return feed_dict
 
 class SlotFillingDecoder(DecoderWrapper):
     def _fill_in_slots(self, sess, feed_dict, curr_state, init_input, preds, textint_map, stop_symbol=None, max_len=10):

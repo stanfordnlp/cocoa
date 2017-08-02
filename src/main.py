@@ -75,6 +75,7 @@ if __name__ == '__main__':
         ckpt = None
 
     # Load vocab
+    # TODO: put this in DataGenerator
     vocab_path = os.path.join(model_args.mappings, 'vocab.pkl')
     if not os.path.exists(vocab_path):
         print 'Vocab not found at', vocab_path
@@ -103,8 +104,7 @@ if __name__ == '__main__':
 
     # Build the model
     logstats.add_args('model_args', model_args)
-    # TODO: return args as well; might be changed
-    model = build_model(schema, mappings, model_args)
+    model = build_model(schema, mappings, data_generator.trie, model_args)
 
     # Tensorflow config
     if args.gpu == 0:
