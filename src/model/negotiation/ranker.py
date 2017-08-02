@@ -133,22 +133,6 @@ class EncDecRanker(BaseRanker):
                 if 'response' not in cand:
                     candidates_loss[b][i] = 20.
 
-        # Filter <accept>/<reject>
-        # TODO: filter this in search
-        prev_utterances = batch['encoder_tokens']
-        offered = []
-        for u in prev_utterances:
-            if len(u) > 0 and markers.OFFER in u:
-                offered.append(True)
-            else:
-                offered.append(False)
-        for b, candidates in enumerate(token_candidates):
-            has_offered = offered[b]
-            for i, cand in enumerate(candidates):
-                if 'response' in cand and (not has_offered) and (markers.ACCEPT in cand['response'] or markers.REJECT in cand['response']):
-                    candidates_loss[b][i] = 20.
-
-        #best_candidates = np.argmax(-1. * candidates_loss, axis=1)
         best_candidates = self.sample_candidates(candidates_loss)
 
         responses = [token_candidates[i][j]['response']

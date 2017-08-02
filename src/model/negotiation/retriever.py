@@ -263,7 +263,6 @@ if __name__ == '__main__':
     from src.basic.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
     from src.basic.negotiation.slot_detector import SlotDetector, add_slot_detector_arguments
     from src.basic.dataset import read_dataset, add_dataset_arguments
-    from src.basic.scenario_db import add_scenario_arguments
     from src.basic.schema import Schema
     from src.model.negotiation.preprocess import Preprocessor, markers
     from src.basic.util import write_json
