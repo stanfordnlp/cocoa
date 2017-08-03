@@ -364,11 +364,15 @@ class TrieDecoder(DecoderWrapper):
         logits = self.output_dict['logits']
         mask = tf.placeholder(tf.bool, shape=logits.get_shape().as_list(), name='mask')
         self.decoder.feedable_vars['mask'] = mask
-        self.output_dict['logits'] = tf.where(mask, logits, -10.*tf.ones_like(logits))
+        #masked_logits = tf.where(mask, logits, -10.*tf.ones_like(logits))
+        masked_logits = logits + tf.where(mask, 1.*tf.ones_like(logits), -5.*tf.ones_like(logits))
+        self.decoder.output_dict['logits'] = masked_logits
+        self.output_dict['logits'] = masked_logits
 
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
         args = super(TrieDecoder, self).get_inference_args(*args)
         args['mask'] = batch['mask'][:, :prefix_len, :]
+        args['mask'] = np.ones_like(args['mask'])
         return args
 
     def get_feed_dict(self, **kwargs):

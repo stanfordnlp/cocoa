@@ -776,12 +776,13 @@ class DataGenerator(object):
 
         self.batches = {k: self.create_batches(k, dialogues, batch_size) for k, dialogues in self.dialogues.iteritems()}
 
+        self.trie = None
         # NOTE: Trie should be built after batches are created
-        self.trie = self.create_trie(self.batches.get('train', None), trie_path)
-        for name, batches in self.batches.iteritems():
-            for batch in batches:
-                for b in batch['batch_seq']:
-                    b['mask'] = self.get_mask(b['targets'], name)
+        #self.trie = self.create_trie(self.batches.get('train', None), trie_path)
+        #for name, batches in self.batches.iteritems():
+        #    for batch in batches:
+        #        for b in batch['batch_seq']:
+        #            b['mask'] = self.get_mask(b['targets'], name)
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
@@ -792,7 +793,8 @@ class DataGenerator(object):
                 try:
                     allowed = self.trie.get_children(prefix)
                     if split == 'train':
-                        assert t in allowed
+                        if t != int_markers.PAD:
+                            assert t in allowed
                     mask[batch_id, time_step, allowed] = True
                 except KeyError:
                     mask[batch_id, time_step, :] = True

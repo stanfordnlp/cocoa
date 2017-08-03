@@ -176,7 +176,7 @@ def build_model(schema, mappings, trie, args):
         if args.slot_filling:
             decoder = SlotFillingDecoder(decoder)
 
-        decoder = TrieDecoder(decoder)
+        #decoder = TrieDecoder(decoder)
         return decoder
 
     if args.model == 'encdec' or args.ranker == 'encdec':

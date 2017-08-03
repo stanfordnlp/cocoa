@@ -53,12 +53,16 @@ class Sampler(object):
         if self.select is not None:
             logits[:, 0, self.select] -= np.log(2)
 
-        if self.trie is not None:
-            prefix = prefix[:, -5:]  # (batch_size, seq_len)
+        if self.trie is not None and prefix is not None:
+            prefix = prefix[:, -3:]  # (batch_size, seq_len)
             mask = np.zeros_like(logits)
             for i, p in enumerate(prefix):
-                allowed = self.trie.get_children(p)
-                mask[i, :, allowed] = 1
+                try:
+                    allowed = self.trie.get_children(p)
+                    mask[i, :, allowed] = 1
+                except KeyError:
+                    mask[i, :, :] = 1
+
             logits = np.where(mask == 1, logits, float('-inf'))
 
         # Greedy
@@ -302,6 +306,7 @@ class BasicDecoder(BasicEncoder):
         textint_map = kwargs['textint_map']
         feed_dict = self.get_feed_dict(**kwargs)
         preds = np.zeros([batch_size, max_len], dtype=np.int32)
+        inputs = kwargs['inputs']
         for i in xrange(max_len):
             #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
@@ -309,7 +314,11 @@ class BasicDecoder(BasicEncoder):
             logits = logits[:, -1:, :]
             # TODO: hacky: insert <category> at the beginning
             #step_preds = self.sampler.sample(logits, prefix=np.concatenate([inputs[:, [1]], preds[:, :i]], axis=1))
-            step_preds = self.sampler.sample(logits, prefix=preds[:, :i])
+            #if i < 3:
+            #    prefix = None
+            #else:
+            #    prefix = np.concatenate([inputs[:, [1]], preds[:, :i]], axis=1)
+            step_preds = self.sampler.sample(logits)
             #top_words = np.argsort(p[0][0])[::-1]
             #if i == 0:
             #    for j in xrange(10):
