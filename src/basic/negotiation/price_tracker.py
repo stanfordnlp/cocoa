@@ -103,7 +103,7 @@ class PriceTracker(object):
         else:
             return False
 
-    def link_entity(self, raw_tokens, kb=None):
+    def link_entity(self, raw_tokens, kb=None, scale=True):
         tokens = ['<s>'] + raw_tokens + ['</s>']
         entity_tokens = []
         for i in xrange(1, len(tokens)-1):
@@ -127,7 +127,10 @@ class PriceTracker(object):
             if number is None:
                 new_token = token
             else:
-                scaled_price = PriceScaler._scale_price(kb, number)
+                if scale:
+                    scaled_price = PriceScaler._scale_price(kb, number)
+                else:
+                    scaled_price = number
                 new_token = Entity(surface=token, canonical=CanonicalEntity(value=scaled_price, type='price'))
             entity_tokens.append(new_token)
         return entity_tokens
