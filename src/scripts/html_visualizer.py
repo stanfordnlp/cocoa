@@ -211,7 +211,8 @@ class BaseHTMLVisualizer(object):
             chats.extend(chat_html)
             chats.append('</div>')
             chats.append("<hr>")
-        transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
+        #transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
+        transcripts = sorted(transcripts, key=lambda x: x['scenario']['post_id'], reverse=True)
         for (idx, chat) in enumerate(transcripts):
             completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx, img_path=img_path, worker_ids=worker_ids)
             if chat_html is None:
