@@ -13,21 +13,13 @@ class PriceScaler(object):
         '''
         Return the bottomline and the target
         '''
-        b = kb.facts['personal']['Bottomline']  # 0
         t = kb.facts['personal']['Target']  # 1
         role = kb.facts['personal']['Role']
 
-        # TODO: should have only one case after we fix the scenarios in the end.
-        if b is None:
-            if role == 'seller':
-                b = t * 0.7
-            else:
-                b = kb.facts['item']['Price']
-        elif t is None:
-            if role == 'seller':
-                t = kb.facts['item']['Price']
-            else:
-                t = b * 0.7
+        if role == 'seller':
+            b = t * 0.7
+        else:
+            b = kb.facts['item']['Price']
 
         return b, t
 
@@ -117,11 +109,14 @@ class PriceTracker(object):
                 # Avoid 'infinity' being recognized as a number
                 if number == float('inf') or number == float('-inf'):
                     number = None
-                # PUNT: Check if the price is reasonable
-                #else:
-                #    scaled_price = PriceScaler._scale_price(kb, number)
-                #    if scaled_price > 5 or scaled_price < -3:
-                #        number = None
+                # Check if the price is reasonable
+                else:
+                    # Reasonable negotiators should propose prices higher than the listing price
+                    if number > kb.facts['item']['Price']:
+                        number = None
+                    #scaled_price = PriceScaler._scale_price(kb, number)
+                    #if scaled_price > 5 or scaled_price < -5:
+                    #    number = None
             except ValueError:
                 number = None
             if number is None:
