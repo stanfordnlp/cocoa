@@ -3,6 +3,7 @@ import re
 from tokenizer import tokenize
 from src.basic.util import read_json, write_pickle, read_pickle
 from collections import defaultdict
+from itertools import chain
 
 def add_price_tracker_arguments(parser):
     parser.add_argument('--price-tracker-model', help='Path to price tracker model')
@@ -95,9 +96,23 @@ class PriceTracker(object):
         else:
             return False
 
+    def get_kb_numbers(self, kb):
+        title = tokenize(re.sub(r'[^\w0-9\.,]', ' ', kb.facts['item']['Title']))
+        description = tokenize(re.sub(r'[^\w0-9\.,]', ' ', ' '.join(kb.facts['item']['Description'])))
+        numbers = set()
+        for token in chain(title, description):
+            try:
+                numbers.add(float(self.process_string(token)))
+            except ValueError:
+                continue
+        return numbers
+
     def link_entity(self, raw_tokens, kb=None, scale=True):
         tokens = ['<s>'] + raw_tokens + ['</s>']
         entity_tokens = []
+        if kb:
+            kb_numbers = self.get_kb_numbers(kb)
+            list_price = kb.facts['item']['Price']
         for i in xrange(1, len(tokens)-1):
             token = tokens[i]
             try:
@@ -110,9 +125,11 @@ class PriceTracker(object):
                 if number == float('inf') or number == float('-inf'):
                     number = None
                 # Check if the price is reasonable
-                else:
-                    # Reasonable negotiators should propose prices higher than the listing price
-                    if number > kb.facts['item']['Price']:
+                elif kb:
+                    if number > 1.5 * list_price:
+                        number = None
+                    # Probably a spec number
+                    if number != list_price and number in kb_numbers:
                         number = None
                     #scaled_price = PriceScaler._scale_price(kb, number)
                     #if scaled_price > 5 or scaled_price < -5:
