@@ -352,16 +352,23 @@ class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
     questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
 
     @classmethod
-    def render_scenario(cls, scenario, img_path=None):
-        html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
-        # Post
-        facts = scenario.kbs[0].facts
+    def render_scenario(cls, scenario, img_path=None, kbs=None, uuid=None):
+        # Sometimes we want to directly give it elements of the scenario
+        uuid = scenario.uuid if uuid is None else uuid
+        kbs = kbs or scenario.kbs
+
+        html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % uuid]
+        # Post (display the seller's (full) KB)
+        if kbs[0].facts['personal']['Role'] == 'seller':
+            facts = kbs[0].facts
+        else:
+            facts = kbs[1].facts
         html.append("<p><b>%s ($%d)</b></p>" % (facts['item']['Title'], facts['item']['Price']))
         html.append("<p>%s</p>" % '<br>'.join(facts['item']['Description']))
         if img_path and len(facts['item']['Images']) > 0:
             html.append("<p><img src=%s></p>" % os.path.join(img_path, facts['item']['Images'][0]))
         # Private info
-        for (idx, kb) in enumerate(scenario.kbs):
+        for (idx, kb) in enumerate(kbs):
             kb_dict = kb.to_dict()
             html.append("<div class=\"kb%d\"><table><tr>"
                         "<td colspan=\"2\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, idx))
