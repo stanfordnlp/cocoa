@@ -1,17 +1,26 @@
 from collections import defaultdict
 import json
 import utils
+from itertools import izip, ifilter
 from argparse import ArgumentParser
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+sns.set()
 import numpy as np
 import os
 from scipy import stats
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
 from src.basic.negotiation.tokenizer import tokenize
 from src.basic.scenario_db import NegotiationScenario
-from src.basic.entity import Entity
+from src.basic.entity import Entity, is_entity
 import nltk.data
 import re
+from dialogue import Dialogue
+from liwc import LIWC
+from src.scripts.html_visualizer import NegotiationHTMLVisualizer, add_html_visualizer_arguments
 
 __author__ = 'anushabala'
 
@@ -19,91 +28,27 @@ __author__ = 'anushabala'
 THRESHOLD = 30.0
 MAX_MARGIN = 2.4
 MIN_MARGIN = -2.0
+MIN_PRICE = -3
+MAX_PRICE = 3
 
 
 def round_partial(value, resolution=0.1):
     return round (value / resolution) * resolution
 
-
-class SpeechActs(object):
-    GEN_QUESTION = 'general_question'
-    PRICE_QUESTION = 'price_request'
-    GEN_STATEMENT = 'general_statement'
-    PRICE_STATEMENT = 'price_statement'
-    GREETING = 'greeting'
-    AGREEMENT = 'agreement'
-
-    ACTS = [GEN_QUESTION, PRICE_QUESTION, GEN_STATEMENT, PRICE_STATEMENT, GREETING, AGREEMENT]
-
-
-class SpeechActAnalyzer(object):
-    agreement_patterns = [
-        r'that works',
-        r'i could do',
-        r'[^a-zA-Z]ok[^a-zA-Z]|okay',
-        r'great'
-    ]
-
-    @classmethod
-    def is_question(cls, tokens):
-        last_word = tokens[-1]
-        first_word = tokens[0]
-        return last_word == '?' or first_word in ('how', 'do', 'does', 'are', 'is', 'what', 'would', 'will')
-
-    @classmethod
-    def get_question_type(cls, tokens):
-        if not cls.is_question(tokens):
-            return None
-        if cls.is_price_statement(tokens):
-            return SpeechActs.PRICE_QUESTION
-        return SpeechActs.GEN_QUESTION
-
-    @classmethod
-    def is_agreement(cls, raw_sentence):
-        for pattern in cls.agreement_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
-                return True
-        return False
-
-    @classmethod
-    def is_price_statement(cls, tokens):
-        for token in tokens:
-            if isinstance(token, Entity) and token.canonical.type == 'price':
-                return True
-            else:
-                return False
-
-    @classmethod
-    def is_greeting(cls, tokens):
-        for token in tokens:
-            if token in ('hi', 'hello', 'hey', 'hiya', 'howdy'):
-                return True
-        return False
-
-    @classmethod
-    def get_speech_act(cls, sentence, linked_tokens):
-        if cls.is_question(linked_tokens):
-            return cls.get_question_type(linked_tokens)
-        if cls.is_price_statement(linked_tokens):
-            return SpeechActs.PRICE_STATEMENT
-        if cls.is_agreement(sentence):
-            return SpeechActs.AGREEMENT
-        if cls.is_greeting(linked_tokens):
-            return SpeechActs.GREETING
-
-        return SpeechActs.GEN_STATEMENT
-
-
 class StrategyAnalyzer(object):
-    nltk_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 
-    def __init__(self, transcripts_path, stats_path, price_tracker_model, debug=False):
-        transcripts = json.load(open(transcripts_path, 'r'))
-        if debug:
-            transcripts = transcripts[:100]
+    def __init__(self, transcripts_paths, stats_path, price_tracker_model, liwc_path, max_examples=None):
+        transcripts = []
+        for transcripts_path in transcripts_paths:
+            transcripts.extend(json.load(open(transcripts_path, 'r')))
+        if max_examples is not None:
+            transcripts = transcripts[:max_examples]
         self.dataset = utils.filter_rejected_chats(transcripts)
 
         self.price_tracker = PriceTracker(price_tracker_model)
+
+        self.liwc = LIWC.from_pkl(liwc_path)
 
         # group chats depending on whether the seller or the buyer wins
         self.buyer_wins, self.seller_wins = self.group_outcomes_and_roles()
@@ -111,6 +56,123 @@ class StrategyAnalyzer(object):
         self.stats_path = stats_path
         if not os.path.exists(self.stats_path):
             os.makedirs(self.stats_path)
+
+        self.examples = [Dialogue.from_dict(raw, self.price_tracker) for raw in self.dataset]
+
+    def label_dialogues(self, labels=('speech_act', 'stage', 'liwc')):
+        for dialogue in self.examples:
+            if 'speech_act' in labels:
+                dialogue.extract_keywords()
+                dialogue.label_speech_acts()
+            if 'stage' in labels:
+                dialogue.label_stage()
+            if 'liwc' in labels:
+                dialogue.label_liwc(self.liwc)
+
+    # TODO: one-hot encoding of speech acts
+    def create_dataframe(self):
+        data = []
+        for dialogue in ifilter(lambda x: x.has_deal(), self.examples):
+            for turn in dialogue.turns:
+                for u in turn.iter_utterances():
+                    row = {
+                            'post_id': dialogue.post_id,
+                            'chat_id': dialogue.chat_id,
+                            'scenario_id': dialogue.scenario_id,
+                            ('margin', 'seller'): dialogue.margins['seller'],
+                            ('margin', 'buyer'): dialogue.margins['buyer'],
+                            'stage': u.stage,
+                            'role': turn.role,
+                            'num_tokens': u.num_tokens(),
+                            }
+                    for a in u.speech_acts:
+                        row[('act', a[0].name)] = 1
+                    for cat, word_count in u.categories.iteritems():
+                        row[('cat', cat)] = sum(word_count.values())
+                    data.append(row)
+        df = pd.DataFrame(data).fillna(0)
+        return df
+
+    def summarize_liwc(self, k=10):
+        categories = defaultdict(lambda : defaultdict(int))
+        for dialogue in ifilter(lambda x: x.has_deal(), self.examples):
+            for u in dialogue.iter_utterances():
+                for cat, word_count in u.categories.iteritems():
+                    for w, count in word_count.iteritems():
+                        categories[cat][w] += count
+
+        cat_freq = {c: sum(word_counts.values()) for c, word_counts in categories.iteritems()}
+        cat_freq = sorted(cat_freq.items(), key=lambda x: x[1], reverse=True)
+        def topk(word_counts, k=10):
+            wc = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:k]
+            return [x[0] for x in wc]
+        for cat, count in cat_freq:
+            print cat, count, topk(categories[cat], k)
+
+
+    def html_visualize(self, output, img_path, css_file=None, mpld3_plugin=None):
+        examples = [ex for ex in self.examples if self.has_deal(ex)]
+        examples.sort(key=lambda d: (d.scenario_id, d.outcome['offer']['price']))
+
+        include_scripts = []
+        include_scripts.append('<script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>')
+        include_scripts.append('<script type="text/javascript" src="https://mpld3.github.io/js/mpld3.v0.2.js"></script>')
+        if mpld3_plugin:
+            with open(mpld3_plugin, 'r') as fin:
+                mpld3_script = fin.read()
+                include_scripts.append('<script type="text/javascript">{}</script>'.format(mpld3_script))
+
+        css_style = """
+            table {
+                table-layout: fixed;
+                width: 600px;
+                border-collapse: collapse;
+                }
+
+            tr:nth-child(n) {
+                border: solid thin;
+                }
+
+            .fig {
+                height: 500px;
+            }
+            """
+        if css_file:
+            with open(css_file, 'r') as fin:
+                css_style = '{}\n{}'.format(css_style, fin.read())
+        style = ['<style type="text/css">', css_style, Dialogue.css, '</style>']
+
+        header = ['<head>'] + style + include_scripts + ['</head>']
+
+        plot_divs = []
+        plot_scripts = []
+        plot_scripts.append('<script type="text/javascript">')
+        for d in examples:
+            var_name = 'json_{}'.format(d.chat_id)
+            json_str = json.dumps(d.fig_dict())
+            div_name = 'fig_{}'.format(d.chat_id)
+            plot_divs.append('<div class="fig" id="{div_name}"></div>'.format(div_name=div_name))
+            plot_scripts.append('var {var_name} = {json_str};'.format(var_name=var_name, json_str=json_str))
+            plot_scripts.append('!function(mpld3) {{ mpld3.draw_figure("{div_name}", {var_name}); }}(mpld3);'.format(div_name=div_name, var_name=var_name))
+        plot_scripts.append('</script>')
+
+        body = ['<body>']
+        for d, plot_div in izip(examples, plot_divs):
+            body.extend(
+                NegotiationHTMLVisualizer.render_scenario(None, img_path=img_path, kbs=d.kbs, uuid=d.scenario_id)
+                )
+            body.append('<p>Final deal: {}</p>'.format(d.outcome['offer']['price']))
+            body.append(plot_div)
+        body.extend(plot_scripts)
+        body.append('</body>')
+
+        html_lines = ['<html>'] + header + body + ['</html>']
+
+        outfile = open(output, 'w')
+        for line in html_lines:
+            outfile.write(line.encode('utf8')+"\n")
+        print 'Write to', output
+        outfile.close()
 
     @classmethod
     def get_price_trend(cls, price_tracker, chat, agent=None):
@@ -167,35 +229,179 @@ class StrategyAnalyzer(object):
     @classmethod
     def split_turn(cls, turn):
         # a single turn can be comprised of multiple sentences
-        return cls.nltk_tokenizer.tokenize(turn)
+        return cls.sent_tokenizer.tokenize(turn)
 
-    @classmethod
-    def get_speech_acts(cls, chat, price_tracker, agent=None, role=None):
-        scenario = NegotiationScenario.from_dict(None, chat['scenario'])
-        kbs = scenario.kbs
-        roles = {
-            kbs[0].facts["personal"]["Role"]: 0,
-            kbs[1].facts["personal"]["Role"]: 1
-        }
-        # print chat['scenario']
-
-        acts = []
-        for e in chat['events']:
-            if e['action'] != 'message':
-                continue
-            if agent is not None and e['agent'] != agent:
-                continue
-            if role is not None and roles[role] != e['agent']:
+    def get_speech_acts(self, ex):
+        stats = {0: [], 1: []}
+        kbs = ex.kbs
+        for e in ex.events:
+            if e.action != 'message':
                 continue
 
-            sentences = cls.split_turn(e['data'])
+            sentences = self.split_turn(e.data.lower())
 
             for s in sentences:
                 tokens = tokenize(s)
-                linked_tokens = price_tracker.link_entity(tokens, kb=kbs[e['agent']])
-                acts.append(SpeechActAnalyzer.get_speech_act(s, linked_tokens))
+                linked_tokens = self.price_tracker.link_entity(tokens, kb=kbs[e.agent])
+                act = SpeechActAnalyzer.get_speech_act(s, linked_tokens)
+                stats[e.agent].append(act)
 
-        return acts
+        return stats
+
+
+    @classmethod
+    def valid_price(cls, price):
+        return price <= MAX_PRICE and price >= MIN_PRICE
+
+    @classmethod
+    def valid_margin(cls, margin):
+        return margin <= MAX_MARGIN and margin >= MIN_MARGIN
+
+    def get_first_price(self, ex):
+        agents = {1: None, 0: None}
+        for e in ex.events:
+            if e.action == 'message':
+                for sent_tokens in e.tokens:
+                    for token in sent_tokens:
+                        if agents[1] and agents[0]:
+                            return agents
+                        # Return at the first mention
+                        if is_entity(token):
+                            price = token.canonical.value
+                            agents[e.agent] = (e.role, price)
+                            return agents
+        return agents
+
+    @classmethod
+    def get_margin(cls, ex, price, agent, role):
+        agent_target = ex.scenario.kbs[agent].facts["personal"]["Target"]
+        partner_target = ex.scenario.kbs[1 - agent].facts["personal"]["Target"]
+        midpoint = (agent_target + partner_target) / 2.
+        norm_factor = np.abs(midpoint - agent_target)
+        if role == utils.SELLER:
+            margin = (price - midpoint) / norm_factor
+        else:
+            margin = (midpoint - price) / norm_factor
+        if cls.valid_margin(margin):
+            return margin
+        return None
+
+    @classmethod
+    def print_ex(cls, ex):
+        print '===================='
+        for e in ex.events:
+            print e.role.upper(), e.data
+        print '===================='
+
+    def get_basic_stats(self, ex):
+        stats = {0: None, 1: None}
+        for agent in (0, 1):
+            num_turns = ex.num_turns()
+            num_tokens = ex.num_tokens()
+            stats[agent] = {
+                    'role': ex.kbs[agent].facts['personal']['Role'],
+                    'num_turns': num_turns,
+                    'num_tokens_per_turn': num_tokens / num_turns * 1.,
+                    }
+        return stats
+
+    def is_good_negotiator(self, final_margin):
+        if final_margin > 0.8 and final_margin <= 1:
+            return 1
+        elif final_margin < -0.8 and final_margin <= -1:
+            return -1
+        else:
+            return 0
+
+    @classmethod
+    def has_deal(cls, ex):
+        if ex.outcome is None or ex.outcome.get('offer', None) is None:
+            return False
+        return True
+
+    def plot_speech_acts(self, output='figures/speech_acts'):
+        data = defaultdict(list)
+        for ex in ifilter(self.has_deal, self.examples):
+            stats = self.get_speech_acts(ex)
+            final_price = ex.outcome['offer']['price']
+            for agent, acts in stats.iteritems():
+                role = ex.agent_to_role[agent]
+                final_margin = self.get_margin(ex, final_price, agent, role)
+                label = self.is_good_negotiator(final_margin)
+                for act in acts:
+                    data['role'].append(role)
+                    data['label'].append(label)
+                    data['final_margin'].append(final_margin)
+                    data['act'].append(act)
+
+        for role in ('seller', 'buyer'):
+            print role.upper()
+            print '='*40
+            good_seller_act = [a for r, l, m, a in izip(data['role'], data['label'], data['final_margin'], data['act']) if r == role and l == 1]
+            bad_seller_act = [a for r, l, m, a in izip(data['role'], data['label'], data['final_margin'], data['act']) if r == role and l == -1]
+            sum_act = lambda a, l: np.mean([1 if a in x else 0 for x in l])
+            print len(good_seller_act), len(bad_seller_act)
+            print '{:<20} {:<10} {:<10}'.format('ACT', 'GOOD', 'BAD')
+            print '-'*40
+            for act in SpeechActs.ACTS:
+                print '{:<20} {:<10.4f} {:<10.4f}'.format(act, sum_act(act, good_seller_act), sum_act(act, bad_seller_act))
+
+        return
+
+
+    def plot_basic_stats(self, output='figures/basic_stats'):
+        data = {'role': [], 'final_margin': [], 'num_turns': [], 'num_tokens_per_turn': [], 'label': []}
+        for ex in ifilter(self.has_deal, self.examples):
+            stats = self.get_basic_stats(ex)
+            final_price = ex.outcome['offer']['price']
+            for agent, stats in stats.iteritems():
+                role = stats['role']
+                final_margin = self.get_margin(ex, final_price, agent, role)
+                label = self.is_good_negotiator(final_margin)
+                for k, v in stats.iteritems():
+                    data[k].append(v)
+                data['label'].append(label)
+                data['final_margin'].append(final_margin)
+        fig = plt.figure()
+        df = pd.DataFrame(data)
+        #g = sns.lmplot(x='num_tokens_per_turn', y='final_margin', col='role', row='label', data=dataframe, scatter_kws={'alpha':0.5})
+        #g.savefig(output)
+        for role in ('buyer', 'seller'):
+            d1 = df.num_tokens_per_turn[(df['label'] == 1) & (df['role'] == role)]
+            d2 = df.num_tokens_per_turn[(df.label == -1) & (df.role == role)]
+            sns.distplot(d1, label='good')
+            sns.distplot(d2, label='bad')
+            plt.legend()
+            plt.savefig('%s_%s.png' % (output, role))
+            plt.clf()
+
+    def plot_opening_vs_result(self, output='figures/opening_vs_result.png'):
+        data = {'role': [], 'init_margin': [], 'final_margin': []}
+        for ex in ifilter(self.has_deal, self.examples):
+            final_price = ex.outcome['offer']['price']
+            init_prices = self.get_first_price(ex)
+            for agent, p in init_prices.iteritems():
+                if p is None:
+                    continue
+                role, price = p
+                init_margin = self.get_margin(ex, price, agent, role)
+                final_margin = self.get_margin(ex, final_price, agent, role)
+                if init_margin is None or final_margin is None:
+                    continue
+                # NOTE: sometimes one is saying a price is not okay, i.e. negative mention
+                # TODO: detect negative vs positive mention
+                if init_margin == -1 and init_margin < final_margin:
+                    continue
+                #if init_margin < final_margin:
+                #    print role, (price, init_margin), (final_price, final_margin)
+                #    self.print_ex(ex)
+                #    import sys; sys.exit()
+                for k, v in izip(('role', 'init_margin', 'final_margin'), (role, init_margin, final_margin)):
+                    data[k].append(v)
+        dataframe = pd.DataFrame(data)
+        fig = plt.figure()
+        g = sns.lmplot(x='init_margin', y='final_margin', col='role', data=dataframe, scatter_kws={'alpha':0.5})
+        g.savefig(output)
 
     def group_outcomes_and_roles(self):
         buyer_wins = []
@@ -362,7 +568,7 @@ class StrategyAnalyzer(object):
 
         return prices
 
-    def plot_speech_acts(self):
+    def plot_speech_acts_old(self):
         labels = ['buyer_wins', 'seller_wins']
         for (group, lbl) in zip([self.buyer_wins, self.seller_wins], labels):
             plt.figure(figsize=(10, 6))
@@ -459,20 +665,32 @@ class StrategyAnalyzer(object):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--output-dir', required=True, help='Directory containing all output from website')
-    parser.add_argument('--debug', action='store_true', help='Run in debug mode (only run on 50 chats)')
+    parser.add_argument('--max-examples', type=int, default=100, help='Maximum number of examples to run')
+    parser.add_argument('--html-visualize', action='store_true', help='Output html files')
+    parser.add_argument('--mpld3-plugin', default=None, help='Javascript of the mpld3 plugin')
     add_price_tracker_arguments(parser)
+    add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
         raise ValueError("Output directory {:s} doesn't exist".format(args.output_dir))
 
-    transcripts_path = os.path.join(args.output_dir, 'transcripts', 'transcripts.json')
+    transcripts_path = [os.path.join(args.output_dir, 'transcripts', 'transcripts.json')]
     stats_output = os.path.join(args.output_dir, 'stats')
 
-    analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, args.debug)
+    analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, 'data/liwc.pkl', args.max_examples)
+
+    if args.html_visualize:
+        analyzer.label_dialogues(('speech_act',))
+        analyzer.html_visualize(args.html_output, args.img_path, args.css_file, args.mpld3_plugin)
+
+    #analyzer.plot_opening_vs_result()
+    #analyzer.plot_basic_stats()
+    #analyzer.plot_speech_acts()
+
     # analyzer.plot_length_histograms()
     # analyzer.plot_margin_histograms()
     # analyzer.plot_length_vs_margin()
     # analyzer.plot_price_trends()
-    analyzer.plot_speech_acts()
-    analyzer.plot_speech_acts_by_role()
+    #analyzer.plot_speech_acts()
+    #analyzer.plot_speech_acts_by_role()
