@@ -102,7 +102,6 @@ def get_winner(transcript):
         # print "Tie"
         return -1
 
-
 def get_margin(transcript, agent=None, role=None):
     if role is not None:
         scenario = transcript["scenario"]
