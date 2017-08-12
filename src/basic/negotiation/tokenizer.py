@@ -50,11 +50,13 @@ def stick_marker_sign(tokens):
             in_brackets = False
     return new_tokens
 
-def tokenize(utterance):
+def tokenize(utterance, lowercase=True):
     '''
     'hi there!' => ['hi', 'there', '!']
     '''
-    utterance = utterance.encode('utf-8').lower()
+    utterance = utterance.encode('utf-8')
+    if lowercase:
+        utterance = utterance.lower()
     # NLTK would not tokenize "xx..", so normalize dots to "...".
     utterance = re.sub(r'\.{2,}', '...', utterance)
     # Remove some weird chars
