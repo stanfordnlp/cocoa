@@ -67,7 +67,7 @@ class BaseVisualizer(object):
     @classmethod
     def read_eval(cls, surveys, mask=None):
         '''
-        question_scores[question][agent_type] = list of (dialogue_id, agent_id, ratingss)
+        question_scores[question][agent_type] = list of (dialogue_id, agent_id, ratings)
         '''
         question_scores = defaultdict(lambda : defaultdict(list))
         agents = set()

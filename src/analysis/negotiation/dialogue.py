@@ -125,14 +125,19 @@ class Dialogue(object):
 
     scenario_map = {}
 
-    def __init__(self, chat_id, scenario_id, post_id, kbs, turns, outcome):
+    eval_questions = ('fluent', 'coherent', 'persuasive', 'fair')
+
+    def __init__(self, chat_id, scenario_id, post_id, kbs, turns, outcome, scores):
         self.chat_id = chat_id
         self.post_id = post_id
         self.kbs = kbs
         self.kb_by_role = {kb.facts['personal']['Role']: kb for kb in kbs}
-        self.scenario_id = self.get_scenario_id(post_id, self.kb_by_role['buyer'].facts['personal']['Target'])
+        self.listing_price = self.kb_by_role['seller'].facts['personal']['Target']
+        self.buyer_target = self.kb_by_role['buyer'].facts['personal']['Target']
+        self.scenario_id = self.get_scenario_id(post_id, self.buyer_target)
         self.turns = turns
         self.outcome = outcome
+        self.eval_scores = {kbs[agent_id].facts['personal']['Role']: s for agent_id, s in scores.iteritems()}
         self.margins = self.compute_margin()
 
     @classmethod
@@ -182,11 +187,24 @@ class Dialogue(object):
         return True
 
     @classmethod
-    def from_dict(cls, raw_chat, price_tracker):
+    def from_dict(cls, raw_chat, raw_scores, price_tracker):
         ex = Example.from_dict(None, raw_chat)
         kbs = ex.scenario.kbs
         turns = [Turn.from_event(event, kbs, price_tracker) for event in ex.events if cls.is_valid_event(event)]
-        return cls(ex.ex_id, ex.uuid, ex.scenario.post_id, kbs, turns, ex.outcome)
+        scores = cls.parse_scores(raw_scores)
+        return cls(ex.ex_id, ex.uuid, ex.scenario.post_id, kbs, turns, ex.outcome, scores)
+
+    @classmethod
+    def parse_scores(cls, raw_scores):
+        agent_scores = {}
+        for agent_id, scores in raw_scores.iteritems():
+            agent_id = int(agent_id)
+            question_scores = {}
+            for question, score in scores.iteritems():
+                if question in cls.eval_questions:
+                    question_scores[question] = int(score)
+            agent_scores[agent_id] = question_scores
+        return agent_scores
 
     def num_tokens(self):
         return sum([t.num_tokens() for t in self.turns])

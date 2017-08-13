@@ -21,6 +21,7 @@ import re
 from dialogue import Dialogue
 from liwc import LIWC
 from src.scripts.html_visualizer import NegotiationHTMLVisualizer, add_html_visualizer_arguments
+from src.basic.util import read_json, write_json
 
 __author__ = 'anushabala'
 
@@ -38,26 +39,38 @@ def round_partial(value, resolution=0.1):
 class StrategyAnalyzer(object):
     sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
 
-    def __init__(self, transcripts_paths, stats_path, price_tracker_model, liwc_path, max_examples=None):
-        transcripts = []
-        for transcripts_path in transcripts_paths:
-            transcripts.extend(json.load(open(transcripts_path, 'r')))
-        if max_examples is not None:
-            transcripts = transcripts[:max_examples]
+    def __init__(self, transcripts_paths, survey_paths, stats_path, price_tracker_model, liwc_path, max_examples=None):
+        transcripts = self._read_transcripts(transcripts_paths, max_examples)
         self.dataset = utils.filter_rejected_chats(transcripts)
+
+        dialogue_scores = self._read_surveys(survey_paths)
 
         self.price_tracker = PriceTracker(price_tracker_model)
 
         self.liwc = LIWC.from_pkl(liwc_path)
 
         # group chats depending on whether the seller or the buyer wins
-        self.buyer_wins, self.seller_wins = self.group_outcomes_and_roles()
+        #self.buyer_wins, self.seller_wins = self.group_outcomes_and_roles()
 
         self.stats_path = stats_path
         if not os.path.exists(self.stats_path):
             os.makedirs(self.stats_path)
 
-        self.examples = [Dialogue.from_dict(raw, self.price_tracker) for raw in self.dataset]
+        self.examples = [Dialogue.from_dict(raw, dialogue_scores.get(raw['uuid'], {}), self.price_tracker) for raw in self.dataset]
+
+    def _read_transcripts(self, transcripts_paths, max_examples):
+        transcripts = []
+        for transcripts_path in transcripts_paths:
+            transcripts.extend(read_json(transcripts_path))
+        if max_examples is not None:
+            transcripts = transcripts[:max_examples]
+        return transcripts
+
+    def _read_surveys(self, survey_paths):
+        dialogue_scores = {}
+        for path in survey_paths:
+            dialogue_scores.update(read_json(path)[1])
+        return dialogue_scores
 
     def label_dialogues(self, labels=('speech_act', 'stage', 'liwc')):
         for dialogue in self.examples:
@@ -79,16 +92,25 @@ class StrategyAnalyzer(object):
                             'post_id': dialogue.post_id,
                             'chat_id': dialogue.chat_id,
                             'scenario_id': dialogue.scenario_id,
-                            ('margin', 'seller'): dialogue.margins['seller'],
-                            ('margin', 'buyer'): dialogue.margins['buyer'],
+                            'buyer_target': dialogue.buyer_target,
+                            'listing_price': dialogue.listing_price,
+                            'margin_seller': dialogue.margins['seller'],
+                            'margin_buyer': dialogue.margins['buyer'],
                             'stage': u.stage,
                             'role': turn.role,
                             'num_tokens': u.num_tokens(),
                             }
                     for a in u.speech_acts:
-                        row[('act', a[0].name)] = 1
+                        row['act_{}'.format(a[0].name)] = 1
                     for cat, word_count in u.categories.iteritems():
-                        row[('cat', cat)] = sum(word_count.values())
+                        row['cat_{}'.format(cat)] = sum(word_count.values())
+                    for q in dialogue.eval_questions:
+                        for r in ('buyer', 'seller'):
+                            key = 'eval_{question}_{role}'.format(question=q, role=r)
+                            try:
+                                row[key] = dialogue.eval_scores[r][q]
+                            except KeyError:
+                                row[key] = -1
                     data.append(row)
         df = pd.DataFrame(data).fillna(0)
         return df
@@ -676,9 +698,11 @@ if __name__ == "__main__":
         raise ValueError("Output directory {:s} doesn't exist".format(args.output_dir))
 
     transcripts_path = [os.path.join(args.output_dir, 'transcripts', 'transcripts.json')]
+    surveys_path = [os.path.join(args.output_dir, 'transcripts', 'surveys.json')]
     stats_output = os.path.join(args.output_dir, 'stats')
 
-    analyzer = StrategyAnalyzer(transcripts_path, stats_output, args.price_tracker_model, 'data/liwc.pkl', args.max_examples)
+    analyzer = StrategyAnalyzer(transcripts_path, surveys_path, stats_output, args.price_tracker_model, 'data/liwc.pkl', args.max_examples)
+    analyzer.create_dataframe()
 
     if args.html_visualize:
         analyzer.label_dialogues(('speech_act',))
