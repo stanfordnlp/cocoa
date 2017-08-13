@@ -33,3 +33,5 @@ class Session(object):
         return Event.AcceptEvent(self.agent, None)
     def reject(self):
         return Event.RejectEvent(self.agent, None)
+    def quit(self):
+        return Event.QuitEvent(self.agent, None)

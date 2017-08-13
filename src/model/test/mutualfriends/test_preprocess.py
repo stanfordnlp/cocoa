@@ -27,7 +27,7 @@ class TestPreprocess(object):
     def lexicon(self, schema):
         return Lexicon(schema, learned_lex=False)
 
-    @pytest.fixture(scope='session')
+    @pytest.fixture(scope='class')
     def generator(self, examples, lexicon, schema):
         return DataGenerator(examples, examples, None, schema, lexicon, 5, use_kb=True)
 

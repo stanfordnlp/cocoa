@@ -2,7 +2,7 @@ from collections import defaultdict
 import numpy as np
 from itertools import izip, islice, chain, repeat
 from src.model.vocab import is_entity, Vocabulary
-from src.model.graph_embedder_config import GraphEmbedderConfig
+from graph_embedder_config import GraphEmbedderConfig
 
 def add_graph_arguments(parser):
     parser.add_argument('--num-items', type=int, default=10, help='Maximum number of items in each KB')
@@ -251,6 +251,7 @@ class GraphBatch(object):
         max_num_paths = self._max_num_paths()
         max_num_paths_per_node = self._max_num_paths_per_node()
         # TODO: entities -> update_entities
+        # *_nodes: for looking up entity embeddings
         batch = {
                  'node_ids': self._batch_node_ids(max_num_nodes),
                  'mask': self._batch_mask(max_num_nodes),

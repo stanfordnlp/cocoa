@@ -64,15 +64,19 @@ class BaseVisualizer(object):
     def filter(self, *args):
         return None
 
-    def read_eval(self, surveys, mask=None):
+    @classmethod
+    def read_eval(cls, surveys, mask=None):
+        '''
+        question_scores[question][agent_type] = list of (dialogue_id, agent_id, ratings)
+        '''
         question_scores = defaultdict(lambda : defaultdict(list))
         agents = set()
         for survey in surveys:
-            self._read_eval(survey, question_scores, mask=mask, agent_set=agents)
-        self.agents = list(agents)
-        return question_scores
+            cls._read_eval(survey, question_scores, mask=mask, agent_set=agents)
+        return list(agents), question_scores
 
-    def _read_eval(self, trans, question_scores, mask=None, agent_set=set()):
+    @classmethod
+    def _read_eval(cls, trans, question_scores, mask=None, agent_set=set()):
         dialogue_agents = trans[0]
         dialogue_scores = trans[1]
         for dialogue_id, agent_dict in dialogue_agents.iteritems():
@@ -271,12 +275,10 @@ class NegotiationVisualizer(BaseVisualizer):
 
     def __init__(self, chats, surveys=None, worker_ids=None):
         super(NegotiationVisualizer, self).__init__(chats, surveys, worker_ids)
-        # mask = self.filter(('A3OE4LKJ2ORFZS',))
         mask = None
-        # self.chats = [x for x in self.chats if x['uuid'] in mask]
         self.question_scores = None
         if surveys:
-            self.question_scores = self.read_eval(self.surveys, mask)
+            self.agents, self.question_scores = self.read_eval(self.surveys, mask)
 
     def question_type(self, question):
         if question == 'comments':
@@ -361,7 +363,7 @@ class MutualFriendsVisualizer(BaseVisualizer):
         super(MutualFriendsVisualizer, self).__init__(chats, surveys, worker_ids)
         if surveys:
             mask = self.filter(self.surveys)
-            self.question_scores = self.read_eval(self.surveys, mask)
+            self.agents, self.question_scores = self.read_eval(self.surveys, mask)
 
     def question_type(self, question):
         if question == 'comments' or question.endswith('text'):

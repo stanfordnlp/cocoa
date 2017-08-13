@@ -1,9 +1,11 @@
 import tensorflow as tf
 from tensorflow.python.util import nest
-from tensorflow.python.ops.rnn_cell import _linear as linear
+from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
 from itertools import izip
 
 EPS = 1e-12
+
+linear = _linear
 
 def embedding_lookup(embeddings, indices, zero_ind=None):
     '''
@@ -58,6 +60,5 @@ def batch_linear(args, output_size, bias):
     return output
 
 def transpose_first_two_dims(batch_input):
-    rank = len(batch_input.get_shape().as_list())
-    return tf.transpose(batch_input, perm=[1, 0]+range(2, rank))
+    return tf.transpose(batch_input, perm=[1, 0, 2])
 

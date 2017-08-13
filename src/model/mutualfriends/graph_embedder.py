@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.ops.math_ops import tanh
-from tensorflow.python.ops.rnn_cell import _linear as linear
+from src.model.util import _linear as linear
 from src.model.util import batch_embedding_lookup, batch_linear, EPS
 
 def add_graph_embed_arguments(parser):

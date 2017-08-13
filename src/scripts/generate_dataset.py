@@ -38,7 +38,7 @@ if args.test_max_examples is None:
 
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
-agents = [get_system(name, args) for name in args.agents]
+agents = [get_system(name, args, schema) for name in args.agents]
 num_examples = args.scenario_offset
 
 summary_map = {}
@@ -46,8 +46,10 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     global num_examples
     examples = []
     num_failed = 0
+    scenarios = scenario_db.scenarios_list
+    random.shuffle(scenarios)
     for i in range(max_examples):
-        scenario = scenario_db.scenarios_list[num_examples % len(scenario_db.scenarios_list)]
+        scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
         controller = Controller.get_controller(scenario, sessions)
         ex = controller.simulate(max_turns)

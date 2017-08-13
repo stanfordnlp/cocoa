@@ -4,8 +4,8 @@ from schema import Attribute
 import src.config as config
 
 def add_scenario_arguments(parser):
-    parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
-    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated', required=True)
+    parser.add_argument('--schema-path', help='Input path that describes the schema of the domain')
+    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated')
 
 class BaseScenario(object):
     '''
