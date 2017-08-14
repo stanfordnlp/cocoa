@@ -73,7 +73,7 @@ class BaseRulebasedSession(Session):
         if event.action == 'message':
             self.state['num_utterance_sent'] = 0
             raw_utterance = event.data
-            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb)
+            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, scale=False)
             #print 'entity tokens:', entity_tokens
             # Randomly choose one of the prices
             prices = [x[1][0] for x in entity_tokens if is_entity(x)]
