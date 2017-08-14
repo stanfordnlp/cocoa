@@ -39,25 +39,12 @@ class BaseEvent(object):
         return Event(agent, time, 'leave', userid)
 
     @staticmethod
-    def OfferEvent(agent, data, time=None):
-        return Event(agent, time, 'offer', data)
-
-    @staticmethod
-    def AcceptEvent(agent, time=None):
-        return Event(agent, time, 'accept', None)
-
-    @staticmethod
-    def RejectEvent(agent, time=None):
-        return Event(agent, time, 'reject', None)
-
-    @staticmethod
-    def QuitEvent(agent, data, time=None):
-        return Event(agent, time, 'quit', data)
-
-    @staticmethod
     def TypingEvent(agent, data, time=None):
         return Event(agent, time, 'typing', data)
 
+    @staticmethod
+    def EvalEvent(agent, data, time):
+        return Event(agent, time, 'eval', data)
 
 
 import src.config as config
