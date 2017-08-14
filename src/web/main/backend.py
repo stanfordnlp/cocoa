@@ -37,7 +37,7 @@ class BackendConnection(object):
 
 
 class BaseBackend(object):
-    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
 
@@ -48,6 +48,7 @@ class BaseBackend(object):
         self.sessions = sessions
         self.controller_map = controller_map
         self.pairing_probabilities = pairing_probabilities
+        self.num_chats_per_scenario = num_chats_per_scenario
         self.logger = WebLogger.get_logger()
 
     def _update_user(self, cursor, userid, **kwargs):
@@ -260,7 +261,9 @@ class BaseBackend(object):
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
-                    if scenario_dialogues[sid][partner_type] == 0:
+                    # TODO: make this configurable
+                    #if scenario_dialogues[sid][partner_type] == 0:
+                    if scenario_dialogues[sid][partner_type] < 5:
                         active_scenarios[sid].append(partner_type)
 
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),

@@ -258,6 +258,7 @@ if __name__ == "__main__":
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
+    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', 1)
     app.config['schema'] = schema
     app.config['user_params'] = params
     app.config['sessions'] = defaultdict(None)
