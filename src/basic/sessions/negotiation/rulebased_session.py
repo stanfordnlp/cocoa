@@ -17,19 +17,19 @@ class BaseRulebasedSession(Session):
     def __init__(self, agent, kb, lexicon, time_to_ddl=1000):
         super(BaseRulebasedSession, self).__init__(agent)
         self.agent = agent
-        self.kb = kb.facts
+        self.kb = kb
         self.lexicon = lexicon
         # TODO: consider time
         self.time_to_ddl = time_to_ddl
 
         self.my_price = None
         self.partner_price = None
-        self.bottomline = self.kb['personal']['Bottomline']
-        self.target = self.kb['personal']['Target']
+        self.bottomline = self.kb.facts['personal']['Bottomline']
+        self.target = self.kb.facts['personal']['Target']
         if self.bottomline is None:
             self.bottomline = self.target * 0.8
-        self.list_price = self.kb['item']['Price']
-        self.category = self.kb['item']['Category']
+        self.list_price = self.kb.facts['item']['Price']
+        self.category = self.kb.facts['item']['Category']
         assert self.category in ('car', 'housing', 'furniture')
 
         # Direction of desired price
@@ -70,10 +70,10 @@ class BaseRulebasedSession(Session):
                 self.my_price = self.target * (1 + self.inc * self.overshoot)
 
     def receive(self, event):
-        self.state['num_utterance_sent'] = 0
         if event.action == 'message':
+            self.state['num_utterance_sent'] = 0
             raw_utterance = event.data
-            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), partner_kb=self.kb)
+            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb)
             #print 'entity tokens:', entity_tokens
             # Randomly choose one of the prices
             prices = [x[1][0] for x in entity_tokens if is_entity(x)]
@@ -83,6 +83,7 @@ class BaseRulebasedSession(Session):
                 # Assuming price is the same as before
                 price = self.partner_price
         elif event.action == 'offer':
+            self.state['num_utterance_sent'] = 0
             price = event.data['price']
             self.state['partner_offered'] = True
         else:
@@ -332,7 +333,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
 
 
     def intro(self):
-        title = self.kb['item']['Title']
+        title = self.kb.facts['item']['Title']
         s = (
                 "I have a %s" % title,
                 "I'm selling a %s" % title,
