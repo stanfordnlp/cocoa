@@ -3,6 +3,7 @@ __author__ = 'anushabala'
 import uuid
 from datetime import datetime
 import time
+import json
 
 from flask import jsonify, render_template, request, redirect, url_for, Markup
 
@@ -93,22 +94,22 @@ def check_inbox():
             message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
             if 'sides' not in event.data.keys():
                 sides = None
-            return jsonify(message=message, received=True, price=event.data['price'], sides=None)
+            return jsonify(message=message, received=True, price=event.data['price'], sides=None, timestamp=event.time)
 
         elif event.action == 'accept':
             message = format_message("Congrats, your partner accepted your offer!", True)
-            return jsonify(message=message, received=True)
+            return jsonify(message=message, received=True, timestamp=event.time)
         elif event.action == 'reject':
             message = format_message("Sorry, your partner rejected your offer.", True)
-            return jsonify(message=message, received=True)
+            return jsonify(message=message, received=True, timestamp=event.time)
 
         elif event.action == 'typing':
             if event.data == 'started':
                 message = "Your partner is typing..."
             else:
                 message = ""
-            return jsonify(message=message, status=True, received=True)
-        return jsonify(message=message, status=False, received=True)
+            return jsonify(message=message, status=True, received=True, timestamp=event.time)
+        return jsonify(message=message, status=False, received=True, timestamp=event.time)
     return jsonify(status=False, received=False)
 
 
@@ -143,8 +144,22 @@ def text():
                                     str(received_time),
                                     str(start_time))
                  )
-    return jsonify(message=displayed_message)
+    return jsonify(message=displayed_message, timestamp=str(received_time))
 
+@main.route('/_send_eval/', methods=['POST'])
+def send_eval():
+    backend = get_backend()
+    labels = request.json['labels']
+    eval_data = request.json['eval_data']
+    uid = request.json['uid']
+    chat_info = backend.get_chat_info(uid)
+    data = {'utterance': eval_data['utterance'], 'labels': labels}
+    backend.send(uid,
+                 Event.EvalEvent(chat_info.agent_index,
+                                    data,
+                                    eval_data['timestamp'])
+                 )
+    return jsonify(success=True)
 
 @main.route('/_join_chat/', methods=['GET'])
 def join_chat():

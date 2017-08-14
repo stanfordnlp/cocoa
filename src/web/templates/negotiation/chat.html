@@ -1,7 +1,8 @@
 <html>
     <head>
         <title>{{ title }}</title>
-        <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
+        <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
         <style>
             .clearfix {
                 overflow: auto;
@@ -15,63 +16,69 @@
             }
 
             div#modal_description {
-            	color:#004d00;
-            	font-style: italic;
+                color:#004d00;
+                font-style: italic;
             }
 
             div#report {
                 color:#ff0000;
                 font-weight: bold;
             }
-			div#chat_container {
-				float:left;
-				width: 45%;
-			}
-			
-			div#info_container {
-				margin-left: 47%;
-				color:#004d00;
-			}
-			
+            div#chat_container {
+                float:left;
+                width: 45%;
+            }
 
-			div#icon {
-				padding: 10px 100px 10px 20px;
-				display: inline-block;
-			}
+            div#info_container {
+                margin-left: 47%;
+                color:#004d00;
+            }
 
-			div#offer {
-				color: ##004d00;
-				border: 1px solid #004d00;
-				margin-top: 10px;
-				margin-bottom: 10px;
-				margin-left: 2px;
-				padding: 10px 5px 10px 5px;
-				font-size: 18px;
-			}
 
-			div#quit_option {
-				color: #bf1e1e;
-				border: 1px solid #bf1e1e;
-				margin-top: 10px;
-				margin-bottom: 10px;
-				margin-left: 2px;
-				padding: 10px 5px 10px 5px;
-				font-size: 18px;
-			}
+            div#icon {
+                padding: 10px 100px 10px 20px;
+                display: inline-block;
+            }
 
-			textarea#chat {
-				width: 100%;
-				cols: 100;
-				height: 25%;
-				color:#004d00;
-				font-size:14px;
-			}
+            div#offer {
+                color: ##004d00;
+                border: 1px solid #004d00;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                margin-left: 2px;
+                padding: 10px 5px 10px 5px;
+                font-size: 18px;
+            }
 
-			input#text {
-				width: 100%;
-			}
+            div#quit_option {
+                color: #bf1e1e;
+                border: 1px solid #bf1e1e;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                margin-left: 2px;
+                padding: 10px 5px 10px 5px;
+                font-size: 18px;
+            }
 
-			td {
+            textarea#chat {
+                width: 100%;
+                cols: 100;
+                height: 25%;
+                color:#004d00;
+                font-size:14px;
+            }
+
+            input#text {
+                margin-top: 10px;
+                margin-bottom: 10px;
+                width: 100%;
+            }
+
+            div#eval{
+                width: 100%;
+            }
+
+            td {
                 white-space: pre-wrap;
                 word-wrap: break-word;
                 padding: 0 15px 0 15px;
@@ -88,6 +95,7 @@
                 margin-left: 2px;
                 padding: 0px 5px 0px 5px;
             }
+
             table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
                 content: " \25B4\25BE"
             }
@@ -96,15 +104,15 @@
                 color:#004d00;
             }
 
-            table { 
-                border-collapse: collapse; 
+            table {
+                border-collapse: collapse;
             }
 
             #facts {
                 font-size: 18px;
             }
 
-            tr:nth-child(n) { 
+            tr:nth-child(n) {
                 border: solid thin;
             }
             #clockdiv{
@@ -130,7 +138,7 @@
 
         </style>
         <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-        <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
+        <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
         <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
@@ -142,6 +150,8 @@
             var selectTime = null, messageStartTime = null;
             var messageTime = 0.0;
             var num_offer = 0;
+            var eval_data = {};
+            var utterance_regex = /(You|Partner): (.*)/;
             {% if not debug %}
                 var read_time = 20000; // milliseconds
             {% else %}
@@ -157,21 +167,21 @@
                 var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
 
                 $.ajax({
-            		url: BASE_URL +'/_connect/',
-            		type: "get",
-            		data: {"uid": "{{ uid }}" },
-            		dataType: "json"
-            	});
-				
-            	$.ajax({
-            		url: BASE_URL + '/_join_chat/',
-            		type: "get",
-            		data: {"uid": "{{ uid }}"},
-            		dataType: "json",
-            		success: function(response) {
-            			displayText(response['message']);
-            		}
-            	});
+                    url: BASE_URL +'/_connect/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}" },
+                    dataType: "json"
+                });
+
+                $.ajax({
+                    url: BASE_URL + '/_join_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"},
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+                });
                 validCheckInterval = setInterval(pollServer, 3000);
 
                 // This part executes after the description is shown
@@ -181,31 +191,31 @@
 
                 // $('#accept').style.display = 'none';
                 // $('#reject').style.display = 'none';
-            	
-				//initializeClock('clockdiv', deadline);
 
-				inboxCheckInterval = setInterval(checkInbox, 1000);
-                
-				$('#text').keypress(function(e) {
-					var code = e.keyCode || e.which;
-					if ($('#text').val().length == 0) {
-						messageStartTime = Date.now() / 1000.0;
-						startedTyping();
-					}
-					if (code == 13) {
-						stoppedTyping();
-						text = $('#text').val();
-						$('#text').val('');
-						var currentTime = Date.now() / 1000.0;
-						messageTime = currentTime - messageStartTime;
-						sendMessage(text);
+                //initializeClock('clockdiv', deadline);
+
+                inboxCheckInterval = setInterval(checkInbox, 1000);
+
+                $('#text').keypress(function(e) {
+                    var code = e.keyCode || e.which;
+                    if ($('#text').val().length == 0) {
+                        messageStartTime = Date.now() / 1000.0;
+                        startedTyping();
+                    }
+                    if (code == 13) {
+                        stoppedTyping();
+                        text = $('#text').val();
+                        $('#text').val('');
+                        var currentTime = Date.now() / 1000.0;
+                        messageTime = currentTime - messageStartTime;
+                        sendMessage(text);
                         $("#text").attr("disabled", "disabled")
-						messageStartTime = null;
-						messageTime = 0.0;
-					}
+                        messageStartTime = null;
+                        messageTime = 0.0;
+                    }
 
                 });
-                
+
                 //$('#text').focus().keyup(
                 //    function(e) {
                 //        if(e.keyCode == 8 && $('#text').val().length == 0) {
@@ -216,14 +226,19 @@
                 $('#price').on('keyup blur', function () { // fires on every keyup & blur
                     if (num_offer < 1) {
                         var priceStr = $('#price').val()
-                        if (isNaN(priceStr)) { // ensure that string entered is a valid number 
-                            $('#submit').prop('disabled', 'disabled'); 
+                        if (isNaN(priceStr)) { // ensure that string entered is a valid number
+                            $('#submit').prop('disabled', 'disabled');
                         } else {
                             $('#submit').prop('disabled', false);        // enables button
                         }
                     }
-                    
+
                 });
+
+                $('.btn.btn-default.eval-tag').click(function () {
+                    $(this).toggleClass('btn-default btn-primary');
+                });
+
                 }, read_time);  // delay due to reading the description
             });
 
@@ -236,7 +251,7 @@
                 $.ajax({
                     url: BASE_URL + '/_offer/',
                     type: "get",
-                    data: { 
+                    data: {
                         "uid": "{{ uid }}",
                         "price": price,
                         "sides": sides
@@ -248,7 +263,7 @@
 
                 });
             }
-            
+
             function accept() {
                 $.ajax({
                     url: BASE_URL +'/_accept_offer/',
@@ -280,7 +295,7 @@
                 $.ajax({
                     url: BASE_URL + '/_quit/',
                     type: "get",
-                    data: { 
+                    data: {
                         "uid": "{{ uid }}"
                     },
                     dataType: "json",
@@ -341,6 +356,54 @@
                 $('#status').val(message);
             }
 
+            function clearEvalTags() {
+                $('.btn.btn-primary.eval-tag').toggleClass('btn-primary btn-default');
+            }
+
+            function collectEvalTags() {
+                var data = {};
+                var sum = 0;
+                $('.eval-tag').each(function (i) {
+                    var key = $(this).attr('id');
+                    if ( $(this).hasClass('btn-primary') ) {
+                        data[key] = 1;
+                        sum += 1;
+                    } else {
+                        data[key] = 0;
+                    }
+                });
+                if (sum > 0) {
+                    return data;
+                }
+                return null;
+            }
+
+            function sendEval() {
+                if (!jQuery.isEmptyObject(eval_data)) {
+                    var labels = collectEvalTags();
+                    if ( labels != null ) {
+                        //console.log('send eval:');
+                        var data = {
+                                "uid": "{{ uid }}",
+                                "eval_data": eval_data,
+                                "labels": labels
+                            }
+                        //console.log(JSON.stringify(data)) 
+                        $.ajax({
+                            url: BASE_URL + '/_send_eval/',
+                            type: "post",
+                            data: JSON.stringify(data),
+                            contentType: "application/json; charset=utf-8",
+                            dataType: "json",
+                            success: function(response) {
+                                //console.log('success');
+                                clearEvalTags();
+                            }
+                        });
+                    }
+                }
+            }
+
             function sendMessage(message) {
                 $.ajax({
                     url: BASE_URL + '/_send_message/',
@@ -370,11 +433,20 @@
                             } else {
                                 $("#text").removeAttr('disabled');
                                 displayText(response['message']);
+
+                                sendEval();
+                                eval_utterance = response['message'].match(utterance_regex);
+                                if (eval_utterance != null && eval_utterance.length > 2) {
+                                    eval_data['utterance'] = eval_utterance[2];
+                                } else {
+                                    eval_data['utterance'] = '';
+                                }
+                                eval_data['timestamp'] = response['timestamp'];
+                                $("#partner_utterance").html(eval_data['utterance']);
                             }
                             if ('price' in response) {
                                 $("#price").attr("disabled", "disabled")
                                 // $("#side_offers").attr("disabled", "disabled")
-                                
                                 $('#price').val(response['price']);
                                 $('#submit').hide();
                                 $('#accept').show();
@@ -387,9 +459,6 @@
                             //         $('#side_offers').val(response['sides']);
                             //     }
                             // }
-
-                                
-                                
                         }
                     }
                 });
@@ -408,7 +477,6 @@
                         }
                     }
                 });
-                
             }
 
             function disconnect() {
@@ -425,62 +493,61 @@
                     data: {"uid": "{{ uid }}" }
                 });
             }
-            
-            
-            function skipChat() {
-	            disconnect();
-            	$.ajax({
-            		url: BASE_URL + '/_skip_chat/',
-            		type: "get",
-            		data: {"uid": "{{ uid }}"}
-				});			
-				window.location.reload(true);
-			}
 
-			function getTimeRemaining(endtime) {
+            function skipChat() {
+                disconnect();
+                $.ajax({
+                    url: BASE_URL + '/_skip_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"}
+                });
+                window.location.reload(true);
+            }
+
+            function getTimeRemaining(endtime) {
                 var t = Date.parse(endtime) - Date.parse(new Date());
                 t = Math.min(t, Date.parse(endtime))
-				var seconds = Math.floor((t / 1000) % 60);
-				var minutes = Math.floor((t / 1000 / 60));
-				return {
-					'total': t,
-					'minutes': minutes,
-					'seconds': seconds
-				};
-			}
+                var seconds = Math.floor((t / 1000) % 60);
+                var minutes = Math.floor((t / 1000 / 60));
+                return {
+                    'total': t,
+                    'minutes': minutes,
+                    'seconds': seconds
+                };
+            }
 
-			function initializeClock(id, endtime) {
-				var clock = document.getElementById(id);
-				var minutesSpan = clock.querySelector('.minutes');
-				var secondsSpan = clock.querySelector('.seconds');
+            function initializeClock(id, endtime) {
+                var clock = document.getElementById(id);
+                var minutesSpan = clock.querySelector('.minutes');
+                var secondsSpan = clock.querySelector('.seconds');
 
-				function updateClock() {
-					var t = getTimeRemaining(endtime);
-					minutesSpan.innerHTML = t.minutes+':';
-					secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
-					if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
-						$("#leave").css("display", "inline-block");
-					}
-					if (t.total <= 0) {
-						clearInterval(validCheckInterval);
-						clearInterval(timeinterval);
-						pollServer();
-					}
-				}
+                function updateClock() {
+                    var t = getTimeRemaining(endtime);
+                    minutesSpan.innerHTML = t.minutes+':';
+                    secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+                    if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
+                        $("#leave").css("display", "inline-block");
+                    }
+                    if (t.total <= 0) {
+                        clearInterval(validCheckInterval);
+                        clearInterval(timeinterval);
+                        pollServer();
+                    }
+                }
 
-				updateClock();
-				var timeinterval = setInterval(updateClock, 1000);
-			}
+                updateClock();
+                var timeinterval = setInterval(updateClock, 1000);
+            }
 
-		</script>
+        </script>
     </head>
-    
+
     <body oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
     <div class="clearfix">
         <!-- Modal -->
         <div class="modal fade" id="description" role="dialog">
           <div class="modal-dialog">
-          
+
             <!-- Modal content-->
             <div class="modal-content">
               <div class="modal-header">
@@ -497,11 +564,11 @@
                 <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
                 {% if kb['item']['Images']|length >= 1 %}
-                <img height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
                 {% endif %}
                 <p>
                     {% for s in kb['item']['Description'] %}
-                        {{ s }}<br/>     
+                        {{ s }}<br/>
                     {% endfor %}
                 </p>
                 </div>
@@ -513,7 +580,7 @@
                 {% endif %}
               </div>
             </div>
-            
+
           </div>
         </div>
 
@@ -528,7 +595,7 @@
 
             <!--
             <div id="clockdiv" align="right">
-              Time Remaining: 
+              Time Remaining:
               <div>
                 <span class="minutes"></span>
                 <span class="seconds"></span>
@@ -536,7 +603,17 @@
             </div> -->
 
             <textarea readonly id="chat"></textarea>
-            <input readonly id="status" style="width:100%;"><br><br>
+            <!-- <input readonly id="status" style="width:100%;"><br><br> -->
+            <div class="eval_container" id="eval">
+                <h4>Rate your partner's utterance:</h4>
+                <p id="partner_utterance"></p>
+                <div class="button_container">
+                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical">NOT grammatical</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="incoherent">Strange...</button>
+                    <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
+                    <button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>
+                </div>
+            </div>
             <input id="text" placeholder="Enter your message here"><br><br>
 
         </div>
@@ -565,12 +642,12 @@
                         {% if attr == 'Title' %}
                             <p><b>{{ kb['item'][attr] }}</b></p>
                             {% if kb['item']['Images']|length >= 1 %}
-                <img height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/')}}{{kb['item']['Images'][0]}}"/>
                 {% endif %}
                         {% elif attr == 'Description' %}
                             {% for s in kb['item'][attr] %}
                             <div id="factDescription" class="description-collapse">
-                                {{ s }}<br/>     
+                                {{ s }}<br/>
                             </div>
                             {% endfor %}
                         {% else %}
@@ -578,7 +655,7 @@
                                 <td><b>{{attr}}</b></td>
                             {% set value = kb['item'][attr] %}
                             {% if value is none %}
-                                <td>?</td> 
+                                <td>?</td>
                             {% elif value is string %}
                                 <td>{{ value }}</td>
                             {% else %}
@@ -594,7 +671,7 @@
                 <div id="facts">
                     <h3>Partner Goal</h3>
                     <p>
-                    Your listing price for this item is {{ "$%d"|format(kb['item']['Price']) }}. 
+                    Your listing price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
                     </p>
                 </div>
             {% endif %}
@@ -614,11 +691,11 @@
                 <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
                 <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
             </div>
-            
+
 
             <div class="modal fade" id="report_box" role="dialog">
               <div class="modal-dialog">
-              
+
                 <!-- Modal content-->
                 <div class="modal-content">
                   <div class="modal-header">
@@ -631,7 +708,7 @@
                     <button onclick="report()" style="display: block;">Submit</button>
                   </div>
                 </div>
-                
+
               </div>
             </div>
 

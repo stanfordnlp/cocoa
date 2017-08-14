@@ -1,24 +1,25 @@
-import json
 
 __author__ = 'anushabala'
-import uuid
-from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
-from src.turk.accept_negotiation_hits import reject_transcript
-from src.basic.systems.human_system import HumanSystem
-from src.scripts.visualize_data import visualize_chat
-from src.web.dump_events_to_json import convert_events_to_json
+
+from uuid import uuid4
 import hashlib
 import sqlite3
 import time
 import numpy as np
-from src.basic.controller import Controller
-from src.basic.event import Event
 from flask import Markup
-from uuid import uuid4
 from collections import defaultdict
+import json
+
+from web_states import FinishedState, UserChatState, WaitingState, SurveyState
 from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 from web_logger import WebLogger
+from src.turk.accept_negotiation_hits import reject_transcript
+from src.basic.systems.human_system import HumanSystem
+from src.scripts.visualize_data import visualize_chat
+from src.web.dump_events_to_json import convert_events_to_json
+from src.basic.controller import Controller
+from src.basic.event import Event
 
 m = hashlib.md5()
 m.update("bot")
@@ -162,9 +163,7 @@ class BaseBackend(object):
     def add_event_to_db(self, chat_id, event):
         def _create_row(chat_id, event):
             data = event.data
-            if event.action == 'select':
-                data = json.dumps(event.data)
-            if event.action == 'offer':
+            if event.action in ('select', 'offer', 'eval'):
                 data = json.dumps(event.data)
             return chat_id, event.action, event.agent, event.time, data, event.start_time
 
@@ -464,8 +463,8 @@ class BaseBackend(object):
     def get_finished_info(self, userid, from_mturk=False, current_status=Status.Finished):
         def _generate_mturk_code(completed=True):
             if completed:
-                return "MTURK_TASK_C{}".format(str(uuid.uuid4().hex))
-            return "MTURK_TASK_I{}".format(str(uuid.uuid4().hex))
+                return "MTURK_TASK_C{}".format(str(uuid4().hex))
+            return "MTURK_TASK_I{}".format(str(uuid4().hex))
 
         def _add_finished_task_row(cursor, userid, mturk_code, chat_id):
             cursor.execute('INSERT INTO mturk_task VALUES (?,?,?)',
