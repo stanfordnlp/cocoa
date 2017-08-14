@@ -241,13 +241,16 @@ def index():
                                uid=userid())
     elif status == Status.Chat:
         peek = False
+        debug = False
+        partner_kb = None
         if request.args.get('peek') is not None and request.args.get('peek') == '1':
             peek = True
-        chat_info = backend.get_chat_info(userid(), peek=peek)
-        partner_kb = None
-        if peek:
             partner_kb = chat_info.partner_kb.to_dict()
+        if request.args.get('debug') is not None and request.args.get('debug') == '1':
+            debug = True
+        chat_info = backend.get_chat_info(userid(), peek=peek)
         return render_template('chat.html',
+                               debug=debug,
                                uid=userid(),
                                kb=chat_info.kb.to_dict(),
                                attributes=[attr.name for attr in chat_info.attributes],

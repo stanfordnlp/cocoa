@@ -142,7 +142,7 @@
             var selectTime = null, messageStartTime = null;
             var messageTime = 0.0;
             var num_offer = 0;
-            {% if not partner_kb %}
+            {% if not debug %}
                 var read_time = 20000; // milliseconds
             {% else %}
                 var read_time = 1000;  // In peek/debug mode, skip it
