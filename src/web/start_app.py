@@ -120,14 +120,14 @@ def add_systems(args, config_dict, schema):
     total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
     pairing_probabilities = {}
+    timed = False if params['debug'] else True
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
             name = info["type"]
             try:
-                # TODO: debug mode timed=False
-                model = get_system(name, args, timed=True)
+                model = get_system(name, args, timed=timed)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -250,6 +250,9 @@ if __name__ == "__main__":
 
     if 'end_survey' not in params.keys() :
         params['end_survey'] = 0
+
+    if 'debug' not in params:
+        params['debug'] = False
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
