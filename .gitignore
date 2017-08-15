@@ -9,4 +9,3 @@ Makefile
 *.png
 web_output/*
 *.pdf
-data/web/negotiation/app_params.json
