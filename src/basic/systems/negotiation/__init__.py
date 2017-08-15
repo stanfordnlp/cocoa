@@ -1,4 +1,4 @@
-from src.basic.negotiation.price_tracker import PriceTracker
+from src.basic.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
 from src.model.negotiation.retriever import Retriever, add_retriever_arguments
 from rulebased_system import RulebasedSystem
 from ranker_system import IRRankerSystem, EncDecRankerSystem
@@ -8,10 +8,11 @@ from cmd_system import CmdSystem
 def add_system_arguments(parser):
     #add_neural_system_arguments(parser)
     add_retriever_arguments(parser)
+    add_price_tracker_arguments(parser)
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
 
 def get_system(name, args, schema=None, timed=False):
-    lexicon = PriceTracker()
+    lexicon = PriceTracker(args.price_tracker_model)
     if name == 'rulebased':
         return RulebasedSystem(lexicon, timed)
     elif name == 'cmd':

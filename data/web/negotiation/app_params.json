@@ -33,6 +33,14 @@
     "task_title": "Let's Negotiate!",
     "icon": "handshake.jpg",
     "end_survey": 1,
-    "skip_chat_enabled": false
+    "skip_chat_enabled": false,
+    "num_chats_per_scenario": 1,
+    "debug": false,
+    "models": {
+        "rulebased": {
+            "active": true,
+            "type": "rulebased"
+        }
+    }
 }
 

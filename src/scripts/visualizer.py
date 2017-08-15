@@ -2,18 +2,19 @@
 Visualize evaluation results.
 '''
 import json
+from collections import defaultdict
+import numpy as np
+from itertools import izip, chain
+from scipy.stats import ttest_ind as ttest
 
 import src.config as config
 from src.basic.util import read_json, write_json
 from src.basic.dataset import Example
 from html_visualizer import HTMLVisualizer, add_html_visualizer_arguments
-from collections import defaultdict
-import numpy as np
-from itertools import izip, chain
-from scipy.stats import ttest_ind as ttest
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pyplot as plt
+from src.analysis.negotiation.analyze_strategy import StrategyAnalyzer
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 class Visualizer(object):
     '''
@@ -213,7 +214,7 @@ class BaseVisualizer(object):
                             summary[question][win_agent]['ttest'] += lose_agent[0]
             # Print
             for question, agent_stats in summary.iteritems():
-                print '============= %s ===============' % question.upper()
+                print '============= %s ===============' % self.question_labels[question]
                 print '{:<12s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', '#score', 'win')
                 print '---------------------------------------'
                 for i, agent in enumerate(agents):
@@ -290,35 +291,22 @@ class NegotiationVisualizer(BaseVisualizer):
         num_success = 0
         final_offer = 0
         for ex in examples:
+            if not StrategyAnalyzer.has_deal(ex):
+                continue
             if ex.agents['0'] == system:
                 eval_agent = 0
             else:
                 eval_agent = 1
-            b = ex.scenario.kbs[eval_agent].facts['personal']['Bottomline']
-            t = ex.scenario.kbs[eval_agent].facts['personal']['Target']
-            # l = ex.scenario.kbs[eval_agent].facts['item']['Price']
-            if ex.outcome is None or ex.outcome["reward"] == 0:
+            role = ex.scenario.kbs[eval_agent].facts['personal']['Role']
+            num_success += 1
+            final_price = ex.outcome['offer']['price']
+            margin = StrategyAnalyzer.get_margin(ex, final_price, eval_agent, role)
+            if not margin:
                 continue
             else:
-                num_success += 1
-                for event in ex.events:
-                    if event.action == 'offer':
-                        p = float(event.data['price'])
-                        if ex.scenario.kbs[eval_agent].facts['personal']['Role'] == 'buyer':
-                            if b is not None:
-                                diff = (b - p)/b
-                            else:
-                                diff = (p - t)/t
-                        else:
-                            if b is not None:
-                                diff = (p - b)/b
-                            else:
-                                diff = (t - p)/t
-
-                        final_offer += diff
-                        break
+                final_offer += margin
         return {'success rate': num_success / float(len(examples)),
-                'agreed offer': final_offer / float(num_success),
+                'average margin': final_offer / float(num_success),
                 }
 
     def compute_effectiveness(self):

@@ -1,24 +1,25 @@
-import json
 
 __author__ = 'anushabala'
-import uuid
-from src.web.main.web_states import FinishedState, UserChatState, WaitingState, SurveyState
-from src.turk.accept_negotiation_hits import reject_transcript
-from src.basic.systems.human_system import HumanSystem
-from src.scripts.visualize_data import visualize_chat
-from src.web.dump_events_to_json import convert_events_to_json
+
+from uuid import uuid4
 import hashlib
 import sqlite3
 import time
 import numpy as np
-from src.basic.controller import Controller
-from src.basic.event import Event
 from flask import Markup
-from uuid import uuid4
 from collections import defaultdict
+import json
+
+from web_states import FinishedState, UserChatState, WaitingState, SurveyState
 from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 from web_logger import WebLogger
+from src.turk.accept_negotiation_hits import reject_transcript
+from src.basic.systems.human_system import HumanSystem
+from src.scripts.visualize_data import visualize_chat
+from src.web.dump_events_to_json import convert_events_to_json
+from src.basic.controller import Controller
+from src.basic.event import Event
 
 m = hashlib.md5()
 m.update("bot")
@@ -37,7 +38,7 @@ class BackendConnection(object):
 
 
 class BaseBackend(object):
-    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
 
@@ -48,6 +49,7 @@ class BaseBackend(object):
         self.sessions = sessions
         self.controller_map = controller_map
         self.pairing_probabilities = pairing_probabilities
+        self.num_chats_per_scenario = num_chats_per_scenario
         self.logger = WebLogger.get_logger()
 
     def _update_user(self, cursor, userid, **kwargs):
@@ -161,9 +163,7 @@ class BaseBackend(object):
     def add_event_to_db(self, chat_id, event):
         def _create_row(chat_id, event):
             data = event.data
-            if event.action == 'select':
-                data = json.dumps(event.data)
-            if event.action == 'offer':
+            if event.action in ('select', 'offer', 'eval'):
                 data = json.dumps(event.data)
             return chat_id, event.action, event.agent, event.time, data, event.start_time
 
@@ -260,7 +260,7 @@ class BaseBackend(object):
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
-                    if scenario_dialogues[sid][partner_type] == 0:
+                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario:
                         active_scenarios[sid].append(partner_type)
 
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
@@ -461,8 +461,8 @@ class BaseBackend(object):
     def get_finished_info(self, userid, from_mturk=False, current_status=Status.Finished):
         def _generate_mturk_code(completed=True):
             if completed:
-                return "MTURK_TASK_C{}".format(str(uuid.uuid4().hex))
-            return "MTURK_TASK_I{}".format(str(uuid.uuid4().hex))
+                return "MTURK_TASK_C{}".format(str(uuid4().hex))
+            return "MTURK_TASK_I{}".format(str(uuid4().hex))
 
         def _add_finished_task_row(cursor, userid, mturk_code, chat_id):
             cursor.execute('INSERT INTO mturk_task VALUES (?,?,?)',
@@ -857,31 +857,25 @@ class NegotiationBackend(BaseBackend):
         agent_idx = _get_agent_idx()
         game_over, game_complete = self.is_game_over(userid)
 
-        if game_over:
-            if self.should_reject_chat(userid, 1-agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}),"
-                                  " and redirecting ".format(controller.get_chat_id(), userid, 1-agent_idx))
-                self.end_chat_and_redirect(cursor, partner_id,
-                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
-            else:
-                if not self.is_user_partner_bot(cursor, userid):
-                    partner_msg, _ = self.get_completion_messages(partner_id)
-                    self.logger.debug("Accepted chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}), "
-                                      "and redirecting "
-                                      "to survey".format(controller.get_chat_id(), userid, 1-agent_idx))
-                    self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
-
+        def verify_chat(userid, agent_idx, is_partner):
+            user_name = 'partner' if is_partner else 'user'
+            chat_id = controller.get_chat_id()
             if self.should_reject_chat(userid, agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and "
-                                  "redirecting".format(controller.get_chat_id(), userid, agent_idx))
+                self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
+                                  "redirecting".format(chat_id, user_name, userid, agent_idx))
                 self.end_chat_and_redirect(cursor, userid,
                                            message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 msg, _ = self.get_completion_messages(userid)
-                self.logger.debug("Accepted chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
-                                  "survey".format(controller.get_chat_id(), userid, agent_idx))
+                self.logger.debug("Accepted chat with ID {:s} for {:s} {:s} (agent ID {:d}), and redirecting to "
+                                  "survey".format(chat_id, user_name, userid, agent_idx))
                 self.end_chat_and_finish(cursor, userid, message=msg)
 
+        if game_over:
+            if not self.is_user_partner_bot(cursor, userid):
+                verify_chat(partner_id, 1 - agent_idx, True)
+            else:
+                verify_chat(userid, agent_idx, False)
             return True
 
         return False

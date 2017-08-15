@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import csv
 import sqlite3
 import json
-from src.scripts.negotiation.utils import get_total_tokens_per_agent, get_turns_per_agent
+from src.analysis.negotiation.utils import get_total_tokens_per_agent, get_turns_per_agent
 
 MIN_TOKENS = 40
 
