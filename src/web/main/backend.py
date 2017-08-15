@@ -260,9 +260,7 @@ class BaseBackend(object):
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
-                    # TODO: make this configurable
-                    #if scenario_dialogues[sid][partner_type] == 0:
-                    if scenario_dialogues[sid][partner_type] < 5:
+                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario:
                         active_scenarios[sid].append(partner_type)
 
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
@@ -859,31 +857,25 @@ class NegotiationBackend(BaseBackend):
         agent_idx = _get_agent_idx()
         game_over, game_complete = self.is_game_over(userid)
 
-        if game_over:
-            if self.should_reject_chat(userid, 1-agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}),"
-                                  " and redirecting ".format(controller.get_chat_id(), userid, 1-agent_idx))
-                self.end_chat_and_redirect(cursor, partner_id,
-                                           message=Messages.NegotiationRedirect + " " + Messages.Waiting)
-            else:
-                if not self.is_user_partner_bot(cursor, userid):
-                    partner_msg, _ = self.get_completion_messages(partner_id)
-                    self.logger.debug("Accepted chat with ID {:s} for PARTNER of user {:s} (partner agent ID {:d}), "
-                                      "and redirecting "
-                                      "to survey".format(controller.get_chat_id(), userid, 1-agent_idx))
-                    self.end_chat_and_finish(cursor, partner_id, message=partner_msg)
-
+        def verify_chat(userid, agent_idx, is_partner):
+            user_name = 'partner' if is_partner else 'user'
+            chat_id = controller.get_chat_id()
             if self.should_reject_chat(userid, agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for user {:s} (agent ID {:d}), and "
-                                  "redirecting".format(controller.get_chat_id(), userid, agent_idx))
+                self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
+                                  "redirecting".format(chat_id, user_name, userid, agent_idx))
                 self.end_chat_and_redirect(cursor, userid,
                                            message=Messages.NegotiationRedirect + " " + Messages.Waiting)
             else:
                 msg, _ = self.get_completion_messages(userid)
-                self.logger.debug("Accepted chat with ID {:s} for user {:s} (agent ID {:d}), and redirecting to "
-                                  "survey".format(controller.get_chat_id(), userid, agent_idx))
+                self.logger.debug("Accepted chat with ID {:s} for {:s} {:s} (agent ID {:d}), and redirecting to "
+                                  "survey".format(chat_id, user_name, userid, agent_idx))
                 self.end_chat_and_finish(cursor, userid, message=msg)
 
+        if game_over:
+            if not self.is_user_partner_bot(cursor, userid):
+                verify_chat(partner_id, 1 - agent_idx, True)
+            else:
+                verify_chat(userid, agent_idx, False)
             return True
 
         return False
