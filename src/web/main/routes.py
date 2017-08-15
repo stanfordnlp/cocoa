@@ -102,13 +102,14 @@ def check_inbox():
         elif event.action == 'reject':
             message = format_message("Sorry, your partner rejected your offer.", True)
             return jsonify(message=message, received=True, timestamp=event.time)
-
         elif event.action == 'typing':
             if event.data == 'started':
                 message = "Your partner is typing..."
             else:
                 message = ""
             return jsonify(message=message, status=True, received=True, timestamp=event.time)
+        elif event.action == 'eval':
+            return jsonify(status=False, received=True, timestamp=event.time)
         return jsonify(message=message, status=False, received=True, timestamp=event.time)
     return jsonify(status=False, received=False)
 

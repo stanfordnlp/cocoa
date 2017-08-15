@@ -430,7 +430,7 @@
                         if(response['received']) {
                             if(response['status']) {
                                 displayStatus(response['message'])
-                            } else {
+                            } else if ('message' in response) {
                                 $("#text").removeAttr('disabled');
                                 displayText(response['message']);
 
