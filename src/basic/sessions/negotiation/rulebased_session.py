@@ -28,7 +28,6 @@ class BaseRulebasedSession(Session):
         self.target = self.kb.facts['personal']['Target']
         self.list_price = self.kb.facts['item']['Price']
         self.category = self.kb.facts['item']['Category']
-        assert self.category in ('car', 'housing', 'furniture')
 
         # Direction of desired price
         self.inc = None
