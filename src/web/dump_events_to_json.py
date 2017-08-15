@@ -52,7 +52,7 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
             continue
         if action == 'message' and len(data.strip()) == 0:
             continue
-        if action == 'select' or action == 'offer':
+        if action == 'select' or action == 'offer' or action == 'eval':
             data = json.loads(data)
         agent_chat[agent] = True
 

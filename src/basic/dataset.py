@@ -24,6 +24,18 @@ class Example(object):
         self.events.append(event)
 
     @staticmethod
+    def gather_eval(events):
+        event_dict = {e.time: e for e in events if e.action != 'eval'}
+        events_with_eval = []
+        for e in events:
+            if e.action == 'eval':
+                event_dict[e.time].tags = [k for k, v in e.data['labels'].iteritems() if v != 0]
+                events_with_eval.append(event_dict[e.time])
+            else:
+                events_with_eval.append(e)
+        return events_with_eval
+
+    @staticmethod
     def from_dict(scenario_db, raw):
         # compatibility with older data format
         if 'scenario' in raw:
@@ -31,7 +43,7 @@ class Example(object):
         else:
             scenario = scenario_db.get(raw['scenario_uuid'])
         uuid = raw['scenario_uuid']
-        events = [Event.from_dict(e) for e in raw['events']]
+        events = gather_eval([Event.from_dict(e) for e in raw['events']])
         outcome = raw['outcome']
         ex_id = raw['uuid']
         if 'agents' in raw:

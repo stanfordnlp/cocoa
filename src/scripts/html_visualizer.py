@@ -77,7 +77,6 @@ class BaseHTMLVisualizer(object):
                 agent_str[agent] = 'Agent %d (%s)' % (agent, 'unknown')
 
         for event in events:
-            # TODO: fix event.tim
             if not event.time:
                 t = None
             else:
@@ -96,13 +95,22 @@ class BaseHTMLVisualizer(object):
                 s = 'ACCEPT OFFER'
             elif event.action == 'reject':
                 s = 'REJECT OFFER'
+            elif event.action == 'eval':
+                s = 'EVAL {utterance} || {tags}'.format(utterance=event.data['utterance'], tags=' '.join([k for k, v in event.data['labels'].iteritems() if v == 1]))
             else:
                 continue
+
+            if hasattr(event, 'tags'):
+                tags = ', '.join(event.tags)
+            else:
+                tags = ''
+
             row = '<tr class=\"agent%d\">\
                     <td class=\"time\">%s</td>\
                     <td class=\"agent\">%s</td>\
+                    <td class=\"tags\">%s</td>\
                     <td class=\"message\">%s</td>\
-                   </tr>' % (event.agent, t, a, s)
+                   </tr>' % (event.agent, t, a, tags, s)
 
             chat_html.append(row)
 
