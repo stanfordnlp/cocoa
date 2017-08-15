@@ -149,6 +149,7 @@
                 var read_time = 1000;  // In peek/debug mode, skip it
             {% endif %}
             $(document).ready(function(){
+                $('#description').modal({backdrop: 'static', keyboard: false});
                 $('#description').modal('show');
                 $("#instructionCollapse").click();
                 window.onbeforeunload = disconnect;
