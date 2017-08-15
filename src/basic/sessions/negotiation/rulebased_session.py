@@ -56,6 +56,13 @@ class BaseRulebasedSession(Session):
         self.persuade_detail = []
         self.sides = {}
 
+    @classmethod
+    def round_price(cls, price, multiple=10):
+        if price > multiple:
+            return int(price) / multiple * multiple
+        else:
+            return price
+
     def init_price(self):
         '''
         Initial offer
@@ -68,6 +75,7 @@ class BaseRulebasedSession(Session):
                 self.my_price = self.target
             else:
                 self.my_price = self.target * (1 + self.inc * self.overshoot)
+        self.my_price = self.my_price
 
     def receive(self, event):
         if event.action == 'message':
@@ -288,12 +296,15 @@ class SellerRulebasedSession(BaseRulebasedSession):
         # Side offers
         self.sides = {
             'credit': "I can accept credit card",
+            'extra': "I can throw in a $10 Amazon gift card.",
             }
+        if self.category != 'furniture':
+            self.sides['delivery'] = "I can deliver it tomorrow"
+
         if self.category == 'car':
             self.sides.update({
                 'warranty': "I can give you one year warranty.",
                 'fix scratch': "I can fix the scratches.",
-                'delivery': "I can deliver it tomorrow",
                 })
         elif self.category == 'housing':
             self.sides.update({
@@ -303,7 +314,15 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 })
         elif self.category == 'furniture':
             self.sides.update({
-                'delivery': "I can deliver it tomorrow",
+                'extra': "I can throw in a few books.",
+                })
+        elif self.category == 'bike':
+            self.sides.update({
+                'extra': "It will come with a lock and the headlight.",
+                })
+        elif self.category == 'phone':
+            self.sides.update({
+                'extra': "I can throw in a few screen protectors.",
                 })
 
         # Persuade
@@ -330,6 +349,17 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "The color matches with most furniture.",
                 "It will show your good taste.",
                 ]
+        elif self.category == 'bike':
+            self.persuade_detail = [
+                "The color is really attractive.",
+                "It's great for commute.",
+                "It's been maintained regularly and is in great shape.",
+                ]
+        if self.category != 'housing':
+            self.persuade_detail.extend([
+                "It's been rarely used and is kept in great condition!",
+                "It's almost brand new.",
+                ])
 
 
     def intro(self):
@@ -369,7 +399,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
 
         # Side offers
         self.sides = {
-            'credit': "Do you accept credit card?",
+            'cash': "I can pay cash",
             }
         if self.category == 'car':
             self.sides.update({
@@ -391,6 +421,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
         self.persuade_price = [
                 "Can you go a little lower?",
                 "That's way too expensive!",
+                "It looks really nice but way out of my budget...",
                 ]
         if self.category == 'car':
             self.persuade_detail = [
@@ -408,8 +439,19 @@ class BuyerRulebasedSession(BaseRulebasedSession):
             self.persuade_detail = [
                     "Hmm...The color doesn't really match with my place",
                     "Can it be dissembled?",
-                    "It looks really nice; why are you selling it?",
                 ]
+        elif self.category == 'bike':
+            self.persuade_detail = [
+                    "Can you go lower since I need to purchase locks and headlight?",
+                ]
+        elif self.category == 'phone':
+            self.persuade_detail = [
+                    "Is it unlocked?",
+                ]
+        if self.category != 'housing':
+            self.persuade_detail.extend([
+                    "It looks really nice; why are you selling it?",
+                ])
 
     def intro(self):
         s = (
