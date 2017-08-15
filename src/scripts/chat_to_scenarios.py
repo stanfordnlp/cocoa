@@ -7,13 +7,13 @@ from src.basic.schema import Schema
 parser = argparse.ArgumentParser()
 parser.add_argument('--chats')
 parser.add_argument('--scenarios')
-parser.add_argument('--schema-path')
+parser.add_argument('--max', type=int)
 args = parser.parse_args()
 
 chats = read_json(args.chats)
-schema = Schema(args.schema_path)
 scenarios = []
-for chat in chats:
-    scenarios.append(Scenario.from_dict(schema, chat['scenario']))
+n = args.max or len(chats)
+for chat in chats[:n]:
+    scenarios.append(Scenario.from_dict(None, chat['scenario']))
 scenario_db = ScenarioDB(scenarios)
 write_json(scenario_db.to_dict(), args.scenarios)
