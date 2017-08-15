@@ -16,7 +16,6 @@ class BaseEvent(object):
         self.action = action
         self.data = data
         self.start_time = start_time
-        self.data = self.data
 
     @staticmethod
     def from_dict(raw):
