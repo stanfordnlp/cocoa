@@ -874,8 +874,7 @@ class NegotiationBackend(BaseBackend):
         if game_over:
             if not self.is_user_partner_bot(cursor, userid):
                 verify_chat(partner_id, 1 - agent_idx, True)
-            else:
-                verify_chat(userid, agent_idx, False)
+            verify_chat(userid, agent_idx, False)
             return True
 
         return False
