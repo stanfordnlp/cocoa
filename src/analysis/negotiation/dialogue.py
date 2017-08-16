@@ -66,10 +66,11 @@ class Utterance(object):
             return '<{}>'.format(self.action)
 
 class Turn(object):
-    def __init__(self, agent, role, action, utterances):
+    def __init__(self, agent, role, action, tags, utterances):
         self.agent = agent
         self.role = role
         self.action = action
+        self.tags = tags
         self.utterances = utterances
 
     def __str__(self):
@@ -90,7 +91,7 @@ class Turn(object):
         else:
             utterances = [Utterance(event.action, [], event.action)]
         role = kb.facts['personal']['Role']
-        return cls(event.agent, role, event.action, utterances)
+        return cls(event.agent, role, event.action, event.tags, utterances)
 
     def num_tokens(self):
         return sum([u.num_tokens() for u in self.utterances])
@@ -127,10 +128,11 @@ class Dialogue(object):
 
     eval_questions = ('fluent', 'coherent', 'persuasive', 'fair')
 
-    def __init__(self, chat_id, scenario_id, post_id, kbs, turns, outcome, scores):
+    def __init__(self, chat_id, scenario_id, post_id, kbs, turns, outcome, scores, agents):
         self.chat_id = chat_id
         self.post_id = post_id
         self.kbs = kbs
+        self.agents = agents
         self.kb_by_role = {kb.facts['personal']['Role']: kb for kb in kbs}
         self.listing_price = self.kb_by_role['seller'].facts['personal']['Target']
         self.buyer_target = self.kb_by_role['buyer'].facts['personal']['Target']
@@ -192,7 +194,7 @@ class Dialogue(object):
         kbs = ex.scenario.kbs
         turns = [Turn.from_event(event, kbs, price_tracker) for event in ex.events if cls.is_valid_event(event)]
         scores = cls.parse_scores(raw_scores)
-        return cls(ex.ex_id, ex.uuid, ex.scenario.post_id, kbs, turns, ex.outcome, scores)
+        return cls(ex.ex_id, ex.uuid, ex.scenario.post_id, kbs, turns, ex.outcome, scores, ex.agents)
 
     @classmethod
     def parse_scores(cls, raw_scores):

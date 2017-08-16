@@ -82,7 +82,18 @@ class StrategyAnalyzer(object):
             if 'liwc' in labels:
                 dialogue.label_liwc(self.liwc)
 
-    # TODO: one-hot encoding of speech acts
+    def summarize_tags(self):
+        tags = defaultdict(lambda : defaultdict(int))
+        for dialogue in self.examples:
+            for turn in dialogue.turns:
+                agent_name = dialogue.agents[turn.agent]
+                for tag in turn.tags:
+                    tags[agent_name][tag] += 1
+        for system, labels in tags.iteritems():
+            print system.upper()
+            for k, v in labels.iteritems():
+                print k, v
+
     def create_dataframe(self):
         data = []
         for dialogue in ifilter(lambda x: x.has_deal(), self.examples):
