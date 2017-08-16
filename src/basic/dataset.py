@@ -23,31 +23,19 @@ class Example(object):
     def add_event(self, event):
         self.events.append(event)
 
-    @staticmethod
-    def gather_eval(events):
-        event_dict = {e.time: e for e in events if e.action != 'eval'}
-        events_with_eval = []
-        for e in events:
-            if e.action == 'eval':
-                event_dict[e.time].tags = [k for k, v in e.data['labels'].iteritems() if v != 0]
-                events_with_eval.append(event_dict[e.time])
-            else:
-                events_with_eval.append(e)
-        return events_with_eval
-
-    @staticmethod
-    def from_dict(scenario_db, raw):
+    @classmethod
+    def from_dict(cls, scenario_db, raw):
         # compatibility with older data format
         if 'scenario' in raw:
             scenario = Scenario.from_dict(None, raw['scenario'])
         else:
             scenario = scenario_db.get(raw['scenario_uuid'])
         uuid = raw['scenario_uuid']
-        events = gather_eval([Event.from_dict(e) for e in raw['events']])
+        events = Event.gather_eval([Event.from_dict(e) for e in raw['events']])
         outcome = raw['outcome']
         ex_id = raw['uuid']
         if 'agents' in raw:
-            agents = raw['agents']
+            agents = {int(k): v for k, v in raw['agents'].iteritems()}
         else:
             agents = None
         return Example(scenario, uuid, events, outcome, ex_id, agents)
