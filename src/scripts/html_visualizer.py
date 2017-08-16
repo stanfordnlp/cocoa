@@ -49,7 +49,7 @@ class BaseHTMLVisualizer(object):
 
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
-        events = [Event.from_dict(e) for e in chat["events"]]
+        events = Event.gather_eval([Event.from_dict(e) for e in chat["events"]])
 
         if len(events) == 0:
             return False, False, None
@@ -100,9 +100,9 @@ class BaseHTMLVisualizer(object):
             else:
                 continue
 
-            if hasattr(event, 'tags'):
+            try:
                 tags = ', '.join(event.tags)
-            else:
+            except AttributeError:
                 tags = ''
 
             row = '<tr class=\"agent%d\">\

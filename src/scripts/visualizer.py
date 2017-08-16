@@ -80,7 +80,10 @@ class BaseVisualizer(object):
     def _read_eval(cls, trans, question_scores, mask=None, agent_set=set()):
         dialogue_agents = trans[0]
         dialogue_scores = trans[1]
+        dialogue_setting_counts = defaultdict(int)
         for dialogue_id, agent_dict in dialogue_agents.iteritems():
+            agent_key = tuple(sorted(agent_dict.values()))
+            dialogue_setting_counts[agent_key] += 1
             if mask is not None and not dialogue_id in mask:
                 continue
             scores = dialogue_scores[dialogue_id]
@@ -94,6 +97,7 @@ class BaseVisualizer(object):
                         ratings = (ratings,)
                     ratings = [3 if x == 'null' else x for x in ratings]
                     question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
+        print dialogue_setting_counts
 
     def question_type(self, question):
         '''
@@ -293,7 +297,7 @@ class NegotiationVisualizer(BaseVisualizer):
         for ex in examples:
             if not StrategyAnalyzer.has_deal(ex):
                 continue
-            if ex.agents['0'] == system:
+            if ex.agents[0] == system:
                 eval_agent = 0
             else:
                 eval_agent = 1
@@ -313,12 +317,12 @@ class NegotiationVisualizer(BaseVisualizer):
         chats = defaultdict(list)
         for raw in self.chats:
             ex = Example.from_dict(None, raw)
-            if ex.agents['0'] == 'human' and ex.agents['1'] == 'human':
+            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
                 chats['human'].append(ex)
-            elif ex.agents['0'] != 'human':
-                chats[ex.agents['0']].append(ex)
-            elif ex.agents['1'] != 'human':
-                chats[ex.agents['1']].append(ex)
+            elif ex.agents[0] != 'human':
+                chats[ex.agents[0]].append(ex)
+            elif ex.agents[1] != 'human':
+                chats[ex.agents[1]].append(ex)
 
         results = {}
         for system, examples in chats.iteritems():
@@ -413,6 +417,7 @@ if __name__ == '__main__':
     if args.hist:
         visualizer.hist(question_scores, args.outdir, partner=args.partner)
 
+    # TODO: move these to analyzer
     if args.summary:
         summary = visualizer.summarize()
         write_json(summary, args.stats)
