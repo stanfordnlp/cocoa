@@ -47,8 +47,11 @@
     float: left;
 }
 .chatLog .chat {
-    width: 100%;
+    width: auto;
     border-collapse: collapse;
+}
+.chat td {
+    padding: 2px 15px 2px 15px;
 }
 .kb0 th {
     background-color: #80ced6;
