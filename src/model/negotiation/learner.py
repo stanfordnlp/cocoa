@@ -35,9 +35,9 @@ class Learner(BaseLearner):
         decoder_args = {'inputs': batch['decoder_inputs'],
                 'targets': targets,
                 'price_inputs': batch['decoder_price_inputs'],
+                'price_targets': batch['price_targets'],
                 'price_predictor': {},
                 'context': batch['context'],
-                'mask': batch['mask'],
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
@@ -54,10 +54,14 @@ class Learner(BaseLearner):
         '''
         Run truncated RNN through a sequence of batch examples.
         '''
-        # TODO: put price_history into encoder/decoder_state
         encoder_init_state = None
+        init_price_history = None
         for batch in dialogue_batch['batch_seq']:
-            feed_dict = self._get_feed_dict(batch, encoder_init_state, test=test)
+            # TODO: hacky
+            if init_price_history is None and hasattr(self.model.decoder, 'price_predictor'):
+                batch_size = batch['encoder_inputs'].shape[0]
+                init_price_history = self.model.decoder.price_predictor.zero_init_price(batch_size)
+            feed_dict = self._get_feed_dict(batch, encoder_init_state, test=test, init_price_history=init_price_history)
             fetches = {
                     'logits': self.model.decoder.output_dict['logits'],
                     'loss': self.model.loss,
@@ -70,6 +74,8 @@ class Learner(BaseLearner):
                 fetches['total_loss'] = self.model.total_loss
             if self.model.stateful:
                 fetches['final_state'] = self.model.final_state
+            if hasattr(self.model.decoder, 'price_predictor'):
+                fetches['price_history'] = self.model.decoder.output_dict['price_history']
 
             results = sess.run(fetches, feed_dict=feed_dict)
 
@@ -77,6 +83,8 @@ class Learner(BaseLearner):
                 encoder_init_state = results['final_state']
             else:
                 encoder_init_state = None
+            if 'price_history' in results:
+                init_price_history = results['price_history']
 
             if self.verbose:
                 preds = np.argmax(results['logits'], axis=2)

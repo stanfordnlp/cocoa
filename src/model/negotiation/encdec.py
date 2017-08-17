@@ -313,16 +313,16 @@ class PriceEncoder(object):
         self.encoder = encoder
         self.price_predictor = price_predictor
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, scope=None):
+    def build_model(self, input_dict, tf_variables):
         with tf.variable_scope(type(self).__name__):
-            self.encoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, scope=scope)
+            self.encoder.build_model(input_dict, tf_variables)
             self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
             # Update price. partner = True. Take the price at the last time step.
             new_price_history = self.price_predictor.update_price(True, self.price_inputs)[-1]
 
             # Outputs
             self.output_dict = dict(self.encoder.output_dict)
-            self.output_dict['price_history'] = new_prices
+            self.output_dict['price_history'] = new_price_history
 
     def get_feed_dict(self, **kwargs):
         feed_dict = self.encoder.get_feed_dict(**kwargs)
@@ -453,25 +453,28 @@ class PriceDecoder(object):
         decoder_args['price_symbol'] = textint_map.vocab.to_ind('<price>'),
         return decoder_args
 
-    def build_model(self, word_embedder, input_dict, tf_variables, pad=0, scope=None):
+    def build_model(self, input_dict, tf_variables):
         with tf.variable_scope(type(self).__name__):
-            self.decoder.build_model(word_embedder, input_dict, tf_variables, pad=pad, scope=scope)
+            self.decoder.build_model(input_dict, tf_variables)
             # NOTE: output from rnn is time major
+            # context: hidden states at each time step
             context = transpose_first_two_dims(self.decoder.output_dict['outputs'])
             self.price_inputs = tf.placeholder(tf.float32, shape=[None, None], name='price_inputs')  # (batch_size, seq_len)
             self.price_targets = tf.placeholder(tf.float32, shape=[None, None], name='price_targets')  # (batch_size, seq_len)
-            # Update price. partner = False
-            new_price_history_seq = self.price_predictor.update_price(False, self.price_inputs, init_price=input_dict['price_history'])
-            predicted_prices = self.price_predictor.predict_price(new_price_history_seq, context)
+            init_price = input_dict['price_history']  # (batch_size, price_size)
+            # NOTE: no price updating during decoding
+            predicted_prices = self.price_predictor.predict_price(init_price, context)
+            # Update price after decoding. partner = False
+            new_price_history_seq = self.price_predictor.update_price(False, self.price_targets, init_price=init_price)
 
             # Outputs
             self.output_dict = dict(self.decoder.output_dict)
-            self.output_dict['price_history'] = new_price_history_seq[-1]
+            self.output_dict['price_history'] = new_price_history_seq[-1, :, :]
             self.output_dict['price_preds'] = predicted_prices
 
-    def compute_loss(self, pad):
-        loss, seq_loss, total_loss = self.decoder.compute_loss(pad)
-        price_loss = self.price_predictor.compute_loss(self.price_targets, self.output_dict['price_preds'], pad)
+    def compute_loss(self):
+        loss, seq_loss, total_loss = self.decoder.compute_loss()
+        price_loss = self.price_predictor.compute_loss(self.output_dict['price_preds'], self.price_targets)
         loss += price_loss
         # NOTE: seq_loss and total_loss do not depend on price_loss. We're using loss for bp.
         return loss, seq_loss, total_loss

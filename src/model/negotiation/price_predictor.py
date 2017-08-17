@@ -1,10 +1,11 @@
+import numpy as np
 import tensorflow as tf
 from src.model.util import batch_linear, transpose_first_two_dims
 from src.model.encdec import optional_add
 
 def add_price_predictor_arguments(parser):
     parser.add_argument('--predict-price', action='store_true', default=False, help='Use price predictor')
-    parser.add_argument('--price-hist-len', default=3, type=int, help='Length of price history for prediction')
+    parser.add_argument('--price-hist-len', default=1, type=int, help='Length of price history for prediction for each agent')
     parser.add_argument('--price-predictor-hidden-size', default=20, type=int)
 
 class PricePredictor(object):
@@ -21,6 +22,9 @@ class PricePredictor(object):
         with tf.variable_scope(type(self).__name__):
             # Price history for agent and partner. 0: agent (self), 1: partner.
             self.init_price = tf.placeholder(tf.float32, shape=[None, 2, self.history_len], name='init_price_vector')
+
+    def zero_init_price(self, batch_size):
+        return np.zeros([batch_size, 2, self.history_len])
 
     def _update_agent_price(self, curr_price, new_price, agent):
         '''
@@ -72,7 +76,7 @@ class PricePredictor(object):
         # Change to time major
         inputs = transpose_first_two_dims(inputs)
         update_func = self._update_partner_price if partner else self._update_self_price
-        if not init_price:
+        if init_price is None:
             init_price = self.init_price
         price_hists = tf.scan(update_func, inputs, initializer=init_price)
         return price_hists
@@ -82,30 +86,30 @@ class PricePredictor(object):
         context: (batch_size, seq_len, context_size)
         '''
         with tf.variable_scope(type(self).__name__):
-            # TODO: use tf.layers.Dense
+            # Concat feature of self and agent
+            inputs = tf.reshape(inputs, [-1, 2 * self.history_len])
+            # Repeat along the time dimension
+            seq_len = tf.shape(context)[1]
+            inputs = tf.tile(tf.expand_dims(inputs, 1), [1, seq_len, 1])  # (batch_size, seq_len, 2*hist_len)
+
             # NOTE: context comes out from rnn which is
             #inputs = tf.concat([self.inputs, context], 2)  # (batch_size, seq_len, history_len+context_size)
-            # Concat feature of self and agent
-            inputs = tf.reshape(inputs, [-1, 2 * self.hist_len])
-            #input_size = self.history_len + context.get_shape().as_list()[-1]
-            h = tf.nn.tanh(batch_linear(inputs, self.hidden_size, True))  # (batch_size, seq_len, hidden_size)
-            with tf.variable_scope('Output'):
-                prices = batch_linear(h, 1, True)  # (batch_size, seq_len, 1)
-                prices = tf.squeeze(prices, 2)
 
-            self.output_dict = {
-                    'prices': prices,
-                    }
+            # MLP
+            h = tf.layers.dense(inputs, self.hidden_size, tf.nn.tanh)  # (batch_size, seq_len, hidden_size)
+            prices = tf.squeeze(tf.layers.dense(h, 1, None), 2)  # (batch_size, seq_len)
 
-    def compute_loss(self, preds, targets, pad):
+        return prices
+
+    def compute_loss(self, preds, targets):
         '''
         MSE loss.
         '''
-        weights = tf.cast(tf.not_equal(targets, tf.constant(float(pad))), tf.float32)
+        weights = tf.cast(tf.not_equal(targets, tf.constant(float(self.pad))), tf.float32)
         loss = tf.losses.mean_squared_error(targets, preds, weights=weights)
         return loss
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        optional_add(feed_dict, self.init_price, kwargs.pop('init_price_history'))
+        optional_add(feed_dict, self.init_price, kwargs.pop('init_price_history', None))
         return feed_dict

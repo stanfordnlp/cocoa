@@ -99,7 +99,7 @@ def build_model(schema, mappings, trie, args):
     from src.model.word_embedder import WordEmbedder
     from src.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder, TrieDecoder
+    from encdec import BasicEncoderDecoder, PriceDecoder, PriceEncoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder, TrieDecoder
     from ranker import IRRanker, CheatRanker, EncDecRanker, SlotFillingRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
@@ -159,8 +159,11 @@ def build_model(schema, mappings, trie, args):
         context_seq_embedder = get_sequence_embedder(args.context_encoder, **context_opts)
         context_embedder = ContextEmbedder(mappings['cat_vocab'].size, context_word_embedder, category_word_embedder, context_seq_embedder, pad)
 
+    if args.predict_price:
+        price_predictor = PricePredictor(args.price_predictor_hidden_size, args.price_hist_len, pad)
+
     def get_decoder(args):
-        prompt_len = 2
+        prompt_len = 2  # <role> <category>
         if args.decoder == 'rnn':
             if args.context is not None:
                 decoder = ContextDecoder(decoder_word_embedder, decoder_seq_embedder, context_embedder, args.context, pad, keep_prob, vocab.size, sampler, args.sampled_loss, args.tied, prompt_len=prompt_len)
@@ -170,7 +173,6 @@ def build_model(schema, mappings, trie, args):
             decoder = AttentionDecoder(decoder_word_embedder, decoder_seq_embedder, pad, keep_prob, vocab.size, sampler, args.sampled_loss, context_embedder=context_embedder, attention_memory=args.attention_memory, prompt_len=prompt_len)
 
         if args.predict_price:
-            price_predictor = PricePredictor(args.price_predictor_hidden_size, 1+2*args.price_hist_len)
             decoder = PriceDecoder(decoder, price_predictor)
 
         if args.slot_filling:
@@ -179,12 +181,18 @@ def build_model(schema, mappings, trie, args):
         #decoder = TrieDecoder(decoder)
         return decoder
 
-    if args.model == 'encdec' or args.ranker == 'encdec':
-        decoder = get_decoder(args)
+    def get_encoder(args):
         if args.num_context > 0:
             encoder = ContextEncoder(encoder_word_embedder, encoder_seq_embedder, args.num_context, pad, keep_prob)
         else:
             encoder = BasicEncoder(encoder_word_embedder, encoder_seq_embedder, pad, keep_prob)
+        if args.predict_price:
+            encoder = PriceEncoder(encoder, price_predictor)
+        return encoder
+
+    if args.model == 'encdec' or args.ranker == 'encdec':
+        decoder = get_decoder(args)
+        encoder = get_encoder(args)
         model = BasicEncoderDecoder(encoder, decoder, pad, keep_prob, stateful=args.stateful)
     elif args.model == 'lm':
         decoder = get_decoder(args)
