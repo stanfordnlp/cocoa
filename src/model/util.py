@@ -60,5 +60,6 @@ def batch_linear(args, output_size, bias):
     return output
 
 def transpose_first_two_dims(batch_input):
-    return tf.transpose(batch_input, perm=[1, 0, 2])
+    rank = len(batch_input.get_shape().as_list())
+    return tf.transpose(batch_input, perm=[1, 0]+range(2, rank))
 
