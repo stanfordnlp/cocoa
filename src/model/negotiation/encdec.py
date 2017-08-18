@@ -364,8 +364,8 @@ class TrieDecoder(DecoderWrapper):
         logits = self.output_dict['logits']
         mask = tf.placeholder(tf.bool, shape=logits.get_shape().as_list(), name='mask')
         self.decoder.feedable_vars['mask'] = mask
-        #masked_logits = tf.where(mask, logits, -10.*tf.ones_like(logits))
-        masked_logits = logits + tf.where(mask, 1.*tf.ones_like(logits), -5.*tf.ones_like(logits))
+        masked_logits = tf.where(mask, logits, -10.*tf.ones_like(logits))
+        #masked_logits = logits + tf.where(mask, 1.*tf.ones_like(logits), -5.*tf.ones_like(logits))
         self.decoder.output_dict['logits'] = masked_logits
         self.output_dict['logits'] = masked_logits
 
@@ -477,6 +477,7 @@ class PriceDecoder(object):
         price_loss = self.price_predictor.compute_loss(self.output_dict['price_preds'], self.price_targets)
         loss += price_loss
         # NOTE: seq_loss and total_loss do not depend on price_loss. We're using loss for bp.
+        tf.summary.scalar('price_loss', price_loss)
         return loss, seq_loss, total_loss
 
     def get_feed_dict(self, **kwargs):

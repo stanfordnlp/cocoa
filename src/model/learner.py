@@ -27,6 +27,7 @@ def add_learner_arguments(parser):
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--gpu', type=int, default=0, help='Use GPU or not')
+    parser.add_argument('--summary-dir', default='/tmp', help='Path to summary logs')
 
 optim = {'adagrad': tf.train.AdagradOptimizer,
          'sgd': tf.train.GradientDescentOptimizer,
@@ -34,13 +35,14 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
         }
 
 class BaseLearner(object):
-    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
+    def __init__(self, data, model, evaluator, batch_size=1, summary_dir='/tmp', verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
         self.vocab = data.mappings['vocab']
         self.batch_size = batch_size
         self.evaluator = evaluator
         self.verbose = verbose
+        self.summary_dir = summary_dir
 
     def _run_batch(self, dialogue_batch, sess, summary_map, test=True):
         raise NotImplementedError
@@ -140,14 +142,18 @@ class BaseLearner(object):
         best_loss = float('inf')
         # Number of iterations without any improvement
         num_epoch_no_impr = 0
+        self.global_step = 0
 
         # Testing
         with tf.Session(config=config) as sess:
+            # Summary
+            self.merged = tf.summary.merge_all()
+            self.train_writer = tf.summary.FileWriter(self.summary_dir, sess.graph)
+
             sess.run(tf.global_variables_initializer())
             if args.init_from:
                 saver.restore(sess, ckpt.model_checkpoint_path)
             summary_map = {}
-            #for epoch in xrange(args.max_epochs):
             epoch = 1
             while True:
                 print '================== Epoch %d ==================' % (epoch)

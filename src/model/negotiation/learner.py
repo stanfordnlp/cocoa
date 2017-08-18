@@ -4,7 +4,7 @@ from src.model.learner import BaseLearner
 from src.model.negotiation.ranker import EncDecRanker
 from src.lib.bleu import compute_bleu
 
-def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, sample_targets=False):
+def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, sample_targets=False, summary_dir='/tmp'):
     if sample_targets:
         return PseudoTargetLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
     elif model.name == 'lm':
@@ -12,11 +12,11 @@ def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, s
     #if model.name == 'ranker':
     #    return RetrievalLearner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
     else:
-        return Learner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose)
+        return Learner(data_generator, model, evaluator, batch_size=batch_size, verbose=verbose, summary_dir=summary_dir)
 
 class Learner(BaseLearner):
-    def __init__(self, data, model, evaluator, batch_size=1, verbose=False):
-        super(Learner, self).__init__(data, model, evaluator, batch_size, verbose)
+    def __init__(self, data, model, evaluator, batch_size=1, verbose=False, summary_dir='/tmp'):
+        super(Learner, self).__init__(data, model, evaluator, batch_size=batch_size, verbose=verbose, summary_dir=summary_dir)
 
     def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None, test=False):
         # NOTE: We need to do the processing here instead of in preprocess because the
@@ -38,6 +38,7 @@ class Learner(BaseLearner):
                 'price_targets': batch['price_targets'],
                 'price_predictor': {},
                 'context': batch['context'],
+                'mask': batch.get('mask', None),
                 }
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
@@ -77,7 +78,13 @@ class Learner(BaseLearner):
             if hasattr(self.model.decoder, 'price_predictor'):
                 fetches['price_history'] = self.model.decoder.output_dict['price_history']
 
+            fetches['merged'] = self.merged
+
             results = sess.run(fetches, feed_dict=feed_dict)
+            self.global_step += 1
+            if not test:
+                if self.global_step % 100 == 0:
+                    self.train_writer.add_summary(results['merged'], self.global_step)
 
             if self.model.stateful:
                 encoder_init_state = results['final_state']

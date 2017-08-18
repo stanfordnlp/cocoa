@@ -117,7 +117,7 @@ if __name__ == '__main__':
 
     if args.test:
         evaluator = get_evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
-        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose)
+        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, summary_dir=args.summary_dir)
 
         if args.init_from:
             sess = tf.Session(config=config)
@@ -142,5 +142,5 @@ if __name__ == '__main__':
             sess.close()
     else:
         evaluator = get_evaluator(data_generator, model, splits=('dev',), batch_size=args.batch_size, verbose=args.verbose)
-        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, sample_targets=args.sample_targets)
+        learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, sample_targets=args.sample_targets, summary_dir=args.summary_dir)
         learner.learn(args, config, args.stats_file, ckpt)

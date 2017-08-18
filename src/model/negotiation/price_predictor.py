@@ -92,8 +92,8 @@ class PricePredictor(object):
             seq_len = tf.shape(context)[1]
             inputs = tf.tile(tf.expand_dims(inputs, 1), [1, seq_len, 1])  # (batch_size, seq_len, 2*hist_len)
 
-            # NOTE: context comes out from rnn which is
-            #inputs = tf.concat([self.inputs, context], 2)  # (batch_size, seq_len, history_len+context_size)
+            # NOTE: context comes out from the decoder rnn
+            inputs = tf.concat([inputs, context], 2)  # (batch_size, seq_len, history_len+context_size)
 
             # MLP
             h = tf.layers.dense(inputs, self.hidden_size, tf.nn.tanh)  # (batch_size, seq_len, hidden_size)
@@ -106,6 +106,8 @@ class PricePredictor(object):
         MSE loss.
         '''
         weights = tf.cast(tf.not_equal(targets, tf.constant(float(self.pad))), tf.float32)
+        #targets = tf.Print(targets, [targets * weights], message='targets: ', summarize=100)
+        #preds = tf.Print(preds, [preds * weights], message='preds: ', summarize=100)
         loss = tf.losses.mean_squared_error(targets, preds, weights=weights)
         return loss
 

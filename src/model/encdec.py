@@ -234,6 +234,7 @@ class BasicDecoder(BasicEncoder):
             loss, seq_loss, total_loss = self._compute_logits_loss(logits, targets, self.pad)
         else:
             loss, seq_loss, total_loss = self._compute_sampled_loss(self.inputs_to_output_projection, targets, self.pad)
+        tf.summary.scalar('lm_loss', loss)
         return loss, seq_loss, total_loss
 
     def _compute_sampled_loss(self, inputs, targets, pad):
