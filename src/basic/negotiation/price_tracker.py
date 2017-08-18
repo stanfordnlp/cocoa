@@ -107,7 +107,7 @@ class PriceTracker(object):
                 continue
         return numbers
 
-    def link_entity(self, raw_tokens, kb=None, scale=True):
+    def link_entity(self, raw_tokens, kb=None, scale=True, price_clip=None):
         tokens = ['<s>'] + raw_tokens + ['</s>']
         entity_tokens = []
         if kb:
@@ -131,9 +131,10 @@ class PriceTracker(object):
                     # Probably a spec number
                     if number != list_price and number in kb_numbers:
                         number = None
-                    #scaled_price = PriceScaler._scale_price(kb, number)
-                    #if scaled_price > 5 or scaled_price < -5:
-                    #    number = None
+                    if number is not None and price_clip is not None:
+                        scaled_price = PriceScaler._scale_price(kb, number)
+                        if abs(scaled_price) > price_clip:
+                            number = None
             except ValueError:
                 number = None
             if number is None:

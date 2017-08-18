@@ -225,7 +225,6 @@ class Dialogue(object):
         else:
             new_turn = True
 
-        utterance = self.scale_price(self.kb, utterance)
         utterance = self._insert_markers(agent, utterance, new_turn)
         entities = [x if is_entity(x) else None for x in utterance]
 
@@ -691,7 +690,7 @@ class Preprocessor(object):
         '''
         if e.action == 'message':
             # Lower, tokenize, link entity
-            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb)
+            entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, scale=True, price_clip=4.)
             if self.slot_filling:
                 entity_tokens = self.slot_detector.detect_slots(entity_tokens, kb=kb, join=False)
                 entity_tokens = self._mark_slots(entity_tokens)
@@ -701,7 +700,8 @@ class Preprocessor(object):
                 return None
         elif e.action == 'offer':
             data = e.data['price']
-            entity_tokens = [markers.OFFER, self.price_to_entity(data)]
+            price = PriceScaler._scale_price(kb, data)
+            entity_tokens = [markers.OFFER, self.price_to_entity(price)]
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
