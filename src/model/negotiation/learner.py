@@ -19,27 +19,18 @@ class Learner(BaseLearner):
         super(Learner, self).__init__(data, model, evaluator, batch_size=batch_size, verbose=verbose, summary_dir=summary_dir)
 
     def _get_feed_dict(self, batch, encoder_init_state=None, init_price_history=None, test=False):
-        # NOTE: We need to do the processing here instead of in preprocess because the
-        # graph is dynamic; also the original batch data should not be modified.
-        targets = batch['targets']
-
         price_args = {'init_price_history': init_price_history,
                 }
-        encoder_args = {'inputs': batch['encoder_inputs'],
-                'context': batch['encoder_context'],
-                'init_state': encoder_init_state,
-                'price_inputs': batch['encoder_price_inputs'],
-                'price_predictor': price_args,
-                }
+        encoder_args = batch['encoder_args']
+        encoder_args['init_state'] = encoder_init_state
+                #'price_inputs': batch['encoder_price_inputs'],
+                #'price_predictor': price_args,
         # NOTE: decoder get init_price_history from the encoder output, so no input here
-        decoder_args = {'inputs': batch['decoder_inputs'],
-                'targets': targets,
-                'price_inputs': batch['decoder_price_inputs'],
-                'price_targets': batch['price_targets'],
-                'price_predictor': {},
-                'context': batch['context'],
-                'mask': batch.get('mask', None),
-                }
+        decoder_args = batch['decoder_args']
+        decoder_args['mask'] = batch.get('mask', None)
+                # 'price_inputs': batch['decoder_price_inputs'],
+                # 'price_targets': batch['price_targets'],
+                # 'price_predictor': {},
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
                 }
