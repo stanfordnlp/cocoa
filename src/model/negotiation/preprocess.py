@@ -10,13 +10,13 @@ import numpy as np
 from src.basic.util import read_pickle, write_pickle, read_json
 from src.model.vocab import Vocabulary
 from src.basic.entity import Entity, CanonicalEntity, is_entity
-from itertools import chain, izip, izip_longest
-from collections import namedtuple, defaultdict, deque
-import copy
+from itertools import izip, izip_longest
+from collections import namedtuple, defaultdict
 from src.basic.negotiation.price_tracker import PriceTracker, PriceScaler
 from src.basic.negotiation.tokenizer import tokenize
 from src.lib.bleu import compute_bleu
 from trie import Trie
+from batcher import DialogueBatcherFactory
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -54,7 +54,6 @@ def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
     for dialogue in dialogues:
         assert dialogue.is_int is False
         for turn in dialogue.token_turns:
-            #for token in chain.from_iterable(turn):
             for token in turn:
                 if is_entity(token):
                     _add_entity(token)
@@ -90,13 +89,6 @@ def create_mappings(dialogues, schema, entity_forms):
             'kb_vocab': kb_vocab,
             'cat_vocab': cat_vocab,
             }
-
-def pad_list_to_array(l, fillvalue, dtype):
-    '''
-    l: list of lists with unequal length
-    return: np array with minimal padding
-    '''
-    return np.array(list(izip_longest(*l, fillvalue=fillvalue)), dtype=dtype).T
 
 class TextIntMap(object):
     '''
@@ -171,6 +163,10 @@ class Dialogue(object):
         self.is_int = False  # Whether we've converted it to integers
         self.token_candidates = None
         self.candidates = None
+
+    @property
+    def num_turns(self):
+        return len(self.turns[0])
 
     def join_turns(self):
         all_turns = []
@@ -294,386 +290,6 @@ class Dialogue(object):
             return float('{:.2f}'.format(PriceTracker.get_price(entity)))
         prices = [[to_float_price(entity) if entity else pad for entity in entities] for entities in self.entities]
         return prices
-
-class DialogueBatch(object):
-    def __init__(self, dialogues, slot_filling):
-        self.dialogues = dialogues
-        self.slot_filling = slot_filling
-
-    def _normalize_dialogue(self):
-        '''
-        All dialogues in a batch should have the same number of turns.
-        '''
-        max_num_turns = max([len(d.turns[0]) for d in self.dialogues])
-        for dialogue in self.dialogues:
-            dialogue.pad_turns(max_num_turns)
-        self.num_turns = len(self.dialogues[0].turns[0])
-
-    @classmethod
-    def _normalize_candidates(cls, candidate_batch):
-        '''
-        All turns at the same time step should have the same number of tokens.
-        return: (batch_size, num_candidates, candidate_len)
-        '''
-        #return pad_list_to_array(candidate_batch, int_markers.PAD, np.int32)
-        # TODO: clean up
-        num_candidates = len(candidate_batch[0])  # Same for all instance
-        max_num_tokens = max([max([len(c) for c in candidates]) for candidates in candidate_batch])
-        batch_size = len(candidate_batch)
-        T = np.full([batch_size, num_candidates, max_num_tokens], int_markers.PAD, dtype=np.int32)
-        for i, candidates in enumerate(candidate_batch):
-            for j, candidate in enumerate(candidates):
-                T[i, j, :len(candidate)] = candidate
-        return T
-
-    def _create_candidate_batches(self):
-        if self.dialogues[0].candidates is None:
-            return None
-        for dialogue in self.dialogues:
-            assert len(dialogue.candidates) == self.num_turns
-        candidate_batches = ([self._normalize_candidates(
-            [dialogue.candidates[j] for dialogue in self.dialogues])
-            for j in xrange(self.num_turns)])
-        return candidate_batches
-
-    def _get_turn_batch_at(self, STAGE, i):
-        if i is None:
-            # Return all turns
-            return [self._get_turn_batch_at(STAGE, i) for i in xrange(self.num_turns)]
-        else:
-            turns = [d.turns[STAGE][i] for d in self.dialogues]
-            turn_arr = pad_list_to_array(turns, int_markers.PAD, np.int32)
-            return turn_arr
-
-    def _create_turn_batches(self):
-        turn_batches = []
-        for i in xrange(Dialogue.num_stages):
-            try:
-                turn_batches.append([pad_list_to_array(
-                    [d.turns[i][j] for d in self.dialogues], int_markers.PAD, np.int32)
-                    for j in xrange(self.num_turns)])
-            except IndexError:
-                print 'num_turns:', self.num_turns
-                for dialogue in self.dialogues:
-                    print len(dialogue.turns[0]), len(dialogue.roles)
-                import sys; sys.exit()
-        return turn_batches
-
-    def _get_price_batch_at(self, i):
-        prices = [d.price_turns[i] for dialogue in self.dialogues]
-        price_arr = pad_list_to_array(prices, int_markers.PAD, np.float32)
-        return price_arr
-
-    def _create_price_batches(self):
-        price_batches = [pad_list_to_array(
-            [dialogue.price_turns[j] for dialogue in self.dialogues], int_markers.PAD, np.float32)
-            for j in xrange(self.num_turns)]
-        return price_batches
-
-    def _create_context_batch(self, pad):
-        category_batch = np.array([d.category for d in self.dialogues], dtype=np.int32)
-        # TODO: make sure pad is consistent
-        #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        title_batch = pad_list_to_array([d.title for d in self.dialogues], pad, np.int32)
-        description_batch = pad_list_to_array([d.description for d in self.dialogues], pad, np.int32)
-        return {
-                'category': category_batch,
-                'title': title_batch,
-                'description': description_batch,
-                }
-
-    def _get_agent_batch_at(self, i):
-        return [dialogue.agents[i] for dialogue in self.dialogues]
-
-    def _get_kb_batch(self):
-        return [dialogue.kb for dialogue in self.dialogues]
-
-    def pick_helpers(self, token_candidates, candidates):
-        helpers = []
-        for b, cands in enumerate(token_candidates):
-            best_score = 0
-            helper_id = -1
-            for i, cand in enumerate(cands):
-                try:
-                    cand = cand['response']
-                # Actual number of candidates can be smaller than num_candidates,
-                # in which case an empty dict is returned instead
-                except KeyError:
-                    continue
-                if i == 0:
-                    target = cand
-                    #print 'TARGET:', target
-                else:
-                    score = compute_bleu(cand, target)
-                    #print 'CANDIDATE:', score, cand
-                    if score > best_score:
-                        best_score = score
-                        helper_id = i
-            if helper_id == -1:
-                helper_id = 0
-            #print 'HELPER:', helper_id, cands[helper_id]['response']
-            helpers.append(candidates[b][helper_id])
-        return np.array(helpers)
-
-    def _mask_slots(self, targets):
-        '''
-        targets: target sequence (interger)
-        return: mask (set to 1) words between <slot> and </slot> (including </slot> but not <slot>)
-        '''
-        mask = np.zeros_like(targets)
-        for i, target in enumerate(targets):
-            delimiters = np.where((target == int_markers.START_SLOT) | (target == int_markers.END_SLOT))[0]
-            assert len(delimiters) % 2 == 0
-            for j in xrange(0, delimiters.shape[0], 2):
-                start, end = delimiters[j], delimiters[j+1]
-                # Include </slot> but not <slot>
-                mask[i][start+1:end+1] = 1
-        targets[mask == 0] = int_markers.PAD
-        return targets
-
-    def _remove_last(self, array, value):
-        nrows, ncols = array.shape
-        for i in xrange(nrows):
-            for j in xrange(ncols-1, -1, -1):
-                if array[i][j] == value:
-                    array[i][j] = int_markers.PAD
-                    break
-        return array
-
-    def _remove_prompt(self, input_arr):
-        '''
-        Remove starter symbols (e.g. <go>) used for the decoder.
-        input_arr: (batch_size, seq_len)
-        '''
-        # TODO: depending on prompt length
-        return input_arr[:, 1:]
-
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None, trie=None):
-        # Most recent partner utterance
-        encoder_inputs = self._remove_prompt(encoder_turns[-1])
-        # |num_context| utterances before the last partner utterance
-        encoder_context = [self._remove_prompt(turn) for turn in encoder_turns[-1*(num_context+1):-1]]
-        if len(encoder_context) < num_context:
-            batch_size = encoder_turns[0].shape[0]
-            empty_context = np.full([batch_size, 1], int_markers.PAD, np.int32)
-            for i in xrange(num_context - len(encoder_context)):
-                encoder_context.insert(0, empty_context)
-
-        # Remove pad (<go>) at the beginning of utterance
-        #encoder_price_inputs = price_encode_turn[:, 1:] if price_encode_turn is not None else None
-
-        # Decoder inputs: start from <go> to generate, i.e. <go> <token>
-        assert decoder_turns.shape == target_turns.shape
-        decoder_inputs = np.copy(decoder_turns)
-        # NOTE: For each row, replace the last <eos> to <pad> to be consistent:
-        # 1) The longest sequence does not have </s> as input.
-        # 2) At inference time, decoder stops at </s>.
-        # 3) Only matters when the model is stateful (decoder state is passed on).
-        decoder_inputs = self._remove_last(decoder_inputs, int_markers.EOS)[:, :-1]
-        decoder_targets = target_turns[:, 1:]
-
-        #decoder_price_inputs = price_decode_turn[:, :-1] if price_decode_turn is not None else None
-        #price_targets = price_decode_turn[:, 1:] if price_decode_turn is not None else None
-
-        # Mask for slots
-        #if self.slot_filling:
-        #    decoder_targets = self._mask_slots(decoder_targets)
-
-        #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
-        #context_batch['helper'] = helpers
-
-        encoder_args = {
-                'inputs': encoder_inputs,
-                'context': encoder_context,
-                }
-        decoder_args = {
-                'inputs': decoder_inputs,
-                'targets': decoder_targets,
-                'context': kb_context,
-                }
-        batch = {
-                'encoder_args': encoder_args,
-                'decoder_args': decoder_args,
-                'encoder_tokens': encoder_tokens,
-                'decoder_tokens': decoder_tokens,
-                'agents': agents,
-                'kbs': kbs,
-                }
-                 # 'token_candidates': token_candidates,
-                 # 'candidates': candidates,
-                 # 'decoder_price_inputs': decoder_price_inputs,
-                 # 'encoder_price_inputs': encoder_price_inputs,
-                 # 'price_targets': price_targets,
-        return batch
-
-    def _get_token_candidates_at(self, i):
-        if self.dialogues[0].token_candidates is None:
-            return None
-        return [dialogue.token_candidates[i] if i < len(dialogue.token_candidates) else ''
-                for dialogue in self.dialogues]
-
-    def _get_token_turns_at(self, i):
-        stage = 0
-        if not hasattr(self.dialogues[0], 'token_turns'):
-            return None
-        # Return None for padded turns
-        return [dialogue.token_turns[i] if i < len(dialogue.token_turns) else ''
-                for dialogue in self.dialogues]
-
-    def _get_dialogue_data(self):
-        '''
-        Data at the dialogue level, i.e. same for all turns.
-        '''
-        agents = self._get_agent_batch_at(1)  # Decoding agent
-        kbs = self._get_kb_batch()
-        pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        kb_context_batch = self._create_context_batch(pad)
-        return {
-                'agents': agents,
-                'kbs': kbs,
-                'kb_context': kb_context_batch,
-                }
-
-    def create_batch(self):
-        self._normalize_dialogue()
-        dialogue_data = self._get_dialogue_data()
-
-        # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
-        encode_turn_ids = range(0, self.num_turns-1, 2)
-        encoder_turns_all = self._get_turn_batch_at(Dialogue.ENC, None)
-
-        batch_seq = [
-            self._create_one_batch(
-                encoder_turns=encoder_turns_all[:i+1],
-                decoder_turns=self._get_turn_batch_at(Dialogue.DEC, i+1),
-                target_turns=self._get_turn_batch_at(Dialogue.TARGET, i+1),
-                encoder_tokens=self._get_token_turns_at(i),
-                decoder_tokens=self._get_token_turns_at(i+1),
-                agents=dialogue_data['agents'],
-                kbs=dialogue_data['kbs'],
-                kb_context=dialogue_data['kb_context'],
-                num_context=Dialogue.num_context,
-                )
-            for i in encode_turn_ids
-            ]
-
-        # bath_seq: A sequence of batches that can be processed in turn where
-        # the state of each batch is passed on to the next batch
-        batch = {
-                 'batch_seq': batch_seq,
-                }
-
-        return batch
-
-    def create_batch_old(self):
-        self._normalize_dialogue()
-        turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
-        price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
-        candidate_batches = self._create_candidate_batches()  # (batch_size, num_candidate, seq_len)
-
-        enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
-
-        # Add agents and kbs
-        agents = self._get_agent_batch_at(1)  # Decoding agent
-        kbs = self._get_kb_batch()
-
-        pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        context_batch = self._create_context_batch(pad)
-
-        # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
-        encode_turn_ids = range(0, self.num_turns-1, 2)
-        batch_seq = [self._create_one_batch(
-            turn_batches[enc][:i+1], turn_batches[dec][i+1], turn_batches[tgt][i+1],
-            price_batches[i], price_batches[i+1],
-            self._get_token_turns_at(i), self._get_token_turns_at(i+1),
-            self._get_token_candidates_at(i+1), candidate_batches[i+1] if candidate_batches else None,
-            agents, kbs,
-            context_batch, Dialogue.num_context)
-            for i in encode_turn_ids]
-
-        # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
-        # passed on to the next batch
-        batch = {
-                 'batch_seq': batch_seq,
-                }
-
-        return batch
-
-class LMDialogueBatch(DialogueBatch):
-    def _create_one_batch_lm(self, tokens):
-        inputs = tokens[:, :-1]
-        targets = tokens[:, 1:]
-        batch = {
-                'inputs': inputs,
-                'targets': targets,
-                }
-        return batch
-
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch):
-        encoder_inputs = encode_turn
-
-        # Remove pad (<go>) at the beginning of utterance
-        #encoder_price_inputs = price_encode_turn[:, 1:]
-
-        # Decoder inputs: start from <go> to generate, i.e. <go> <token>
-        assert decode_turn.shape == target_turn.shape
-        decoder_inputs = np.copy(decode_turn)
-
-        # Include pad (<go>) at the beginning of utterance
-        #decoder_price_inputs = price_decode_turn[:, :-1]
-        #price_targets = price_decode_turn[:, 1:]
-
-        decoder_targets = target_turn[:, 1:]
-
-        #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
-        #context_batch['helper'] = helpers
-
-        # TODO: group these
-        batch = {
-                 'encoder_inputs': encoder_inputs,
-                 'decoder_inputs': decoder_inputs,
-                 'targets': decoder_targets,
-                 'encoder_tokens': encode_tokens,
-                 'decoder_tokens': decode_tokens,
-                 'token_candidates': token_candidates,
-                 'candidates': candidates,
-                 'agents': agents,
-                 'kbs': kbs,
-                 'context': context_batch,
-                }
-        return batch
-
-    def create_batch(self, bptt_steps):
-        lm_batch = self._create_lm_batch(bptt_steps)
-        batch = super(LMDialogueBatch, self).create_batch()
-        context = batch['batch_seq'][0]['context']
-        batch['eval_batch_seq'] = batch['batch_seq']
-        for b in lm_batch:
-            b['context'] = context
-        batch['batch_seq'] = lm_batch
-        return batch
-
-    def _create_lm_batch(self, bptt_steps=35):
-        data = [d.join_turns() for d in self.dialogues]
-        dialogue_tokens = [d[0] for d in data]
-        # TODO: don't need dialogue_turns
-        dialogue_turns = [d[1] for d in data]
-        max_len = max([len(tokens) for tokens in dialogue_tokens])
-        batch_size = len(self.dialogues)
-        T = np.full([batch_size, max_len], int_markers.PAD, dtype=np.int32)
-        for i, tokens in enumerate(dialogue_tokens):
-            T[i, :len(tokens)] = tokens
-
-        batch_seq = []
-        for i in range(0, max_len, bptt_steps):
-            if i + bptt_steps > max_len - 5:
-                batch_seq.append(self._create_one_batch_lm(T[:, i:]))
-                break
-            else:
-                batch_seq.append(self._create_one_batch_lm(T[:, i:i+bptt_steps]))
-
-        return batch_seq
-
 
 class Preprocessor(object):
     '''
@@ -816,7 +432,7 @@ class DataGenerator(object):
     # TODO: hack
     trie = None
 
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -854,6 +470,7 @@ class DataGenerator(object):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
+        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
         self.batches = {k: self.create_batches(k, dialogues, batch_size) for k, dialogues in self.dialogues.iteritems()}
 
         self.trie = None
@@ -889,7 +506,7 @@ class DataGenerator(object):
                 dialogue.convert_to_int()
 
     def get_dialogue_batch(self, dialogues, slot_filling):
-        return DialogueBatch(dialogues, slot_filling).create_batch()
+        return DialogueBatcher(dialogues, slot_filling).create_batch()
 
     def dialogue_sort_score(self, d):
         # Sort dialogues by number o turns
@@ -904,7 +521,8 @@ class DataGenerator(object):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.append(self.get_dialogue_batch(dialogue_batch, self.slot_filling))
+            #dialogue_batches.append(self.get_dialogue_batch(dialogue_batch, self.slot_filling))
+            dialogue_batches.append(self.dialogue_batcher.create_batch(dialogue_batch))
             start = end
         return dialogue_batches
 
@@ -1034,57 +652,6 @@ class EvalDialogue(Dialogue):
             l.insert(0, pad)
         return l
 
-class EvalDialogueBatch(DialogueBatch):
-    def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context, candidate_scores):
-        batch = super(EvalDialogueBatch, self)._create_one_batch(encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context)
-        batch['candidate_scores'] = candidate_scores
-        return batch
-
-    def _create_candidate_batches(self):
-        candidate_batches = [self._normalize_candidates(
-            [dialogue.candidates[0] for dialogue in self.dialogues])]
-        return candidate_batches
-
-    def create_batch(self):
-        self._normalize_dialogue()
-        turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
-        price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
-        candidate_batches = self._create_candidate_batches()  # (batch_size, num_candidate, seq_len)
-
-        enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
-
-        # Add agents and kbs
-        agents = self._get_agent_batch_at(1)  # Decoding agent
-        kbs = self._get_kb_batch()
-
-        pad = EvalDialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        context_batch = self._create_context_batch(pad)
-
-        # We just need one batch (context, response, candidates, scores)
-        # TODO: better way to handle Dialogue/EvalDialogue static variables
-        # TODO: add candidates batch
-        batch = [self._create_one_batch(
-                turn_batches[enc][:-1], turn_batches[dec][-1], turn_batches[tgt][-1],
-                None, None,
-                self._get_context(), self._get_response(),
-                self._get_token_candidates_at(), candidate_batches[0],
-                agents, kbs, context_batch,
-                EvalDialogue.num_context,
-                self._get_candidate_scores())]
-        return {'batch_seq': batch}
-
-    def _get_context(self):
-        return [dialogue.token_turns[:-1] for dialogue in self.dialogues]
-
-    def _get_response(self):
-        return [dialogue.token_turns[-1] for dialogue in self.dialogues]
-
-    def _get_token_candidates_at(self):
-        return [dialogue.token_candidates[0] for dialogue in self.dialogues]
-
-    def _get_candidate_scores(self):
-        return [dialogue.candidate_scores for dialogue in self.dialogues]
-
 class EvalDataGenerator(DataGenerator):
     def __init__(self, examples, preprocessor, mappings, num_context=1):
         self.dialogues = {'eval': [self.process_example(ex) for ex in examples]}
@@ -1141,7 +708,7 @@ class EvalDataGenerator(DataGenerator):
         return d.context_len()
 
     def get_dialogue_batch(self, dialogues, slot_filling):
-        return EvalDialogueBatch(dialogues, slot_filling).create_batch()
+        return EvalDialogueBatcher(dialogues, slot_filling).create_batch()
 
     # TODO: new interface: create_batches
     def generator(self, split, batch_size, shuffle=True):
@@ -1170,7 +737,7 @@ class LMDataGenerator(DataGenerator):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            dialogue_batches.append(LMDialogueBatch(dialogue_batch).create_batch(bptt_steps))
+            dialogue_batches.append(LMDialogueBatcher(dialogue_batch).create_batch(bptt_steps))
             start = end
         return dialogue_batches
 

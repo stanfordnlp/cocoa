@@ -33,11 +33,16 @@ def get_data_generator(args, model_args, mappings, schema):
     lexicon = PriceTracker(model_args.price_tracker_model)
     slot_detector = SlotDetector(slot_scores_path=model_args.slot_scores)
 
+    model_config = {}
+    if args.retrieve:
+        model_config['retrieve'] = True
+    if args.predict_price:
+        model_config['price'] = True
+
     # TODO: hacky
     if args.model == 'lm':
         DataGenerator = LMDataGenerator
 
-    # Dataset
     if args.retrieve:
         retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
     else:
@@ -55,7 +60,7 @@ def get_data_generator(args, model_args, mappings, schema):
             train, dev, test = None, None, dataset.test_examples
         else:
             train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size)
+        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config)
 
     return data_generator
 

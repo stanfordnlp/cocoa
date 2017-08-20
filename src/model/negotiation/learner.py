@@ -23,14 +23,13 @@ class Learner(BaseLearner):
                 }
         encoder_args = batch['encoder_args']
         encoder_args['init_state'] = encoder_init_state
-                #'price_inputs': batch['encoder_price_inputs'],
-                #'price_predictor': price_args,
+        encoder_args['price_predictor'] = price_args
+
         # NOTE: decoder get init_price_history from the encoder output, so no input here
         decoder_args = batch['decoder_args']
         decoder_args['mask'] = batch.get('mask', None)
-                # 'price_inputs': batch['decoder_price_inputs'],
-                # 'price_targets': batch['price_targets'],
-                # 'price_predictor': {},
+        decoder_args['price_predictor'] = {}
+
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
                 }
