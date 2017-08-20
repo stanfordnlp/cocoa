@@ -108,8 +108,9 @@ class Retriever(object):
                         'prev_roles': list(prev_roles),
                         'target': turn,
                         'candidates': candidates,
-                        'kb_context': self.slot_detector.get_context_tokens(dialogue.kb),
                         }
+                if self.slot_detector:
+                    r['kb_context'] = self.slot_detector.get_context_tokens(dialogue.kb)
             else:
                 r = candidates
             results.append(r)
@@ -140,7 +141,8 @@ class Retriever(object):
         docs = []
         role = d.role
         L = float(len(d.token_turns)) - 1
-        kb_context = self.slot_detector.get_context_tokens((d.kb,))
+        if self.slot_detector:
+            kb_context = self.slot_detector.get_context_tokens((d.kb,))
         for i, (agent, turn) in enumerate(izip(d.agents, d.token_turns)):
             text = self.process_turn(turn)
             # NOTE: the dialogue is from one agent's perspective
@@ -152,8 +154,10 @@ class Retriever(object):
                         'pos': i / L,
                         'immediate_context': unicode(context[-1], 'utf8'),
                         'prev_context': unicode(' '.join(context[-1*context_size:-1]), 'utf8'),
-                        'response': self.slot_detector.detect_slots(turn, d.kb, context=kb_context),
+                        'response': turn,
                         }
+                if self.slot_detector:
+                    doc['response'] = self.slot_detector.detect_slots(turn, d.kb, context=kb_context)
                 docs.append(doc)
             context.append(text)
         return docs
@@ -284,7 +288,10 @@ if __name__ == '__main__':
 
     dataset = read_dataset(None, args)
     lexicon = PriceTracker(args.price_tracker_model)
-    slot_detector = SlotDetector(slot_scores_path=args.slot_scores)
+    if args.slot_scores is not None:
+        slot_detector = SlotDetector(slot_scores_path=args.slot_scores)
+    else:
+        slot_detector = None
     schema = Schema(args.schema_path)
 
     preprocessor = Preprocessor(schema, lexicon, 'canonical', 'canonical', 'canonical')
