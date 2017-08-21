@@ -1,5 +1,5 @@
 import random
-import json
+import ujson as json
 import string
 import cPickle as pickle
 import numpy as np
