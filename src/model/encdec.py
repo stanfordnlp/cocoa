@@ -105,19 +105,15 @@ class BasicEncoder(object):
         return encoder_args
 
     def _build_rnn_inputs(self, input_dict):
-        inputs = input_dict.get('inputs', self.inputs)
-        inputs, mask = self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)
+        inputs, mask = self.seq_embedder.build_seq_inputs(self.inputs, self.word_embedder, self.pad, time_major=False)
         init_cell_state = input_dict.get('init_cell_state', None)
         return inputs, mask, {'init_cell_state': init_cell_state}
-        #init_state = input_dict.get('init_state', None)
-        #return inputs, mask, {'init_state': init_state}
 
     def _build_inputs(self, input_dict):
-        self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
-        #last_inds = tf.reduce_sum(tf.where(tf.equal(self.inputs, pad), tf.zeros_like(self.inputs), tf.ones_like(self.inputs)), 1)
-        ## For all-pad inputs
-        #last_inds = tf.where(tf.equal(last_inds, 0), tf.ones_like(last_inds), last_inds)
-        #self.last_inds = last_inds - 1
+        if 'inputs' in input_dict:
+            self.inputs = input_dict['inputs']
+        else:
+            self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
         self.batch_size = tf.shape(self.inputs)[0]
         self.seq_len = tf.shape(self.inputs)[1]
 
@@ -137,6 +133,7 @@ class BasicEncoder(object):
     def _build_output_dict(self, embeddings):
         self.output_dict.update({
             'outputs': embeddings['step_embeddings'],
+            'final_output': embeddings['embedding'],
             'final_state': embeddings['final_state'],
             })
 

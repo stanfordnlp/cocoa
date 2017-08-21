@@ -7,10 +7,13 @@ from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
 from itertools import izip
 from tensorflow.contrib.rnn import LSTMStateTuple
+from src.model.util import EPS
 
 def add_model_arguments(parser):
     parser.add_argument('--attention-memory', nargs='*', default=None, help='Attention memory: title, description, encoder outputs')
     parser.add_argument('--num-context', default=0, type=int, help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
+    parser.add_argument('--selector', action='store_true', help='Retrieval-based model (candidate selector)')
+    parser.add_argument('--selector-loss', default='binary', choices=['binary'], help='Loss function for the selector (binary: cross-entropy loss of classifying a candidate as the true response)')
 
 class LM(object):
     def __init__(self, decoder, pad):
@@ -58,7 +61,6 @@ class LM(object):
                 'true_final_state': true_final_state,
                 }
 
-# TODO: refactor this class
 class BasicEncoderDecoder(object):
     '''
     Basic seq2seq model.
@@ -67,7 +69,6 @@ class BasicEncoderDecoder(object):
         self.pad = pad  # Id of PAD in the vocab
         self.encoder = encoder
         self.decoder = decoder
-        #self.re_encode = re_encode
         self.tf_variables = set()
         self.perplexity = True
         self.name = 'encdec'
@@ -103,20 +104,10 @@ class BasicEncoderDecoder(object):
             decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
             decoder.build_model(decoder_input_dict, self.tf_variables)
 
-            # Re-encode decoded sequence
-            # TODO: re-encode is not implemeted in neural_sessions yet
-            # TODO: hierarchical
-            #if self.re_encode:
-            #    input_args = decoder.get_rnn_inputs_args()
-            #    input_args['init_state'] = encoder.output_dict['final_state']
-            #    reencode_output_dict = encoder.encode(time_major=False, **input_args)
-            #    self.final_state = reencode_output_dict['final_state']
-            #else:
             self.final_state = decoder.get_encoder_state(decoder.output_dict['final_state'])
 
-            #self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
-
             # Loss
+            # TODO: remove seq_loss
             self.loss, self.seq_loss, self.total_loss = self.compute_loss(decoder.output_dict)
 
     def get_feed_dict(self, **kwargs):
@@ -154,6 +145,37 @@ class BasicEncoderDecoder(object):
                 'final_state': decoder_output_dict['final_state'],
                 'true_final_state': true_final_state,
                 }
+
+
+class CandidateSelector(BasicEncoderDecoder):
+    '''
+    Candidate selector for retrieval-based models.
+    '''
+    def __init__(self, encoder, decoder, pad, keep_prob):
+        '''
+        decoder: encode the reponse; doesn't actually decoder word by word.
+        '''
+        self.pad = pad  # Id of PAD in the vocab
+        self.encoder = encoder
+        self.decoder = decoder
+        self.name = 'selector'
+        self.keep_prob = keep_prob
+        self.stateful = False
+        self.perplexity = True
+        self.build_model(encoder, decoder)
+
+    def build_model(self, encoder, decoder):
+        with tf.variable_scope(type(self).__name__):
+            # Encoding
+            encoder_input_dict = self._encoder_input_dict()
+            encoder.build_model(encoder_input_dict)
+
+            # Decoding
+            decoder_input_dict = self._decoder_input_dict(encoder.output_dict)
+            decoder.build_model(decoder_input_dict)
+
+            # Loss
+            self.loss, self.total_loss = self.compute_loss(decoder.output_dict)
 
 class ContextEncoder(BasicEncoder):
     '''
@@ -203,6 +225,7 @@ class ContextEncoder(BasicEncoder):
         final_state = self.output_dict['final_state']
         # Combine context_embedding with final states
         with tf.variable_scope('EncoderState2DecoderState'):
+            # TODO: non-LSTM cells
             state_c = tf.layers.dense(
                     tf.concat([final_state.c, context_embedding], axis=1),
                     self.seq_embedder.embed_size,
@@ -275,16 +298,6 @@ class ContextDecoder(BasicDecoder):
         self.context_embedder = context_embedder
         #self.context = context
         self.context_embedding = self.context_embedder.embed(context)
-
-    #def _build_output(self, output_dict):
-    #    outputs = output_dict['outputs']
-    #    embed_size = outputs.get_shape().as_list()[-1]
-    #    outputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, outputs)
-    #    outputs = tf.layers.dense(outputs, embed_size, activation=tf.nn.tanh)
-    #    # Linear layer
-    #    outputs = transpose_first_two_dims(outputs)  # (batch_size, seq_len, output_size)
-    #    logits = self._build_logits(outputs)
-    #    return logits
 
     def _build_rnn_inputs(self, input_dict):
         inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
@@ -538,3 +551,56 @@ class PriceDecoder(object):
         #print prices
         prices = np.around(prices, decimals=2)
         return {'preds': preds, 'prices': prices, 'final_state': final_state}
+
+class ClassifyDecoder(DecoderWrapper):
+    def __init__(self, decoder, num_candidates):
+        self.decoder = decoder
+        self.num_candidates = num_candidates
+        self.pad = self.decoder.pad
+        self.feedable_vars = {}
+
+    def get_feed_dict(self, **kwargs):
+        feed_dict = super(ClassifyDecoder, self).get_feed_dict(**kwargs)
+        feed_dict[self.feedable_vars['candidates']] = kwargs.pop('candidates')
+        optional_add(feed_dict, self.feedable_vars['labels'], kwargs.pop('candidate_labels', None))
+        return feed_dict
+
+    def build_model(self, input_dict):
+        with tf.variable_scope(type(self).__name__):
+            # Inputs
+            candidates = tf.placeholder(tf.int32, shape=[None, self.num_candidates, None], name='candidates')  # (batch_size, num_candidates, seq_len)
+            labels = tf.placeholder(tf.int32, shape=[None, self.num_candidates], name='candidate_labels')  # Binary label: (batch_size, num_candidates)
+            self.feedable_vars['candidates'] = candidates
+            self.feedable_vars['labels'] = labels
+
+            candidate_list = tf.unstack(candidates, axis=1)
+            candidate_embeddings = []
+            with tf.variable_scope('CandidateEmbedding'):
+                for i, candidate in enumerate(candidate_list):
+                    if i > 0:
+                        tf.get_variable_scope().reuse_variables()
+                    input_dict['inputs'] = candidate
+                    self.decoder.build_model(input_dict)
+                    candidate_embeddings.append(self.decoder.output_dict['final_output'])
+                candidate_embeddings = tf.stack(candidate_embeddings, axis=1)  # (batch_size, num_candidates, seq_len)
+
+            logits = tf.layers.dense(candidate_embeddings, 2, activation=None, use_bias=True)  # (batch_size, num_candidates, 2)
+            self.output_dict = {
+                    'candidate_embeddings': candidate_embeddings,
+                    'logits': logits,
+                    }
+
+    def compute_loss(self):
+        # Check padded candidates by checking if the first token is PAD
+        candidate_first_tokens = tf.reshape(self.feedable_vars['candidates'][:, :, 0], [-1])  # (batch_size * num_candidates,)
+        candidate_weights = tf.cast(tf.not_equal(candidate_first_tokens, tf.constant(self.pad)), tf.float32)
+
+        logits = tf.reshape(self.output_dict['logits'], [-1, 2])
+        labels = tf.reshape(self.feedable_vars['labels'], [-1])
+        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+        total_loss = tf.reduce_sum(loss * candidate_weights)
+        num_examples = tf.reduce_sum(candidate_weights)
+        loss = total_loss / (num_examples + EPS)
+        tf.summary.scalar('candidate_classification_loss', loss)
+
+        return loss, (total_loss, num_examples)

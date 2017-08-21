@@ -161,8 +161,10 @@ class Dialogue(object):
         self.agents = []
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
+
         self.token_candidates = None
         self.candidates = None
+        self.true_candidate_inds = None
 
     @property
     def num_turns(self):
@@ -180,8 +182,27 @@ class Dialogue(object):
     def num_tokens(self):
         return sum([len(t) for t in self.token_turns])
 
-    def add_candidates(self, candidates):
+    def add_ground_truth(self, candidates, token_turns):
+        true_candidate_inds = []
+        for cands, turn in izip(candidates, token_turns):
+            if not cands:
+                inds = []
+            else:
+                inds = []
+                for i, cand in enumerate(cands):
+                    if cand.get('response', None) == turn:
+                        inds.append(i)
+                if len(inds) == 0:
+                    cands.insert(0, {'response': turn})
+                    del cands[-1]
+                    inds.append(0)
+            true_candidate_inds.append(inds)
+        return candidates, true_candidate_inds
+
+    def add_candidates(self, candidates, add_ground_truth=False):
         assert len(candidates) == len(self.token_turns)
+        if add_ground_truth:
+            candidates, self.true_candidate_inds = self.add_ground_truth(candidates, self.token_turns)
         self.token_candidates = candidates
 
     def add_utterance(self, agent, utterances):
@@ -239,9 +260,12 @@ class Dialogue(object):
         def remove_slot(tokens):
             return [x.surface if is_entity(x) and x.canonical.type == 'slot' else x for x in tokens]
 
-        if self.token_candidates:
-            self.candidates = []
-            for turn_candidates in self.token_candidates:
+        self.candidates = []
+        for turn_candidates in self.token_candidates:
+            if turn_candidates is None:
+                # Encoding turn
+                self.candidates.append(None)
+            else:
                 c = [self.textint_map.text_to_int(remove_slot(c['response']), 'decoding') if 'response' in c else [] for c in turn_candidates]
                 self.candidates.append(c)
 
@@ -251,16 +275,16 @@ class Dialogue(object):
 
         for turn in self.token_turns:
             for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                #turns.append([self.textint_map.text_to_int(utterance, stage)
-                #    for utterance in turn])
                 turns.append(self.textint_map.text_to_int(turn, stage))
 
-        self.candidates_to_int()
+        if self.token_candidates:
+            self.candidates_to_int()
 
         self.price_turns = self.get_price_turns(int_markers.PAD)
         self.category = self.mappings['cat_vocab'].to_ind(self.category)
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
+
         self.is_int = True
 
     def _pad_list(self, l, size, pad):
@@ -389,6 +413,8 @@ class Preprocessor(object):
                 return None
         elif e.action == 'offer':
             data = e.data['price']
+            if data is None:
+                return None
             price = PriceScaler._scale_price(kb, data)
             entity_tokens = [markers.OFFER, self.price_to_entity(price)]
             return entity_tokens
@@ -432,7 +458,7 @@ class DataGenerator(object):
     # TODO: hack
     trie = None
 
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_candidates=20, num_context=1, batch_size=1, trie_path=None, model_config={}):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -466,6 +492,7 @@ class DataGenerator(object):
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
+        Dialogue.num_candidates = num_candidates
 
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
@@ -558,7 +585,6 @@ class DataGenerator(object):
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
         if (not os.path.exists(cache_file)) or self.ignore_cache:
             if self.retriever is not None:
-                Dialogue.num_candidates = 50
                 for dialogue in dialogues:
                     k = (dialogue.uuid, dialogue.role)
                     # candidates: list of list containing num_candidates responses for each turn of the dialogue
@@ -568,16 +594,16 @@ class DataGenerator(object):
                     else:
                         candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
 
-                    # TODO: slot_filling option
-                    for turn_candidates in candidates:
-                        if turn_candidates:
-                            for c in turn_candidates:
-                                if 'response' in c:
-                                    c['response'] = Preprocessor._mark_slots(c['response'])
-                                    #print c['response']
-                    candidates = [c if c else self.retriever.empty_candidates for c in candidates]
+                    #if self.slot_filling:
+                    #    for turn_candidates in candidates:
+                    #        if turn_candidates:
+                    #            for c in turn_candidates:
+                    #                if 'response' in c:
+                    #                    c['response'] = Preprocessor._mark_slots(c['response'])
+                    #                    #print c['response']
+                    #candidates = [c if c else self.retriever.empty_candidates for c in candidates]
 
-                    dialogue.add_candidates(candidates)
+                    dialogue.add_candidates(candidates, add_ground_truth=(name in ('train', 'dev')))
                 self.retriever.report_search_time()
 
             for dialogue in dialogues:
