@@ -1,4 +1,5 @@
 from src.basic.entity import Entity, CanonicalEntity
+import math
 import re
 from tokenizer import tokenize
 from src.basic.util import read_json, write_pickle, read_pickle
@@ -140,6 +141,7 @@ class PriceTracker(object):
             if number is None:
                 new_token = token
             else:
+                assert not math.isnan(number)
                 if scale:
                     scaled_price = PriceScaler._scale_price(kb, number)
                 else:
