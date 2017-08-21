@@ -56,7 +56,6 @@ class Learner(BaseLearner):
             fetches = {
                     'logits': self.model.decoder.output_dict['logits'],
                     'loss': self.model.loss,
-                    'seq_loss': self.model.seq_loss,
                     }
             if not test:
                 fetches['train_op'] = self.train_op
@@ -68,7 +67,7 @@ class Learner(BaseLearner):
             if hasattr(self.model.decoder, 'price_predictor'):
                 fetches['price_history'] = self.model.decoder.output_dict['price_history']
 
-            fetches['merged'] = self.merged
+            fetches['merged'] = self.merged_summary
 
             results = sess.run(fetches, feed_dict=feed_dict)
             self.global_step += 1
@@ -85,7 +84,7 @@ class Learner(BaseLearner):
 
             if self.verbose:
                 preds = np.argmax(results['logits'], axis=2)
-                self._print_batch(batch, preds, results['seq_loss'])
+                self._print_batch(batch, preds, results['loss'])
 
             if test:
                 total_loss = results['total_loss']

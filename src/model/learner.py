@@ -58,29 +58,14 @@ class BaseLearner(object):
         return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
 
 
-    # TODO: factor this
     def _print_batch(self, batch, preds, loss):
-        encoder_tokens = batch['encoder_tokens']
-        encoder_inputs = batch['encoder_inputs']
-        decoder_inputs = batch['decoder_inputs']
-        decoder_tokens = batch['decoder_tokens']
-        targets = batch['targets']
+        batcher = self.data.dialogue_batcher
+        textint_map = self.data.textint_map
         # Go over each example in the batch
-        print '-------------- batch ----------------'
-        for i in xrange(encoder_inputs.shape[0]):
-            if len(decoder_tokens[i]) == 0:
-                continue
-            print i
-            print 'RAW INPUT:', encoder_tokens[i]
-            print 'RAW TARGET:', decoder_tokens[i]
-            print '----------'
-            print 'ENC INPUT:', self.data.textint_map.int_to_text(encoder_inputs[i], 'encoding')
-            print 'DEC INPUT:', self.data.textint_map.int_to_text(decoder_inputs[i], 'decoding')
-            #print 'PRICE INPUT:', batch['decoder_price_inputs'][i]
-            print 'TARGET:', self.data.textint_map.int_to_text(targets[i], 'target')
-            #print 'PRICE TARGET:', batch['price_targets'][i]
-            print 'PRED:', self.data.textint_map.int_to_text(preds[i], 'target')
-            print 'LOSS:', loss[i]
+        print '-------------- Batch ----------------'
+        for i in xrange(batch['size']):
+            success = batcher.print_batch(batch, i, textint_map, preds)
+        print 'BATCH LOSS:', loss
 
     def eval(self, sess, name, test_data, num_batches):
         print '================== Eval %s ==================' % name
@@ -147,7 +132,7 @@ class BaseLearner(object):
         # Testing
         with tf.Session(config=config) as sess:
             # Summary
-            self.merged = tf.summary.merge_all()
+            self.merged_summary = tf.summary.merge_all()
             self.train_writer = tf.summary.FileWriter(self.summary_dir, sess.graph)
 
             sess.run(tf.global_variables_initializer())

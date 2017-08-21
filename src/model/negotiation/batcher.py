@@ -176,8 +176,31 @@ class DialogueBatcher(object):
                 'decoder_tokens': decoder_tokens,
                 'agents': agents,
                 'kbs': kbs,
+                'size': len(agents),
                 }
         return batch
+
+    def _int_to_text(self, array, textint_map, stage):
+        tokens = [str(x) for x in textint_map.int_to_text((x for x in array if x != self.int_markers.PAD), stage)]
+        return ' '.join(tokens)
+
+    def _list_to_text(self, tokens):
+        return ' '.join(str(x) for x in tokens)
+
+    def print_batch(self, batch, example_id, textint_map, preds=None):
+        i = example_id
+        print '-------------- Example {} ----------------'.format(example_id)
+        if len(batch['decoder_tokens'][i]) == 0:
+            print 'PADDING'
+            return False
+        print 'RAW INPUT:\n {}'.format(self._list_to_text(batch['encoder_tokens'][i]))
+        print 'RAW TARGET:\n {}'.format(self._list_to_text(batch['decoder_tokens'][i]))
+        print 'ENC INPUT:\n {}'.format(self._int_to_text(batch['encoder_args']['inputs'][i], textint_map, 'encoding'))
+        print 'DEC INPUT:\n {}'.format(self._int_to_text(batch['decoder_args']['inputs'][i], textint_map, 'decoding'))
+        print 'TARGET:\n {}'.format(self._int_to_text(batch['decoder_args']['targets'][i], textint_map, 'target'))
+        if preds is not None:
+            print 'PRED:\n {}'.format(self._int_to_text(preds[i], textint_map, 'target'))
+        return True
 
     def _get_token_turns_at(self, dialogues, i):
         stage = 0
@@ -337,13 +360,25 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         candidate_arr = pad_list_to_array(candidates, self.batcher.int_markers.PAD, np.int32)
         num_candidates_per_turn = type(dialogues[0]).num_candidates
         batch_size = len(dialogues)
-        candidate_arr = np.reshape(batch_size, num_candidates_per_turn, -1)
+        candidate_arr = candidate_arr.reshape(batch_size, num_candidates_per_turn, -1)
         return candidate_arr
 
-    def _create_one_batch(self, candidates=None, token_candidates=None):
+    def _get_label_batch_at(self, dialogues, i):
+        num_candidates_per_turn = type(dialogues[0]).num_candidates
+        batch_size = len(dialogues)
+        labels = np.zeros((batch_size, num_candidates_per_turn), dtype=np.int32)
+        true_candidate_inds = [d.true_candidate_inds[i] if i < len(d.true_candidate_inds) else [] for d in dialogues]
+        batch_inds = [[b]*len(candidate_inds) for b, candidate_inds in enumerate(true_candidate_inds)]
+        flatten = lambda l: [x for ll in l for x in ll]
+        labels[flatten(batch_inds), flatten(true_candidate_inds)] = 1
+        return labels
+
+    def _create_one_batch(self, candidates=None, candidate_labels=None, token_candidates=None):
+        assert candidates.shape[:2] == candidate_labels.shape
         return {
                 'candidates': candidates,
                 'token_candidates': token_candidates,
+                'candidate_labels': candidate_labels,
                 }
 
     def create_batch(self, dialogues):
@@ -352,17 +387,37 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         num_turns = dialogues[0].num_turns
         encode_turn_ids = self.batcher.get_encoding_turn_ids(num_turns)
         candidate_batch_seq = [
-                self.create_one_batch(
+                self._create_one_batch(
                     candidates=self._get_candidate_batch_at(dialogues, i+1),
+                    candidate_labels=self._get_label_batch_at(dialogues, i+1),
                     token_candidates=self._get_token_candidates_at(dialogues, i+1),
                     )
                 for i in encode_turn_ids
                 ]
 
         for batch, candidate_batch in izip(dialogue_batch['batch_seq'], candidate_batch_seq):
-            batch.update(candidate_batch)
+            batch['decoder_args']['candidates'] = candidate_batch['candidates']
+            batch['decoder_args']['candidate_labels'] = candidate_batch['candidate_labels']
 
         return dialogue_batch
+
+    def print_batch(self, batch, example_id, textint_map, preds=None):
+        success = self.batcher.print_batch(batch, example_id, textint_map)
+        if success:
+            candidates = batch['decoder_args']['candidates'][example_id]
+            if preds is not None:
+                preds = preds[example_id]
+            else:
+                preds = [-1] * len(candidates)
+            for i, (cand, pred) in enumerate(izip(candidates, preds)):
+                print 'CANDIDATE {} (label={})'.format(i, pred)
+                if cand[0] == self.batcher.int_markers.PAD:
+                    print 'PADDING'
+                else:
+                    print self.batcher._int_to_text(cand, textint_map, 'decoding')
+            return True
+        else:
+            return False
 
 class LMDialogueBatcher(DialogueBatcher):
     def _create_one_batch_lm(self, tokens):
@@ -498,5 +553,5 @@ class DialogueBatcherFactory(object):
         if 'price' in model_config:
             batcher = PriceWrapper(batcher)
         if 'retrieve' in model_config:
-            batcher = RetrieveWrapper(batcher)
+            batcher = RetrievalWrapper(batcher)
         return batcher
