@@ -38,7 +38,6 @@ class MultiAttentionMechanisumWrapper(object):
     def __init__(self, attention_mechanisms):
         self.attention_mechanisms = attention_mechanisms
         self.num_mechanisms = len(attention_mechanisms)
-        print 'multiple mechanism:', self.num_mechanisms
         self.alignments_sizes = tf.stack([m.alignments_size for m in self.attention_mechanisms])  # (num_mecha,)
         # We will concatenate alignments of different mechanisums.
         # To separate these alignments later, we need to remember where each alignment start.
