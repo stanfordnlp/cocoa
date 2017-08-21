@@ -1,7 +1,7 @@
 import os
 import time
 import shutil
-from itertools import izip
+from itertools import izip, ifilter
 from whoosh.fields import SchemaClass, TEXT, STORED, ID, NUMERIC
 from whoosh import index
 from whoosh.qparser import QueryParser, OrGroup
@@ -75,6 +75,7 @@ class Retriever(object):
             tokens = ['_start_']
         else:
             tokens = ['_price_' if is_entity(x) else x for x in turn]
+            tokens = tokens
         return ' '.join(tokens)
 
     def retrieve_candidates(self, dialogue, json_dict=False):
@@ -255,12 +256,13 @@ class Retriever(object):
             print 'Load candidates from', path
             results = read_json(path)
             for r in results:
-                # r['candidates']: num_candidates responses for each turn
-                if r['candidates'] is not None:
-                    for c in r['candidates']:
-                        if 'response' in c:
-                            c['response'] = [to_ent(x) for x in c['response']]
-                candidates[(r['uuid'], r['role'])].append(r['candidates'])
+                # None for encoding turns
+                if r['candidates'] is None:
+                    candidates[(r['uuid'], r['role'])].append(None)
+                else:
+                    for c in ifilter(lambda x: 'response' in x, r['candidates']):
+                        c['response'] = [to_ent(x) for x in c['response']]
+                    candidates[(r['uuid'], r['role'])].append(r['candidates'])
         return candidates
 
 if __name__ == '__main__':
@@ -332,7 +334,7 @@ if __name__ == '__main__':
             print '%s: %s' % (role, to_str(turn))
         print 'TARGET:'
         print to_str(result['target'])
-        print 'KB CONTEXT:', result['kb_context']
+        print 'KB CONTEXT:', result.get('kb_context', None)
         print 'CANDIDATES:'
         for c in result['candidates']:
             if 'response' in c:
