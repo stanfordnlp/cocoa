@@ -3,6 +3,7 @@ from src.basic.systems.human_system import HumanSystem
 __author__ = 'anushabala'
 import sqlite3
 import json
+import math
 import os
 from src.basic.event import Event
 from src.basic.dataset import Example
@@ -35,6 +36,9 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
     (uuid, outcome) = result
     try:
         outcome = json.loads(outcome)
+        if 'offer' in outcome:
+            if math.isnan(outcome['offer']['price']):
+                outcome['offer']['price'] = None
     except ValueError:
         outcome = {'reward': 0}
 
@@ -52,8 +56,12 @@ def convert_events_to_json(chat_id, cursor, scenario_db):
             continue
         if action == 'message' and len(data.strip()) == 0:
             continue
-        if action == 'select' or action == 'offer' or action == 'eval':
+        if action == 'select' or action == 'eval':
             data = json.loads(data)
+        elif action == 'offer':
+            data = json.loads(data)
+            if math.isnan(data['price']):
+                data['price'] = None
         agent_chat[agent] = True
 
         time = convert_time_format(time)
