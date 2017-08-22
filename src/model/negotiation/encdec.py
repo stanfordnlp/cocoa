@@ -118,6 +118,12 @@ class BasicEncoderDecoder(object):
             feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs.pop('decoder'))
         return feed_dict
 
+    def output_to_preds(self, logits):
+        '''
+        logits: (batch_size, seq_len, vocab_size)
+        '''
+        return np.argmax(logits, axis=2)
+
     def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None, true_inputs=None):
         batch_size = batch['encoder_inputs'].shape[0]
 
@@ -161,7 +167,7 @@ class CandidateSelector(BasicEncoderDecoder):
         self.name = 'selector'
         self.keep_prob = keep_prob
         self.stateful = False
-        self.perplexity = True
+        self.perplexity = False
         self.build_model(encoder, decoder)
 
     def build_model(self, encoder, decoder):
@@ -176,6 +182,13 @@ class CandidateSelector(BasicEncoderDecoder):
 
             # Loss
             self.loss, self.total_loss = self.compute_loss(decoder.output_dict)
+
+    def output_to_preds(self, scores):
+        '''
+        scores: (batch_size, num_candidates)
+        '''
+        return np.argsort(scores, axis=1)
+
 
 class ContextEncoder(BasicEncoder):
     '''
@@ -612,15 +625,31 @@ class ClassifyDecoder(DecoderWrapper):
 
     def compute_loss(self):
         # Check padded candidates by checking if the first token is PAD
-        candidate_first_tokens = tf.reshape(self.feedable_vars['candidates'][:, :, 0], [-1])  # (batch_size * num_candidates,)
-        candidate_weights = tf.cast(tf.not_equal(candidate_first_tokens, tf.constant(self.pad)), tf.float32)
+        candidate_first_tokens = self.feedable_vars['candidates'][:, :, 0]  # (batch_size, num_candidates)
+        non_padding_candidate = tf.not_equal(candidate_first_tokens, tf.constant(self.pad))
+        labels = self.feedable_vars['labels']  # (batch_size, num_candidates)
+        positive_candidates = tf.equal(labels, tf.constant(1))
+        negative_candidates = tf.equal(labels, tf.constant(0))
+        positive_mask = tf.logical_and(positive_candidates, non_padding_candidate)
+        negative_mask = tf.logical_and(negative_candidates, non_padding_candidate)
 
-        logits = tf.reshape(self.output_dict['logits'], [-1, 2])
-        labels = tf.reshape(self.feedable_vars['labels'], [-1])
-        loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
-        total_loss = tf.reduce_sum(loss * candidate_weights)
-        num_examples = tf.reduce_sum(candidate_weights)
-        loss = total_loss / (num_examples + EPS)
-        tf.summary.scalar('candidate_classification_loss', loss)
+        # Make the 3D mask
+        num_candidates = tf.shape(labels)[1]
+        # For each positive example score, mark all negative example scores
+        positive_mask = tf.tile(tf.expand_dims(positive_mask, 2), [1, 1, num_candidates])
+        negative_mask = tf.tile(tf.expand_dims(negative_mask, 1), [1, num_candidates, 1])
+        mask = tf.logical_and(positive_mask, negative_mask)
 
-        return loss, (total_loss, num_examples)
+        # For each positive example, compute the diff
+        scores = self.output_dict['scores']  # (batch_size, num_candidates)
+        positive_score_matrix = tf.tile(tf.expand_dims(scores, 2), [1, 1, num_candidates])
+        positive_scores = tf.where(mask, positive_score_matrix, tf.ones_like(positive_score_matrix) * 1.1)
+        negative_score_matrix = tf.tile(tf.expand_dims(scores, 1), [1, num_candidates, 1])
+        negative_scores = tf.where(mask, negative_score_matrix, tf.zeros_like(negative_score_matrix))
+
+        num_pairs = tf.reduce_sum(tf.cast(mask, tf.float32))
+        total_loss = tf.reduce_sum(tf.maximum(1. + negative_scores - positive_scores, 0))
+        loss = total_loss / (num_pairs + EPS)
+        tf.summary.scalar('candidate_ranking_loss', loss)
+
+        return loss, (total_loss, num_pairs)

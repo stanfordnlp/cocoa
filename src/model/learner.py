@@ -72,7 +72,7 @@ class BaseLearner(object):
         results = {}
 
         # TODO: print_batch doesn't work for model=lm
-        if (not name == 'test') and self.model.perplexity:
+        if (not name == 'test'):
             print '================== Perplexity =================='
             start_time = time.time()
             loss = self.test_loss(sess, test_data, num_batches)

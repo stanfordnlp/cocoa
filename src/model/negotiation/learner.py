@@ -54,9 +54,16 @@ class Learner(BaseLearner):
                 init_price_history = self.model.decoder.price_predictor.zero_init_price(batch_size)
             feed_dict = self._get_feed_dict(batch, encoder_init_state, test=test, init_price_history=init_price_history)
             fetches = {
-                    'logits': self.model.decoder.output_dict['logits'],
                     'loss': self.model.loss,
                     }
+
+            if self.model.name == 'encdec':
+                fetches['raw_preds'] = self.model.decoder.output_dict['logits']
+            elif self.model.name == 'selector':
+                fetches['raw_preds'] = self.model.decoder.output_dict['scores']
+            else:
+                raise ValueError
+
             if not test:
                 fetches['train_op'] = self.train_op
                 fetches['gn'] = self.grad_norm
@@ -83,7 +90,7 @@ class Learner(BaseLearner):
                 init_price_history = results['price_history']
 
             if self.verbose:
-                preds = np.argmax(results['logits'], axis=2)
+                preds = self.model.output_to_preds(results['raw_preds'])
                 self._print_batch(batch, preds, results['loss'])
 
             if test:
