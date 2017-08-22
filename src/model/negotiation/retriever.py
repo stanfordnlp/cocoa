@@ -233,8 +233,8 @@ class Retriever(object):
         if n == 0:
             self.num_empty += 1
 
-        if n < self.num_candidates:
-            results.extend([{} for _ in xrange(self.num_candidates - n)])
+        #if n < self.num_candidates:
+        #    results.extend([{} for _ in xrange(self.num_candidates - n)])
 
         self.num_query += 1
         self.search_time += (time.time() - start_time)
@@ -260,9 +260,10 @@ class Retriever(object):
                 if r['candidates'] is None:
                     candidates[(r['uuid'], r['role'])].append(None)
                 else:
-                    for c in ifilter(lambda x: 'response' in x, r['candidates']):
-                        c['response'] = [to_ent(x) for x in c['response']]
-                    candidates[(r['uuid'], r['role'])].append(r['candidates'])
+                    # Only take the response (list of tokens)
+                    candidates_ = [[to_ent(x) for x in c['response']]
+                        for c in ifilter(lambda x: 'response' in x, r['candidates'])]
+                    candidates[(r['uuid'], r['role'])].append(candidates_)
         return candidates
 
 if __name__ == '__main__':

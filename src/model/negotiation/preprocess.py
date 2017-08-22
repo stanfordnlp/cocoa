@@ -135,7 +135,6 @@ class Dialogue(object):
     DEC = 1
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
-    num_candidates = None
     num_context = 1
 
     def __init__(self, agent, kb, uuid):
@@ -190,10 +189,10 @@ class Dialogue(object):
             else:
                 inds = []
                 for i, cand in enumerate(cands):
-                    if cand.get('response', None) == turn:
+                    if cand == turn:
                         inds.append(i)
                 if len(inds) == 0:
-                    cands.insert(0, {'response': turn})
+                    cands.insert(0, turn)
                     del cands[-1]
                     inds.append(0)
             true_candidate_inds.append(inds)
@@ -266,7 +265,7 @@ class Dialogue(object):
                 # Encoding turn
                 self.candidates.append(None)
             else:
-                c = [self.textint_map.text_to_int(remove_slot(c['response']), 'decoding') if 'response' in c else [] for c in turn_candidates]
+                c = [self.textint_map.text_to_int(remove_slot(c), 'decoding') for c in turn_candidates]
                 self.candidates.append(c)
 
     def convert_to_int(self):
@@ -302,7 +301,7 @@ class Dialogue(object):
             self._pad_list(turns, num_turns, [])
         self.price_turns = self._pad_list(self.price_turns, num_turns, [])
         if self.candidates:
-            self.candidates = self._pad_list(self.candidates, num_turns, [{} for _ in xrange(self.num_candidates)])
+            self.candidates = self._pad_list(self.candidates, num_turns, [])
         assert len(self.price_turns) == len(self.turns[0])
 
     def get_price_turns(self, pad):
@@ -458,7 +457,7 @@ class DataGenerator(object):
     # TODO: hack
     trie = None
 
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_candidates=20, num_context=1, batch_size=1, trie_path=None, model_config={}):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -492,7 +491,6 @@ class DataGenerator(object):
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
-        Dialogue.num_candidates = num_candidates
 
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
@@ -563,7 +561,7 @@ class DataGenerator(object):
 
     def rewrite_candidate(self, fillers, candidate):
         rewritten = []
-        tokens = candidate.get('response', [])
+        tokens = candidate
         if not tokens:
             return rewritten
         for i, tok in enumerate(tokens):
@@ -574,8 +572,7 @@ class DataGenerator(object):
                     del new_tokens[i]
                     for j, s in enumerate(ss):
                         new_tokens.insert(i+j, Entity(s, CanonicalEntity('', 'slot')))
-                    new_cand = dict(candidate)
-                    new_cand['response'] = new_tokens
+                    new_cand = new_tokens
                     rewritten.append(new_cand)
         return rewritten
 

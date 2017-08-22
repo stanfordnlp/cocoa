@@ -104,27 +104,29 @@ class BasicEncoder(object):
                 }
         return encoder_args
 
-    def _build_rnn_inputs(self, input_dict):
-        inputs, mask = self.seq_embedder.build_seq_inputs(self.inputs, self.word_embedder, self.pad, time_major=False)
+    def _build_rnn_inputs(self, inputs, input_dict):
+        inputs, mask = self.seq_embedder.build_seq_inputs(inputs, self.word_embedder, self.pad, time_major=False)
         init_cell_state = input_dict.get('init_cell_state', None)
         return inputs, mask, {'init_cell_state': init_cell_state}
 
     def _build_inputs(self, input_dict):
         if 'inputs' in input_dict:
-            self.inputs = input_dict['inputs']
+            inputs = input_dict['inputs']
         else:
-            self.inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
-        self.batch_size = tf.shape(self.inputs)[0]
-        self.seq_len = tf.shape(self.inputs)[1]
+            inputs = tf.placeholder(tf.int32, shape=[None, None], name='inputs')  # (batch_size, seq_len)
+            self.feedable_vars['inputs'] = inputs
+        return inputs
+        #self.batch_size = tf.shape(self.inputs)[0]
+        #self.seq_len = tf.shape(self.inputs)[1]
 
     def build_model(self, input_dict={}, tf_variables=None):
         '''
         inputs: (batch_size, seq_len, input_size)
         '''
         with tf.variable_scope(type(self).__name__):
-            self._build_inputs(input_dict)
+            inputs = self._build_inputs(input_dict)
 
-            inputs, mask, kwargs = self._build_rnn_inputs(input_dict)
+            inputs, mask, kwargs = self._build_rnn_inputs(inputs, input_dict)
             with tf.variable_scope('Embed'):
                 embeddings = self.seq_embedder.embed(inputs, mask, **kwargs)
 
@@ -139,7 +141,8 @@ class BasicEncoder(object):
 
     def get_feed_dict(self, **kwargs):
         feed_dict = kwargs.pop('feed_dict', {})
-        feed_dict[self.inputs] = kwargs.pop('inputs')
+        if 'inputs' in self.feedable_vars:
+            feed_dict[self.feedable_vars['inputs']] = kwargs.pop('inputs')
         optional_add(feed_dict, self.seq_embedder.feedable_vars['init_cell_state'], kwargs.pop('init_cell_state', None))
         optional_add(feed_dict, self.seq_embedder.feedable_vars['init_state'], kwargs.pop('init_state', None))
         return feed_dict
@@ -181,8 +184,9 @@ class BasicDecoder(BasicEncoder):
         return decoder_args
 
     def _build_inputs(self, input_dict):
-        super(BasicDecoder, self)._build_inputs(input_dict)
+        inputs = super(BasicDecoder, self)._build_inputs(input_dict)
         self.targets = tf.placeholder(tf.int32, shape=[None, None], name='targets')
+        return inputs
 
     def _build_logits(self, inputs):
         '''

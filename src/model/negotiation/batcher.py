@@ -355,18 +355,26 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         return [dialogue.token_candidates[i] if i < len(dialogue.token_candidates) else ''
                 for dialogue in dialogues]
 
+    def _max_num_candidates(self, dialogues, i):
+        return max([len(d.candidates[i]) for d in dialogues])
+
     def _get_candidate_batch_at(self, dialogues, i):
-        candidates = [c for d in dialogues for c in d.candidates[i]]
+        candidates = [d.candidates[i] for d in dialogues]
+        max_num_candidates = self._max_num_candidates(dialogues, i)
+        # Padding
+        candidates = [c + [[] for _ in xrange(max_num_candidates - len(c))] for c in candidates]  # (batch_size, num_candidates, seq_len)
+        # Flatten
+        candidates = [c for cands in candidates for c in cands]
+
         candidate_arr = pad_list_to_array(candidates, self.batcher.int_markers.PAD, np.int32)
-        num_candidates_per_turn = type(dialogues[0]).num_candidates
         batch_size = len(dialogues)
-        candidate_arr = candidate_arr.reshape(batch_size, num_candidates_per_turn, -1)
+        candidate_arr = candidate_arr.reshape(batch_size, max_num_candidates, -1)
         return candidate_arr
 
     def _get_label_batch_at(self, dialogues, i):
-        num_candidates_per_turn = type(dialogues[0]).num_candidates
         batch_size = len(dialogues)
-        labels = np.zeros((batch_size, num_candidates_per_turn), dtype=np.int32)
+        num_candidates = self._max_num_candidates(dialogues, i)
+        labels = np.zeros((batch_size, num_candidates), dtype=np.int32)
         true_candidate_inds = [d.true_candidate_inds[i] if i < len(d.true_candidate_inds) else [] for d in dialogues]
         batch_inds = [[b]*len(candidate_inds) for b, candidate_inds in enumerate(true_candidate_inds)]
         flatten = lambda l: [x for ll in l for x in ll]

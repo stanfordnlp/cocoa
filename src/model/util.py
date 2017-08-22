@@ -60,6 +60,28 @@ def batch_linear(args, output_size, bias):
     return output
 
 def transpose_first_two_dims(batch_input):
-    rank = len(batch_input.get_shape().as_list())
+    rank = batch_input.shape.ndims
     return tf.transpose(batch_input, perm=[1, 0]+range(2, rank))
 
+def _tile_single_tensor(t, multiplier):
+    '''
+    Tile a single tensor
+    (batch, ...) -> (batch * multiplier, ...)
+    '''
+    shape_t = tf.shape(t)
+    tiling = [1] * (t.shape.ndims + 1)
+    tiling[1] = multiplier
+    tiled = tf.tile(tf.expand_dims(t, 1), tiling)
+    tiled = tf.reshape(tiled, tf.concat([[shape_t[0] * multiplier], shape_t[1:]], axis=0))
+    # Presearve static shapes
+    tiled_static_batch_size = (t.shape[0].value * multiplier if t.shape[0].value is not None else None)
+    tiled.set_shape(
+        tf.TensorShape(
+            [tiled_static_batch_size]).concatenate(t.shape[1:]))
+    return tiled
+
+def tile_tensor(t, multiplier):
+    '''
+    Tile a possibly nested tensor where each tensor has first dimension batch_size.
+    '''
+    return nest.map_structure(lambda t_: _tile_single_tensor(t_, multiplier), t)

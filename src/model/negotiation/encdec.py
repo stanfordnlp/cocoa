@@ -7,7 +7,7 @@ from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
 from itertools import izip
 from tensorflow.contrib.rnn import LSTMStateTuple
-from src.model.util import EPS
+from src.model.util import EPS, tile_tensor
 
 def add_model_arguments(parser):
     parser.add_argument('--attention-memory', nargs='*', default=None, help='Attention memory: title, description, encoder outputs')
@@ -192,8 +192,10 @@ class ContextEncoder(BasicEncoder):
         return encoder_args
 
     def _build_inputs(self, input_dict):
-        super(ContextEncoder, self)._build_inputs(input_dict)
+        inputs = super(ContextEncoder, self)._build_inputs(input_dict)
+        # TODO: context
         self.context = [tf.placeholder(tf.int32, shape=[None, None], name='context_%d' % i) for i in xrange(self.num_context)]  # (batch_size, context_seq_len)
+        return inputs
 
     def embed_context(self):
         embeddings = []
@@ -210,9 +212,9 @@ class ContextEncoder(BasicEncoder):
         inputs: (batch_size, seq_len, input_size)
         '''
         with tf.variable_scope(type(self).__name__):
-            self._build_inputs(input_dict)
+            inputs = self._build_inputs(input_dict)
 
-            inputs, mask, kwargs = self._build_rnn_inputs(input_dict)
+            inputs, mask, kwargs = self._build_rnn_inputs(inputs, input_dict)
             with tf.variable_scope('Embed'):
                 embeddings = self.seq_embedder.embed(inputs, mask, **kwargs)
             with tf.variable_scope('ContextEmbed'):
@@ -272,8 +274,8 @@ class AttentionDecoder(BasicDecoder):
             })
         return decoder_args
 
-    def _build_rnn_inputs(self, input_dict):
-        inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(input_dict)
+    def _build_rnn_inputs(self, inputs, input_dict):
+        inputs, mask, kwargs = super(AttentionDecoder, self)._build_rnn_inputs(inputs, input_dict)
         encoder_outputs = input_dict['encoder_embeddings']
         self.feedable_vars['encoder_outputs'] = encoder_outputs
         encoder_embeddings = transpose_first_two_dims(encoder_outputs)  # (batch_size, seq_len, embed_size)
@@ -299,8 +301,8 @@ class ContextDecoder(BasicDecoder):
         #self.context = context
         self.context_embedding = self.context_embedder.embed(context)
 
-    def _build_rnn_inputs(self, input_dict):
-        inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(input_dict)  # (seq_len, batch_size, input_size)
+    def _build_rnn_inputs(self, inputs, input_dict):
+        inputs, mask, kwargs = super(ContextDecoder, self)._build_rnn_inputs(inputs, input_dict)  # (seq_len, batch_size, input_size)
         inputs = self.seq_embedder.concat_vector_to_seq(self.context_embedding, inputs)
         return inputs, mask, kwargs
 
@@ -553,9 +555,8 @@ class PriceDecoder(object):
         return {'preds': preds, 'prices': prices, 'final_state': final_state}
 
 class ClassifyDecoder(DecoderWrapper):
-    def __init__(self, decoder, num_candidates):
+    def __init__(self, decoder):
         self.decoder = decoder
-        self.num_candidates = num_candidates
         self.pad = self.decoder.pad
         self.feedable_vars = {}
 
@@ -565,29 +566,48 @@ class ClassifyDecoder(DecoderWrapper):
         optional_add(feed_dict, self.feedable_vars['labels'], kwargs.pop('candidate_labels', None))
         return feed_dict
 
+    def _tile_inputs(self, input_dict, multiplier):
+        with tf.name_scope('tile_inputs'):
+            if hasattr(self.decoder, 'context_embedding'):
+                self.decoder.context_embedding = tile_tensor(self.decoder.context_embedding, multiplier)
+            for input_name, tensor in input_dict.iteritems():
+                if input_name == 'init_cell_state':
+                    input_dict[input_name] = tile_tensor(tensor, multiplier)
+                elif input_name == 'encoder_embeddings':  # (seq_len, batch_size, embed_size)
+                    input_dict[input_name] = transpose_first_two_dims(
+                            tile_tensor(transpose_first_two_dims(tensor), multiplier))
+                elif input_name == 'inputs':
+                    continue
+                elif input_name == 'price_history':
+                    # TODO
+                    continue
+                else:
+                    print '{} not tiled'.format(input_name)
+                    raise ValueError
+        return input_dict
+
     def build_model(self, input_dict):
         with tf.variable_scope(type(self).__name__):
             # Inputs
-            candidates = tf.placeholder(tf.int32, shape=[None, self.num_candidates, None], name='candidates')  # (batch_size, num_candidates, seq_len)
-            labels = tf.placeholder(tf.int32, shape=[None, self.num_candidates], name='candidate_labels')  # Binary label: (batch_size, num_candidates)
+            candidates = tf.placeholder(tf.int32, shape=[None, None, None], name='candidates')  # (batch_size, num_candidates, seq_len)
+            labels = tf.placeholder(tf.int32, shape=[None, None], name='candidate_labels')  # Binary label: (batch_size, num_candidates)
             self.feedable_vars['candidates'] = candidates
             self.feedable_vars['labels'] = labels
+            shape = tf.shape(candidates)
+            batch_size, num_candidates = shape[0], shape[1]
 
-            candidate_list = tf.unstack(candidates, axis=1)
-            candidate_embeddings = []
-            with tf.variable_scope('CandidateEmbedding'):
-                for i, candidate in enumerate(candidate_list):
-                    if i > 0:
-                        tf.get_variable_scope().reuse_variables()
-                    input_dict['inputs'] = candidate
-                    self.decoder.build_model(input_dict)
-                    candidate_embeddings.append(self.decoder.output_dict['final_output'])
-                candidate_embeddings = tf.stack(candidate_embeddings, axis=1)  # (batch_size, num_candidates, seq_len)
+            input_dict = self._tile_inputs(input_dict, num_candidates)
+            input_dict['inputs'] = tf.reshape(candidates, [batch_size * num_candidates, -1])
+            self.decoder.build_model(input_dict)
+            output = self.decoder.output_dict['final_output']
+            # NOTE: need to preserve the static shape
+            embed_size = output.shape.as_list()[-1]
+            candidate_embeddings = tf.reshape(output, [batch_size, num_candidates, embed_size])
 
-            logits = tf.layers.dense(candidate_embeddings, 2, activation=None, use_bias=True)  # (batch_size, num_candidates, 2)
+            scores = tf.squeeze(tf.layers.dense(candidate_embeddings, 1, activation=None, use_bias=False), axis=2)  # (batch_size, num_candidates, 1)
             self.output_dict = {
                     'candidate_embeddings': candidate_embeddings,
-                    'logits': logits,
+                    'scores': scores,
                     }
 
     def compute_loss(self):

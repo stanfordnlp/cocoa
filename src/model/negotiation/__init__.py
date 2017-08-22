@@ -61,7 +61,7 @@ def get_data_generator(args, model_args, mappings, schema):
             train, dev, test = None, None, dataset.test_examples
         else:
             train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_candidates=args.num_candidates, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config)
+        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config)
 
     return data_generator
 
@@ -187,7 +187,7 @@ def build_model(schema, mappings, trie, args):
         # Retrieval-based models
         if args.model == 'selector':
             if args.selector_loss == 'binary':
-                decoder = ClassifyDecoder(decoder, args.num_candidates)
+                decoder = ClassifyDecoder(decoder)
 
         #decoder = TrieDecoder(decoder)
         return decoder
