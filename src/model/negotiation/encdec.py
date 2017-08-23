@@ -187,7 +187,8 @@ class CandidateSelector(BasicEncoderDecoder):
         '''
         scores: (batch_size, num_candidates)
         '''
-        return np.argsort(scores, axis=1)
+        # -1.*: reverse order (descent)
+        return np.argsort(-1.*scores, axis=1)
 
 
 class ContextEncoder(BasicEncoder):
@@ -650,6 +651,8 @@ class ClassifyDecoder(DecoderWrapper):
         num_pairs = tf.reduce_sum(tf.cast(mask, tf.float32))
         total_loss = tf.reduce_sum(tf.maximum(1. + negative_scores - positive_scores, 0))
         loss = total_loss / (num_pairs + EPS)
+
+        # Statistics
         tf.summary.scalar('candidate_ranking_loss', loss)
 
         return loss, (total_loss, num_pairs)

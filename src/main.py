@@ -116,7 +116,7 @@ if __name__ == '__main__':
         print 'Using GPU'
         gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
         config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
-    #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
     if args.test:
         evaluator = get_evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)

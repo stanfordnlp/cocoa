@@ -55,8 +55,16 @@ class BaseLearner(object):
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
             self._run_batch(dialogue_batch, sess, summary_map, test=True)
-        return summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
+        return summary_map
 
+    def collect_summary_test(self, summary_map, results={}):
+        results['loss'] = summary_map['total_loss']['sum'] / (summary_map['num_tokens']['sum'] + EPS)
+        return results
+
+    def collect_summary_train(self, summary_map, results={}):
+        # Mean of batch statistics
+        results.update({k: summary_map[k]['mean'] for k in ('loss', 'grad_norm')})
+        return results
 
     def _print_batch(self, batch, preds, loss):
         batcher = self.data.dialogue_batcher
@@ -75,9 +83,10 @@ class BaseLearner(object):
         if (not name == 'test'):
             print '================== Perplexity =================='
             start_time = time.time()
-            loss = self.test_loss(sess, test_data, num_batches)
-            results['loss'] = loss
-            print 'loss=%.4f time(s)=%.4f' % (loss, time.time() - start_time)
+            summary_map = self.test_loss(sess, test_data, num_batches)
+            results = self.collect_summary_test(summary_map, results)
+            results_str = ' '.join(['{}={:.4f}'.format(k, v) for k, v in results.iteritems()])
+            print '%s time(s)=%.4f' % (results_str, time.time() - start_time)
 
         if name == 'test':
         #if True:
@@ -146,12 +155,13 @@ class BaseLearner(object):
                     start_time = time.time()
                     self._run_batch(train_data.next(), sess, summary_map, test=False)
                     end_time = time.time()
-                    logstats.update_summary_map(summary_map, \
-                            {'time(s)/batch': end_time - start_time, \
-                             'memory(MB)': memory()})
+                    results = self.collect_summary_train(summary_map)
+                    results['time(s)/batch'] = end_time - start_time
+                    results['memory(MB)'] = memory()
+                    results_str = ' '.join(['{}={:.4f}'.format(k, v) for k, v in sorted(results.items())])
                     step += 1
                     if step % args.print_every == 0 or step % num_per_epoch == 0:
-                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch, logstats.summary_map_to_str(summary_map))
+                        print '{}/{} (epoch {}) {}'.format(i+1, num_per_epoch, epoch, results_str)
                         summary_map = {}  # Reset
                 step = 0
 
@@ -178,7 +188,6 @@ class BaseLearner(object):
                         best_saver.save(sess, best_save_path)
                         self.log_results('best_model', results)
                         logstats.add('best_model', {'epoch': epoch})
-                        #logstats.add('best_model', {'bleu-4': bleu[0], 'bleu-3': bleu[1], 'bleu-2': bleu[2], 'entity_precision': ent_prec, 'entity_recall': ent_recall, 'entity_f1': ent_f1, 'loss': loss, 'epoch': epoch})
 
                 # Early stop when no improvement
                 if (epoch > args.min_epochs and num_epoch_no_impr >= 5) or epoch > args.max_epochs:

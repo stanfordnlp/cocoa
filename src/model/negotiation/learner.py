@@ -69,8 +69,10 @@ class Learner(BaseLearner):
                 fetches['gn'] = self.grad_norm
             else:
                 fetches['total_loss'] = self.model.total_loss
+
             if self.model.stateful:
                 fetches['final_state'] = self.model.final_state
+
             if hasattr(self.model.decoder, 'price_predictor'):
                 fetches['price_history'] = self.model.decoder.output_dict['price_history']
 
@@ -86,6 +88,7 @@ class Learner(BaseLearner):
                 encoder_init_state = results['final_state']
             else:
                 encoder_init_state = None
+
             if 'price_history' in results:
                 init_price_history = results['price_history']
 
@@ -99,6 +102,29 @@ class Learner(BaseLearner):
             else:
                 logstats.update_summary_map(summary_map, {'loss': results['loss']})
                 logstats.update_summary_map(summary_map, {'grad_norm': results['gn']})
+
+            # TODO: refactor
+            if self.model.name == 'selector':
+                labels = batch['decoder_args']['candidate_labels']
+                preds = results['raw_preds']
+                for k in (1, 5):
+                    recall = self.evaluator.recall_at_k(labels, preds, k=k, summary_map=summary_map)
+                    logstats.update_summary_map(summary_map, {'recall_at_{}'.format(k): recall})
+
+    def collect_summary_train(self, summary_map, results={}):
+        results = super(Learner, self).collect_summary_train(summary_map, results)
+        if self.model.name == 'selector':
+            for k in (1, 5):
+                key = 'recall_at_{}'.format(k)
+                results[key] = summary_map[key]['mean']
+        return results
+
+    def collect_summary_test(self, summary_map, results={}):
+        results = super(Learner, self).collect_summary_test(summary_map, results)
+        if self.model.name == 'selector':
+            for k in (1, 5):
+                results['recall_at_{}'.format(k)] = self.evaluator.recall_at_k_from_summary(k, summary_map)
+        return results
 
 class PseudoTargetLearner(Learner):
     def __init__(self, data, model, evaluator, batch_size=1, verbose=False):

@@ -6,6 +6,7 @@ from src.basic.entity import is_entity
 from src.model.evaluate import BaseEvaluator
 from preprocess import Dialogue, price_filler
 from src.basic.negotiation.price_tracker import PriceTracker
+from src.model.util import EPS
 
 def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose=True):
     if model.name in ('ranker-cheat', 'ranker-ir'):
@@ -14,6 +15,8 @@ def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose
         return EncDecRetrievalEvaluator(data_generator, model, splits, batch_size, verbose)
     elif model.name == 'lm':
         return LMEvaluator(data_generator, model, splits, batch_size, verbose)
+    elif model.name == 'selector':
+        return SelectorEvaluator(data_generator, model, splits, batch_size, verbose)
     else:
         return Evaluator(data_generator, model, splits, batch_size, verbose)
 
@@ -201,6 +204,47 @@ class Evaluator(BaseEvaluator):
             precision, recall, f1 = stats['entity_f1']
             d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
+
+class SelectorEvaluator(Evaluator):
+    '''
+    Evaluate candidate selector (retrieval-based models).
+    '''
+    @classmethod
+    def recall_at_k(cls, labels, preds, k=1, summary_map=None):
+        '''
+        candidate_labels: binary (batch_size, num_candidates), 1 means good candidate
+        preds: ranking scores (batch_size, num_candidates)
+        Return the percentage of good candidates in the top-k candidates.
+        If summary_map is given, accumulates relevant statistics.
+        '''
+        topk_candidates = np.argsort(preds, axis=1)[:, :k]
+        # num_candidates might be smaller than k
+        batch_size, actual_k = topk_candidates.shape
+
+        binary_preds = np.zeros_like(labels, dtype=np.int32)
+        row_inds = np.tile(np.arange(batch_size), [actual_k, 1]).T
+        binary_preds[row_inds, topk_candidates] = 1
+
+        num_true_positive = np.sum(np.logical_and(labels == 1, labels == binary_preds))
+        num_positive_example = np.sum(labels)
+        recall = float(num_true_positive) / num_positive_example
+
+        if summary_map is not None:
+            prefix = 'recall_at_{}'.format(k)
+            logstats.update_summary_map(summary_map, {
+                '{}_tp'.format(prefix): num_true_positive,
+                '{}_p'.format(prefix): num_positive_example,
+                })
+
+        return recall
+
+    @classmethod
+    def recall_at_k_from_summary(self, k, summary_map):
+        prefix = 'recall_at_{}'.format(k)
+        num_true_positive = summary_map['{}_tp'.format(prefix)]['sum']
+        num_positive_example = summary_map['{}_p'.format(prefix)]['sum']
+        recall = float(num_true_positive) / (num_positive_example + EPS)
+        return recall
 
 class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
