@@ -23,13 +23,13 @@
         table { 
             border-collapse: collapse; 
             border: 1px solid black;
-            padding: 10px;
+            padding: 30px;
             margin: 15px auto;
-            color: #058ead;
         }
 
-        th, td {
-            padding: 10px;
+        td {
+            padding: 30px;
+            margin-left: 20px;
         }
 
         form {
@@ -41,7 +41,6 @@
         }
 
         .header {
-            font-size: 1.0rem;
             padding: 10px 5px 10px 5px;
             border: 3px solid #000e7f;
             color: #000e7f;
@@ -52,6 +51,7 @@
     </style>
 
     <link rel="stylesheet" type="text/css" href="../static/survey.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
     <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
     <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
     <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
@@ -114,6 +114,9 @@
         questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
         questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
 
+        $('.btn.btn-default.eval-tag').click(function () {
+            $(this).toggleClass('btn-default btn-primary');
+        });
 
 
         $("#submit").click(function() {
@@ -195,6 +198,45 @@
             <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
         </div>
 
+        <br> <br>
+        
+        <div class="q">
+            <p style="text-align: center;">Rate each of your partner's utterances (highlighted below) - you can choose multiple ratings if you want </p>
+            <table class="chatLog">
+            {% for event in visualization['chat'] if event['action'] == 'message' or event['action'] == 'offer' or event['action'] == 'accept' or event['action'] == 'reject' %}
+                {% if event['action'] == 'message' %}
+                {% set displayed_msg = event['data'] %}
+                {% elif event['action'] == 'offer' %}
+                {% set displayed_msg = 'OFFER ' ~ event['data']['price'] %}
+                {% elif event['action'] == 'accept' %}
+                {% set displayed_msg = 'ACCEPT' %}
+                {% elif event['action'] == 'reject' %}
+                {% set displayed_msg = 'reject' %}
+                {% endif %}
+
+                {% if event['agent'] == agent_idx %}
+                <tr class="me">
+                <td style="padding-left: 5px; padding-right: 5px;"> You: </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"> {{ displayed_msg }} </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"></td>
+                </tr>
+                {% else %}
+                <tr class="partner">
+                <td style="padding-left: 5px; padding-right: 5px;"><b> Partner:</b> </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"><b>{{ displayed_msg }}</b> </td> 
+                <td style="padding-left: 5px; padding-right: 5px;">
+                    <button type="button" class="btn btn-default eval-tag"  id="ok_{{loop.index}}">OK response!</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical_{{loop.index}}">NOT grammatical</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="incoherent_{{loop.index}}">Out-of-context</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="contradiction_{{loop.index}}">Contradiction</button>
+                    <button type="button" class="btn btn-default eval-tag" id="persuasive_{{loop.index}}">Persuasive!</button>
+                </td>
+                </tr>
+                {% endif %}
+            {% endfor %}
+            </table>
+        </div>
+
         <br>
         <br>
 
@@ -208,20 +250,9 @@
             </form>
         </div>
 
-        <br> <br>
-<!--         {% if kb['personal']['Role'] == 'buyer' %}
-        <div class="q">
-           <p style="text-align:center;">How <strong>honest</strong> was your partner?</p> <br>
-            <form id="q_c">
-                <p style="float:left;">Not honest at all</p>
-                <input type="range" id="honest" min="1" max="5" style="width:50%; margin-left:16%;" >
-                <p style="float:right;">Very honest</p>
-            </form>
-        </div>
-        <br> <br>
-        {% endif %} -->
-        
 
+
+        <br><br>
         
 
         <div class="q">

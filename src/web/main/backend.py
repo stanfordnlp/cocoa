@@ -16,7 +16,6 @@ from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutEx
 from web_logger import WebLogger
 from src.turk.accept_negotiation_hits import reject_transcript
 from src.basic.systems.human_system import HumanSystem
-from src.scripts.visualize_data import visualize_chat
 from src.web.dump_events_to_json import convert_events_to_json
 from src.basic.controller import Controller
 from src.basic.event import Event
@@ -458,6 +457,17 @@ class BaseBackend(object):
 
         return msg, msg
 
+    def get_most_recent_chat(self, userid):
+        try:
+            with self.conn:
+                controller = self.controller_map[userid]
+                cursor = self.conn.cursor()
+                chat_id = controller.get_chat_id()
+                ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
+                return ex
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
     def get_finished_info(self, userid, from_mturk=False, current_status=Status.Finished):
         def _generate_mturk_code(completed=True):
             if completed:
@@ -770,45 +780,20 @@ class BaseBackend(object):
         str_outcome = json.dumps(outcome)
         cursor.execute('''UPDATE chat SET outcome=? WHERE chat_id=?''', (str_outcome, chat_id))
 
-    def visualize_chat(self, userid):
-        def _get_chat_id():
-            try:
-                cursor.execute('SELECT chat_id FROM mturk_task WHERE name=?', (userid,))
-                return cursor.fetchone()[0]
-            except sqlite3.IntegrityError:
-                print("WARNING: Rolled back transaction")
-                return None
-
-        def _get_agent_type(partner_idx):
-            try:
-                cursor.execute('''SELECT agent_types FROM chat WHERE chat_id=?''', (chat_id,))
-                agent_types = json.loads(cursor.fetchone()[0])
-                agent_types = dict((int(k), v) for (k, v) in agent_types.items())
-                return agent_types[partner_idx]
-            except sqlite3.OperationalError:
-                # this should never happen!!
-                print "No agent types stored for chat %s" % chat_id
-                return None
-
-        def _get_agent_index():
-            try:
-                cursor.execute('SELECT agent_ids FROM chat WHERE chat_id=?', (chat_id,))
+    def get_agent_idx(self, userid):
+        controller = self.controller_map[userid]
+        chat_id = controller.get_chat_id()
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
                 agent_ids = json.loads(cursor.fetchone()[0])
                 agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
                 return 0 if agent_ids[0] == userid else 1
-            except sqlite3.OperationalError:
-                # this should never happen!!
-                print "No agent IDs stored for chat %s" % chat_id
-                return None
 
-        with self.conn:
-            cursor = self.conn.cursor()
-            chat_id = _get_chat_id()
-            agent_index = _get_agent_index()
-            partner_type = _get_agent_type(1 - agent_index)
-            ex = convert_events_to_json(chat_id, cursor, self.scenario_db)
-            _, html = visualize_chat(ex.to_dict(), agent=agent_index, partner_type=partner_type)
-            return html
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
 
 
 class MutualFriendsBackend(BaseBackend):
@@ -839,26 +824,12 @@ class NegotiationBackend(BaseBackend):
             return reject_transcript(ex, agent_idx)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
-        def _get_agent_idx():
-            chat_id = controller.get_chat_id()
-            try:
-                with self.conn:
-                    cursor = self.conn.cursor()
-                    cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
-                    agent_ids = json.loads(cursor.fetchone()[0])
-                    agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
-                    return 0 if agent_ids[0] == userid else 1
-
-            except sqlite3.IntegrityError:
-                print("WARNING: Rolled back transaction")
-                return None
-
-        controller = self.controller_map[userid]
-        agent_idx = _get_agent_idx()
+        agent_idx = self.get_agent_idx(userid)
         game_over, game_complete = self.is_game_over(userid)
 
         def verify_chat(userid, agent_idx, is_partner):
             user_name = 'partner' if is_partner else 'user'
+            controller = self.controller_map[userid]
             chat_id = controller.get_chat_id()
             if self.should_reject_chat(userid, agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
@@ -887,34 +858,11 @@ class NegotiationBackend(BaseBackend):
         :param userid:
         :return:
         """
-        def _get_agent_idx():
-            chat_id = controller.get_chat_id()
-
-            try:
-                with self.conn:
-                    cursor = self.conn.cursor()
-                    cursor.execute('''SELECT agent_ids FROM chat WHERE chat_id=?''', (chat_id,))
-                    agent_ids = json.loads(cursor.fetchone()[0])
-                    agent_ids = dict((int(k), v) for (k, v) in agent_ids.items())
-                    print "Agent IDs string:", agent_ids
-                    return 0 if agent_ids[0] == userid else 1
-
-            except sqlite3.IntegrityError:
-                print("WARNING: Rolled back transaction")
-                return None
 
         _, game_complete = self.is_game_over(userid)
         if game_complete:
             msg = Messages.get_completed_message()
             partner_msg = msg
-
-            # agent_idx = _get_agent_idx()
-            # if agent_idx == controller.get_winner():
-            #     msg = Messages.NegotiationBetterDeal
-            #     partner_msg = Messages.NegotiationWorseDeal
-            # elif controller.get_winner() == 1 - agent_idx:
-            #     msg = Messages.NegotiationWorseDeal
-            #     partner_msg = Messages.NegotiationBetterDeal
         else:
             msg = Messages.get_incomplete_message()
             partner_msg = msg

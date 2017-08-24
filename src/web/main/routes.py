@@ -3,7 +3,6 @@ __author__ = 'anushabala'
 import uuid
 from datetime import datetime
 import time
-import json
 
 from flask import jsonify, render_template, request, redirect, url_for, Markup
 
@@ -13,6 +12,8 @@ from . import main
 from src.web.main.web_utils import get_backend
 from src.web.main.backend_utils import Status
 from src.basic.event import Event
+from src.scripts.html_visualizer import NegotiationHTMLVisualizer
+import src.config as task_config
 
 
 def generate_userid(prefix="U_"):
@@ -256,15 +257,11 @@ def index():
                                visualize=False,
                                uid=userid())
     elif status == Status.Chat:
-        peek = False
         debug = False
         partner_kb = None
-        if request.args.get('peek') is not None and request.args.get('peek') == '1':
-            peek = True
-            partner_kb = chat_info.partner_kb.to_dict()
         if request.args.get('debug') is not None and request.args.get('debug') == '1':
             debug = True
-        chat_info = backend.get_chat_info(userid(), peek=peek)
+        chat_info = backend.get_chat_info(userid())
         return render_template('chat.html',
                                debug=debug,
                                uid=userid(),
@@ -280,6 +277,14 @@ def index():
                                           app.config['user_params']['quit_after'])
     elif status == Status.Survey:
         survey_info = backend.get_survey_info(userid())
+        visualization = None
+        if task_config.task == task_config.Negotiation:
+            complete_chat = backend.get_most_recent_chat(userid())
+            agent_idx = backend.get_agent_idx(userid())
+            visualization = {
+                'chat': complete_chat['events'],
+                'agent_idx': agent_idx
+            }
         return render_template('task_survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
@@ -290,25 +295,13 @@ def index():
                                message=survey_info.message,
                                results=survey_info.result,
                                agent_idx=survey_info.agent_idx,
-                               scenario_id=survey_info.scenario_id)
+                               scenario_id=survey_info.scenario_id,
+                               visualization=visualization)
     elif status == Status.Reporting:
         return render_template('report.html',
                                title=app.config['task_title'],
                                uid=userid(),
                                icon=app.config['task_icon'])
-
-
-@main.route('/visualize', methods=['GET', 'POST'])
-def visualize():
-    uid = request.args.get('uid')
-    backend = get_backend()
-    html_lines = ['<head><style>table{ table-layout: fixed; width: 600px; border-collapse: collapse; } '
-                  'tr:nth-child(n) { border: solid thin;}</style></head><body>']
-    html_lines.extend(backend.visualize_chat(uid))
-    html_lines.append('</body>')
-    html_lines = "".join(html_lines)
-    return render_template('visualize.html',
-                           dialogue=Markup(html_lines))
 
 
 @main.route('/_select_option/', methods=['GET'])

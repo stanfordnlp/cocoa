@@ -426,15 +426,15 @@
                                 $("#text").removeAttr('disabled');
                                 displayText(response['message']);
 
-                                sendEval();
-                                eval_utterance = response['message'].match(utterance_regex);
-                                if (eval_utterance != null && eval_utterance.length > 2) {
-                                    eval_data['utterance'] = eval_utterance[2];
-                                } else {
-                                    eval_data['utterance'] = '';
-                                }
-                                eval_data['timestamp'] = response['timestamp'];
-                                $("#partner_utterance").html(eval_data['utterance']);
+                                // sendEval();
+                                // eval_utterance = response['message'].match(utterance_regex);
+                                // if (eval_utterance != null && eval_utterance.length > 2) {
+                                //     eval_data['utterance'] = eval_utterance[2];
+                                // } else {
+                                //     eval_data['utterance'] = '';
+                                // }
+                                // eval_data['timestamp'] = response['timestamp'];
+                                // $("#partner_utterance").html(eval_data['utterance']);
                             }
                             if ('price' in response) {
                                 $("#price").attr("disabled", "disabled")
@@ -596,7 +596,8 @@
 
             <textarea readonly id="chat"></textarea>
             <!-- <input readonly id="status" style="width:100%;"><br><br> -->
-            <div class="eval_container" id="eval">
+            <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
+            <!-- <div class="eval_container" id="eval">
                 <h4>Rate your partner's utterance:</h4>
                 <p id="partner_utterance"></p>
                 <div class="button_container">
@@ -604,9 +605,9 @@
                     <button type="button" class="btn btn-default eval-tag"  id="incoherent">Out-of-context</button>
                     <button type="button" class="btn btn-default eval-tag"  id="contradiction">Contradiction</button>
                     <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
-                    <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
+                    
                 </div>
-            </div>
+            </div> -->
             <input id="text" placeholder="Enter your message here"><br><br>
 
         </div>
