@@ -76,11 +76,12 @@ class Learner(BaseLearner):
             if hasattr(self.model.decoder, 'price_predictor'):
                 fetches['price_history'] = self.model.decoder.output_dict['price_history']
 
-            fetches['merged'] = self.merged_summary
+            if not test:
+                fetches['merged'] = self.merged_summary
 
             results = sess.run(fetches, feed_dict=feed_dict)
-            self.global_step += 1
             if not test:
+                self.global_step += 1
                 if self.global_step % 100 == 0:
                     self.train_writer.add_summary(results['merged'], self.global_step)
 
