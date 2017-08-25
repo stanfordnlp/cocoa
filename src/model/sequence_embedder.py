@@ -140,6 +140,7 @@ class RNNEmbedder(SequenceEmbedder):
         '''
         flat_states = nest.flatten(states)
         flat_selected_states = []
+        mask = transpose_first_two_dims(mask)  # (batch_size, seq_len)
         for fs in flat_states:
             # NOTE: this is attention_state.time, which we are not using.
             # time assumes to be the same for all examples in a batch, which is not
@@ -149,7 +150,11 @@ class RNNEmbedder(SequenceEmbedder):
                 selected_states = fs[0]
             else:
                 # fs is (seq_len, batch_size, ...)
-                selected_states = tf.boolean_mask(fs, mask)
+                fs = transpose_first_two_dims(fs)  # (batch_size, seq_len, ...)
+                # boolean_mask selects sub-tensors in the row order of mask
+                # so we want each row to correspond to a sequence such that
+                # for each batch, one element in the sequence is selected
+                selected_states = tf.boolean_mask(fs, mask)  # (batch_size, ...)
             flat_selected_states.append(selected_states)
         selected_states = nest.pack_sequence_as(states, flat_selected_states)
         return selected_states
