@@ -251,7 +251,11 @@ class Retriever(object):
     def load_candidates(self, paths):
         candidates = defaultdict(list)
         # When dumped to json, NamedTuple becomes list. Now convert it back.
-        to_ent = lambda x: x if isinstance(x, basestring) else Entity(x[0], CanonicalEntity(*x[1]))
+        is_str = lambda x: isinstance(x, basestring)
+        # x[0] (surface of entity): note that for prices from the offer action,
+        # surface is float instead of string
+        to_ent = lambda x: x.encode('utf-8') if is_str(x) else \
+            Entity(x[0].encode('utf-8') if is_str(x[0]) else x[0], CanonicalEntity(*x[1]))
         for path in paths:
             print 'Load candidates from', path
             results = read_json(path)
