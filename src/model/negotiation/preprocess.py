@@ -268,6 +268,11 @@ class Dialogue(object):
                 c = [self.textint_map.text_to_int(remove_slot(c), 'decoding') for c in turn_candidates]
                 self.candidates.append(c)
 
+    def kb_context_to_int(self):
+        self.category = self.mappings['cat_vocab'].to_ind(self.category)
+        self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
+        self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
+
     def convert_to_int(self):
         if self.is_int:
             return
@@ -280,9 +285,7 @@ class Dialogue(object):
             self.candidates_to_int()
 
         self.price_turns = self.get_price_turns(int_markers.PAD)
-        self.category = self.mappings['cat_vocab'].to_ind(self.category)
-        self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
-        self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
+        self.kb_context_to_int()
 
         self.is_int = True
 
@@ -362,14 +365,13 @@ class Preprocessor(object):
         for agent in (0, 1):
             dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
             for e in ex.events:
-                utterance = self.process_event(e, dialogue.agent, dialogue.kb)
+                utterance = self.process_event(e, dialogue.kb)
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance)
             yield dialogue
 
     @classmethod
     def price_to_entity(cls, price):
-        #return (price, (price, 'price'))
         return Entity(price, CanonicalEntity(price, 'price'))
 
     @classmethod
@@ -396,7 +398,7 @@ class Preprocessor(object):
             new_utterance.append(markers.END_SLOT)
         return new_utterance
 
-    def process_event(self, e, agent, kb):
+    def process_event(self, e, kb):
         '''
         Tokenize, link entities
         '''
