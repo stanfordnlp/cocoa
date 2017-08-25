@@ -26,7 +26,8 @@ class IRRanker(BaseRanker):
     def select(cls, batch):
         batch_candidates = batch['token_candidates']
 
-        responses = [c[0].get('response', []) if len(c) > 0 else [] for c in batch_candidates]
+        responses = [c[0] if len(c) > 0 else [] for c in batch_candidates]
+        return responses
         return {
                 'responses': responses,
                 'candidates': batch['token_candidates'],
