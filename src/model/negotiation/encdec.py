@@ -190,6 +190,10 @@ class CandidateSelector(BasicEncoderDecoder):
         # -1.*: reverse order (descent)
         return np.argsort(-1.*scores, axis=1)
 
+    def select(self, sess, feed_dict_args):
+        feed_dict = self.get_feed_dict(**feed_dict_args)
+        scores = sess.run(self.decoder.output_dict['scores'], feed_dict=feed_dict)
+        return np.argmax(scores, axis=1)
 
 class ContextEncoder(BasicEncoder):
     '''
@@ -275,7 +279,7 @@ class AttentionDecoder(BasicDecoder):
         super(AttentionDecoder, self).__init__(word_embedder, seq_embedder, pad, keep_prob, num_symbols, sampler, sampled_loss, prompt_len=prompt_len)
         self.context_embedder = context_embedder
         context = tuple([x for x in attention_memory if x in self.context_embedder.context_names])
-        self.context_embedding = self.context_embedder.embed(context=context, step=True)  # (batch_size, context_len, embed_size)
+        self.context_embedding = self.context_embedder.embed(context=context, step=True)  # [(batch_size, context_len, embed_size)]
 
     def get_encoder_state(self, state):
         return state.cell_state

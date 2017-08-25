@@ -2,12 +2,13 @@ import os
 import argparse
 import tensorflow as tf
 from src.basic.systems.system import System
-from src.basic.sessions.negotiation.ranker_session import IRRankerSession, EncDecRankerSession
+from src.basic.sessions.negotiation.ranker_session import IRRankerSession, NeuralRankerSession, StreamingDialogue
 from src.basic.sessions.timed_session import TimedSessionWrapper
 from src.basic.util import read_pickle, read_json
 from src.model.negotiation import build_model
 from src.model.negotiation.ranker import IRRanker, EncDecRanker
-from src.model.negotiation.preprocess import markers, TextIntMap, Preprocessor
+from src.model.negotiation.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols
+from src.model.negotiation.batcher import DialogueBatcherFactory
 from collections import namedtuple
 from src.lib import logstats
 
@@ -37,9 +38,9 @@ class IRRankerSystem(System):
             session = TimedSessionWrapper(agent, session)
 	return session
 
-class EncDecRankerSystem(System):
+class NeuralRankerSystem(System):
     def __init__(self, schema, price_tracker, retriever, model_path, mappings, timed_session=False):
-        super(EncDecRankerSystem, self).__init__()
+        super(NeuralRankerSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
         self.timed_session = timed_session
@@ -49,7 +50,6 @@ class EncDecRankerSystem(System):
         config = read_json(args_path)
         # TODO: handle this properly
         config['batch_size'] = 1
-        config['gpu'] = 0  # Don't need GPU for batch_size=1
         config['pretrained_wordvec'] = None
         args = argparse.Namespace(**config)
 
@@ -58,7 +58,7 @@ class EncDecRankerSystem(System):
         vocab = mappings['vocab']
 
         logstats.add_args('model_args', args)
-        model = build_model(schema, mappings, args)
+        model = build_model(schema, mappings, None, args)
 
         # Tensorflow config
         if args.gpu == 0:
@@ -67,6 +67,7 @@ class EncDecRankerSystem(System):
         else:
             gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
             config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
         # NOTE: need to close the session when done
         tf_session = tf.Session(config=config)
@@ -82,17 +83,23 @@ class EncDecRankerSystem(System):
         preprocessor = Preprocessor(schema, price_tracker, 'canonical', 'canonical', 'canonical')
         textint_map = TextIntMap(vocab, preprocessor)
 
-        ranker = EncDecRanker(model)
-        ranker.set_tf_session(tf_session)
-        Env = namedtuple('Env', ['ranker', 'retriever', 'tf_session', 'preprocessor', 'mappings', 'textint_map'])
-        self.env = Env(ranker, retriever, tf_session, preprocessor, mappings, textint_map)
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        model_config = {'retrieve': True}
+        batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+
+        StreamingDialogue.textint_map = textint_map
+        StreamingDialogue.num_context = args.num_context
+        StreamingDialogue.mappings = mappings
+
+        Env = namedtuple('Env', ['ranker', 'retriever', 'tf_session', 'preprocessor', 'mappings', 'textint_map', 'batcher'])
+        self.env = Env(model, retriever, tf_session, preprocessor, mappings, textint_map, batcher)
 
     @classmethod
     def name(cls):
-        return 'ranker-encdec'
+        return 'ranker-neural'
 
     def new_session(self, agent, kb):
-        session = EncDecRankerSession(agent, kb, self.env)
+        session = NeuralRankerSession(agent, kb, self.env)
         if self.timed_session:
             session = TimedSessionWrapper(agent, session)
 	return session

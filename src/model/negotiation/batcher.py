@@ -54,7 +54,7 @@ class DialogueBatcher(object):
             for j in xrange(self.num_turns)]
         return price_batches
 
-    def _create_context_batch(self, dialogues, pad):
+    def create_context_batch(self, dialogues, pad):
         category_batch = np.array([d.category for d in dialogues], dtype=np.int32)
         # TODO: make sure pad is consistent
         #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
@@ -132,9 +132,12 @@ class DialogueBatcher(object):
         # TODO: depending on prompt length
         return input_arr[:, 1:]
 
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
+    def get_encoder_inputs(self, encoder_turns):
         # Most recent partner utterance
         encoder_inputs = self._remove_prompt(encoder_turns[-1])
+        return encoder_inputs
+
+    def get_encoder_context(self, encoder_turns, num_context):
         # |num_context| utterances before the last partner utterance
         encoder_context = [self._remove_prompt(turn) for turn in encoder_turns[-1*(num_context+1):-1]]
         if len(encoder_context) < num_context:
@@ -142,6 +145,11 @@ class DialogueBatcher(object):
             empty_context = np.full([batch_size, 1], self.int_markers.PAD, np.int32)
             for i in xrange(num_context - len(encoder_context)):
                 encoder_context.insert(0, empty_context)
+        return encoder_context
+
+    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
+        encoder_inputs = self.get_encoder_inputs(encoder_turns)
+        encoder_context = self.get_encoder_context(encoder_turns, num_context)
 
         # Decoder inputs: start from <go> to generate, i.e. <go> <token>
         assert decoder_turns.shape == target_turns.shape
@@ -216,7 +224,7 @@ class DialogueBatcher(object):
         '''
         agents = self._get_agent_batch_at(dialogues, 1)  # Decoding agent
         kbs = self._get_kb_batch(dialogues)
-        kb_context_batch = self._create_context_batch(dialogues, self.kb_pad)
+        kb_context_batch = self.create_context_batch(dialogues, self.kb_pad)
         return {
                 'agents': agents,
                 'kbs': kbs,
@@ -277,7 +285,7 @@ class DialogueBatcher(object):
     #     kbs = self._get_kb_batch()
 
     #     pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-    #     context_batch = self._create_context_batch(pad)
+    #     context_batch = self.create_context_batch(pad)
 
     #     # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
     #     encode_turn_ids = range(0, self.num_turns-1, 2)
@@ -301,10 +309,20 @@ class DialogueBatcher(object):
 class DialogueBatcherWrapper(object):
     def __init__(self, batcher):
         self.batcher = batcher
+        # TODO: fix kb_pad, hacky
+        self.kb_pad = batcher.kb_pad
 
     def create_batch(self, dialogues):
         raise NotImplementedError
 
+    def create_context_batch(self, dialogues, pad):
+        return self.batcher.create_context_batch(dialogues, pad)
+
+    def get_encoder_inputs(self, encoder_turns):
+        return self.batcher.get_encoder_inputs(encoder_turns)
+
+    def get_encoder_context(self, encoder_turns, num_context):
+        return self.batcher.get_encoder_context(encoder_turns, num_context)
 
 class PriceWrapper(DialogueBatcherWrapper):
     '''
@@ -375,6 +393,8 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         batch_size = len(dialogues)
         num_candidates = self._max_num_candidates(dialogues, i)
         labels = np.zeros((batch_size, num_candidates), dtype=np.int32)
+        if dialogues[0].true_candidate_inds is None:
+            return labels
         true_candidate_inds = [d.true_candidate_inds[i] if i < len(d.true_candidate_inds) else [] for d in dialogues]
         batch_inds = [[b]*len(candidate_inds) for b, candidate_inds in enumerate(true_candidate_inds)]
         flatten = lambda l: [x for ll in l for x in ll]
@@ -382,7 +402,8 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         return labels
 
     def _create_one_batch(self, candidates=None, candidate_labels=None, token_candidates=None):
-        assert candidates.shape[:2] == candidate_labels.shape
+        if candidate_labels is not None:
+            assert candidates.shape[:2] == candidate_labels.shape
         return {
                 'candidates': candidates,
                 'token_candidates': token_candidates,
@@ -527,7 +548,7 @@ class EvalDialogueBatcher(DialogueBatcher):
         kbs = self._get_kb_batch()
 
         pad = EvalDialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        context_batch = self._create_context_batch(pad)
+        context_batch = self.create_context_batch(pad)
 
         # We just need one batch (context, response, candidates, scores)
         # TODO: better way to handle Dialogue/EvalDialogue static variables

@@ -1,7 +1,7 @@
 from src.basic.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
 from src.model.negotiation.retriever import Retriever, add_retriever_arguments
 from rulebased_system import RulebasedSystem
-from ranker_system import IRRankerSystem, EncDecRankerSystem
+from ranker_system import IRRankerSystem, NeuralRankerSystem
 #from neural_system import NeuralSystem, add_neural_system_arguments
 from cmd_system import CmdSystem
 
@@ -28,8 +28,8 @@ def get_system(name, args, schema=None, timed=False):
             return IRRankerSystem(schema, lexicon, retriever1)
         elif name == 'ranker-ir2':
             return IRRankerSystem(schema, lexicon, retriever2)
-        elif name == 'ranker-encdec':
-            return EncDecRankerSystem(schema, lexicon, retriever, args.model_path, args.mappings)
+        elif name == 'ranker-neural':
+            return NeuralRankerSystem(schema, lexicon, retriever, args.model_path, args.mappings)
         else:
             raise ValueError
     #elif name == 'neural':

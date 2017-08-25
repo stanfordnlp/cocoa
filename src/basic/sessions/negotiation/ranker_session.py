@@ -8,6 +8,17 @@ import random
 import re
 from itertools import izip
 
+class StreamingDialogue(Dialogue):
+    def __init__(self, agent, kb):
+        super(StreamingDialogue, self).__init__(agent, kb, None)
+
+    def turns_to_int(self):
+        num_converted_turns = len(self.turns[0])
+        for turn in self.token_turns[num_converted_turns:]:
+            # Don't need decoding and target
+            self.turns[0].append(self.textint_map.text_to_int(turn, 'encoding'))
+
+
 class IRRankerSession(Session):
     """
     RankerSession represents a dialogue agent backed by a neural model. This class stores the knowledge graph,
@@ -22,13 +33,7 @@ class IRRankerSession(Session):
         self.env = env
         self.ranker = env.ranker
         self.retriever = env.retriever
-        self.kb = kb
-        self.role = self.kb.facts['personal']['Role']
-        self.category = self.kb.facts['item']['Category']
-        self.title = self.kb.facts['item']['Title']
-        self.description = self.kb.facts['item']['Description']
-        self.mentioned_entities = set()
-        self.prev_turns = []
+        self.dialogue = StreamingDialogue(agent, kb)
         self.cached_utterances = []
         self.replied = False
         self.offered = False
@@ -39,26 +44,21 @@ class IRRankerSession(Session):
         if event.action == 'offer':
             self.offered = True
         # Parse utterance
-        entity_tokens = self.env.preprocessor.process_event(event, self.agent, self.kb, mentioned_entities=self.mentioned_entities)
+        utterance = self.env.preprocessor.process_event(event, self.dialogue.kb)
         # Empty message
-        if entity_tokens is None:
-            return
-
-        for token in entity_tokens:
-            if is_entity(token):
-                self.mentioned_entities.add(token.canonical)
-
+        if utterance is None:
+            return False
+        #print 'receive:', utterance
+        self.dialogue.add_utterance(event.agent, utterance)
+        #print 'token_turns:', self.dialogue.token_turns
         self.replied = False
-
-        self.prev_turns.append(entity_tokens)
-
-        #entity_tokens += [markers.EOS]
-        #self.encode(entity_tokens)
+        return True
 
     def get_candidates(self):
-        if len(self.prev_turns) == 0:
-            self.prev_turns.append([markers.EOS])
-        candidates = self.retriever.search(self.role, self.category, self.title, self.prev_turns)
+        #print 'get_candidates:'
+        #print self.dialogue.token_turns
+        candidates = self.retriever.search(self.dialogue.role, self.dialogue.category, self.dialogue.title, self.dialogue.token_turns)
+        candidates = [c['response'] for c in candidates]
         return candidates
 
     def select(self):
@@ -99,12 +99,11 @@ class IRRankerSession(Session):
         #    tokens = utterances[0]
         #    self.cached_utterances.extend(utterances[1:])
 
-        tokens = self.select()
-        self.prev_turns.append(tokens)
+        # Add empty context
+        if len(self.dialogue.token_turns) == 0:
+            self.dialogue._add_utterance(1 - self.agent, [])
 
-        for token in tokens:
-            if is_entity(token):
-                self.mentioned_entities.add(token.canonical)
+        tokens = self.select()
 
         # TODO: handle multiple sentences properly
         for i, token in enumerate(tokens):
@@ -123,6 +122,8 @@ class IRRankerSession(Session):
         # TODO: handle price properly
         s = ' '.join(['_price_' if is_entity(x) else x for x in tokens if x != markers.EOS])
         self.replied = True
+        # NOTE: note that add_utterance would alter tokens, e.g. insert markers
+        self.dialogue.add_utterance(self.agent, tokens)
         return self.message(s)
 
 class EncDecRankerSession(IRRankerSession):
@@ -190,7 +191,7 @@ class EncDecRankerSession(IRRankerSession):
         if event.action == 'offer':
             self.offered = True
         # Parse utterance
-        entity_tokens = self.env.preprocessor.process_event(event, self.agent, self.kb, mentioned_entities=self.mentioned_entities)
+        entity_tokens = self.env.preprocessor.process_event(event, self.kb)
         # Empty message
         if entity_tokens is None:
             return
@@ -216,4 +217,58 @@ class EncDecRankerSession(IRRankerSession):
         best_candidate = self.ranker.sample_candidates(candidates_loss)[0]
         self.encoder_state = final_states[best_candidate]
         return token_candidates[best_candidate]['response']
+
+class NeuralRankerSession(IRRankerSession):
+    def __init__(self, agent, kb, env):
+        super(NeuralRankerSession,self).__init__(agent, kb, env)
+        self.kb_context = self._get_int_context()
+
+    def _get_int_context(self):
+        category = self.env.mappings['cat_vocab'].to_ind(self.dialogue.category)
+        title = map(self.env.mappings['kb_vocab'].to_ind, self.dialogue.title)
+        description = map(self.env.mappings['kb_vocab'].to_ind, self.dialogue.description)
+        context = {
+                'category': np.array(category).reshape([1]),
+                'title': np.array(title).reshape([1, -1]),
+                'description': np.array(description).reshape([1, -1]),
+                }
+        return context
+
+    def get_batch_data(self, encoder_turns=None, candidates=None, num_context=None):
+        # Make batch_size = 1
+        encoder_turns = [np.expand_dims(turn, 0) for turn in encoder_turns]
+
+        self.dialogue.candidates = [candidates]
+        candidates = self.env.batcher._get_candidate_batch_at([self.dialogue], 0)
+
+        encoder_args = {
+                'inputs': self.env.batcher.get_encoder_inputs(encoder_turns),
+                'context': self.env.batcher.get_encoder_context(encoder_turns, num_context),
+                }
+        print 'encoder inputs:', self.env.textint_map.int_to_text(encoder_args['inputs'][0])
+        print 'candidates:'
+        for c in candidates[0]:
+            print self.env.textint_map.int_to_text(c)
+        decoder_args = {
+                'context': self.kb_context,
+                'candidates': candidates,
+                }
+        batch = {
+                'encoder': encoder_args,
+                'decoder': decoder_args,
+                }
+        return batch
+
+    def select(self):
+        token_candidates = self.get_candidates()
+        candidates = [self.env.textint_map.text_to_int(c, 'decoding') for c in token_candidates]
+
+        self.dialogue.turns_to_int()
+        batch = self.get_batch_data(candidates=candidates, encoder_turns=self.dialogue.turns[0], num_context=type(self.dialogue).num_context)
+
+        candidate_id = self.ranker.select(self.env.tf_session, batch)[0]
+        utterance = token_candidates[candidate_id]
+        utterance = [x for x in utterance if not x in markers]
+        #print 'select:', utterance
+        return utterance
 
