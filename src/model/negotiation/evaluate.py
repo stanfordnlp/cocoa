@@ -210,14 +210,14 @@ class SelectorEvaluator(Evaluator):
     Evaluate candidate selector (retrieval-based models).
     '''
     @classmethod
-    def recall_at_k(cls, labels, preds, k=1, summary_map=None):
+    def recall_at_k(cls, labels, scores, k=1, summary_map=None):
         '''
         candidate_labels: binary (batch_size, num_candidates), 1 means good candidate
         preds: ranking scores (batch_size, num_candidates)
         Return the percentage of good candidates in the top-k candidates.
         If summary_map is given, accumulates relevant statistics.
         '''
-        topk_candidates = np.argsort(preds, axis=1)[:, :k]
+        topk_candidates = np.argsort(-1.*scores, axis=1)[:, :k]
         # num_candidates might be smaller than k
         batch_size, actual_k = topk_candidates.shape
 
