@@ -1,0 +1,282 @@
+import argparse
+from collections import defaultdict
+import json
+import sqlite3
+from datetime import datetime
+import os
+import shutil
+import warnings
+import atexit
+
+from cocoa.basic.scenario_db import add_scenario_arguments, ScenarioDB
+from cocoa.basic.schema import Schema
+from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
+from cocoa.basic.util import read_json
+from cocoa.web import create_app
+from cocoa.basic.systems import get_system, add_system_arguments
+from cocoa.basic.systems.human_system import HumanSystem
+from gevent.pywsgi import WSGIServer
+from cocoa.web.main.web_logger import WebLogger
+
+__author__ = 'anushabala'
+
+DB_FILE_NAME = 'chat_state.db'
+LOG_FILE_NAME = 'log.out'
+ERROR_LOG_FILE_NAME = 'error_log.out'
+TRANSCRIPTS_DIR = 'transcripts'
+
+
+def add_website_arguments(parser):
+    parser.add_argument('--port', type=int, default=5000,
+                        help='Port to start server on')
+    parser.add_argument('--host', type=str, default='127.0.0.1',
+                        help='Host IP address to run app on. Defaults to localhost.')
+    parser.add_argument('--config', type=str, default='app_params.json',
+                        help='Path to JSON file containing configurations for website')
+    parser.add_argument('--output', type=str,
+                        default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
+                        help='Name of directory for storing website output (debug and error logs, chats, '
+                             'and database). Defaults to a web_output/current_date, with the current date formatted as '
+                             '%%Y-%%m-%%d. '
+                             'If the provided directory exists, all data in it is overwritten unless the '
+                             '--reuse parameter is provided.')
+    parser.add_argument('--reuse', action='store_true', help='If provided, reuses the existing database file in the '
+                                                             'output directory.')
+
+
+def add_survey_table(cursor):
+    import src.config as config
+    if config.task == config.MutualFriends:
+        cursor.execute(
+            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+            correct integer, cooperative integer, human_like integer, comments text)''')
+    elif config.task == config.Negotiation:
+        cursor.execute(
+            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+            honest integer, persuasive integer, fair integer, negotiator integer, coherent integer, comments text)''')
+    else:
+        raise ValueError("Unknown task %s" % config.task)
+
+
+def init_database(db_file):
+
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    c.execute(
+        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
+        connected_status integer, connected_timestamp integer, message text, partner_type text,
+        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
+    )
+    c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
+
+    c.execute(
+        '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
+    )
+    c.execute(
+        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
+        start_time text)'''
+    )
+    c.execute(
+        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
+        PRIMARY KEY (scenario_id, partner_type))'''
+    )
+    c.execute(
+        '''CREATE TABLE feedback (name text, comments text)'''
+    )
+
+    add_survey_table(c)
+
+    conn.commit()
+    conn.close()
+
+
+def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    for scenario in scenario_db.scenarios_list:
+        sid = scenario.uuid
+        for agent_type in systems.keys():
+            if update:
+                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+            else:
+                c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+
+    conn.commit()
+    conn.close()
+
+
+def add_systems(args, config_dict, schema):
+    """
+    Params:
+    config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
+        dictionary should contain the bot type (key 'type') and. for bots that use an underlying model for generation,
+        the path to the directory containing the parameters, vocab, etc. for the model.
+    Returns:
+    agents: A dict mapping from the bot name to the System object for that bot.
+    pairing_probabilities: A dict mapping from the bot name to the probability that a user is paired with that
+        bot. Also includes the pairing probability for humans (backend.Partner.Human)
+    """
+
+    total_probs = 0.0
+    systems = {HumanSystem.name(): HumanSystem()}
+    pairing_probabilities = {}
+    timed = False if params['debug'] else True
+    for (sys_name, info) in config_dict.iteritems():
+        if "active" not in info.keys():
+            warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
+        if info["active"]:
+            name = info["type"]
+            try:
+                model = get_system(name, args, timed=timed)
+            except ValueError:
+                warnings.warn(
+                    'Unrecognized model type in {} for configuration '
+                    '{}. Ignoring configuration.'.format(info, sys_name))
+                continue
+            systems[sys_name] = model
+            if 'prob' in info.keys():
+                prob = float(info['prob'])
+                pairing_probabilities[sys_name] = prob
+                total_probs += prob
+
+    if total_probs > 1.0:
+        raise ValueError("Probabilities for active bots can't exceed 1.0.")
+    if len(pairing_probabilities.keys()) != 0 and len(pairing_probabilities.keys()) != len(systems.keys()):
+        remaining_prob = (1.0-total_probs)/(len(systems.keys()) - len(pairing_probabilities.keys()))
+    else:
+        remaining_prob = 1.0 / len(systems.keys())
+    inactive_bots = set()
+    for system_name in systems.keys():
+        if system_name not in pairing_probabilities.keys():
+            if remaining_prob == 0.0:
+                inactive_bots.add(system_name)
+            else:
+                pairing_probabilities[system_name] = remaining_prob
+
+    for sys_name in inactive_bots:
+        systems.pop(sys_name, None)
+
+    return systems, pairing_probabilities
+
+
+def cleanup(flask_app):
+    db_path = flask_app.config['user_params']['db']['location']
+    transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
+    log_transcripts_to_json(flask_app.config['scenario_db'], db_path, transcript_path, None)
+    if flask_app.config['user_params']['end_survey'] == 1:
+        surveys_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'surveys.json')
+        log_surveys_to_json(db_path, surveys_path)
+
+
+def init(output_dir, reuse=False):
+    db_file = os.path.join(output_dir, DB_FILE_NAME)
+    log_file = os.path.join(output_dir, LOG_FILE_NAME)
+    error_log_file = os.path.join(output_dir, ERROR_LOG_FILE_NAME)
+    transcripts_dir = os.path.join(output_dir, TRANSCRIPTS_DIR)
+    if not reuse:
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir)
+
+        init_database(db_file)
+
+        if os.path.exists(transcripts_dir):
+            shutil.rmtree(transcripts_dir)
+        os.makedirs(transcripts_dir)
+
+    return db_file, log_file, error_log_file, transcripts_dir
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    add_website_arguments(parser)
+    add_scenario_arguments(parser)
+    add_system_arguments(parser)
+    args = parser.parse_args()
+
+    params_file = args.config
+    with open(params_file) as fin:
+        params = json.load(fin)
+
+    db_file, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
+    error_log_file = open(error_log_file, 'w')
+
+    WebLogger.initialize(log_file)
+    params['db'] = {}
+    params['db']['location'] = db_file
+    params['logging'] = {}
+    params['logging']['app_log'] = log_file
+    params['logging']['chat_dir'] = transcripts_dir
+
+    if 'task_title' not in params.keys():
+        raise ValueError("Title of task should be specified in config file with the key 'task_title'")
+
+    instructions = None
+    if 'instructions' in params.keys():
+        instructions_file = open(params['instructions'], 'r')
+        instructions = "".join(instructions_file.readlines())
+        instructions_file.close()
+    else:
+        raise ValueError("Location of file containing instructions for task should be specified in config with the key "
+                         "'instructions")
+
+    templates_dir = None
+    if 'templates_dir' in params.keys():
+        templates_dir = params['templates_dir']
+    else:
+        raise ValueError("Location of HTML templates should be specified in config with the key templates_dir")
+    if not os.path.exists(templates_dir):
+            raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
+
+    app = create_app(debug=False, templates_dir=templates_dir)
+
+    schema_path = args.schema_path
+
+    if not os.path.exists(schema_path):
+        raise ValueError("No schema file found at %s" % schema_path)
+
+    schema = Schema(schema_path)
+    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+    app.config['scenario_db'] = scenario_db
+
+    if 'models' not in params.keys():
+        params['models'] = {}
+
+    if 'quit_after' not in params.keys():
+        params['quit_after'] = params['status_params']['chat']['num_seconds'] + 1
+
+    if 'skip_chat_enabled' not in params.keys():
+        params['skip_chat_enabled'] = False
+
+    if 'end_survey' not in params.keys() :
+        params['end_survey'] = 0
+
+    if 'debug' not in params:
+        params['debug'] = False
+
+    systems, pairing_probabilities = add_systems(args, params['models'], schema)
+
+    add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
+
+    app.config['systems'] = systems
+    app.config['sessions'] = defaultdict(None)
+    app.config['pairing_probabilities'] = pairing_probabilities
+    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', 1)
+    app.config['schema'] = schema
+    app.config['user_params'] = params
+    app.config['sessions'] = defaultdict(None)
+    app.config['controller_map'] = defaultdict(None)
+    app.config['instructions'] = instructions
+    app.config['task_title'] = params['task_title']
+
+
+    if 'icon' not in params.keys():
+        app.config['task_icon'] = 'handshake.jpg'
+    else:
+        app.config['task_icon'] = params['icon']
+
+    print "App setup complete"
+
+    server = WSGIServer(('', args.port), app, log=WebLogger.get_logger(), error_log=error_log_file)
+    atexit.register(cleanup, flask_app=app)
+    server.serve_forever()
