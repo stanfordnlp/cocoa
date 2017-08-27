@@ -1,4 +1,4 @@
-
+# CoCoA (Collaborative Communicating Agents)
 
 **CoCoA** is a dialogue research framework in Python, providing tools for
 - **data collection** from a text-based chat interface by crowdsourcing (e.g. Amazon Mechanical Turk)
@@ -10,8 +10,6 @@ The master branch currently supports the MutualFriends task from the paper [Lear
 
 ----------
 
-[TOC]
-
 ## Tasks
 - **MutualFriends**: two agents, each with a private list of friends with multiple attributes (e.g. school, company), try to find their mutual friends through a conversation.
 - **Craigslist Negotiation**: a buyer and a seller negotiate the price of an item for sale on [Craigslist](https://sfbay.craigslist.org/).
@@ -19,9 +17,11 @@ The master branch currently supports the MutualFriends task from the paper [Lear
 ## Main concepts/classes
 ### Schema and scenarios
 A **dialogue** is always grounded in a **scenario** (structured context). A **schema** defines the structure of scenarios. You can think of the scenario as tables and the schema as the column definition. For example, a simple scenario that specifies the dialogue topic is
+
 | Topic      | 
-| :-------- | 
+| -------- | 
 | Artificial Intelligence  | 
+
 and its schema (in JSON) is
 ```
 {
