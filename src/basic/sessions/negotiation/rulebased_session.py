@@ -481,3 +481,21 @@ class BuyerRulebasedSession(BaseRulebasedSession):
             return super(BuyerRulebasedSession, self).persuade()
         else:
             return self.offer_sides()
+
+#############################
+
+class RuleUtteranceTagger(object):
+    '''
+    Tag utteances from the rulebased bot, i.e the function that generates the
+    utterance.
+    NOTE: in future we will add the act/function in the utterance event.
+    '''
+    greetings = ('hi', 'hello', 'hey')
+
+    propose = [
+               r'Can you take',
+               r'What about',
+               r'What do you think of',
+               r'ok, I guess I can take',
+               r'and we have a deal',
+              ]
