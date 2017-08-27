@@ -77,10 +77,13 @@ To collect data from Amazon Mechanical Turk, simply provide the address ```http:
 
 #### Dump the data
 See ```src/web/dump_events_to_json.py```.
+
 ### Dialogue agents
 To add an agent for a task, we need a corresponding system ```src/systems/task/agent_system.py``` and a session ```src/sessions/task/agent_session.py```.
 Once an agent is implemented, we can let it self-play, i.e. chat with itself, using the script ```src/scripts/generate_dataset.py```.
+
 ### Model training and testing
+
 ### Human evaluation
 
 
