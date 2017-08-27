@@ -245,10 +245,6 @@ class NeuralRankerSession(IRRankerSession):
                 'inputs': self.env.batcher.get_encoder_inputs(encoder_turns),
                 'context': self.env.batcher.get_encoder_context(encoder_turns, num_context),
                 }
-        print 'encoder inputs:', self.env.textint_map.int_to_text(encoder_args['inputs'][0])
-        print 'candidates:'
-        for c in candidates[0]:
-            print self.env.textint_map.int_to_text(c)
         decoder_args = {
                 'context': self.kb_context,
                 'candidates': candidates,
@@ -269,6 +265,5 @@ class NeuralRankerSession(IRRankerSession):
         candidate_id = self.ranker.select(self.env.tf_session, batch)[0]
         utterance = token_candidates[candidate_id]
         utterance = [x for x in utterance if not x in markers]
-        #print 'select:', utterance
         return utterance
 
