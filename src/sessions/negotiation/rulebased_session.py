@@ -1,5 +1,5 @@
 import random
-from src.basic.sessions.session import Session
+from session import Session
 from src.model.negotiation.preprocess import tokenize
 from src.basic.entity import is_entity
 
@@ -19,8 +19,6 @@ class BaseRulebasedSession(Session):
         self.agent = agent
         self.kb = kb
         self.lexicon = lexicon
-        # TODO: consider time
-        self.time_to_ddl = time_to_ddl
 
         self.my_price = None
         self.partner_price = None
@@ -31,7 +29,6 @@ class BaseRulebasedSession(Session):
 
         # Direction of desired price
         self.inc = None
-        # TODO: set this to empirical human stat
         self.overshoot = random.choice((.1, .2, .3))
 
         self.state = {

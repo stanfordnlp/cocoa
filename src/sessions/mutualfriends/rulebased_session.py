@@ -2,7 +2,7 @@ import random
 import re
 from collections import defaultdict
 from src.basic.sample_utils import sample_candidates
-from src.basic.sessions.session import Session
+from session import Session
 from src.model.preprocess import tokenize, word_to_num
 from src.model.vocab import is_entity
 from src.basic.lexicon import Lexicon

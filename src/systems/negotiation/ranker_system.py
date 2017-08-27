@@ -1,9 +1,9 @@
 import os
 import argparse
 import tensorflow as tf
-from src.basic.systems.system import System
-from src.basic.sessions.negotiation.ranker_session import IRRankerSession, NeuralRankerSession, StreamingDialogue
-from src.basic.sessions.timed_session import TimedSessionWrapper
+from src.systems.system import BaseSystem as System
+from src.sessions.negotiation.ranker_session import IRRankerSession, NeuralRankerSession, StreamingDialogue
+from src.sessions.timed_session import TimedSessionWrapper
 from src.basic.util import read_pickle, read_json
 from src.model.negotiation import build_model
 from src.model.negotiation.ranker import IRRanker, EncDecRanker

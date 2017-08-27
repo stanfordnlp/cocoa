@@ -1,5 +1,5 @@
-from src.basic.systems.rulebased_system import BaseRulebasedSystem
-from src.basic.sessions.negotiation.rulebased_session import RulebasedSession
+from src.systems.rulebased_system import BaseRulebasedSystem
+from src.sessions.negotiation.rulebased_session import RulebasedSession
 
 class RulebasedSystem(BaseRulebasedSystem):
 

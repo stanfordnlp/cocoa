@@ -1,5 +1,3 @@
-__author__ = 'anushabala'
-
 import src.config as config
 if config.task == config.MutualFriends:
     from mutualfriends import *

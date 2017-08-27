@@ -1,8 +1,7 @@
-__author__ = 'anushabala'
-from system import System
-from src.basic.sessions.timed_session import TimedSessionWrapper
+from system import BaseSystem
+from src.sessions.timed_session import TimedSessionWrapper
 
-class BaseRulebasedSystem(System):
+class BaseRulebasedSystem(BaseSystem):
     def __init__(self, timed_session):
         super(BaseRulebasedSystem, self).__init__()
         self.timed_session = timed_session
@@ -15,7 +14,7 @@ class BaseRulebasedSystem(System):
         session = self._new_session(agent, kb)
         if self.timed_session:
             session = TimedSessionWrapper(agent, session)
-	return session
+        return session
 
     def _new_session(self, agent, kb):
         raise NotImplementedError

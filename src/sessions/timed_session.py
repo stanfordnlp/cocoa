@@ -1,12 +1,12 @@
 __author__ = 'anushabala'
-from session import Session
+from session import BaseSession
 import time
 import random
 from collections import deque
 from src.basic.event import Event
 
 
-class TimedSessionWrapper(Session):
+class TimedSessionWrapper(BaseSession):
     """
     TimedSessionWrapper is a wrapper around a Session class that adds timing logic to the send() function in Session.
     This class can be used to wrap around a session that produces event responses generated using rules (or a model) -

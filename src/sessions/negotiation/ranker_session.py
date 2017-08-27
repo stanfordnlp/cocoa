@@ -1,4 +1,4 @@
-from src.basic.sessions.session import Session
+from session import Session
 from src.model.negotiation.preprocess import markers, Dialogue
 from src.model.vocab import Vocabulary
 from src.basic.entity import is_entity, Entity

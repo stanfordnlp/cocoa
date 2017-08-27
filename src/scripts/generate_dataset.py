@@ -10,7 +10,7 @@ from src.basic.schema import Schema
 from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
 from src.basic.dataset import add_dataset_arguments
 from src.basic.controller import Controller
-from src.basic.systems import add_system_arguments, get_system
+from src.systems import add_system_arguments, get_system
 import numpy as np
 
 parser = argparse.ArgumentParser()

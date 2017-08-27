@@ -1,10 +1,6 @@
-__author__ = 'anushabala'
-
-
-class System(object):
-    def __init__(self):
-        pass
-
+class BaseSystem(object):
+    """An abstract class for building a Session object.
+    """
     def new_session(self, agent, kb):
         raise NotImplementedError
 

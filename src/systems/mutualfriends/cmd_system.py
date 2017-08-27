@@ -1,7 +1,7 @@
-from src.basic.systems.system import System
-from src.basic.sessions.cmd_session import CmdSession
+from src.systems.system import BaseSystem
+from src.sessions.mutualfriends.cmd_session import CmdSession
 
-class CmdSystem(System):
+class CmdSystem(BaseSystem):
     def __init__(self):
         super(CmdSystem, self).__init__()
 
