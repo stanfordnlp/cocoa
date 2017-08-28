@@ -10,6 +10,13 @@ The master branch currently supports the MutualFriends task from the paper [Lear
 
 ----------
 
+## Installation
+You must have Tensorflow 1.2 installed.
+```
+pip install -r requirements.txt
+python setup.py develop
+```
+
 ## Tasks
 - **MutualFriends**: two agents, each with a private list of friends with multiple attributes (e.g. school, company), try to find their mutual friends through a conversation.
 - **Craigslist Negotiation**: a buyer and a seller negotiate the price of an item for sale on [Craigslist](https://sfbay.craigslist.org/).
@@ -57,11 +64,11 @@ examples.json
 A **dataset** reads in training and testing examples from JSON files.
 
 ## Code organization
-CoCoA is designed to be modular so that one can plug in their own task/modules easily. Below we use ```task``` as the custom task name (e.g. "mutualfriends") in modules or paths.
+CoCoA is designed to be modular so that one can plug in their own task/modules easily. Below we use ```task``` as the custom task name (e.g. "mutualfriends").
 
 ### Data collection
 #### Generate scenarios
-We provide basic infrastructure to set up a website that pairs two users or a user and a bot to chat in a given scenario. The first step is to generate/write a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in. The scenario generation script should be ```src/scripts/task/generate_scenarios.py```.
+We provide basic infrastructure to set up a website that pairs two users or a user and a bot to chat in a given scenario. The first step is to generate/write a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in. The scenario generation script is ```task/scripts/generate_scenarios.py```.
 
 #### Setup the web server
 The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other to complete the task until the time limit is reached. Users are then directed to a survey to rate their partners in terms of fluency, collaboration etc. All dialogue events are logged in a database.
@@ -79,8 +86,8 @@ To collect data from Amazon Mechanical Turk, simply provide the address ```http:
 See ```src/web/dump_events_to_json.py```.
 
 ### Dialogue agents
-To add an agent for a task, we need a corresponding system ```src/systems/task/agent_system.py``` and a session ```src/sessions/task/agent_session.py```.
-Once an agent is implemented, we can let it self-play, i.e. chat with itself, using the script ```src/scripts/generate_dataset.py```.
+To add an agent for a task, we need a corresponding system ```task/systems/agent_system.py``` and a session ```task/sessions/agent_session.py```.
+Once an agent is implemented, we can let it self-play, i.e. chat with itself, using the script ```scripts/generate_dataset.py```.
 
 ### Model training and testing
 
