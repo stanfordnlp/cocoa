@@ -1,9 +1,9 @@
-from system import BaseSystem
+from system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 
-class BaseRulebasedSystem(BaseSystem):
+class RulebasedSystem(System):
     def __init__(self, timed_session):
-        super(BaseRulebasedSystem, self).__init__()
+        super(RulebasedSystem, self).__init__()
         self.timed_session = timed_session
 
     @classmethod

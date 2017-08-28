@@ -8,10 +8,10 @@ import re
 import langdetect
 import os.path
 from itertools import izip
-from src.basic.schema import Schema
-from src.basic.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
-from src.basic.util import generate_uuid, write_json, read_json
-from src.basic.kb import NegotiationKB
+from src.core.schema import Schema
+from src.core.scenario_db import NegotiationScenario, ScenarioDB, add_scenario_arguments
+from src.core.util import generate_uuid, write_json, read_json
+from src.core.kb import NegotiationKB
 from itertools import izip_longest, izip
 from collections import defaultdict
 

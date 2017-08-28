@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
-from src.basic.event import Event
-from src.basic.dataset import Example
+from src.core.event import Event
+from src.core.dataset import Example
 from datetime import datetime
 from src.lib import logstats
 from src.model.vocab import is_entity

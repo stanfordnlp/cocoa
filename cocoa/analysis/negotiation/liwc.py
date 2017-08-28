@@ -1,5 +1,5 @@
 import re
-from cocoa.basic.util import read_pickle, write_pickle
+from cocoa.core.util import read_pickle, write_pickle
 import pygtrie
 
 class LIWC(object):

@@ -1,9 +1,9 @@
 __author__ = 'anushabala'
-from session import BaseSession
+from session import Session as BaseSession
 import time
 import random
 from collections import deque
-from cocoa.basic.event import Event
+from cocoa.core.event import Event
 
 
 class TimedSessionWrapper(BaseSession):

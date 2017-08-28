@@ -2,9 +2,9 @@ import nltk
 from nltk.corpus import stopwords
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize
-from cocoa.basic.negotiation.tokenizer import tokenize
-from cocoa.basic.dataset import Example
-from cocoa.basic.entity import Entity, is_entity, CanonicalEntity
+from cocoa.core.negotiation.tokenizer import tokenize
+from cocoa.core.dataset import Example
+from cocoa.core.entity import Entity, is_entity, CanonicalEntity
 from speech_acts import SpeechActAnalyzer
 import matplotlib
 matplotlib.use('Agg')
@@ -350,8 +350,8 @@ class Dialogue(object):
 
 ####### TEST #########
 if __name__ == '__main__':
-    from cocoa.basic.negotiation.price_tracker import PriceTracker
-    from cocoa.basic.util import read_json
+    from cocoa.core.negotiation.price_tracker import PriceTracker
+    from cocoa.core.util import read_json
     from liwc import LIWC
 
     transcripts = read_json('web_output/combined/transcripts/transcripts.json')

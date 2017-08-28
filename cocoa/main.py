@@ -8,8 +8,8 @@ import os
 import time
 import tensorflow as tf
 from itertools import chain
-from cocoa.basic.util import read_json, write_json, read_pickle, write_pickle
-from cocoa.basic.schema import Schema
+from cocoa.core.util import read_json, write_json, read_pickle, write_pickle
+from cocoa.core.schema import Schema
 from cocoa.model.preprocess import add_data_generator_arguments, get_data_generator
 from cocoa.model.encdec import add_model_arguments, build_model
 from cocoa.model.learner import add_learner_arguments, get_learner #, Learner

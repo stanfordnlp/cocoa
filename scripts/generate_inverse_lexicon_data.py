@@ -4,13 +4,13 @@ import re
 import sys
 
 sys.path.append("..")
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
-from src.basic.schema import Schema
+from src.core.lexicon import Lexicon, add_lexicon_arguments
+from src.core.schema import Schema
 from stop_words import get_stop_words
-from src.basic.event import Event
+from src.core.event import Event
 from src.model.vocab import is_entity
 from src.model.preprocess import Preprocessor
-from src.basic.dataset import Example
+from src.core.dataset import Example
 
 
 """
@@ -24,7 +24,7 @@ for each entity linked by lexicon
 """
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("arguments for basic testing lexicon")
+    parser = argparse.ArgumentParser("arguments for.core.testing lexicon")
     parser.add_argument("--schema", type=str, help="path to schema to use")
     parser.add_argument("--ranker-data", type=str, help="path to train data")
     parser.add_argument("--annotated-examples-path", help="Json of annotated examples", type=str)

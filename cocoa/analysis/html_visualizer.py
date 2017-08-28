@@ -1,13 +1,13 @@
-from cocoa.basic.util import read_json
+from cocoa.core.util import read_json
 
 __author__ = 'anushabala'
 
 import os
 from argparse import ArgumentParser
-from cocoa.basic.scenario_db import ScenarioDB, Scenario, add_scenario_arguments
-from cocoa.basic.schema import Schema
-from cocoa.basic.event import Event
-from cocoa.basic.util import write_json, read_json
+from cocoa.core.scenario_db import ScenarioDB, Scenario, add_scenario_arguments
+from cocoa.core.schema import Schema
+from cocoa.core.event import Event
+from cocoa.core.util import write_json, read_json
 import numpy as np
 import json
 import datetime

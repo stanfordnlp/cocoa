@@ -4,7 +4,7 @@ Combine different batches of data (transcripts.json and surveys.json).
 
 import argparse
 import os
-from src.basic.util import read_json, write_json
+from src.core.util import read_json, write_json
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--paths', nargs='+', help='Paths to transcripts directories')

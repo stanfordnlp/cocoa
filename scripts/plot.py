@@ -4,7 +4,7 @@ font_size = 16
 matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 import argparse
-from src.basic.util import read_json, read_pickle
+from src.core.util import read_json, read_pickle
 from itertools import izip
 import numpy as np
 import os

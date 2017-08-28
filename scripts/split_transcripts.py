@@ -1,7 +1,7 @@
 import argparse
 import os
 from collections import defaultdict
-from src.basic.util import read_json, write_json
+from src.core.util import read_json, write_json
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--transcripts', help='Path to transcritps of mixed partners')

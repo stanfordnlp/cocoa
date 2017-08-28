@@ -4,14 +4,14 @@ matplotlib.use('Agg')
 #matplotlib.rcParams.update({k: font_size for k in ('font.size', 'axes.labelsize', 'xtick.labelsize', 'ytick.labelsize', 'legend.fontsize')})
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from src.basic.util import read_json, write_json
+from src.core.util import read_json, write_json
 from src.scripts.visualize_data import *
 from dataset_statistics import *
 from src.model.preprocess import Preprocessor
-from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.dataset import Example
-from src.basic.schema import Schema
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.core.scenario_db import ScenarioDB, add_scenario_arguments
+from src.core.dataset import Example
+from src.core.schema import Schema
+from src.core.lexicon import Lexicon, add_lexicon_arguments
 from src.model.vocab import is_entity
 from collections import defaultdict
 import numpy as np

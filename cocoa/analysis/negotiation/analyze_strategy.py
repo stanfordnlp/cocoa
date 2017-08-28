@@ -12,16 +12,16 @@ sns.set()
 import numpy as np
 import os
 from scipy import stats
-from cocoa.basic.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
-from cocoa.basic.negotiation.tokenizer import tokenize
-from cocoa.basic.scenario_db import NegotiationScenario
-from cocoa.basic.entity import Entity, is_entity
+from cocoa.core.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
+from cocoa.core.negotiation.tokenizer import tokenize
+from cocoa.core.scenario_db import NegotiationScenario
+from cocoa.core.entity import Entity, is_entity
 import nltk.data
 import re
 from dialogue import Dialogue
 from liwc import LIWC
 from cocoa.scripts.html_visualizer import NegotiationHTMLVisualizer, add_html_visualizer_arguments
-from cocoa.basic.util import read_json, write_json
+from cocoa.core.util import read_json, write_json
 
 __author__ = 'anushabala'
 
@@ -326,7 +326,7 @@ class StrategyAnalyzer(object):
             print e.role.upper(), e.data
         print '===================='
 
-    def get_basic_stats(self, ex):
+    def get.core.stats(self, ex):
         stats = {0: None, 1: None}
         for agent in (0, 1):
             num_turns = ex.num_turns()
@@ -382,10 +382,10 @@ class StrategyAnalyzer(object):
         return
 
 
-    def plot_basic_stats(self, output='figures/basic_stats'):
+    def plot.core.stats(self, output='figures.core.stats'):
         data = {'role': [], 'final_margin': [], 'num_turns': [], 'num_tokens_per_turn': [], 'label': []}
         for ex in ifilter(self.has_deal, self.examples):
-            stats = self.get_basic_stats(ex)
+            stats = self.get.core.stats(ex)
             final_price = ex.outcome['offer']['price']
             for agent, stats in stats.iteritems():
                 role = stats['role']
@@ -720,7 +720,7 @@ if __name__ == "__main__":
         analyzer.html_visualize(args.html_output, args.img_path, args.css_file, args.mpld3_plugin)
 
     #analyzer.plot_opening_vs_result()
-    #analyzer.plot_basic_stats()
+    #analyzer.plot.core.stats()
     #analyzer.plot_speech_acts()
 
     # analyzer.plot_length_histograms()

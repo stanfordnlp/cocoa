@@ -8,8 +8,8 @@ from itertools import izip, chain
 from scipy.stats import ttest_ind as ttest
 
 import src.config as config
-from cocoa.basic.util import read_json, write_json
-from cocoa.basic.dataset import Example
+from cocoa.core.util import read_json, write_json
+from cocoa.core.dataset import Example
 from html_visualizer import HTMLVisualizer, add_html_visualizer_arguments
 from cocoa.analysis.negotiation.analyze_strategy import StrategyAnalyzer
 import matplotlib

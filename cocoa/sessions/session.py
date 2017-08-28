@@ -1,7 +1,7 @@
 import time
-from cocoa.basic.event import Event
+from cocoa.core.event import Event
 
-class BaseSession(object):
+class Session(object):
     """An abstarct class for instantiating an agent.
 
     A session maintains the dialogue state and receive/send dialogue events.

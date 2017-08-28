@@ -11,7 +11,7 @@ from flask import current_app as app
 from . import main
 from cocoa.web.main.web_utils import get_backend
 from cocoa.web.main.backend_utils import Status
-from cocoa.basic.event import Event
+from cocoa.core.event import Event
 from cocoa.scripts.html_visualizer import NegotiationHTMLVisualizer
 import src.config as task_config
 

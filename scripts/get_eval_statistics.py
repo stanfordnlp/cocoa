@@ -1,12 +1,12 @@
 from argparse import ArgumentParser
 from dataset_statistics import *
-from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.schema import Schema
-from src.basic.util import read_json
+from src.core.scenario_db import ScenarioDB, add_scenario_arguments
+from src.core.schema import Schema
+from src.core.util import read_json
 from src.model.preprocess import Preprocessor
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.core.lexicon import Lexicon, add_lexicon_arguments
 from collections import defaultdict
-from src.basic.dataset import Example
+from src.core.dataset import Example
 
 parser = ArgumentParser()
 add_scenario_arguments(parser)

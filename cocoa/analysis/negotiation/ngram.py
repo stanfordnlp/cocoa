@@ -4,7 +4,7 @@ __author__ = 'anushabala'
 from collections import defaultdict
 from utils import WINNER, LOSER, get_winner, ROLES, get_category
 from cocoa.turk.accept_negotiation_hits import is_chat_valid, is_partial_chat
-from cocoa.basic.negotiation.tokenizer import tokenize
+from cocoa.core.negotiation.tokenizer import tokenize
 import matplotlib.pyplot as plt
 
 

@@ -5,7 +5,7 @@ import time
 import atexit
 import json
 from argparse import ArgumentParser
-from cocoa.basic.systems.human_system import HumanSystem
+from cocoa.core.systems.human_system import HumanSystem
 import multiprocessing
 
 

@@ -7,7 +7,7 @@ import csv
 import sqlite3
 import json
 from cocoa.model.preprocess import tokenize
-from cocoa.basic.util import read_json, write_json, normalize
+from cocoa.core.util import read_json, write_json, normalize
 import os.path
 from cocoa.web.dump_events_to_json import read_results_csv, chat_to_worker_id
 from cocoa.lib.logstats import update_summary_map

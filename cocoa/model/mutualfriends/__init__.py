@@ -1,8 +1,8 @@
 def add_data_generator_arguments(parser):
     from preprocess import add_preprocess_arguments
-    from cocoa.basic.scenario_db import add_scenario_arguments
-    from cocoa.basic.mutualfriends.lexicon import add_lexicon_arguments
-    from cocoa.basic.dataset import add_dataset_arguments
+    from cocoa.core.scenario_db import add_scenario_arguments
+    from cocoa.core.mutualfriends.lexicon import add_lexicon_arguments
+    from cocoa.core.dataset import add_dataset_arguments
 
     add_scenario_arguments(parser)
     add_lexicon_arguments(parser)
@@ -11,10 +11,10 @@ def add_data_generator_arguments(parser):
 
 def get_data_generator(args, model_args, mappings, schema):
     from preprocess import DataGenerator, Preprocessor
-    from cocoa.basic.scenario_db import ScenarioDB
-    from cocoa.basic.mutualfriends.lexicon import Lexicon
-    from cocoa.basic.dataset import read_dataset
-    from cocoa.basic.util import read_json
+    from cocoa.core.scenario_db import ScenarioDB
+    from cocoa.core.mutualfriends.lexicon import Lexicon
+    from cocoa.core.dataset import read_dataset
+    from cocoa.core.util import read_json
     import time
 
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
@@ -39,12 +39,12 @@ def get_data_generator(args, model_args, mappings, schema):
     return data_generator
 
 def add_model_arguments(parser):
-    from cocoa.model.encdec import add_basic_model_arguments
+    from cocoa.model.encdec import add.core.model_arguments
     from rnn_cell import add_attention_arguments
     from graph import add_graph_arguments
     from graph_embedder import add_graph_embed_arguments
 
-    add_basic_model_arguments(parser)
+    add.core.model_arguments(parser)
     add_attention_arguments(parser)
     add_graph_arguments(parser)
     add_graph_embed_arguments(parser)

@@ -1,12 +1,12 @@
 from argparse import ArgumentParser
 import os
 import json
-from src.basic.util import read_json, write_pickle, read_pickle
-from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.schema import Schema
+from src.core.util import read_json, write_pickle, read_pickle
+from src.core.scenario_db import ScenarioDB, add_scenario_arguments
+from src.core.schema import Schema
 from src.model.preprocess import Preprocessor
 from dataset_statistics import *
-from src.basic.lexicon import Lexicon, add_lexicon_arguments
+from src.core.lexicon import Lexicon, add_lexicon_arguments
 
 
 def add_statistics_arguments(parser):

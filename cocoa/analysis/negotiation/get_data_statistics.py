@@ -1,7 +1,7 @@
 __author__ = 'anushabala'
 
 from argparse import ArgumentParser
-from cocoa.basic.negotiation.tokenizer import tokenize
+from cocoa.core.negotiation.tokenizer import tokenize
 import json
 import os
 from scipy import stats as scipy_stats
@@ -81,7 +81,7 @@ def get_overlap_correlation(transcripts, surveys, questions=("persuasive", "nego
     return correlations
 
 
-def compute_basic_statistics(transcripts, stats, surveyed_chats):
+def compute.core.statistics(transcripts, stats, surveyed_chats):
     total_turns = {"total": 0.}
     total_tokens = {"total": 0.}
     total_chats = {"total": 0.}
@@ -153,7 +153,7 @@ def get_statistics(transcripts, survey_data, questions=("persuasive", "negotiato
         "time": {}
     }
     # stats["avg_description_overlap"] = avg_overlap = compute_avg_description_overlap(transcripts, surveyed_chats)
-    compute_basic_statistics(transcripts, stats, surveyed_chats)
+    compute.core.statistics(transcripts, stats, surveyed_chats)
 
     # print "Avg. description overlap: %2.4f" % avg_overlap
 

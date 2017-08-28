@@ -1,5 +1,5 @@
 import json
-from cocoa.basic.util import read_json
+from cocoa.core.util import read_json
 
 # Global statistics that we can output to monitor the run.
 

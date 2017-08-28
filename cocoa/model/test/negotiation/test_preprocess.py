@@ -1,11 +1,11 @@
 import pytest
 import numpy as np
 from cocoa.model.negotiation.preprocess import DialogueBatch, DataGenerator, Preprocessor, create_mappings, TextIntMap, Dialogue
-from cocoa.basic.schema import Schema
-from cocoa.basic.negotiation.price_tracker import PriceTracker
-from cocoa.basic.util import read_json
-from cocoa.basic.scenario_db import ScenarioDB
-from cocoa.basic.dataset import read_examples
+from cocoa.core.schema import Schema
+from cocoa.core.negotiation.price_tracker import PriceTracker
+from cocoa.core.util import read_json
+from cocoa.core.scenario_db import ScenarioDB
+from cocoa.core.dataset import read_examples
 from itertools import izip
 
 @pytest.fixture(scope='module')

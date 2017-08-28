@@ -8,13 +8,13 @@ import shutil
 import warnings
 import atexit
 
-from cocoa.basic.scenario_db import add_scenario_arguments, ScenarioDB
-from cocoa.basic.schema import Schema
+from cocoa.core.scenario_db import add_scenario_arguments, ScenarioDB
+from cocoa.core.schema import Schema
 from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
-from cocoa.basic.util import read_json
+from cocoa.core.util import read_json
 from cocoa.web import create_app
-from cocoa.basic.systems import get_system, add_system_arguments
-from cocoa.basic.systems.human_system import HumanSystem
+from cocoa.core.systems import get_system, add_system_arguments
+from cocoa.core.systems.human_system import HumanSystem
 from gevent.pywsgi import WSGIServer
 from cocoa.web.main.web_logger import WebLogger
 

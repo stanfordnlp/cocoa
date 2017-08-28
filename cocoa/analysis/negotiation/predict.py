@@ -1,13 +1,13 @@
 from collections import defaultdict
 import json
 import os
-from cocoa.basic.entity import Entity
+from cocoa.core.entity import Entity
 import utils
 from analyze_strategy import StrategyAnalyzer, SpeechActs
-from cocoa.basic.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
-from cocoa.basic.negotiation.tokenizer import tokenize
+from cocoa.core.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
+from cocoa.core.negotiation.tokenizer import tokenize
 from cocoa.model.negotiation.preprocess import markers as SpecialSymbols
-from cocoa.basic.scenario_db import NegotiationScenario
+from cocoa.core.scenario_db import NegotiationScenario
 from argparse import ArgumentParser
 from sklearn.linear_model import LogisticRegression
 import numpy as np

@@ -1,5 +1,5 @@
 import argparse
-from src.basic.util import read_json, write_json
+from src.core.util import read_json, write_json
 import numpy as np
 from itertools import izip
 

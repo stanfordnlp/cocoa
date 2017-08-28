@@ -15,10 +15,10 @@ from backend_utils import Status, UnexpectedStatusException, ConnectionTimeoutEx
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 from web_logger import WebLogger
 from cocoa.turk.accept_negotiation_hits import reject_transcript
-from cocoa.basic.systems.human_system import HumanSystem
+from cocoa.core.systems.human_system import HumanSystem
 from cocoa.web.dump_events_to_json import convert_events_to_json
-from cocoa.basic.controller import Controller
-from cocoa.basic.event import Event
+from cocoa.core.controller import Controller
+from cocoa.core.event import Event
 
 m = hashlib.md5()
 m.update("bot")

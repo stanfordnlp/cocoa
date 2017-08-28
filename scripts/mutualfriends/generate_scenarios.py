@@ -5,10 +5,10 @@ import random
 import numpy as np
 from itertools import izip
 import sys
-from src.basic.util import random_multinomial, generate_uuid, write_json
-from src.basic.schema import Schema
-from src.basic.scenario_db import Scenario, ScenarioDB, add_scenario_arguments
-from src.basic.kb import KB
+from src.core.util import random_multinomial, generate_uuid, write_json
+from src.core.schema import Schema
+from src.core.scenario_db import Scenario, ScenarioDB, add_scenario_arguments
+from src.core.kb import KB
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)

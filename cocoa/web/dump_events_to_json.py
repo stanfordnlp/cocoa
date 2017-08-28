@@ -1,17 +1,17 @@
-from cocoa.basic.systems.human_system import HumanSystem
+from cocoa.core.systems.human_system import HumanSystem
 
 __author__ = 'anushabala'
 import sqlite3
 import json
 import math
 import os
-from cocoa.basic.event import Event
-from cocoa.basic.dataset import Example
-from cocoa.basic.kb import KB
+from cocoa.core.event import Event
+from cocoa.core.dataset import Example
+from cocoa.core.kb import KB
 from argparse import ArgumentParser
-from cocoa.basic.scenario_db import add_scenario_arguments, ScenarioDB
-from cocoa.basic.schema import Schema
-from cocoa.basic.util import read_json, write_json
+from cocoa.core.scenario_db import add_scenario_arguments, ScenarioDB
+from cocoa.core.schema import Schema
+from cocoa.core.util import read_json, write_json
 from datetime import datetime
 from collections import defaultdict
 

@@ -1,4 +1,4 @@
-class BaseSystem(object):
+class System(object):
     """An abstract class for building a Session object.
     """
     def new_session(self, agent, kb):
@@ -6,4 +6,4 @@ class BaseSystem(object):
 
     @classmethod
     def name(cls):
-        raise NotImplementedError
+        return 'base'

@@ -5,13 +5,16 @@ Takes two agent implementations and generates the dialogues.
 import argparse
 import random
 import json
-from src.basic.util import read_json
-from src.basic.schema import Schema
-from src.basic.scenario_db import ScenarioDB, add_scenario_arguments
-from src.basic.dataset import add_dataset_arguments
-from src.basic.controller import Controller
-from src.systems import add_system_arguments, get_system
 import numpy as np
+
+from cocoa.core.util import read_json
+from cocoa.core.schema import Schema
+from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
+from cocoa.core.dataset import add_dataset_arguments
+
+from core.scenario import Scenario
+from core.controller import Controller
+from systems import add_system_arguments, get_system
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
@@ -29,7 +32,7 @@ if args.random_seed:
     np.random.seed(args.random_seed)
 
 schema = Schema(args.schema_path)
-scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path))
+scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
 if args.train_max_examples is None:
     args.train_max_examples = scenario_db.size
@@ -51,7 +54,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     for i in range(max_examples):
         scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
-        controller = Controller.get_controller(scenario, sessions)
+        controller = Controller(scenario, sessions)
         ex = controller.simulate(max_turns)
         if ex.outcome['reward'] == 0:
             num_failed += 1

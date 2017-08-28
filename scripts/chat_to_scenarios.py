@@ -1,8 +1,8 @@
 import sys
 import argparse
-from src.basic.util import read_json, write_json
-from src.basic.scenario_db import Scenario, ScenarioDB
-from src.basic.schema import Schema
+from src.core.util import read_json, write_json
+from src.core.scenario_db import Scenario, ScenarioDB
+from src.core.schema import Schema
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--chats')

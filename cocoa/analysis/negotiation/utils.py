@@ -1,8 +1,8 @@
 __author__ = 'anushabala'
 import numpy as np
-from cocoa.basic.negotiation.tokenizer import tokenize
+from cocoa.core.negotiation.tokenizer import tokenize
 from cocoa.model.negotiation.preprocess import Preprocessor
-from cocoa.basic.dataset import Example
+from cocoa.core.dataset import Example
 
 
 BUYER = "buyer"

@@ -1,9 +1,9 @@
 from itertools import izip
-from cocoa.basic.entity import is_entity
+from cocoa.core.entity import is_entity
 from cocoa.lib.bleu import compute_bleu
 from cocoa.lib.bleu import bleu_stats as get_bleu_stats
 from cocoa.lib.bleu import bleu as get_bleu
-from cocoa.basic.util import write_json
+from cocoa.core.util import write_json
 from cocoa.lib import multi_bleu
 
 class BaseEvaluator(object):
@@ -135,11 +135,11 @@ class BaseEvaluator(object):
             f1 = 2 * recall * precision / (recall + precision)
         return precision, recall, f1
 
-import src.config as config
-import importlib
-task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))
-get_evaluator = task_module.get_evaluator
-#Evaluator = task_module.Evaluator
-#RetrievalEvaluator = task_module.RetrievalEvaluator
-#LMEvaluator = task_module.LMEvaluator
-pred_to_token = task_module.pred_to_token
+#import src.config as config
+#import importlib
+#task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))
+#get_evaluator = task_module.get_evaluator
+##Evaluator = task_module.Evaluator
+##RetrievalEvaluator = task_module.RetrievalEvaluator
+##LMEvaluator = task_module.LMEvaluator
+#pred_to_token = task_module.pred_to_token
