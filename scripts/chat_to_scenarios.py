@@ -1,8 +1,8 @@
-import sys
 import argparse
-from src.core.util import read_json, write_json
-from src.core.scenario_db import Scenario, ScenarioDB
-from src.core.schema import Schema
+from cocoa.core.util import read_json, write_json
+from cocoa.core.scenario_db import ScenarioDB
+from cocoa.core.schema import Schema
+from core.scenario import Scenario
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--chats')
