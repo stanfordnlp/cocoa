@@ -1,3 +1,4 @@
 nltk
 whoosh
 pygtrie
+ujson
