@@ -4,10 +4,9 @@ import time
 
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.utils import Status, Messages
-# TODO
-from cocoa.turk.accept_negotiation_hits import reject_transcript
-from cocoa.web.dump_events_to_json import convert_events_to_json
+from cocoa.analysis.utils import reject_transcript
 
+from db_reader import DatabaseReader
 from core.event import Event
 
 class Backend(BaseBackend):
@@ -16,7 +15,7 @@ class Backend(BaseBackend):
             controller = self.controller_map[userid]
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
-            ex = convert_events_to_json(chat_id, cursor, self.scenario_db).to_dict()
+            ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
             return reject_transcript(ex, agent_idx)
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):

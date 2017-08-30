@@ -1,6 +1,7 @@
-__author__ = 'anushabala'
 import numpy as np
+
 from cocoa.core.dataset import Example
+
 from core.scenario import Scenario
 from core.tokenizer import tokenize
 from model.preprocess import Preprocessor

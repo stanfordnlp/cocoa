@@ -14,8 +14,8 @@ from logger import WebLogger
 from cocoa.turk.accept_negotiation_hits import reject_transcript
 from cocoa.systems.human_system import HumanSystem
 #from cocoa.web.dump_events_to_json import convert_events_to_json
-from db_reader import DatabaseReader
 
+from db_reader import DatabaseReader
 from core.controller import Controller
 
 m = hashlib.md5()
