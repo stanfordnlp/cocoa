@@ -1,7 +1,7 @@
 __author__ = 'anushabala'
 import numpy as np
-from cocoa.core.negotiation.tokenizer import tokenize
-from cocoa.model.negotiation.preprocess import Preprocessor
+from core.tokenizer import tokenize
+from model.preprocess import Preprocessor
 from cocoa.core.dataset import Example
 
 
