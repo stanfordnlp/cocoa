@@ -1,8 +1,9 @@
 __author__ = 'anushabala'
 import numpy as np
+from cocoa.core.dataset import Example
+from core.scenario import Scenario
 from core.tokenizer import tokenize
 from model.preprocess import Preprocessor
-from cocoa.core.dataset import Example
 
 
 BUYER = "buyer"
@@ -16,7 +17,7 @@ OUTCOMES = [WINNER, LOSER]
 def filter_rejected_chats(transcripts):
     filtered = []
     for chat in transcripts:
-        ex = Example.from_dict(None, chat)
+        ex = Example.from_dict(None, chat, Scenario)
         if not Preprocessor.skip_example(ex):
             filtered.append(chat)
     return filtered

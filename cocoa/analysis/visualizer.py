@@ -1,35 +1,16 @@
-'''
-Visualize evaluation results.
-'''
 import json
 from collections import defaultdict
 import numpy as np
 from itertools import izip, chain
 from scipy.stats import ttest_ind as ttest
-
-import src.config as config
-from cocoa.core.util import read_json, write_json
-from cocoa.core.dataset import Example
-from html_visualizer import HTMLVisualizer, add_html_visualizer_arguments
-from cocoa.analysis.negotiation.analyze_strategy import StrategyAnalyzer
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-class Visualizer(object):
-    '''
-    Factory of visualizers that summarize and render surveys and transcripts.
-    '''
-    @staticmethod
-    def get_visualizer(*args):
-        if config.task == config.MutualFriends:
-            return MutualFriendsVisualizer(*args)
-        elif config.task == config.Negotiation:
-            return NegotiationVisualizer(*args)
-        else:
-            raise ValueError('Unknown task: %s.' % config.task)
+from cocoa.core.util import read_json, write_json
+from analysis.html_visualizer import HTMLVisualizer
 
-class BaseVisualizer(object):
+class Visualizer(object):
     # Agents name in the survey
     agents = None
     # Agent names to show in the output
@@ -269,162 +250,5 @@ class BaseVisualizer(object):
                 scenario_to_chats[scenario_id].add(dialogue_id)
             chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
 
-        html_visualizer = HTMLVisualizer.get_html_visualizer()
+        html_visualizer = HTMLVisualizer()
         html_visualizer.visualize(viewer_mode, html_output, chats, responses=dialogue_responses, css_file=css_file, img_path=img_path, worker_ids=worker_ids)
-
-class NegotiationVisualizer(BaseVisualizer):
-    agents = ('human', 'rulebased')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
-    question_labels = {"fluent": 'Fluency', "negotiator": 'Humanlikeness', 'persuasive': 'Persuasiveness', "fair": 'Fairness', 'coherent': 'Coherence'}
-
-    def __init__(self, chats, surveys=None, worker_ids=None):
-        super(NegotiationVisualizer, self).__init__(chats, surveys, worker_ids)
-        mask = None
-        self.question_scores = None
-        if surveys:
-            self.agents, self.question_scores = self.read_eval(self.surveys, mask)
-
-    def question_type(self, question):
-        if question == 'comments':
-            return 'str'
-        else:
-            return 'num'
-
-    def _compute_effectiveness(self, examples, system):
-        num_success = 0
-        final_offer = 0
-        for ex in examples:
-            if not StrategyAnalyzer.has_deal(ex):
-                continue
-            if ex.agents[0] == system:
-                eval_agent = 0
-            else:
-                eval_agent = 1
-            role = ex.scenario.kbs[eval_agent].facts['personal']['Role']
-            num_success += 1
-            final_price = ex.outcome['offer']['price']
-            margin = StrategyAnalyzer.get_margin(ex, final_price, eval_agent, role)
-            if not margin:
-                continue
-            else:
-                final_offer += margin
-        return {'success rate': num_success / float(len(examples)),
-                'average margin': final_offer / float(num_success),
-                }
-
-    def compute_effectiveness(self):
-        chats = defaultdict(list)
-        for raw in self.chats:
-            ex = Example.from_dict(None, raw)
-            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
-                chats['human'].append(ex)
-            elif ex.agents[0] != 'human':
-                chats[ex.agents[0]].append(ex)
-            elif ex.agents[1] != 'human':
-                chats[ex.agents[1]].append(ex)
-
-        results = {}
-        for system, examples in chats.iteritems():
-            results[system] = self._compute_effectiveness(examples, system)
-            print system, results[system]
-
-    def filter(self, bad_worker_ids):
-        good_dialogues = []
-        for chat_id, wid in self.worker_ids.iteritems():
-            if len(wid) < 2:
-                continue
-            good = True
-            for agent_id, agent_wid in wid.iteritems():
-                if agent_wid in bad_worker_ids:
-                    good = False
-                    break
-            if good:
-                good_dialogues.append(chat_id)
-        return set(good_dialogues)
-
-
-class MutualFriendsVisualizer(BaseVisualizer):
-    agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet'}
-    questions = ("fluent", "correct", 'cooperative', "humanlike")
-    question_labels = {"fluent": 'Fluency', "correct": 'Correctness', 'cooperative': 'Cooperation', "humanlike": 'Human-likeness'}
-    colors = ("#33a02c", "#b2df8a", "#1f78b4", "#a6cee3")
-
-    def __init__(self, chats, surveys=None, worker_ids=None):
-        super(MutualFriendsVisualizer, self).__init__(chats, surveys, worker_ids)
-        if surveys:
-            mask = self.filter(self.surveys)
-            self.agents, self.question_scores = self.read_eval(self.surveys, mask)
-
-    def question_type(self, question):
-        if question == 'comments' or question.endswith('text'):
-            return 'str'
-        else:
-            return 'num'
-
-    def filter(self, raw_evals):
-        '''
-        Only keep scenarios where all 4 agents are evaluated.
-        '''
-        scenario_to_agents = defaultdict(set)
-        scenario_to_chats = defaultdict(set)
-        for eval_ in raw_evals:
-            dialogue_agents = eval_[0]
-            dialogue_scores = eval_[1]
-            for dialogue_id, agent_dict in dialogue_agents.iteritems():
-                chat = self.uuid_to_chat[dialogue_id]
-                scenario_id = chat['scenario_uuid']
-                if isinstance(agent_dict, basestring):
-                    agent_dict = eval(agent_dict)
-                scores = dialogue_scores[dialogue_id]
-                for agent_id, results in scores.iteritems():
-                    if len(results) == 0:
-                        continue
-                    agent_type = agent_dict[str(agent_id)]
-                    scenario_to_agents[scenario_id].add(agent_type)
-                    scenario_to_chats[scenario_id].add(dialogue_id)
-        good_dialogues = []  # with 4 agent types
-        print 'Total scenarios:', len(scenario_to_agents)
-        print 'Good scenarios:', sum([1 if len(a) == 4 else 0 for s, a in scenario_to_agents.iteritems()])
-        for scenario_id, agents in scenario_to_agents.iteritems():
-            if len(agents) == 4:
-                good_dialogues.extend(scenario_to_chats[scenario_id])
-                #assert len(scenario_to_chats[scenario_id]) >= 4
-        filtered_dialogues = set(good_dialogues)
-        return filtered_dialogues
-
-
-if __name__ == '__main__':
-    from argparse import ArgumentParser
-    parser = ArgumentParser()
-    parser.add_argument('--survey-transcripts', nargs='+', help='Path to directory containing evaluation transcripts')
-    parser.add_argument('--dialogue-transcripts', nargs='+', help='Path to directory containing dialogue transcripts')
-    parser.add_argument('--worker-ids', nargs='+', help='Path to json file containing chat_id to worker_id mappings')
-    parser.add_argument('--summary', default=False, action='store_true', help='Summarize human ratings')
-    parser.add_argument('--hist', default=False, action='store_true', help='Plot histgram of ratings')
-    parser.add_argument('--html-visualize', action='store_true', help='Output html files')
-    parser.add_argument('--outdir', default='.', help='Output dir')
-    parser.add_argument('--stats', default='stats.json', help='Path to stats file')
-    parser.add_argument('--partner', default=False, action='store_true', help='Whether this is from partner survey')
-    add_html_visualizer_arguments(parser)
-    args = parser.parse_args()
-
-    visualizer = Visualizer.get_visualizer(args.dialogue_transcripts, args.survey_transcripts, args.worker_ids)
-
-    visualizer.compute_effectiveness()
-
-    if args.hist:
-        visualizer.hist(question_scores, args.outdir, partner=args.partner)
-
-    # TODO: move these to analyzer
-    if args.summary:
-        summary = visualizer.summarize()
-        write_json(summary, args.stats)
-
-    #if args.worker_ids:
-    #    visualizer.worker_stats()
-
-    if args.html_output:
-        visualizer.html_visualize(args.viewer_mode, args.html_output, css_file=args.css_file, img_path=args.img_path, worker_ids=visualizer.worker_ids)
-
