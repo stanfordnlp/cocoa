@@ -11,7 +11,6 @@ from states import FinishedState, UserChatState, WaitingState, SurveyState
 from utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 from logger import WebLogger
-from cocoa.turk.accept_negotiation_hits import reject_transcript
 from cocoa.systems.human_system import HumanSystem
 #from cocoa.web.dump_events_to_json import convert_events_to_json
 
