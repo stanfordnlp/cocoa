@@ -3,7 +3,6 @@ import numpy as np
 from cocoa.core.dataset import Example
 
 from core.scenario import Scenario
-from core.tokenizer import tokenize
 from model.preprocess import Preprocessor
 
 
@@ -37,47 +36,6 @@ def get_category(transcript):
     return transcript['scenario']['category']
 
 
-def get_turns_per_agent(transcript):
-    turns = {0: 0, 1: 0}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            turns[event["agent"]] += 1
-
-    return turns
-
-
-def get_avg_time_taken(transcript):
-    events = transcript["events"]
-    start_time = float(events[0]["time"])
-    end_time = float(events[-1]["time"])
-    return end_time - start_time
-
-
-def get_avg_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    utterances = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-            utterances[event["agent"]] += 1
-
-    if utterances[0] != 0:
-        tokens[0] /= utterances[0]
-    if utterances[1] != 0:
-        tokens[1] /= utterances[1]
-
-    return tokens
-
-
-def get_total_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-
-    return tokens
 
 
 def get_winner(transcript):

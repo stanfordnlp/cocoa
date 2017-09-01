@@ -8,8 +8,6 @@ from boto.mturk.connection import MTurkRequestError
 
 from cocoa.analysis.utils import get_total_tokens_per_agent, get_turns_per_agent, reject_transcript
 
-from core.tokenizer import tokenize
-
 
 def process_db(cursor):
     survey_codes = {}
