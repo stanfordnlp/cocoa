@@ -1,44 +1,20 @@
-__author__ = 'anushabala'
-from boto.mturk.connection import MTurkConnection
-from boto.mturk.price import Price
-from boto.mturk.connection import MTurkRequestError
-from argparse import ArgumentParser
+import os.path
 import csv
 import sqlite3
 import json
-from cocoa.model.preprocess import tokenize
-from cocoa.core.util import read_json, write_json, normalize
-import os.path
-from cocoa.web.dump_events_to_json import read_results_csv, chat_to_worker_id
-from cocoa.lib.logstats import update_summary_map
 from collections import defaultdict
 from itertools import izip
 import numpy as np
+from argparse import ArgumentParser
+from boto.mturk.connection import MTurkConnection
+from boto.mturk.price import Price
+from boto.mturk.connection import MTurkRequestError
 
-def get_turns_per_agent(transcript):
-    turns = {0: 0, 1: 0}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            turns[event["agent"]] += 1
-
-    return turns
-
-
-def get_avg_tokens_per_agent(transcript):
-    tokens = {0: 0., 1: 0.}
-    utterances = {0: 0., 1: 0.}
-    for event in transcript["events"]:
-        if event["action"] == "message":
-            msg_tokens = tokenize(event["data"])
-            tokens[event["agent"]] += len(msg_tokens)
-            utterances[event["agent"]] += 1
-
-    if utterances[0] != 0:
-        tokens[0] /= utterances[0]
-    if utterances[1] != 0:
-        tokens[1] /= utterances[1]
-
-    return tokens
+from cocoa.analysis.utils import get_turns_per_agent, get_avg_tokens_per_agent
+from cocoa.core.util import read_json, write_json, normalize
+# TODO
+from cocoa.web.main.db_reader import read_results_csv, chat_to_worker_id
+from cocoa.lib.logstats import update_summary_map
 
 def get_winner(transcript):
     scenario = transcript["scenario"]

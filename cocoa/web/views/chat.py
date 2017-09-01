@@ -1,62 +1,30 @@
-__author__ = 'anushabala'
-
-import uuid
-from datetime import datetime
 import time
-
-from flask import jsonify, render_template, request, redirect, url_for, Markup
-
+from flask import Blueprint, jsonify, render_template, request, redirect, url_for, Markup
 from flask import current_app as app
 
-from . import main
-from cocoa.web.main.web_utils import get_backend
-from cocoa.web.main.backend_utils import Status
+from utils import generate_userid, userid, format_message
+from cocoa.web.main.utils import Status
 from cocoa.core.event import Event
-from cocoa.scripts.html_visualizer import NegotiationHTMLVisualizer
-import src.config as task_config
 
+from web.main.backend import get_backend
 
-def generate_userid(prefix="U_"):
-    return prefix + uuid.uuid4().hex
+chat = Blueprint('chat', __name__)
 
-
-def userid():
-    return request.args.get('uid')
-
-
-def userid_prefix():
-    return userid()[:6]
-
-
-def generate_unique_key():
-    return str(uuid.uuid4().hex)
-
-
-def format_message(message, status_message):
-    timestamp = datetime.now().strftime(u'%x %X')
-    left_delim = u"<" if status_message else u""
-    right_delim = u">" if status_message else u""
-    return u"[{}] {}{}{}".format(timestamp, left_delim, message, right_delim)
-
-
-# Required args: uid (the user ID of the current user)
-@main.route('/_connect/', methods=['GET'])
+@chat.route('/_connect/', methods=['GET'])
 def connect():
     backend = get_backend()
     backend.connect(userid())
     return jsonify(success=True)
 
 
-# Required args: uid (the user ID of the current user)
-@main.route('/_disconnect/', methods=['GET'])
+@chat.route('/_disconnect/', methods=['GET'])
 def disconnect():
     backend = get_backend()
     backend.disconnect(userid())
     return jsonify(success=True)
 
 
-# Required args: uid (the user ID of the current user)
-@main.route('/_check_chat_valid/', methods=['GET'])
+@chat.route('/_check_chat_valid/', methods=['GET'])
 def is_chat_valid():
     backend = get_backend()
     if backend.is_chat_valid(userid()):
@@ -64,8 +32,7 @@ def is_chat_valid():
     else:
         return jsonify(valid=False, message=backend.get_user_message(userid()))
 
-
-@main.route('/_submit_survey/', methods=['POST'])
+@chat.route('/_submit_survey/', methods=['POST'])
 def submit_survey():
     backend = get_backend()
     data = request.json['response']
@@ -73,8 +40,7 @@ def submit_survey():
     backend.submit_survey(uid, data)
     return jsonify(success=True)
 
-
-@main.route('/_check_inbox/', methods=['GET'])
+@chat.route('/_check_inbox/', methods=['GET'])
 def check_inbox():
     backend = get_backend()
     uid = userid()
@@ -115,7 +81,7 @@ def check_inbox():
     return jsonify(status=False, received=False)
 
 
-@main.route('/_typing_event/', methods=['GET'])
+@chat.route('/_typing_event/', methods=['GET'])
 def typing_event():
     backend = get_backend()
     action = request.args.get('action')
@@ -130,7 +96,7 @@ def typing_event():
     return jsonify(success=True)
 
 
-@main.route('/_send_message/', methods=['GET'])
+@chat.route('/_send_message/', methods=['GET'])
 def text():
     backend = get_backend()
     message = unicode(request.args.get('message'))
@@ -148,7 +114,7 @@ def text():
                  )
     return jsonify(message=displayed_message, timestamp=str(received_time))
 
-@main.route('/_send_eval/', methods=['POST'])
+@chat.route('/_send_eval/', methods=['POST'])
 def send_eval():
     backend = get_backend()
     labels = request.json['labels']
@@ -163,7 +129,7 @@ def send_eval():
                  )
     return jsonify(success=True)
 
-@main.route('/_join_chat/', methods=['GET'])
+@chat.route('/_join_chat/', methods=['GET'])
 def join_chat():
     """Sent by clients when they enter a room.
     A status message is broadcast to all people in the room."""
@@ -176,7 +142,7 @@ def join_chat():
     return jsonify(message=format_message("You entered the room.", True))
 
 
-@main.route('/_leave_chat/', methods=['GET'])
+@chat.route('/_leave_chat/', methods=['GET'])
 def leave_chat():
     backend = get_backend()
     uid = userid()
@@ -187,7 +153,7 @@ def leave_chat():
     return jsonify(success=True)
 
 
-@main.route('/_check_status_change/', methods=['GET'])
+@chat.route('/_check_status_change/', methods=['GET'])
 def check_status_change():
     backend = get_backend()
     uid = userid()
@@ -197,9 +163,8 @@ def check_status_change():
     else:
         return jsonify(status_change=True)
 
-
-@main.route('/index', methods=['GET', 'POST'])
-@main.route('/', methods=['GET', 'POST'])
+@chat.route('/index', methods=['GET', 'POST'])
+@chat.route('/', methods=['GET', 'POST'])
 def index():
     """Chat room. The user's name and room must be stored in
     the session."""
@@ -216,7 +181,7 @@ def index():
             # business school link
             prefix = "BUS_"
 
-        return redirect(url_for('main.index', uid=generate_userid(prefix), **request.args))
+        return redirect(url_for('chat.index', uid=generate_userid(prefix), **request.args))
 
     backend = get_backend()
 
@@ -278,13 +243,13 @@ def index():
     elif status == Status.Survey:
         survey_info = backend.get_survey_info(userid())
         visualization = None
-        if task_config.task == task_config.Negotiation:
-            complete_chat = backend.get_most_recent_chat(userid())
-            agent_idx = backend.get_agent_idx(userid())
-            visualization = {
-                'chat': complete_chat['events'],
-                'agent_idx': agent_idx
-            }
+        #if task_config.task == task_config.Negotiation:
+        #    complete_chat = backend.get_most_recent_chat(userid())
+        #    agent_idx = backend.get_agent_idx(userid())
+        #    visualization = {
+        #        'chat': complete_chat['events'],
+        #        'agent_idx': agent_idx
+        #    }
         return render_template('task_survey.html',
                                title=app.config['task_title'],
                                uid=userid(),
@@ -303,64 +268,7 @@ def index():
                                uid=userid(),
                                icon=app.config['task_icon'])
 
-
-@main.route('/_select_option/', methods=['GET'])
-def select():
-    backend = get_backend()
-    selection_id = int(request.args.get('selection'))
-    if selection_id == -1:
-        return
-    selected_item = backend.select(userid(), selection_id)
-
-    ordered_item = backend.schema.get_ordered_item(selected_item)
-    displayed_message = format_message("You selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
-    return jsonify(message=displayed_message)
-
-
-@main.route('/_offer/', methods=['GET'])
-def offer():
-    backend = get_backend()
-    price = float(request.args.get('price'))
-    sides = request.args.get('sides')
-
-    offer = {'price': price,
-             'sides': sides}
-
-    if offer is None or price == -1:
-        return jsonify(message=format_message("You made an invalid offer. Please try again.", True))
-    backend.make_offer(userid(), offer)
-
-    displayed_message = format_message("You made an offer!", True)
-    return jsonify(message=displayed_message)
-
-
-@main.route('/_accept_offer/', methods=['GET'])
-def accept_offer():
-    backend = get_backend()
-    backend.accept_offer(userid())
-
-    msg = format_message("You accepted the offer!", True)
-    return jsonify(message=msg)
-
-
-@main.route('/_reject_offer/', methods=['GET'])
-def reject_offer():
-    backend = get_backend()
-    backend.reject_offer(userid())
-
-    msg = format_message("You rejected the offer.", True)
-    return jsonify(message=msg)
-
-
-@main.route('/_quit/', methods=['GET'])
-def quit():
-    backend = get_backend()
-    backend.quit(userid())
-    displayed_message = format_message("You chose to quit this task.", True)
-    return jsonify(message=displayed_message)
-
-
-@main.route('/_report/', methods=['GET'])
+@chat.route('/_report/', methods=['GET'])
 def report():
     backend = get_backend()
     uid = userid()
@@ -369,7 +277,7 @@ def report():
     return jsonify(success=True)
 
 
-@main.route('/_init_report/', methods=['GET'])
+@chat.route('/_init_report/', methods=['GET'])
 def init_report():
     backend = get_backend()
     uid = userid()

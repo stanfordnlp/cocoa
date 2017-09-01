@@ -9,3 +9,4 @@ Makefile
 *.png
 web_output/*
 *.pdf
+aws_config.json

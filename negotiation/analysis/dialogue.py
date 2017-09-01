@@ -1,22 +1,26 @@
-import nltk
-from nltk.corpus import stopwords
-from nltk import pos_tag
-from nltk.tokenize import word_tokenize
-from cocoa.core.negotiation.tokenizer import tokenize
-from cocoa.core.dataset import Example
-from cocoa.core.entity import Entity, is_entity, CanonicalEntity
-from speech_acts import SpeechActAnalyzer
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import mpld3
-from itertools import izip, ifilter
 import math
 import json
 import re
 from collections import defaultdict
+from itertools import izip, ifilter
+import nltk
+from nltk.corpus import stopwords
+from nltk import pos_tag
+from nltk.tokenize import word_tokenize
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import mpld3
+
+from cocoa.core.dataset import Example
+from cocoa.core.entity import Entity, is_entity, CanonicalEntity
+
+from core.scenario import Scenario
+from core.tokenizer import tokenize
+from speech_acts import SpeechActAnalyzer
 
 sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+nltk.download('stopwords')
 stopwords = set(stopwords.words('english'))
 
 class DialogueStage(object):
@@ -190,7 +194,7 @@ class Dialogue(object):
 
     @classmethod
     def from_dict(cls, raw_chat, raw_scores, price_tracker):
-        ex = Example.from_dict(None, raw_chat)
+        ex = Example.from_dict(None, raw_chat, Scenario)
         kbs = ex.scenario.kbs
         turns = [Turn.from_event(event, kbs, price_tracker) for event in ex.events if cls.is_valid_event(event)]
         scores = cls.parse_scores(raw_scores)

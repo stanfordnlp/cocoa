@@ -1,0 +1,102 @@
+<html>
+    <head>
+        <title>{{title}}</title>
+        <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <style>
+
+            #timer{
+    		color: #000;
+    		display: inline-block;
+    		text-align: center;
+    		}
+
+    		#timer > div{
+    			display: inline-block;
+    			font-size: 20px;
+    		}
+
+    		#timer div > span{
+    			font-weight: bolder;
+    			font-size: 20px;	
+    			display: inline-block;
+    		}
+    		
+    		#timer div > .seconds{
+    			margin-left:-3px;
+    		}
+
+            div#report-body {
+                color:#ff0000;
+                font-size: 16px;
+            }
+        </style>
+        
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var pollInterval;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
+            $(document).ready(function(){
+            	$.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+                window.onbeforeunload = disconnect;
+            });
+
+            function disconnect() {
+            	clearInterval(pollInterval);
+            	$.ajax({
+            		url: BASE_URL + '/_disconnect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+            }
+
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "feedback": $('#report_feedback').val()
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        $('#report-body').html('<p> Thanks for your feedback. Please restart this task by reentering the website through the original URL provided to you.</p>');
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
+        </script>
+    </head>
+    <body>
+    <div id="content">
+        <div>
+             <div style="float:left; margin: 0px 20px 0px 10px;">
+                <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+            </div>
+            <div style="float:left">
+                <h2>{{title}}</h2>
+            </div>
+        </div>
+        <div id="report-body" style="clear:both; display: block; margin: 0px 20px 0px 20px;">
+            <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.<span style="color: #ff0000"><b> Please also include your Mechanical Turk worker ID in the feedback so that we can grant you a bonus if you have significant trouble.</b></span></p>
+            <textarea id="report_feedback"></textarea>
+            <button onclick="report()" style="clear:both; display: block;">Submit</button>
+        </div>
+
+    </div>
+
+    </body>
+</html>

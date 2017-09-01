@@ -1,6 +1,6 @@
 __author__ = 'anushabala'
 from system import System
-from cocoa.core.sessions.human_session import HumanSession
+from cocoa.sessions.human_session import HumanSession
 
 
 class HumanSystem(System):

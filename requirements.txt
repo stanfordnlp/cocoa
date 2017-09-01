@@ -2,3 +2,8 @@ nltk
 whoosh
 pygtrie
 ujson
+numpy
+matplotlib
+flask
+flask-socketio
+boto

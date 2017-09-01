@@ -1,26 +1,12 @@
-__author__ = 'anushabala'
-from boto.mturk.connection import MTurkConnection
-from boto.mturk.price import Price
-from boto.mturk.connection import MTurkRequestError
-from argparse import ArgumentParser
 import csv
 import sqlite3
 import json
-from cocoa.analysis.negotiation.utils import get_total_tokens_per_agent, get_turns_per_agent
+from argparse import ArgumentParser
+from boto.mturk.connection import MTurkConnection
+from boto.mturk.price import Price
+from boto.mturk.connection import MTurkRequestError
 
-MIN_TOKENS = 40
-
-
-def reject_transcript(transcript, agent_idx=None):
-    total_tokens = get_total_tokens_per_agent(transcript)
-    if agent_idx is not None:
-        if total_tokens[agent_idx] < MIN_TOKENS:
-            return True
-        return False
-
-    if total_tokens[0] < MIN_TOKENS or total_tokens[1] < MIN_TOKENS:
-        return True
-    return False
+from cocoa.analysis.utils import get_total_tokens_per_agent, get_turns_per_agent, reject_transcript
 
 
 def process_db(cursor):

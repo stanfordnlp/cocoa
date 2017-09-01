@@ -1,4 +1,4 @@
-from cocoa.core.systems.human_system import HumanSystem
+from cocoa.systems.human_system import HumanSystem
 
 __author__ = 'anushabala'
 import sqlite3

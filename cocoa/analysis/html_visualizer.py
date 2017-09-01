@@ -1,40 +1,29 @@
-from cocoa.core.util import read_json
-
-__author__ = 'anushabala'
-
 import os
-from argparse import ArgumentParser
-from cocoa.core.scenario_db import ScenarioDB, Scenario, add_scenario_arguments
-from cocoa.core.schema import Schema
-from cocoa.core.event import Event
-from cocoa.core.util import write_json, read_json
 import numpy as np
 import json
 import datetime
 from itertools import izip
 from collections import defaultdict
-import src.config as config
+from argparse import ArgumentParser
 
-def add_html_visualizer_arguments(parser):
-    parser.add_argument('--html-output', help='Name of directory to write HTML report to')
-    parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
-    parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
-    parser.add_argument('--img-path', help='path to images')
+from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
+from cocoa.core.schema import Schema
+from cocoa.core.event import Event
+from cocoa.core.util import write_json, read_json
+
+from core.scenario import Scenario
+
 
 class HTMLVisualizer(object):
-    @staticmethod
-    def get_html_visualizer(*args):
-        if config.task == config.MutualFriends:
-            return MutualFriendsHTMLVisualizer(*args)
-        elif config.task == config.Negotiation:
-            return NegotiationHTMLVisualizer(*args)
-        else:
-            raise ValueError('Unknown task: %s.' % config.task)
-
-
-class BaseHTMLVisualizer(object):
     agent_labels = None
     questions = None
+
+    @classmethod
+    def add_html_visualizer_arguments(cls, parser):
+        parser.add_argument('--html-output', help='Name of directory to write HTML report to')
+        parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
+        parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+        parser.add_argument('--img-path', help='path to images')
 
     @classmethod
     def get_scenario(cls, chat):
@@ -321,79 +310,3 @@ class BaseHTMLVisualizer(object):
         else:
             # Inline style
             cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses, img_path=img_path, worker_ids=worker_ids)
-
-class MutualFriendsHTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
-    questions = ("fluent", "correct", 'cooperative', "humanlike")
-
-    @classmethod
-    def render_scenario(cls, scenario, img_path=None):
-        html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % scenario.uuid]
-        for (idx, kb) in enumerate(scenario.kbs):
-            kb_dict = kb.to_dict()
-            attributes = [attr.name for attr in scenario.attributes]
-            scenario_alphas = scenario.alphas
-            if len(scenario_alphas) == 0:
-                scenario_alphas = ['default' * len(scenario.attributes)]
-            alphas = dict((attr.name, alpha) for (attr, alpha) in zip(scenario.attributes, scenario_alphas))
-            html.append("<div class=\"kb%d\"><table><tr>"
-                        "<td colspan=\"%d\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, len(attributes), idx))
-
-            for attr in attributes:
-                html.append("<th>%s (%.1f)</th>" % (attr, alphas[attr]))
-            html.append("</tr>")
-
-            for item in kb_dict:
-                html.append("<tr>")
-                for attr in attributes:
-                    html.append("<td>%s</td>" % item[attr])
-                html.append("</tr>")
-
-            html.append("</table></div>")
-
-        html.append("</div>")
-        return html
-
-
-class NegotiationHTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
-
-    @classmethod
-    def render_scenario(cls, scenario, img_path=None, kbs=None, uuid=None):
-        # Sometimes we want to directly give it elements of the scenario
-        uuid = scenario.uuid if uuid is None else uuid
-        kbs = kbs or scenario.kbs
-
-        html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % uuid]
-        # Post (display the seller's (full) KB)
-        if kbs[0].facts['personal']['Role'] == 'seller':
-            facts = kbs[0].facts
-        else:
-            facts = kbs[1].facts
-        html.append("<p><b>%s ($%d)</b></p>" % (facts['item']['Title'], facts['item']['Price']))
-        html.append("<p>%s</p>" % '<br>'.join(facts['item']['Description']))
-        if img_path and len(facts['item']['Images']) > 0:
-            html.append("<p><img src=%s></p>" % os.path.join(img_path, facts['item']['Images'][0]))
-        # Private info
-        for (idx, kb) in enumerate(kbs):
-            kb_dict = kb.to_dict()
-            html.append("<div class=\"kb%d\"><table><tr>"
-                        "<td colspan=\"2\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, idx))
-
-            html.append("<tr><th colspan=\"2\">Personal Attributes</th></tr>")
-
-            for attr in kb_dict['personal'].keys():
-                html.append("<tr><td>%s</td><td>%s</td></tr>" % (attr, kb_dict['personal'][attr]))
-
-            html.append("</table></div>")
-
-        html.append("</div>")
-        return html
-
-    @classmethod
-    def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
-        complete, _, html_lines = super(NegotiationHTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type, worker_ids=worker_ids)
-        from cocoa.turk.accept_negotiation_hits import reject_transcript
-        rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
-        return complete, rejected, html_lines

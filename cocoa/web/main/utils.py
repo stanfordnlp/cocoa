@@ -1,7 +1,7 @@
 __author__ = 'anushabala'
 import time
 import datetime
-import src.config as config
+#import src.config as config
 
 
 class Status(object):
@@ -45,30 +45,9 @@ class Messages(object):
     PartnerLeftRoom = 'Your partner has left the chat!'
     WaitingTimeExpired = "Sorry, no other users appear to be active at the moment. Please come back later!"
     ChatCompleted = "Great, you've completed the chat!"
+    ChatIncomplete = ConnectionTimeout
     HITCompletionWarning = "Please note that you will only get credit for this HIT if you made a good attempt to complete the chat."
     Waiting = 'Waiting for a new chat...'
-
-    NegotiationCompleted = "Great, you reached a final offer!"
-    NegotiationIncomplete = "Sorry, you weren't able to reach a deal. :("
-    NegotiationBetterDeal = "Congratulations, you got the better deal! We'll award you a bonus on Mechanical Turk."
-    NegotiationWorseDeal = "Sorry, your partner got the better deal. :("
-    NegotiationRedirect = "Sorry, that chat did not meet our acceptance criteria."
-
-
-    @staticmethod
-    def get_completed_message():
-        if config.task == config.MutualFriends:
-            return Messages.ChatCompleted
-        elif config.task == config.Negotiation:
-            return Messages.NegotiationCompleted
-
-    @staticmethod
-    def get_incomplete_message():
-        if config.task == config.MutualFriends:
-            # todo this shouldn't really matter because there isn't a way to "quit" tasks in the MF world
-            return Messages.ConnectionTimeout
-        elif config.task == config.Negotiation:
-            return Messages.NegotiationIncomplete
 
 
 def current_timestamp_in_seconds():

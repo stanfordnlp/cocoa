@@ -1,27 +1,29 @@
-from collections import defaultdict
+import os
+import re
 import json
-import utils
+from collections import defaultdict
 from itertools import izip, ifilter
 from argparse import ArgumentParser
+import numpy as np
+from scipy import stats
+import nltk.data
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 sns.set()
-import numpy as np
-import os
-from scipy import stats
-from cocoa.core.negotiation.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
-from cocoa.core.negotiation.tokenizer import tokenize
-from cocoa.core.scenario_db import NegotiationScenario
+
+from cocoa.core.util import read_json, write_json
 from cocoa.core.entity import Entity, is_entity
-import nltk.data
-import re
+
+from core.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
+from core.tokenizer import tokenize
+from core.scenario import Scenario
+from analysis.html_visualizer import HTMLVisualizer
 from dialogue import Dialogue
 from liwc import LIWC
-from cocoa.scripts.html_visualizer import NegotiationHTMLVisualizer, add_html_visualizer_arguments
-from cocoa.core.util import read_json, write_json
+import utils
 
 __author__ = 'anushabala'
 
@@ -326,7 +328,7 @@ class StrategyAnalyzer(object):
             print e.role.upper(), e.data
         print '===================='
 
-    def get.core.stats(self, ex):
+    def get_basic_stats(self, ex):
         stats = {0: None, 1: None}
         for agent in (0, 1):
             num_turns = ex.num_turns()
@@ -382,10 +384,10 @@ class StrategyAnalyzer(object):
         return
 
 
-    def plot.core.stats(self, output='figures.core.stats'):
+    def plot_basic_stats(self, output='figures/basic_stats'):
         data = {'role': [], 'final_margin': [], 'num_turns': [], 'num_tokens_per_turn': [], 'label': []}
         for ex in ifilter(self.has_deal, self.examples):
-            stats = self.get.core.stats(ex)
+            stats = self.get_basic_stats(ex)
             final_price = ex.outcome['offer']['price']
             for agent, stats in stats.iteritems():
                 role = stats['role']
@@ -702,7 +704,7 @@ if __name__ == "__main__":
     parser.add_argument('--html-visualize', action='store_true', help='Output html files')
     parser.add_argument('--mpld3-plugin', default=None, help='Javascript of the mpld3 plugin')
     add_price_tracker_arguments(parser)
-    add_html_visualizer_arguments(parser)
+    HTMLVisualizer.add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -720,7 +722,7 @@ if __name__ == "__main__":
         analyzer.html_visualize(args.html_output, args.img_path, args.css_file, args.mpld3_plugin)
 
     #analyzer.plot_opening_vs_result()
-    #analyzer.plot.core.stats()
+    #analyzer.plot_basic_stats()
     #analyzer.plot_speech_acts()
 
     # analyzer.plot_length_histograms()

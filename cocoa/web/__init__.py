@@ -3,7 +3,7 @@ __author__ = 'anushabala'
 from flask import Flask
 from flask import g
 
-from flask.ext.socketio import SocketIO
+from flask_socketio import SocketIO
 
 
 # from multiprocessing import Process, Queue

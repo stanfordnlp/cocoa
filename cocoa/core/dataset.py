@@ -4,7 +4,6 @@ Data structures for events, examples, and datasets.
 
 from util import read_json
 from event import Event
-from scenario_db import Scenario
 from kb import KB
 
 class Example(object):
@@ -24,7 +23,7 @@ class Example(object):
         self.events.append(event)
 
     @classmethod
-    def from_dict(cls, scenario_db, raw):
+    def from_dict(cls, scenario_db, raw, Scenario):
         # compatibility with older data format
         if 'scenario' in raw:
             scenario = Scenario.from_dict(None, raw['scenario'])
