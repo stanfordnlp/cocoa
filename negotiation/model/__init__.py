@@ -37,7 +37,7 @@ def get_data_generator(args, model_args, mappings, schema):
 
     # Model config tells data generator which batcher to use
     model_config = {}
-    if args.retrieve or args.model == 'selector':
+    if args.retrieve or model_args.model == 'selector':
         model_config['retrieve'] = True
     if args.predict_price:
         model_config['price'] = True

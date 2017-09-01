@@ -7,7 +7,7 @@ from cocoa.model.evaluate import BaseEvaluator
 from cocoa.model.util import EPS
 
 from core.price_tracker import PriceTracker
-from preprocess import markers, Dialogue, price_filler
+from preprocess import markers, Dialogue, category_to_marker
 
 def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose=True):
     if model.name in ('ranker-cheat', 'ranker-ir'):
@@ -94,7 +94,7 @@ class Evaluator(BaseEvaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
         for batch in dialogue_batch['batch_seq']:
-            targets = batch['targets']
+            targets = batch['decoder_args']['targets']
             max_len = targets.shape[1] + 10
             output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, textint_map=self.data.textint_map)
             preds = output_dict['preds']
@@ -124,7 +124,7 @@ class Evaluator(BaseEvaluator):
                 self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
 
     def _process_target_tokens(self, tokens):
-        remove_tokens = (markers.GO_B, markers.GO_S)
+        remove_tokens = [markers.GO_B, markers.GO_S] + category_to_marker.values()
         process_entity = lambda e: e.canonical if e.canonical.type == 'price' else e.surface
         targets = [process_entity(token) if is_entity(token) else token for token in tokens if not token in remove_tokens]
         return targets
@@ -132,37 +132,18 @@ class Evaluator(BaseEvaluator):
     def to_str(self, words):
         return ' '.join([str(w) for w in words if w not in self.remove_symbols])
 
-    # TODO: refactor print batch
     def _print_batch(self, batch, preds, targets, bleu_scores, best_candidates=None):
         '''
         inputs are integers; targets and preds are tokens (converted in test_bleu).
         '''
-        encoder_tokens = batch['encoder_tokens']
-        inputs = batch['encoder_inputs']
-        decoder_tokens = batch['decoder_tokens']
-        kbs = batch['kbs']
-
-        print '-------------- batch ----------------'
-        for i, (target, pred, bleu) in enumerate(izip_longest(targets, preds, bleu_scores)):
-            # Skip padded turns
-            if len(decoder_tokens[i]) == 0:
-                continue
-            kb = kbs[i]
-            kb.dump()
-            #print 'RAW INPUT:', Dialogue.original_price(kb, encoder_tokens[i])
-            #print 'RAW TARGET:', Dialogue.original_price(kb, target)
-            #print 'RAW INPUT:', encoder_tokens[i]
-            #print 'RAW TARGET:', target
-            print '----------'
-            if 'encoder_context' in batch:
-                print 'CONTEXT:'
-                for c in batch['encoder_context']:
-                    print self.to_str(self.data.textint_map.int_to_text(c[i], 'encoding'))
-            print 'INPUT:', self.to_str(self.data.textint_map.int_to_text(inputs[i], 'encoding'))
-            print 'TARGET:', self.to_str(target)
-            #print 'BEST CANDIDATES:', self.to_str(best_cand)
-            print 'PRED:', self.to_str(pred)
-            print 'BLEU:', bleu
+        batcher = self.data.dialogue_batcher
+        textint_map = self.data.textint_map
+        print '-------------- Batch ----------------'
+        for i, (pred, bleu) in enumerate(izip_longest(preds, bleu_scores)):
+            success = batcher.print_batch(batch, i, textint_map)
+            if success:
+                print 'PRED:\n {}'.format(batcher.list_to_text(pred))
+                print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
         output = super(Evaluator, self).get_stats(summary_map)

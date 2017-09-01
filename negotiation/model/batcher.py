@@ -188,11 +188,11 @@ class DialogueBatcher(object):
                 }
         return batch
 
-    def _int_to_text(self, array, textint_map, stage):
+    def int_to_text(self, array, textint_map, stage):
         tokens = [str(x) for x in textint_map.int_to_text((x for x in array if x != self.int_markers.PAD), stage)]
         return ' '.join(tokens)
 
-    def _list_to_text(self, tokens):
+    def list_to_text(self, tokens):
         return ' '.join(str(x) for x in tokens)
 
     def print_batch(self, batch, example_id, textint_map, preds=None):
@@ -201,13 +201,13 @@ class DialogueBatcher(object):
         if len(batch['decoder_tokens'][i]) == 0:
             print 'PADDING'
             return False
-        print 'RAW INPUT:\n {}'.format(self._list_to_text(batch['encoder_tokens'][i]))
-        print 'RAW TARGET:\n {}'.format(self._list_to_text(batch['decoder_tokens'][i]))
-        print 'ENC INPUT:\n {}'.format(self._int_to_text(batch['encoder_args']['inputs'][i], textint_map, 'encoding'))
-        print 'DEC INPUT:\n {}'.format(self._int_to_text(batch['decoder_args']['inputs'][i], textint_map, 'decoding'))
-        print 'TARGET:\n {}'.format(self._int_to_text(batch['decoder_args']['targets'][i], textint_map, 'target'))
+        print 'RAW INPUT:\n {}'.format(self.list_to_text(batch['encoder_tokens'][i]))
+        print 'RAW TARGET:\n {}'.format(self.list_to_text(batch['decoder_tokens'][i]))
+        print 'ENC INPUT:\n {}'.format(self.int_to_text(batch['encoder_args']['inputs'][i], textint_map, 'encoding'))
+        print 'DEC INPUT:\n {}'.format(self.int_to_text(batch['decoder_args']['inputs'][i], textint_map, 'decoding'))
+        print 'TARGET:\n {}'.format(self.int_to_text(batch['decoder_args']['targets'][i], textint_map, 'target'))
         if preds is not None:
-            print 'PRED:\n {}'.format(self._int_to_text(preds[i], textint_map, 'target'))
+            print 'PRED:\n {}'.format(self.int_to_text(preds[i], textint_map, 'target'))
         return True
 
     def _get_token_turns_at(self, dialogues, i):
@@ -443,7 +443,7 @@ class RetrievalWrapper(DialogueBatcherWrapper):
                 if cand[0] == self.batcher.int_markers.PAD:
                     print 'PADDING'
                 else:
-                    print self.batcher._int_to_text(cand, textint_map, 'decoding')
+                    print self.batcher.int_to_text(cand, textint_map, 'decoding')
             return True
         else:
             return False

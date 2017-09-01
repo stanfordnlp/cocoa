@@ -134,12 +134,3 @@ class BaseEvaluator(object):
         else:
             f1 = 2 * recall * precision / (recall + precision)
         return precision, recall, f1
-
-#import src.config as config
-#import importlib
-#task_module = importlib.import_module('.'.join(('src.model', config.task, 'evaluate')))
-#get_evaluator = task_module.get_evaluator
-##Evaluator = task_module.Evaluator
-##RetrievalEvaluator = task_module.RetrievalEvaluator
-##LMEvaluator = task_module.LMEvaluator
-#pred_to_token = task_module.pred_to_token

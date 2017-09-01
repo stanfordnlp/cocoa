@@ -99,7 +99,7 @@ class BasicEncoder(object):
         self.feedable_vars = {}
 
     def get_inference_args(self, batch, encoder_init_state):
-        encoder_args = {'inputs': batch['encoder_inputs'],
+        encoder_args = {'inputs': batch['encoder_args']['inputs'],
                 'init_cell_state': encoder_init_state,
                 }
         return encoder_args
@@ -177,7 +177,7 @@ class BasicDecoder(BasicEncoder):
         return feed_dict
 
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
-        decoder_args = {'inputs': batch['decoder_inputs'][:, :prefix_len],
+        decoder_args = {'inputs': batch['decoder_args']['inputs'][:, :prefix_len],
                 'init_cell_state': encoder_output_dict['final_state'],
                 'textint_map': textint_map,
                 }

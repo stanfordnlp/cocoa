@@ -31,13 +31,13 @@ class LM(object):
         return feed_dict
 
     def generate(self, sess, batch, init_state, max_len, textint_map=None):
-        decoder_args = {'prefix': batch['encoder_inputs'],
-                'inputs': batch['decoder_inputs'][:, [0]],
+        decoder_args = {'prefix': batch['encoder_args']['inputs'],
+                'inputs': batch['decoder_args']['inputs'][:, [0]],
                 'init_state': init_state,
                 'textint_map': textint_map,
-                'context': batch['context'],
+                'context': batch['decoder_args']['context'],
                 }
-        batch_size = batch['encoder_inputs'].shape[0]
+        batch_size = batch['encoder_args']['inputs'].shape[0]
         decoder_output_dict = self.decoder.run_decode(sess, max_len, batch_size, **decoder_args)
 
         # Go over the true sequence
@@ -125,7 +125,7 @@ class BasicEncoderDecoder(object):
         return np.argmax(logits, axis=2)
 
     def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None, true_inputs=None):
-        batch_size = batch['encoder_inputs'].shape[0]
+        batch_size = batch['encoder_args']['inputs'].shape[0]
 
         # Encode true prefix
         encoder_args = self.encoder.get_inference_args(batch, encoder_init_state)
@@ -139,7 +139,7 @@ class BasicEncoderDecoder(object):
         # Therefore we need to decode true utterances to condition on true prefix.
         if self.stateful:
             if true_inputs is None:
-                true_inputs = batch['decoder_inputs']
+                true_inputs = batch['decoder_inputs']['inputs']
             decoder_args['inputs'] = true_inputs
             feed_dict = self.decoder.get_feed_dict(**decoder_args)
             true_final_state = sess.run(self.final_state, feed_dict=feed_dict)
@@ -206,7 +206,7 @@ class ContextEncoder(BasicEncoder):
 
     def get_inference_args(self, batch, init_state):
         encoder_args = super(ContextEncoder, self).get_inference_args(batch, init_state)
-        encoder_args['context'] = batch['encoder_context']
+        encoder_args['context'] = batch['encoder_args']['context']
         return encoder_args
 
     def _build_inputs(self, input_dict):
@@ -287,7 +287,7 @@ class AttentionDecoder(BasicDecoder):
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
         decoder_args = super(AttentionDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
         decoder_args.update({
-            'context': batch['context'],
+            'context': batch['decoder_args']['context'],
             'encoder_outputs': encoder_output_dict['outputs'],
             })
         return decoder_args
@@ -326,7 +326,7 @@ class ContextDecoder(BasicDecoder):
 
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
         decoder_args = super(ContextDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
-        decoder_args['context'] = batch['context']
+        decoder_args['context'] = batch['decoder_args']['context']
         return decoder_args
 
     def get_feed_dict(self, **kwargs):
@@ -438,7 +438,7 @@ class SlotFillingDecoder(DecoderWrapper):
 
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
         decoder_args = super(SlotFillingDecoder, self).get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
-        decoder_args['inputs'] = batch['decoder_inputs']
+        decoder_args['inputs'] = batch['decoder_args']['inputs']
         return decoder_args
 
     def run_decode(self, sess, max_len=10, batch_size=1, **kwargs):
@@ -481,7 +481,7 @@ class PriceDecoder(object):
 
     def get_inference_args(self, batch, encoder_output_dict, textint_map, prefix_len=1):
         decoder_args = self.decoder.get_inference_args(batch, encoder_output_dict, textint_map, prefix_len=prefix_len)
-        price_args = {'inputs': batch['decoder_price_inputs'][:, [0]]}
+        price_args = {'inputs': batch['decoder_args']['price_inputs'][:, [0]]}
         decoder_args['price_predictor'] = price_args
         decoder_args['price_symbol'] = textint_map.vocab.to_ind('<price>'),
         return decoder_args
