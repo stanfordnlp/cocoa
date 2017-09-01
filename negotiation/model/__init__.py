@@ -14,13 +14,15 @@ def add_data_generator_arguments(parser):
     add_slot_detector_arguments(parser)
 
 def get_data_generator(args, model_args, mappings, schema):
-    from preprocess import DataGenerator, LMDataGenerator, EvalDataGenerator, Preprocessor
     from cocoa.core.scenario_db import ScenarioDB
     from cocoa.core.dataset import read_dataset, EvalExample
     from cocoa.core.util import read_json
+
+    from core.scenario import Scenario
     from core.price_tracker import PriceTracker
     from core.slot_detector import SlotDetector
     from retriever import Retriever
+    from preprocess import DataGenerator, LMDataGenerator, EvalDataGenerator, Preprocessor
     import os.path
 
     # TODO: move this to dataset
@@ -29,7 +31,7 @@ def get_data_generator(args, model_args, mappings, schema):
         for path in args.eval_examples_paths:
             dataset.extend([EvalExample.from_dict(schema, e) for e in read_json(path)])
     else:
-        dataset = read_dataset(None, args)
+        dataset = read_dataset(None, args, Scenario)
     lexicon = PriceTracker(model_args.price_tracker_model)
     slot_detector = SlotDetector(slot_scores_path=model_args.slot_scores)
 

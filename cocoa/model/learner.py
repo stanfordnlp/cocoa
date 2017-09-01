@@ -4,11 +4,12 @@ Main learning loop.
 
 import os
 import time
-import tensorflow as tf
-from cocoa.lib import logstats
 import resource
+import tensorflow as tf
 import numpy as np
-from model.util import EPS
+
+from cocoa.lib import logstats
+from cocoa.model.util import EPS
 
 def memory():
     usage=resource.getrusage(resource.RUSAGE_SELF)
@@ -34,7 +35,7 @@ optim = {'adagrad': tf.train.AdagradOptimizer,
          'adam': tf.train.AdamOptimizer,
         }
 
-class BaseLearner(object):
+class Learner(object):
     def __init__(self, data, model, evaluator, batch_size=1, summary_dir='/tmp', verbose=False):
         self.data = data  # DataGenerator object
         self.model = model
@@ -197,12 +198,3 @@ class BaseLearner(object):
     def log_results(self, name, results):
         logstats.add(name, {'loss': results.get('loss', None)})
         logstats.add(name, self.evaluator.log_dict(results))
-
-
-
-############# dynamic import depending on task ##################
-import src.config as config
-import importlib
-task_module = importlib.import_module('.'.join(('src.model', config.task, 'learner')))
-#Learner = task_module.Learner
-get_learner = task_module.get_learner

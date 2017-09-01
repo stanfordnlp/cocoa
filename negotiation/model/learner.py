@@ -1,8 +1,10 @@
 import numpy as np
+
 from cocoa.lib import logstats
-from cocoa.model.learner import BaseLearner
-from cocoa.model.negotiation.ranker import EncDecRanker
+from cocoa.model.learner import Learner as BaseLearner, add_learner_arguments
 from cocoa.lib.bleu import compute_bleu
+
+from model.ranker import EncDecRanker
 
 def get_learner(data_generator, model, evaluator, batch_size=1, verbose=False, sample_targets=False, summary_dir='/tmp'):
     if sample_targets:
