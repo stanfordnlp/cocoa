@@ -1,0 +1,1132 @@
+[
+  {
+    "category": "phone",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6147932864",
+    "uuid": "S_cFqc6FiukST1ckZM",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 717
+        },
+        "item": {
+          "Category": "phone",
+          "Images": [],
+          "Price": 780,
+          "Description": [
+            "We have rose gold, matte black and gold color too.",
+            "This phone is unlocked. You can use the phones in all GSM SIM CARD carriers such as AT&T/T-Mobile or international"
+          ],
+          "Title": "Unlocked Brand New Apple iphone 7 Plus 128GB Jet Black"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 780
+        },
+        "item": {
+          "Category": "phone",
+          "Images": [],
+          "Price": 780,
+          "Description": [
+            "We have rose gold, matte black and gold color too.",
+            "This phone is unlocked. You can use the phones in all GSM SIM CARD carriers such as AT&T/T-Mobile or international",
+            "-Cash only",
+            "-Local starbucks for pick up",
+            "-Apple Manufacturer Warranty"
+          ],
+          "Title": "Unlocked Brand New Apple iphone 7 Plus 128GB Jet Black"
+        }
+      }
+    ]
+  },
+  {
+    "category": "furniture",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6145063936",
+    "uuid": "S_lF57T1yU8OW214VM",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 180
+        },
+        "item": {
+          "Category": "furniture",
+          "Images": [
+            "furniture/6145063936_0.jpg"
+          ],
+          "Price": 300,
+          "Description": [
+            "We need to sell off some of our office furniture as we need to make some extra room. This is a very new piece fully assembled. We bought it from Coscto Furniture, 3 months back. Here's the link to the actual furniture.",
+            "https://www.costco.com/Logan-U-shape-Workstation-with-Adjustable-Bridge.product.100245742.html"
+          ],
+          "Title": "Professional Office Furniture - Hutch"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 300
+        },
+        "item": {
+          "Category": "furniture",
+          "Images": [
+            "furniture/6145063936_0.jpg"
+          ],
+          "Price": 300,
+          "Description": [
+            "We need to sell off some of our office furniture as we need to make some extra room. This is a very new piece fully assembled. We bought it from Coscto Furniture, 3 months back. Here's the link to the actual furniture.",
+            "https://www.costco.com/Logan-U-shape-Workstation-with-Adjustable-Bridge.product.100245742.html",
+            "Hutch includes power bar with two power outlets and two USB plugs which is installed on the back panel of the hutch.",
+            "You will need to come and pick up the furniture. House is on first floor with 1 flight of stairs (15 steps). Rate negotiable."
+          ],
+          "Title": "Professional Office Furniture - Hutch"
+        }
+      }
+    ]
+  },
+  {
+    "category": "electronics",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6117273522",
+    "uuid": "S_fJD3xvIBXJ1ooFN2",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 228
+        },
+        "item": {
+          "Category": "electronics",
+          "Images": [
+            "electronics/6117273522_0.jpg"
+          ],
+          "Price": 380,
+          "Description": [
+            "Come see the latest in Smart HD Optics. The ATN Binox-HD binoculars are packed with so many features you will never want to use standard binoculars again. 24/7 use, Wi-Fi, E-zoom, record video, compass. Binox-HD binoculars are the worlds most advanced digital binoculars. Powered by a 1 GHz internal computer they carry a suite of sensors to enable the Senses as never before. Binox-HD - the binoculars for the 21st century.",
+            "Specs:",
+            "- Binoculars that record video and capture pictures",
+            "- Smooth zoom from 4X-16X",
+            "- Image stabilization for steady video",
+            "- Works in daylight or at night"
+          ],
+          "Title": "Binox-HD 4-16x  binoculars"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 380
+        },
+        "item": {
+          "Category": "electronics",
+          "Images": [
+            "electronics/6117273522_0.jpg"
+          ],
+          "Price": 380,
+          "Description": [
+            "Come see the latest in Smart HD Optics. The ATN Binox-HD binoculars are packed with so many features you will never want to use standard binoculars again. 24/7 use, Wi-Fi, E-zoom, record video, compass. Binox-HD binoculars are the worlds most advanced digital binoculars. Powered by a 1 GHz internal computer they carry a suite of sensors to enable the Senses as never before. Binox-HD - the binoculars for the 21st century.",
+            "Specs:",
+            "- Binoculars that record video and capture pictures",
+            "- Smooth zoom from 4X-16X",
+            "- Image stabilization for steady video",
+            "- Works in daylight or at night",
+            "- Wi-Fi, GPS, Geotag, E-Compass, Velocity, Image Stabilization, Altitude, Record Video/Still images 1080P HD, Day/Night Use",
+            "- Unlike traditional optical systems our electronic zoom offers incredible flexibility in the field",
+            "- Built-in Wi-Fi allows a user to connect to mobile device or a desktop computer; Use your phone as a viewfinder, upgrade to the latest firmware.Please refer user manual attached below for instructions and troubleshooting steps",
+            "If you have any questions, give us a call at",
+            "Best Collateral",
+            "2025 Telegraph Ave"
+          ],
+          "Title": "Binox-HD 4-16x  binoculars"
+        }
+      }
+    ]
+  },
+  {
+    "category": "furniture",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6138084430",
+    "uuid": "S_natbifsAeLV8VzMC",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 920
+        },
+        "item": {
+          "Category": "furniture",
+          "Images": [
+            "furniture/6138084430_0.jpg"
+          ],
+          "Price": 1000,
+          "Description": [
+            "I have a new West Elm Henry 96\" sofa couch in Tweed, Salt + Pepper for sale. Bought it and it wasn't a good fit. It is brand new and never used.",
+            "Sample fabric is as shown in the picture.",
+            "Picture 1 - 6 is stock picture. Picture 7 and 8 is actual photo of the sofa / couch.",
+            "Specs:",
+            "Now available in Grand sizing, the Henry Sofa is a comfortable classic that's always in style. Each is crafted with hand-built frames, hand-finished upholstery and many recycled materials."
+          ],
+          "Title": "West Elm Henry 96\" sofa couch new"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 1000
+        },
+        "item": {
+          "Category": "furniture",
+          "Images": [
+            "furniture/6138084430_0.jpg"
+          ],
+          "Price": 1000,
+          "Description": [
+            "I have a new West Elm Henry 96\" sofa couch in Tweed, Salt + Pepper for sale. Bought it and it wasn't a good fit. It is brand new and never used.",
+            "Sample fabric is as shown in the picture.",
+            "Picture 1 - 6 is stock picture. Picture 7 and 8 is actual photo of the sofa / couch.",
+            "Specs:",
+            "Now available in Grand sizing, the Henry Sofa is a comfortable classic that's always in style. Each is crafted with hand-built frames, hand-finished upholstery and many recycled materials.",
+            "Loose cushions with foam padding for maximum comfort.",
+            "Solid wood legs with Chocolate-stained finish.",
+            "Seat deck and springs made from 70% recycled materials.",
+            "Foam in cushions and arms made from 20% soy-based materials.",
+            "Pillow filling made from recycled water bottles; padding and seat fiber made from recycled carpet materials."
+          ],
+          "Title": "West Elm Henry 96\" sofa couch new"
+        }
+      }
+    ]
+  },
+  {
+    "category": "bike",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6145626381",
+    "uuid": "S_OGiC3D5VkQRcp4PF",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 114
+        },
+        "item": {
+          "Category": "bike",
+          "Images": [
+            "bike/6145626381_0.jpg"
+          ],
+          "Price": 150,
+          "Description": [
+            "Sears Roebuck 3-speed cruiser bike. Circa 1960's. Classic, vintage, collectible. 20\" (51cm) step-thru frame. Good for someone 5'5\"+.",
+            "Specifications:",
+            "Color: Metallic brown.",
+            "Joytech brake levers.",
+            "Joytech center pivot dual side pulled brakes.",
+            "Sturmey Archer 3-speed shifter."
+          ],
+          "Title": "Sears Roebuck 3-speed cruiser bike."
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 150
+        },
+        "item": {
+          "Category": "bike",
+          "Images": [
+            "bike/6145626381_0.jpg"
+          ],
+          "Price": 150,
+          "Description": [
+            "Sears Roebuck 3-speed cruiser bike. Circa 1960's. Classic, vintage, collectible. 20\" (51cm) step-thru frame. Good for someone 5'5\"+.",
+            "Specifications:",
+            "Color: Metallic brown.",
+            "Joytech brake levers.",
+            "Joytech center pivot dual side pulled brakes.",
+            "Sturmey Archer 3-speed shifter.",
+            "20mm Ø seat post.",
+            "170mm crank arms.",
+            "Sturmey Archer rear 3-speed internal hub.",
+            "26\" wheels. 36 spokes. Joytech hub.",
+            "Chain guard.",
+            "Good condition."
+          ],
+          "Title": "Sears Roebuck 3-speed cruiser bike."
+        }
+      }
+    ]
+  },
+  {
+    "category": "phone",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6140158976",
+    "uuid": "S_qzBiNl88EtQSeMGy",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 82
+        },
+        "item": {
+          "Category": "phone",
+          "Images": [],
+          "Price": 90,
+          "Description": [
+            "purchased new Iphone 7 for kids so we need to sell our old iphone.",
+            "Ipone 5 is unlocked and can be used with any carrier using GSM or oversears in India. phone has a clean HMEI, factory unlocked."
+          ],
+          "Title": "Iphone 5 with 16MB unlocked"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 90
+        },
+        "item": {
+          "Category": "phone",
+          "Images": [],
+          "Price": 90,
+          "Description": [
+            "purchased new Iphone 7 for kids so we need to sell our old iphone.",
+            "Ipone 5 is unlocked and can be used with any carrier using GSM or oversears in India. phone has a clean HMEI, factory unlocked.",
+            "purchased new, no warranty, sold as-is condition, original parts, in good working condition, 16MB memory. good for school going kids.",
+            "we can meet at AT&T/Tmobile store or gas station to complete the transaction. Bring your sim to check phone."
+          ],
+          "Title": "Iphone 5 with 16MB unlocked"
+        }
+      }
+    ]
+  },
+  {
+    "category": "housing",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6131415768",
+    "uuid": "S_vjhBDKQnu1pkxghX",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 2024
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [],
+          "Price": 2200,
+          "Description": [
+            "For rent is a nice 2 bedroom 1 and half bath apartment townhouse located at 3004 Rockett Dr. in Fremont. This is a two story layout with the bedrooms and full bath upstairs, and downstairs you have the kitchen, living room and dining room and half bath. There is a front yard and back yard as well",
+            "Deposit is one months rent",
+            "You will need good credit or a co-signer with good credit",
+            "There is coin laundry facility on the premises. No washer/dryer hookups",
+            "No Pets Please",
+            "Section 8 is ok",
+            "Good credit or co signer with good credit is required"
+          ],
+          "Title": "2 BEDROOM 1 AND HALF BATH APT TOWNHOUSE WALK TO LAKE ELIZABETH*******"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 2200
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [],
+          "Price": 2200,
+          "Description": [
+            "For rent is a nice 2 bedroom 1 and half bath apartment townhouse located at 3004 Rockett Dr. in Fremont. This is a two story layout with the bedrooms and full bath upstairs, and downstairs you have the kitchen, living room and dining room and half bath. There is a front yard and back yard as well",
+            "Deposit is one months rent",
+            "You will need good credit or a co-signer with good credit",
+            "There is coin laundry facility on the premises. No washer/dryer hookups",
+            "No Pets Please",
+            "Section 8 is ok",
+            "Good credit or co signer with good credit is required",
+            "Please use the google map link below to understand exactly where this unit is located and for directions. Address is",
+            "Unit is available Now for immediate move in",
+            "The number of occupants for the home ie family or roommates",
+            "What type of income source ie Jobs and how long with employer",
+            "Credit History and Rating",
+            "or e-mail us information about yourself at our craigslist email",
+            "applications for the apartment can be downloaded at www.jpproperties.webs.com"
+          ],
+          "Title": "2 BEDROOM 1 AND HALF BATH APT TOWNHOUSE WALK TO LAKE ELIZABETH*******"
+        }
+      }
+    ]
+  },
+  {
+    "category": "housing",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6131459128",
+    "uuid": "S_maz0qCoPdRCl1Utt",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 567
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [
+            "housing/6131459128_0.jpg"
+          ],
+          "Price": 946,
+          "Description": [
+            "****",
+            "Parker is that thrill you feel when inspiration strikes. Perched proudly on Shattuck Avenue in",
+            "Berkeley, this collection of 155 carefully crafted, sustainably designed apartments offer immediate",
+            "access to music venues, boutique shopping, nightlife, green space, the Gourmet Ghetto, and"
+          ],
+          "Title": "Parker Apartments - Now Accepting Below Market Rate Applications"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 946
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [
+            "housing/6131459128_0.jpg"
+          ],
+          "Price": 946,
+          "Description": [
+            "****",
+            "Parker is that thrill you feel when inspiration strikes. Perched proudly on Shattuck Avenue in",
+            "Berkeley, this collection of 155 carefully crafted, sustainably designed apartments offer immediate",
+            "access to music venues, boutique shopping, nightlife, green space, the Gourmet Ghetto, and",
+            "At home, get to know your neighbors by the crackling light of a fire pit, get focused in our",
+            "co-working space, or burn some calories at the on-site Equinox Fitness Club. With convenient",
+            "amenities like a pet spa, bike lounge, secured parking, and a package concierge, Parker allows you",
+            "to immerse yourself fully in Berkeley's colorful community, without sweating the day-to-day stuff.",
+            "Flexible lease terms (6-13 months)"
+          ],
+          "Title": "Parker Apartments - Now Accepting Below Market Rate Applications"
+        }
+      }
+    ]
+  },
+  {
+    "category": "car",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6128924910",
+    "uuid": "S_WFZSQS5tv0bVgK4w",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 2100
+        },
+        "item": {
+          "Category": "car",
+          "Images": [
+            "car/6128924910_0.jpg"
+          ],
+          "Price": 3500,
+          "Description": [
+            "5 speed manual",
+            "Clean title in hand",
+            "Tags are paid and up to date",
+            "Low miles for the year 127,000.",
+            "Premium sound system pioneer",
+            "head unit with bluetooth"
+          ],
+          "Title": "2003 Honda Civic Lx Low Miles Clean Title Ready To Go!!!"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 3500
+        },
+        "item": {
+          "Category": "car",
+          "Images": [
+            "car/6128924910_0.jpg"
+          ],
+          "Price": 3500,
+          "Description": [
+            "5 speed manual",
+            "Clean title in hand",
+            "Tags are paid and up to date",
+            "Low miles for the year 127,000.",
+            "Premium sound system pioneer",
+            "head unit with bluetooth",
+            "connectivity.",
+            "MB quarts speakers tweeter all",
+            "around",
+            "I have all service records all maintenance done and up to date. Including a brand new clutch  transmission service with honda genuine fliud recent timing belt replacement waterpump and tensioner seals and gaskets. Super clean inside and out.",
+            "I will not take a low offer and i will not waist my time.",
+            "Thanks and have a wonderful day."
+          ],
+          "Title": "2003 Honda Civic Lx Low Miles Clean Title Ready To Go!!!"
+        }
+      }
+    ]
+  },
+  {
+    "category": "housing",
+    "attributes": [
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Bottomline",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Target",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Title",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Category",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Price",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Images",
+        "multivalued": false
+      },
+      {
+        "entity": false,
+        "unique": false,
+        "value_type": "text",
+        "name": "Description",
+        "multivalued": false
+      }
+    ],
+    "post_id": "6133114538",
+    "uuid": "S_cbrLXOmSKGCRozSf",
+    "kbs": [
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "buyer",
+          "Target": 1885
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [
+            "housing/6133114538_0.jpg"
+          ],
+          "Price": 2095,
+          "Description": [
+            "Studio-Loft available at Park Place Apartments in downtown Walnut Creek. Open and airy with vaulted ceilings and double paned floor to ceiling windows look out on to picturesque Mt. Diablo.  Parking included!",
+            "Studio-Loft offers the following amenities:",
+            "Separate Kitchen",
+            "Cable-Ready",
+            "Additional Storage (select units)",
+            "Microwave (select units)",
+            "Controlled Access",
+            "Window coverings",
+            "Park Place offers the following amenities:",
+            "Gas utilities included"
+          ],
+          "Title": "STUDIO Loft  Downtown Walnut Creek!"
+        }
+      },
+      {
+        "personal": {
+          "Bottomline": null,
+          "Role": "seller",
+          "Target": 2095
+        },
+        "item": {
+          "Category": "housing",
+          "Images": [
+            "housing/6133114538_0.jpg"
+          ],
+          "Price": 2095,
+          "Description": [
+            "Studio-Loft available at Park Place Apartments in downtown Walnut Creek. Open and airy with vaulted ceilings and double paned floor to ceiling windows look out on to picturesque Mt. Diablo.  Parking included!",
+            "Studio-Loft offers the following amenities:",
+            "Separate Kitchen",
+            "Cable-Ready",
+            "Additional Storage (select units)",
+            "Microwave (select units)",
+            "Controlled Access",
+            "Window coverings",
+            "Park Place offers the following amenities:",
+            "Gas utilities included",
+            "French doors to private patio or balcony",
+            "Walk to shops, dining and movies",
+            "On site maintenance for residents",
+            "Within 1 block of I-680/24",
+            "A wonderful staff member is waiting to take YOU on tour.",
+            "Please call us at",
+            "Address: 1310 Alma Ave, Walnut Creek, CA 94596 Hours of Operation: Monday-Saturday 9am to 6pm.",
+            "All rents, deposits, availability and other lease terms are subject to change without notice. Please call or email for current rental rates and other lease terms.",
+            "All rents and availability subject to approved application and credit.",
+            "Pet restrictions and additional deposit and rent may apply."
+          ],
+          "Title": "STUDIO Loft  Downtown Walnut Creek!"
+        }
+      }
+    ]
+  }
+]
