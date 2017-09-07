@@ -10,3 +10,4 @@ Makefile
 web_output/*
 *.pdf
 aws_config.json
+*.DS_Store

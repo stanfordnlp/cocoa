@@ -31,6 +31,7 @@ if args.random_seed:
     random.seed(args.random_seed)
     np.random.seed(args.random_seed)
 
+debug_state = True
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
@@ -54,7 +55,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     for i in range(max_examples):
         scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
-        controller = Controller(scenario, sessions)
+        controller = Controller(scenario, sessions, debug=debug_state)
         ex = controller.simulate(max_turns)
         if ex.outcome['reward'] == 0:
             num_failed += 1

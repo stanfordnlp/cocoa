@@ -14,10 +14,13 @@ class Controller(object):
         self.sessions = sessions
         self.chat_id = chat_id
         assert len(self.sessions) == 2
-        if debug:
-            for agent in (0, 1):
-                self.scenario.kbs[agent].dump()
+        self.debug = self.describe_scenario() if debug else False
         self.events = []
+
+    def describe_scenario(self):
+        for agent in (0, 1):
+            self.scenario.kbs[agent].dump()
+        return True
 
     def event_callback(self, event):
         raise NotImplementedError
@@ -37,17 +40,26 @@ class Controller(object):
         num_turns = 0
         game_over = False
         while not game_over:
+            if time > 10:
+                break
+
             for agent, session in enumerate(self.sessions):
                 event = session.send()
                 time += 1
                 if not event:
                     continue
-
                 event.time = time
                 self.event_callback(event)
                 self.events.append(event)
 
-                print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+                if self.debug:
+                    print 'agent=%s, session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+                else:
+                    event_dict = event.to_dict()
+                    action = event_dict['action']
+                    data = event_dict['data']
+                    event_output = data if action == 'message' else "Action: {0}, Data: {1}".format(action, data)
+                    print 'agent=%s, event=%s' % (agent, event_output)
                 num_turns += 1
                 if self.game_over() or (max_turns and num_turns >= max_turns):
                     game_over = True
