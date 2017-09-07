@@ -40,14 +40,12 @@ class Controller(object):
         num_turns = 0
         game_over = False
         while not game_over:
-            if time > 10:
-                break
-
             for agent, session in enumerate(self.sessions):
                 event = session.send()
                 time += 1
                 if not event:
                     continue
+
                 event.time = time
                 self.event_callback(event)
                 self.events.append(event)
