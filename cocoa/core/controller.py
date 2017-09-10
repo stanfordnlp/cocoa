@@ -14,9 +14,6 @@ class Controller(object):
         self.sessions = sessions
         self.chat_id = chat_id
         assert len(self.sessions) == 2
-        if debug:
-            for agent in (0, 1):
-                self.scenario.kbs[agent].dump()
         self.events = []
 
     def event_callback(self, event):
@@ -28,7 +25,7 @@ class Controller(object):
     def get_result(self, agent_idx):
         return None
 
-    def simulate(self, max_turns=None):
+    def simulate(self, max_turns=None, verbose=False):
         '''
         Simulate a dialogue.
         '''
@@ -36,6 +33,9 @@ class Controller(object):
         time = 0
         num_turns = 0
         game_over = False
+        if verbose:
+            for agent in (0, 1):
+                self.scenario.kbs[agent].dump()
         while not game_over:
             for agent, session in enumerate(self.sessions):
                 event = session.send()
@@ -47,7 +47,8 @@ class Controller(object):
                 self.event_callback(event)
                 self.events.append(event)
 
-                print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
+                if verbose:
+                    print 'agent=%s: session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 num_turns += 1
                 if self.game_over() or (max_turns and num_turns >= max_turns):
                     game_over = True
@@ -59,7 +60,8 @@ class Controller(object):
 
         uuid = generate_uuid('E')
         outcome = self.get_outcome()
-        print 'outcome: %s' % outcome
+        if verbose:
+            print 'outcome: %s' % outcome
         # TODO: add configurable names to systems and sessions
         return Example(self.scenario, uuid, self.events, outcome, uuid, None)
 
