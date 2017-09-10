@@ -308,7 +308,7 @@ class StrategyAnalyzer(object):
         return agents
 
     @classmethod
-    def get_margin(cls, ex, price, agent, role):
+    def get_margin(cls, ex, price, agent, role, remove_outlier=True):
         agent_target = ex.scenario.kbs[agent].facts["personal"]["Target"]
         partner_target = ex.scenario.kbs[1 - agent].facts["personal"]["Target"]
         midpoint = (agent_target + partner_target) / 2.
@@ -317,9 +317,9 @@ class StrategyAnalyzer(object):
             margin = (price - midpoint) / norm_factor
         else:
             margin = (midpoint - price) / norm_factor
-        if cls.valid_margin(margin):
-            return margin
-        return None
+        if remove_outlier and not cls.valid_margin(margin):
+            return None
+        return margin
 
     @classmethod
     def print_ex(cls, ex):
