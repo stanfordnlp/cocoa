@@ -5,16 +5,12 @@ from core.tokenizer import tokenize
 import copy
 import sys
 import re
+import operator
 
 class RulebasedSession(object):
     @staticmethod
     def get_session(agent, kb, lexicon=None):
-        if kb.facts['Role'] == 'first':
-            return FirstRulebasedSession(agent, kb, lexicon)
-        elif kb.facts['Role'] == 'second':
-            return SecondRulebasedSession(agent, kb, lexicon)
-        else:
-            raise ValueError('Unknown role: %s', kb.facts['Role'])
+        return BaseRulebasedSession(agent, kb, lexicon)
 
 class BaseRulebasedSession(Session):
     def __init__(self, agent, kb, lexicon):
@@ -62,16 +58,13 @@ class BaseRulebasedSession(Session):
 
     def init_item_ranking(self):
         values = copy.deepcopy(self.item_values)
-        top_idx = values.index(max(values))
-        values[top_idx] = -10
-        middle_idx = values.index(max(values))
-        values[middle_idx] = -10
-        bottom_idx = values.index(max(values))
+        max_key = operator.itemgetter(1)
 
-        items = ['book', 'hat', 'ball']
-        self.top_item = items[top_idx]
-        self.middle_item = items[middle_idx]
-        self.bottom_item = items[bottom_idx]
+        self.top_item = max(values.iteritems(), key=max_key)[0]
+        values[self.top_item] = -10
+        self.middle_item = max(values.iteritems(), key=max_key)[0]
+        values[self.middle_item] = -10
+        self.bottom_item = max(values.iteritems(), key=max_key)[0]
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
@@ -85,7 +78,7 @@ class BaseRulebasedSession(Session):
             #print 'entity tokens:', entity_tokens
             self.parse_message(event.data)
 
-        if event.action == 'accept' or event.action == 'offer':
+        if event.action == 'select':
             self.state['num_utterance_sent'] = 0
             self.state['mark_deal_agreed'] = True
 
@@ -124,9 +117,6 @@ class BaseRulebasedSession(Session):
         self.their_offer['hat'] = int(tokens[hat_idx - 1])
         self.their_offer['ball'] = int(tokens[ball_idx - 1])
 
-    def init_propose(self, price=None):
-        raise NotImplementedError
-
     def propose(self):
         # if I have not yet made a proposal
         if not self.my_proposal['made']:
@@ -144,146 +134,21 @@ class BaseRulebasedSession(Session):
                 s = "What if I get the " + self.top_item + " along with a " + \
                              self. middle_item + "and you take the rest?"
             elif self.strategy == 'balanced':
-                s = "They all look good to me, what do you want?"
+                s = [   "They all look good to me, what do you want?",
+                        "Hi, that " + self.top_item + " looks really nice.",
+                        "Would you like to have all the " + self.bottom_item + "?",
+                        "The " + self.top_item + " looks good to me. What about you?"
+                    ]
+        self.state['last_act'] = 'propose'
+
         return self.message(random.choice(s))
-
-    def intro(self):
-        raise NotImplementedError
-
-    def agree(self):
-        self.state['last_act'] = 'agree'
-        # if random.random() < 0.5:
-        #     return self.offer(self.my_price)
-        # else:
-        self.my_proposal['made'] = self.their_offer['made']
-        self.my_proposal['book'] = self.item_counts[0] - self.their_offer['book']
-        self.my_proposal['hat'] = self.item_counts[1] - self.their_offer['hat']
-        self.my_proposal['ball'] = self.item_counts[2] - self.their_offer['ball']
-
-        s = [   'Ok, that sounds great!',
-                'Deal.',
-                'I can take that.',
-                'I can do that.',
-            ]
-        return self.message(random.choice(s))
-
-    def sample_templates(self, s):
-        for i in xrange(10):
-            u = random.choice(s)
-            if u != self.state['last_utterance']:
-                break
-        self.state['last_utterance'] = u
-        return u
-
-    def meets_bottomline(self, offer):
-        book_total = self.item_values[0] * offer['book']
-        hat_total = self.item_values[1] * offer['hat']
-        ball_total = self.item_values[2] * offer['ball']
-        total_points = book_total + hat_total + ball_total
-        return total_points >= self.bottomline
-
-    def persuade(self):
-        if self.top_item == 'book':
-            self.persuade_detail = [
-                "I have always been a book worm.",
-                "The books come in a set, so I would want them all.",
-                "I'm trying to complete my collection of novels in this series.",
-                ]
-        elif self.category == 'hat':
-            self.persuade_detail = [
-                "I need to hide a bald spot with the hat.",
-                "People tell me I look great with a hat on.",
-                "This hat fits perfectly with my head.",
-                ]
-        elif self.category == 'ball':
-            self.persuade_detail = [
-                "I have always loved sports.",
-                "I need these for my youth rec league.",
-                "You would look great in a hat.",
-                ]
-
-    def deal_points(self):
-        book_total = self.item_values[0] * self.my_proposal['book']
-        hat_total = self.item_values[1] * self.my_proposal['hat']
-        ball_total = self.item_values[2] * self.my_proposal['ball']
-        deal_points = book_total + hat_total + ball_total
-        return deal_points
-
-    def send(self):
-        if self.state['num_utterance_sent'] > 0:
-            return None
-        self.state['num_utterance_sent'] += 1
-
-        if self.state['mark_deal_agreed']:
-            # If the deal is marked as agreed, then the system continues even when
-            # it is bad. The check on deal_points is more of a unit test, rather
-            # than to ensure a good deal, since default points are negative.
-            if self.deal_points() > 1:
-                outcome = {}
-                outcome['deal_points'] = self.deal_points()
-                outcome['item_split'] = self.my_proposal
-
-                return self.mark_deal_agreed(data=outcome)
-            else:
-                return self.reject()
-
-        # if not self.state['said_hi']:
-        #     self.state['said_hi'] = True
-        #     # We might skip greeting
-        #     if random.random() < 0.5:
-        #         return self.greet()
-
-        # if not self.state['introduced'] and self.partner_price is None:
-        #     self.state['introduced'] = True
-            # We might skip intro
-            # if random.random() < 0.5:
-            #     return self.intro()
-
-        # if self.state['final_called']:
-        #     return self.offer(self.bottomline)
-
-        # if self.state['num_partner_insist'] > 2:
-        #     return self.compromise()
-
-        if not self.their_offer['made']:
-            if self.my_proposal['made']:
-                self.persuade()
-                return self.persuade_detail
-            else:
-                return self.propose()
-        else:
-            if self.meets_bottomline(self.their_offer):
-                return self.agree()
-            else:
-                return self.agree()
-                # return self.persuade()
-
-        # elif self.deal(self.partner_price):
-        #     return self.agree()
-        # elif self.no_deal(self.partner_price):
-            # TODO: set persuasion strength
-            # return self.persuade()
-        # else:
-        #     p = random.random()
-        #     if p < 0.2:
-        #         return self.agree()
-        #     elif p < 0.4:
-        #         return self.compromise()
-        #     else:
-        #         return self.persuade()
-
-        raise Exception('Uncaught case')
-
-class FirstRulebasedSession(BaseRulebasedSession):
-    def __init__(self, agent, kb, lexicon):
-        super(FirstRulebasedSession, self).__init__(agent, kb, lexicon)
 
     def valid_proposal(self, offer):
-        if offer['book'] > self.item_counts[0]:
+        if offer['book'] > self.item_counts['book']:
             return (False, 'book')
-        if offer['hat'] > self.item_counts[1]:
+        if offer['hat'] > self.item_counts['hat']:
             return (False, 'hat')
-        if offer['ball'] > self.item_counts[2]:
+        if offer['ball'] > self.item_counts['ball']:
             return (False, 'ball')
         else:
             return (True,)
@@ -344,37 +209,126 @@ class FirstRulebasedSession(BaseRulebasedSession):
         self.state['last_act'] = 'propose'
         return s
 
-class SecondRulebasedSession(BaseRulebasedSession):
-    def __init__(self, agent, kb, lexicon):
-        super(SecondRulebasedSession, self).__init__(agent, kb, lexicon)
+    def select(self):
+        self.state['last_act'] = 'select'
+        # if random.random() < 0.5:
+        #     return self.offer(self.my_price)
+        # else:
+        self.my_proposal['made'] = self.their_offer['made']
+        self.my_proposal['book'] = self.item_counts['book'] - self.their_offer['book']
+        self.my_proposal['hat'] = self.item_counts['hat'] - self.their_offer['hat']
+        self.my_proposal['ball'] = self.item_counts['ball'] - self.their_offer['ball']
 
-    def intro(self):
-        s = "Hi, that " + self.top_item + " looks really nice."
-        self.state['last_act'] = 'intro'
-        return self.message(s)
-
-    def init_propose(self):
-        s = [ "Would you like to have all the " + self.bottom_item + "?",
-                "The " + self.top_item + " looks good to me. What about you?"
+        s = [   'Ok, that sounds great!',
+                'Deal.',
+                'I can take that.',
+                'I can do that.',
             ]
-        self.state['last_act'] = 'propose'
-        return s
+        return self.message(random.choice(s))
 
+    def sample_templates(self, s):
+        for i in xrange(10):
+            u = random.choice(s)
+            if u != self.state['last_utterance']:
+                break
+        self.state['last_utterance'] = u
+        return u
 
-#############################
+    def meets_bottomline(self, offer):
+        book_total = self.item_values['book'] * offer['book']
+        hat_total = self.item_values['hat'] * offer['hat']
+        ball_total = self.item_values['ball'] * offer['ball']
+        total_points = book_total + hat_total + ball_total
+        return total_points >= self.bottomline
 
-class RuleUtteranceTagger(object):
-    '''
-    Tag utterances from the rulebased bot, i.e the function that generates the
-    utterance.
-    NOTE: in future we will add the act/function in the utterance event.
-    '''
-    greetings = ('hi', 'hello', 'hey')
+    def persuade(self):
+        if self.top_item == 'book':
+            self.persuade_detail = [
+                "I have always been a book worm.",
+                "The books come in a set, so I would want them all.",
+                "I'm trying to complete my collection of novels in this series.",
+                ]
+        elif self.category == 'hat':
+            self.persuade_detail = [
+                "I need to hide a bald spot with the hat.",
+                "People tell me I look great with a hat on.",
+                "This hat fits perfectly with my head.",
+                ]
+        elif self.category == 'ball':
+            self.persuade_detail = [
+                "I have always loved sports.",
+                "I need these for my youth rec league.",
+                "You would look great in a hat.",
+                ]
 
-    propose = [
-               r'Can you take',
-               r'What about',
-               r'What do you think of',
-               r'ok, I guess I can take',
-               r'and we have a deal',
-              ]
+    def deal_points(self):
+        book_total = self.item_values['book'] * self.my_proposal['book']
+        hat_total = self.item_values['hat'] * self.my_proposal['hat']
+        ball_total = self.item_values['ball'] * self.my_proposal['ball']
+        deal_points = book_total + hat_total + ball_total
+        return deal_points
+
+    def send(self):
+        if self.state['num_utterance_sent'] > 0:
+            return None
+        self.state['num_utterance_sent'] += 1
+
+        if self.state['mark_deal_agreed']:
+            # If the deal is marked as agreed, then the system continues even when
+            # it is bad. The check on deal_points is more of a unit test, rather
+            # than to ensure a good deal, since default points are negative.
+            if self.deal_points() > 1:
+                outcome = {}
+                outcome['deal_points'] = self.deal_points()
+                outcome['item_split'] = self.my_proposal
+
+                return self.mark_deal_agreed(data=outcome)
+            else:
+                return self.reject()
+
+        # if not self.state['said_hi']:
+        #     self.state['said_hi'] = True
+        #     # We might skip greeting
+        #     if random.random() < 0.5:
+        #         return self.greet()
+
+        # if not self.state['introduced'] and self.partner_price is None:
+        #     self.state['introduced'] = True
+            # We might skip intro
+            # if random.random() < 0.5:
+            #     return self.intro()
+
+        # if self.state['final_called']:
+        #     return self.offer(self.bottomline)
+
+        # if self.state['num_partner_insist'] > 2:
+        #     return self.compromise()
+
+        if not self.their_offer['made']:
+            if self.my_proposal['made']:
+                self.persuade()
+                return self.persuade_detail
+            else:
+                return self.propose()
+        else:
+            if self.meets_bottomline(self.their_offer):
+                return self.select()
+            else:
+                return self.select()
+                # return self.persuade()
+
+        # elif self.deal(self.partner_price):
+        #     return self.agree()
+        # elif self.no_deal(self.partner_price):
+            # TODO: set persuasion strength
+            # return self.persuade()
+        # else:
+        #     p = random.random()
+        #     if p < 0.2:
+        #         return self.agree()
+        #     elif p < 0.4:
+        #         return self.compromise()
+        #     else:
+        #         return self.persuade()
+
+        raise Exception('Uncaught case')

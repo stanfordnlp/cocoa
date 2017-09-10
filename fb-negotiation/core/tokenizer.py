@@ -62,8 +62,8 @@ def tokenize(utterance, lowercase=True):
     # Remove some weird chars
     utterance = re.sub(r'\\|>|/', ' ', utterance)
     tokens = word_tokenize(utterance)
-    #tokens = stick_marker_sign(tokens)
-    tokens = stick_dollar_sign(tokens)
+    # tokens = stick_marker_sign(tokens)
+    # tokens = stick_dollar_sign(tokens)
     return tokens
 
 # ========= TEST ===========

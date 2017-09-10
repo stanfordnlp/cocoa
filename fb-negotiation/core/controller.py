@@ -6,19 +6,45 @@ class Controller(BaseController):
         self.marked_agree = [False, False]
         self.quit = False
         self.outcomes = [None, None]
-        # self.prices = [None, None]
 
     def event_callback(self, event):
-        if event.action == 'accept':
+        if event.action == 'select':
             self.marked_agree[event.agent] = True
             self.outcomes[event.agent] = event.data
-        elif event.action == 'reject':
-            self.marked_agree[event.agent] = True
-            self.quit = True
-            self.outcomes[0] = {'deal_points': 0, 'item_split': 'no_deal'}  # paper says you get no points when there is no agreement
-            self.outcomes[1] = {'deal_points': 0, 'item_split': 'no_deal'}  # paper says you get no points when there is no agreement
         elif event.action == 'quit':
             self.quit = True
+
+    def valid_end_state(self):
+        first_agent_proposal = self.sessions[0].my_proposal
+        second_agent_proposal = self.sessions[1].my_proposal
+
+        book_count = self.sessions[0].item_counts['book']
+        book_proposal = first_agent_proposal['book'] + second_agent_proposal['book']
+        book_deal = (book_count == book_proposal)
+
+        hat_count = self.sessions[0].item_counts['hat']
+        hat_proposal = first_agent_proposal['hat'] + second_agent_proposal['hat']
+        hat_deal = (hat_count == hat_proposal)
+
+        ball_count = self.sessions[0].item_counts['ball']
+        ball_proposal = first_agent_proposal['ball'] + second_agent_proposal['ball']
+        ball_deal = (ball_count == ball_proposal)
+
+        all_deals = (book_deal and hat_deal and ball_deal)
+        return all_deals
+
+    def postgame_check(self, num_turns, max_turns):
+        if self.valid_end_state():
+            print("Example game ended successfully with a deal.")
+        elif num_turns >= max_turns:
+            print("No deal was made.")
+            # paper says you get no points when there is no agreement
+            self.outcomes[0] = {'deal_points': 0, 'item_split': 'no_deal'}
+            self.outcomes[1] = {'deal_points': 0, 'item_split': 'no_deal'}
+        else:
+            print("Incompatiable proposals were made by the two agents.")
+            self.outcomes[0]['deal_points'] = 0
+            self.outcomes[1]['deal_points'] = 0
 
     def get_outcome(self):
         agent_0_reward = self.outcomes[0]['deal_points']
@@ -27,24 +53,6 @@ class Controller(BaseController):
         split_1 = self.outcomes[1]['item_split']
 
         return {'reward': agent_0_reward + agent_1_reward, 'item_split_0': split_0, 'item_split_1': split_1}
-        # offer = None
-        # reward = 0
-        # if self.offers[0] is not None and self.outcomes[1] is True:
-        #     reward = 1
-        #     offer = self.offers[0]
-        # elif self.offers[1] is not None and self.outcomes[0] is True:
-        #     reward = 1
-        #     offer = self.offers[1]
-        # else:
-        #     if (self.offers[0] is not None or self.offers[1] is not None) and False in self.outcomes:
-        #         reward = 0
-        #         offer = self.offers[0] if self.offers[1] is None else self.offers[1]
-
-        # possible outcomes:
-        # reward is 1 and offer is not null: complete dialogue
-        # reward is 0 and offer is not null: incomplete dialogue (disagreement): offer was made and not accepted
-        # reweard is 0 and offer is null: incomplete dialogue: no offer was made
-        return {'reward': reward, 'offer': offer}
 
     def game_over(self):
         you_are_still_playing = not self.inactive()

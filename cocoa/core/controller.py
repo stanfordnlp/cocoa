@@ -28,6 +28,10 @@ class Controller(object):
     def get_outcome(self):
         raise NotImplementedError
 
+    def postgame_check(self, num_turns, max_turns):
+        # used to perform any checks or clean up after the game has ended
+        pass
+
     def get_result(self, agent_idx):
         return None
 
@@ -53,14 +57,14 @@ class Controller(object):
                 if self.debug:
                     print 'agent=%s, session=%s, event=%s' % (agent, type(session).__name__, event.to_dict())
                 else:
-                    event_dict = event.to_dict()
-                    action = event_dict['action']
-                    data = event_dict['data']
+                    action = event.action
+                    data = event.data
                     event_output = data if action == 'message' else "Action: {0}, Data: {1}".format(action, data)
                     print 'agent=%s, event=%s' % (agent, event_output)
                 num_turns += 1
                 if self.game_over() or (max_turns and num_turns >= max_turns):
                     game_over = True
+                    self.postgame_check(num_turns, max_turns)
                     break
 
                 for partner, other_session in enumerate(self.sessions):
