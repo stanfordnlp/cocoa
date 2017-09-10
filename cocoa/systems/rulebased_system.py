@@ -10,11 +10,11 @@ class RulebasedSystem(System):
     def name(cls):
         return 'rulebased'
 
-    def new_session(self, agent, kb):
-        session = self._new_session(agent, kb)
+    def new_session(self, agent, kb, config=None):
+        session = self._new_session(agent, kb, config)
         if self.timed_session:
             session = TimedSessionWrapper(agent, session)
         return session
 
-    def _new_session(self, agent, kb):
+    def _new_session(self, agent, kb, config=None):
         raise NotImplementedError
