@@ -20,6 +20,7 @@ class BaseRulebasedSession(Session):
 
         self.item_values = kb.facts['Item_values']
         self.item_counts = kb.facts['Item_counts']
+        self.items = kb.facts['Item_values'].keys()
         self.bottomline = 8  # self.kb.facts['personal']['Bottomline']
         self.their_offer = {'made': False, 'book':-1, 'hat':-1, 'ball':-1}
         self.my_proposal = {'made': False, 'book':-1, 'hat':-1, 'ball':-1}
@@ -215,9 +216,8 @@ class BaseRulebasedSession(Session):
         #     return self.offer(self.my_price)
         # else:
         self.my_proposal['made'] = self.their_offer['made']
-        self.my_proposal['book'] = self.item_counts['book'] - self.their_offer['book']
-        self.my_proposal['hat'] = self.item_counts['hat'] - self.their_offer['hat']
-        self.my_proposal['ball'] = self.item_counts['ball'] - self.their_offer['ball']
+        for item in self.items:
+            self.my_proposal[item] = self.item_counts[item] - self.their_offer[item]
 
         s = [   'Ok, that sounds great!',
                 'Deal.',

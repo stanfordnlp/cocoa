@@ -16,6 +16,7 @@ class Controller(object):
         assert len(self.sessions) == 2
         self.debug = self.describe_scenario() if debug else False
         self.events = []
+        self.max_turns = None
 
     def describe_scenario(self):
         for agent in (0, 1):
@@ -28,10 +29,6 @@ class Controller(object):
     def get_outcome(self):
         raise NotImplementedError
 
-    def postgame_check(self, num_turns, max_turns):
-        # used to perform any checks or clean up after the game has ended
-        pass
-
     def get_result(self, agent_idx):
         return None
 
@@ -40,6 +37,7 @@ class Controller(object):
         Simulate a dialogue.
         '''
         self.events = []
+        self.max_turns = max_turns
         time = 0
         num_turns = 0
         game_over = False
@@ -62,9 +60,8 @@ class Controller(object):
                     event_output = data if action == 'message' else "Action: {0}, Data: {1}".format(action, data)
                     print 'agent=%s, event=%s' % (agent, event_output)
                 num_turns += 1
-                if self.game_over() or (max_turns and num_turns >= max_turns):
+                if self.game_over(num_turns) or (max_turns and num_turns >= max_turns):
                     game_over = True
-                    self.postgame_check(num_turns, max_turns)
                     break
 
                 for partner, other_session in enumerate(self.sessions):

@@ -17,26 +17,21 @@ class Controller(BaseController):
     def valid_end_state(self):
         first_agent_proposal = self.sessions[0].my_proposal
         second_agent_proposal = self.sessions[1].my_proposal
+        items = ['book', 'hat', 'ball']
 
-        book_count = self.sessions[0].item_counts['book']
-        book_proposal = first_agent_proposal['book'] + second_agent_proposal['book']
-        book_deal = (book_count == book_proposal)
+        for item in items:
+            item_count = self.sessions[0].item_counts[item]
+            item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
+            valid_deal = (item_count == item_proposal)
+            if not valid_deal:
+                return False
 
-        hat_count = self.sessions[0].item_counts['hat']
-        hat_proposal = first_agent_proposal['hat'] + second_agent_proposal['hat']
-        hat_deal = (hat_count == hat_proposal)
+        return True
 
-        ball_count = self.sessions[0].item_counts['ball']
-        ball_proposal = first_agent_proposal['ball'] + second_agent_proposal['ball']
-        ball_deal = (ball_count == ball_proposal)
-
-        all_deals = (book_deal and hat_deal and ball_deal)
-        return all_deals
-
-    def postgame_check(self, num_turns, max_turns):
+    def postgame_check(self, num_turns):
         if self.valid_end_state():
             print("Example game ended successfully with a deal.")
-        elif num_turns >= max_turns:
+        elif num_turns >= self.max_turns:
             print("No deal was made.")
             # paper says you get no points when there is no agreement
             self.outcomes[0] = {'deal_points': 0, 'item_split': 'no_deal'}
@@ -54,14 +49,16 @@ class Controller(BaseController):
 
         return {'reward': agent_0_reward + agent_1_reward, 'item_split_0': split_0, 'item_split_1': split_1}
 
-    def game_over(self):
+    def game_over(self, num_turns):
         you_are_still_playing = not self.inactive()
         you_agreed_and_got_points = (self.marked_agree[0] == True) and (self.outcomes[0] is not None)
         they_agreed_and_got_points = (self.marked_agree[1] == True) and (self.outcomes[1] is not None)
 
         if you_are_still_playing and you_agreed_and_got_points and they_agreed_and_got_points:
+            self.postgame_check(num_turns)
             return True
         elif you_are_still_playing and self.quit:
+            self.postgame_check(num_turns)
             return True
         else:
             return False
