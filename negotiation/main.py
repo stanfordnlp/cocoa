@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
     parser.add_argument('--eval', default=False, action='store_true', help='Eval mode')
+    parser.add_argument('--eval-output', default=None, help='JSON file to save evaluation results')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     add_data_generator_arguments(parser)
@@ -139,7 +140,7 @@ if __name__ == '__main__':
             model.set_tf_session(sess)
 
         for split, test_data, num_batches in evaluator.dataset():
-            results = learner.eval(sess, split, test_data, num_batches)
+            results = learner.eval(sess, split, test_data, num_batches, output=args.eval_output)
             learner.log_results(split, results)
 
         if sess:

@@ -1,4 +1,6 @@
 from itertools import izip
+
+from cocoa.core.util import write_json
 from cocoa.core.entity import is_entity
 from cocoa.lib.bleu import compute_bleu
 from cocoa.lib.bleu import bleu_stats as get_bleu_stats
@@ -26,6 +28,27 @@ class BaseEvaluator(object):
         self.references = []
         self.targets = []
         self.most_similar_references = []
+
+        self.eval_results = None
+
+    def dump_results(self, output):
+        """Write eval_results to a JSON file.
+        """
+        print 'Writing {} evaluation results to {}'.format(len(self.eval_results), output)
+        write_json(self.eval_results, output)
+
+    def add_results(self, example_id=None, prev_turns=None, target=None, pred=None, **kwargs):
+        """Save response generation results.
+        """
+        if self.eval_results is None:
+            self.eval_results = []
+        result = {
+                'ex_id': example_id,
+                'prev_turns': prev_turns,
+                'reference': target,
+                'response': pred,
+                }
+        self.eval_results.append(result)
 
     def _stop_symbol(self):
         '''
@@ -89,7 +112,7 @@ class BaseEvaluator(object):
         else:
             return {}
 
-    def test_response_generation(self, sess, test_data, num_batches):
+    def test_response_generation(self, sess, test_data, num_batches, output=None):
         '''
         Go through each message of the agent and try to predict it given the *perfect* past.
         '''
@@ -102,7 +125,9 @@ class BaseEvaluator(object):
             dialogue_batch = test_data.next()
             self._generate_response(sess, dialogue_batch, summary_map)
 
-        #write_json(results, 'results.json')
+        if output:
+            self.dump_results(output)
+
         return self.get_stats(summary_map)
 
     def _process_target_tokens(self, tokens):

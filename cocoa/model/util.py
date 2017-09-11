@@ -1,7 +1,7 @@
-import tensorflow as tf
+from itertools import izip
 from tensorflow.python.util import nest
 from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
-from itertools import izip
+import tensorflow as tf
 
 EPS = 1e-12
 

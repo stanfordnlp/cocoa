@@ -1,5 +1,5 @@
 import numpy as np
-from itertools import izip, izip_longest
+from itertools import izip, izip_longest, takewhile
 
 from cocoa.lib import logstats
 from cocoa.core.entity import is_entity
@@ -19,40 +19,39 @@ def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose
     elif model.name == 'selector':
         return SelectorEvaluator(data_generator, model, splits, batch_size, verbose)
     else:
-        return Evaluator(data_generator, model, splits, batch_size, verbose)
+        return EncDecEvaluator(data_generator, model, splits, batch_size, verbose)
 
-# TODO: factor this
-def pred_to_token(preds, stop_symbol, remove_symbols, textint_map, num_sents=None, prices=None):
-    '''
-    Convert integer predition to tokens. Remove PAD and EOS.
-    preds: (batch_size, max_len)
-    '''
-    def find_stop(array, n):
-        count = 0
-        for i, a in enumerate(array):
-            if a == stop_symbol:
-                count += 1
-                if count == n:
-                    # +1: include </s>
-                    return i + 1
-        return None
-    tokens = []
-    entities = []
-    if num_sents is None:
-        num_sents = [1 for _ in preds]
-    if prices:
-        for pred, n, price in izip(preds, num_sents, prices):
-            N = find_stop(pred, n)
-            assert len(pred) == len(price)
-            token_price = [(x, p) for x, p in izip(pred[:N], price[:N]) if not x in remove_symbols]
-            s = textint_map.int_to_text([x[0] for x in token_price], prices=[x[1] for x in token_price])
-    else:
-        for pred, n in izip(preds, num_sents):
-            s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
-            tokens.append(s)
-    return tokens, entities if len(entities) > 0 else None
 
 class Evaluator(BaseEvaluator):
+    """Basic evaluator: common functions for this task.
+    """
+    @classmethod
+    def pred_to_token(cls, preds, stop_symbol, remove_symbols, textint_map, num_sents=None, prices=None):
+        def find_stop(array, n):
+            count = 0
+            for i, a in enumerate(array):
+                if a == stop_symbol:
+                    count += 1
+                    if count == n:
+                        # +1: include </s>
+                        return i + 1
+            return None
+        tokens = []
+        entities = []
+        if num_sents is None:
+            num_sents = [1 for _ in preds]
+        if prices:
+            for pred, n, price in izip(preds, num_sents, prices):
+                N = find_stop(pred, n)
+                assert len(pred) == len(price)
+                token_price = [(x, p) for x, p in izip(pred[:N], price[:N]) if not x in remove_symbols]
+                s = textint_map.int_to_text([x[0] for x in token_price], prices=[x[1] for x in token_price])
+        else:
+            for pred, n in izip(preds, num_sents):
+                s = textint_map.int_to_text([x for x in pred[:find_stop(pred, n)] if not x in remove_symbols])
+                tokens.append(s)
+        return tokens, entities if len(entities) > 0 else None
+
     def _stop_symbol(self):
         return self.vocab.to_ind(markers.EOS)
 
@@ -61,6 +60,30 @@ class Evaluator(BaseEvaluator):
         words = [markers.PAD]
         return inds + words
 
+    def add_batch_results(self, batch, batch_id, prev_turns, references, preds):
+        """Add evaluation result for each example in the batch.
+
+        Args:
+            batch (dict): a batch from DialogueBatcher
+            batch_id (int): index of the batch in batch_seq
+            prev_turns (list[list]): list of batch utterances at each time step (seq_len, batch_size)
+            references (list[list]): reference utterances (batch_size, ...)
+            preds (list[list]): predicted utterances (batch_size, ...)
+
+        """
+        for i in xrange(batch['size']):
+            target = batch['decoder_tokens'][i]
+            # Padded turn
+            if not target:
+                continue
+            uuid = batch['uuids'][i]
+            role = batch['kbs'][i].facts['personal']['Role']
+            example_id = '{uuid}-{role}-{turn}'.format(uuid=uuid, role=role, turn=batch_id)
+            prev_turns = [turns[i] for turns in prev_turns]
+            self.add_results(example_id=example_id, prev_turns=prev_turns, target=references[i], pred=preds[i])
+
+
+class EncDecEvaluator(Evaluator):
     def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, batch_targets, summary_map):
         best_candidates = []
         for candidates, scores, preds, target in izip(batch_candidates, batch_candidate_scores, batch_preds, batch_targets):
@@ -93,20 +116,25 @@ class Evaluator(BaseEvaluator):
 
     def _generate_response(self, sess, dialogue_batch, summary_map):
         encoder_init_state = None
-        for batch in dialogue_batch['batch_seq']:
+        max_len = 100
+        prev_turns = []
+        for i, batch in enumerate(dialogue_batch['batch_seq']):
+            prev_turns.append(batch['encoder_tokens'])
+
             targets = batch['decoder_args']['targets']
-            max_len = targets.shape[1] + 10
             output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, textint_map=self.data.textint_map)
             preds = output_dict['preds']
             prices = output_dict['prices']
-            true_final_state = output_dict['true_final_state']
-            encoder_init_state = true_final_state
+            if self.model.stateful:
+                encoder_init_state = output_dict['true_final_state']
             num_sents = np.sum(targets == self.stop_symbol, axis=1)
-            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
+            pred_tokens, pred_entities = self.pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
 
             # TODO: handle process consistently
             pred_tokens = [self._process_target_tokens(tokens) for tokens in pred_tokens]
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
+
+            self.add_batch_results(batch, i, prev_turns, references, pred_tokens)
 
             best_candidates = None
             #if 'token_candidates' in batch:
@@ -122,6 +150,8 @@ class Evaluator(BaseEvaluator):
                 #attn_scores = output_dict.get('attn_scores', None)
                 #probs = output_dict.get('probs', None)
                 self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
+
+            prev_turns.append(batch['decoder_tokens'])
 
     def _process_target_tokens(self, tokens):
         remove_tokens = [markers.GO_B, markers.GO_S] + category_to_marker.values()
@@ -372,7 +402,7 @@ class LMEvaluator(Evaluator):
             true_final_state = output_dict['true_final_state']
             init_state = true_final_state
             num_sents = np.sum(targets == self.stop_symbol, axis=1)
-            pred_tokens, pred_entities = pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents)
+            pred_tokens, pred_entities = self.pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents)
 
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 

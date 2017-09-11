@@ -147,7 +147,7 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
+    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 
@@ -184,6 +184,7 @@ class DialogueBatcher(object):
                 'decoder_tokens': decoder_tokens,
                 'agents': agents,
                 'kbs': kbs,
+                'uuids': uuids,
                 'size': len(agents),
                 }
         return batch
@@ -224,10 +225,12 @@ class DialogueBatcher(object):
         '''
         agents = self._get_agent_batch_at(dialogues, 1)  # Decoding agent
         kbs = self._get_kb_batch(dialogues)
+        uuids = [d.uuid for d in dialogues]
         kb_context_batch = self.create_context_batch(dialogues, self.kb_pad)
         return {
                 'agents': agents,
                 'kbs': kbs,
+                'uuids': uuids,
                 'kb_context': kb_context_batch,
                 }
 
@@ -257,6 +260,7 @@ class DialogueBatcher(object):
                 encoder_tokens=self._get_token_turns_at(dialogues, i),
                 decoder_tokens=self._get_token_turns_at(dialogues, i+1),
                 agents=dialogue_data['agents'],
+                uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
                 kb_context=dialogue_data['kb_context'],
                 num_context=num_context,

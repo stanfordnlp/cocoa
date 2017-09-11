@@ -76,7 +76,7 @@ class Learner(object):
             success = batcher.print_batch(batch, i, textint_map, preds)
         print 'BATCH LOSS:', loss
 
-    def eval(self, sess, name, test_data, num_batches):
+    def eval(self, sess, name, test_data, num_batches, output=None):
         print '================== Eval %s ==================' % name
         results = {}
 
@@ -93,7 +93,7 @@ class Learner(object):
         #if True:
             print '================== Sampling =================='
             start_time = time.time()
-            res = self.evaluator.test_response_generation(sess, test_data, num_batches)
+            res = self.evaluator.test_response_generation(sess, test_data, num_batches, output=output)
             results.update(res)
             # TODO: hacky. for LM only.
             if len(results) > 0:
