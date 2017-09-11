@@ -88,7 +88,7 @@ class BaseEvaluator(object):
                 scores.append(None)
         return scores
 
-    def _generate_response(sess, dialogue_batch, summary_map):
+    def generate_response(sess, dialogue_batch, summary_map):
         raise NotImplementedError
 
     def get_stats(self, summary_map):
@@ -123,7 +123,7 @@ class BaseEvaluator(object):
 
         for i in xrange(num_batches):
             dialogue_batch = test_data.next()
-            self._generate_response(sess, dialogue_batch, summary_map)
+            self.generate_response(sess, dialogue_batch, summary_map)
 
         if output:
             self.dump_results(output)

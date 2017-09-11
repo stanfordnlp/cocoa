@@ -4,7 +4,7 @@ from itertools import izip, izip_longest, takewhile
 from cocoa.lib import logstats
 from cocoa.core.entity import is_entity
 from cocoa.model.evaluate import BaseEvaluator
-from cocoa.model.util import EPS
+from cocoa.model.util import safe_div
 
 from core.price_tracker import PriceTracker
 from preprocess import markers, Dialogue, category_to_marker
@@ -79,66 +79,31 @@ class Evaluator(BaseEvaluator):
             uuid = batch['uuids'][i]
             role = batch['kbs'][i].facts['personal']['Role']
             example_id = '{uuid}-{role}-{turn}'.format(uuid=uuid, role=role, turn=batch_id)
-            prev_turns = [turns[i] for turns in prev_turns]
-            self.add_results(example_id=example_id, prev_turns=prev_turns, target=references[i], pred=preds[i])
+            context = [turns[i] for turns in prev_turns]
+            self.add_results(example_id=example_id, prev_turns=context, target=references[i], pred=preds[i])
 
+    def generate_response(self, dialogue_batch, summary_map, model_vars, eval_callback):
+        """Generate response for each example in the batch.
 
-class EncDecEvaluator(Evaluator):
-    def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, batch_targets, summary_map):
-        best_candidates = []
-        for candidates, scores, preds, target in izip(batch_candidates, batch_candidate_scores, batch_preds, batch_targets):
-            candidates = [c['response'] for c in candidates if 'response' in c]
-            assert len(candidates) == len(scores)
-            scores = [sum(s) for s in scores]
-            candidates = [self._process_target_tokens(c) for i, c in enumerate(candidates) if scores[i] > 0]
-            candidates.append(target)
+        Args:
+            dialoge_batch (dict): batch from DialogueBatcher
+            summary_map (dict): update metrics (see logstats)
+            model_vars (dict): variables specific to the model being evaluated
+            eval_callback (func): callback function that takes the generation output and optionally updates model_vars in-between baches
 
-            self.preds.append(preds)
-            self.references.append(candidates)
-            self.targets.append([target])
-
-            bleus = [self.sentence_bleu_score([preds], [c])[0] for c in candidates]
-            most_similar_candidate = np.argmax(bleus)
-            best_candidates.append(candidates[most_similar_candidate])
-            self.most_similar_references.append([candidates[most_similar_candidate]])
-            #weighted_bleu = bleus[most_similar_candidate] * float(sum(scores[most_similar_candidate]))
-            #print bleus[most_similar_candidate]
-            #if bleus[most_similar_candidate] < 0.5:
-            #    print 'preds:', preds
-            #    print 'cand:', candidates[most_similar_candidate]
-            #    #for c in candidates:
-            #    #    print c
-            #weighted_bleu = self.sentence_multi_bleu_score(preds, candidates)
-
-            #logstats.update_summary_map(summary_map, {'multi_score': weighted_bleu})
-
-        return best_candidates
-
-    def _generate_response(self, sess, dialogue_batch, summary_map):
-        encoder_init_state = None
-        max_len = 100
+        """
         prev_turns = []
+        textint_map = self.data.textint_map
         for i, batch in enumerate(dialogue_batch['batch_seq']):
             prev_turns.append(batch['encoder_tokens'])
 
-            targets = batch['decoder_args']['targets']
-            output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, textint_map=self.data.textint_map)
-            preds = output_dict['preds']
-            prices = output_dict['prices']
-            if self.model.stateful:
-                encoder_init_state = output_dict['true_final_state']
-            num_sents = np.sum(targets == self.stop_symbol, axis=1)
-            pred_tokens, pred_entities = self.pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
+            output_dict = self._generate_response(batch, model_vars, textint_map)
+            eval_callback(output_dict, model_vars)
 
-            # TODO: handle process consistently
-            pred_tokens = [self._process_target_tokens(tokens) for tokens in pred_tokens]
+            pred_tokens = [self._process_target_tokens(tokens) for tokens in output_dict['pred_tokens']]
             references = [self._process_target_tokens(tokens) for tokens in batch['decoder_tokens']]
 
             self.add_batch_results(batch, i, prev_turns, references, pred_tokens)
-
-            best_candidates = None
-            #if 'token_candidates' in batch:
-            #    best_candidates = self.multi_ref_scores(batch['token_candidates'], batch['candidate_scores'], pred_tokens, references, summary_map)
 
             # Metrics
             # Sentence bleu: only for verbose print
@@ -147,33 +112,9 @@ class EncDecEvaluator(Evaluator):
             self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
-                #attn_scores = output_dict.get('attn_scores', None)
-                #probs = output_dict.get('probs', None)
                 self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
 
             prev_turns.append(batch['decoder_tokens'])
-
-    def _process_target_tokens(self, tokens):
-        remove_tokens = [markers.GO_B, markers.GO_S] + category_to_marker.values()
-        process_entity = lambda e: e.canonical if e.canonical.type == 'price' else e.surface
-        targets = [process_entity(token) if is_entity(token) else token for token in tokens if not token in remove_tokens]
-        return targets
-
-    def to_str(self, words):
-        return ' '.join([str(w) for w in words if w not in self.remove_symbols])
-
-    def _print_batch(self, batch, preds, targets, bleu_scores, best_candidates=None):
-        '''
-        inputs are integers; targets and preds are tokens (converted in test_bleu).
-        '''
-        batcher = self.data.dialogue_batcher
-        textint_map = self.data.textint_map
-        print '-------------- Batch ----------------'
-        for i, (pred, bleu) in enumerate(izip_longest(preds, bleu_scores)):
-            success = batcher.print_batch(batch, i, textint_map)
-            if success:
-                print 'PRED:\n {}'.format(batcher.list_to_text(pred))
-                print 'BLEU:', bleu
 
     def get_stats(self, summary_map):
         output = super(Evaluator, self).get_stats(summary_map)
@@ -217,18 +158,105 @@ class EncDecEvaluator(Evaluator):
             d.update({'entity_precision': precision, 'entity_recall': recall, 'entity_f1': f1})
         return d
 
+    def _process_target_tokens(self, tokens):
+        remove_tokens = [markers.GO_B, markers.GO_S] + category_to_marker.values()
+        process_entity = lambda e: e.canonical if e.canonical.type == 'price' else e.surface
+        targets = [process_entity(token) if is_entity(token) else token for token in tokens if not token in remove_tokens]
+        return targets
+
+    def to_str(self, words):
+        return ' '.join([str(w) for w in words if w not in self.remove_symbols])
+
+    def _print_batch(self, batch, preds, targets, bleu_scores, best_candidates=None):
+        '''
+        inputs are integers; targets and preds are tokens (converted in test_bleu).
+        '''
+        batcher = self.data.dialogue_batcher
+        textint_map = self.data.textint_map
+        print '-------------- Batch ----------------'
+        for i, (pred, bleu) in enumerate(izip_longest(preds, bleu_scores)):
+            success = batcher.print_batch(batch, i, textint_map)
+            if success:
+                print 'PRED:\n {}'.format(batcher.list_to_text(pred))
+                print 'BLEU:', bleu
+
+
+class EncDecEvaluator(Evaluator):
+    def __init__(self, data, model, splits=('dev',), batch_size=1, verbose=True):
+        super(EncDecEvaluator, self).__init__(data, model, splits=splits, batch_size=batch_size, verbose=verbose)
+        self.sess = None
+
+    def multi_ref_scores(self, batch_candidates, batch_candidate_scores, batch_preds, batch_targets, summary_map):
+        best_candidates = []
+        for candidates, scores, preds, target in izip(batch_candidates, batch_candidate_scores, batch_preds, batch_targets):
+            candidates = [c['response'] for c in candidates if 'response' in c]
+            assert len(candidates) == len(scores)
+            scores = [sum(s) for s in scores]
+            candidates = [self._process_target_tokens(c) for i, c in enumerate(candidates) if scores[i] > 0]
+            candidates.append(target)
+
+            self.preds.append(preds)
+            self.references.append(candidates)
+            self.targets.append([target])
+
+            bleus = [self.sentence_bleu_score([preds], [c])[0] for c in candidates]
+            most_similar_candidate = np.argmax(bleus)
+            best_candidates.append(candidates[most_similar_candidate])
+            self.most_similar_references.append([candidates[most_similar_candidate]])
+            #weighted_bleu = bleus[most_similar_candidate] * float(sum(scores[most_similar_candidate]))
+            #print bleus[most_similar_candidate]
+            #if bleus[most_similar_candidate] < 0.5:
+            #    print 'preds:', preds
+            #    print 'cand:', candidates[most_similar_candidate]
+            #    #for c in candidates:
+            #    #    print c
+            #weighted_bleu = self.sentence_multi_bleu_score(preds, candidates)
+
+            #logstats.update_summary_map(summary_map, {'multi_score': weighted_bleu})
+
+        return best_candidates
+
+    def generate_response(self, sess, dialogue_batch, summary_map):
+        model_vars = {
+                'sess': sess,
+                'encoder_init_state': None,
+                }
+        def eval_callback(output_dict, model_vars):
+            if self.model.stateful:
+                model_vars['encoder_init_state'] = output_dict['true_final_state']
+        return super(EncDecEvaluator, self).generate_response(dialogue_batch, summary_map, model_vars, eval_callback)
+
+    def _generate_response(self, batch, model_vars, textint_map):
+        max_len = 100
+        sess = model_vars['sess']
+        encoder_init_state = model_vars['encoder_init_state']
+
+        output_dict = self.model.generate(sess, batch, encoder_init_state, max_len, textint_map=textint_map)
+        preds = output_dict['preds']
+        prices = output_dict['prices']
+
+        num_sents = np.sum(batch['targets'] == self.stop_symbol, axis=1)
+        pred_tokens, pred_entities = self.pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
+
+        return {'pred_tokens': pred_tokens}
+
+
 class SelectorEvaluator(Evaluator):
-    '''
-    Evaluate candidate selector (retrieval-based models).
-    '''
+    """Evaluate candidate selector (retrieval-based models).
+    """
     @classmethod
     def recall_at_k(cls, labels, scores, k=1, summary_map=None):
-        '''
-        candidate_labels: binary (batch_size, num_candidates), 1 means good candidate
-        preds: ranking scores (batch_size, num_candidates)
-        Return the percentage of good candidates in the top-k candidates.
-        If summary_map is given, accumulates relevant statistics.
-        '''
+        """Recall of the top-k candidates.
+
+        Args:
+            labels: binary (batch_size, num_candidates), 1 means good candidate
+            scores: ranking scores (batch_size, num_candidates)
+            summary_map (bool): if true, accumulates relevant statistics.
+
+        Returns:
+            The percentage of good candidates in the top-k candidates.
+
+        """
         topk_candidates = np.argsort(-1.*scores, axis=1)[:, :k]
         # num_candidates might be smaller than k
         batch_size, actual_k = topk_candidates.shape
@@ -239,7 +267,7 @@ class SelectorEvaluator(Evaluator):
 
         num_true_positive = np.sum(np.logical_and(labels == 1, labels == binary_preds))
         num_positive_example = np.sum(labels)
-        recall = float(num_true_positive) / num_positive_example
+        recall = safe_div(float(num_true_positive), num_positive_example)
 
         if summary_map is not None:
             prefix = 'recall_at_{}'.format(k)
@@ -255,8 +283,10 @@ class SelectorEvaluator(Evaluator):
         prefix = 'recall_at_{}'.format(k)
         num_true_positive = summary_map['{}_tp'.format(prefix)]['sum']
         num_positive_example = summary_map['{}_p'.format(prefix)]['sum']
-        recall = float(num_true_positive) / (num_positive_example + EPS)
+        recall = safe_div(float(num_true_positive), num_positive_example)
         return recall
+
+    #def _generate_response(self, sess, dialogue_batch, summary_map):
 
 class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):
