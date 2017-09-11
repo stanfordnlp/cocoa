@@ -548,11 +548,6 @@
  YOU: i'll take the hat and one ball .
  THEM: <selection>
 
- THEM: i'd like the hat and some balls ; are the books of value to you ?
- YOU: i need the books and 2 balls or the hat and 2 books .
- THEM: i'll take the hat and one ball .
- YOU: <selection>
-
  THEM: if i can have the book and the balls , you could have al the hats .
  YOU: deal .
  THEM: yeah ?
@@ -587,12 +582,6 @@
  THEM: ok , we have a deal then
  YOU: sure deal
  THEM: <selection>
-
- YOU: i would like both books and a hat
- THEM: i need the ball and 1 hat ?
- YOU: ok , we have a deal then
- THEM: sure deal
- YOU: <selection>
 
  THEM: i would like the ball and 1 book .
  YOU: i will take both books , and one hat
@@ -759,15 +748,6 @@
  YOU: i'll take two balls and the hat . you take one ball and the book . deal .
  THEM: <selection>
 
- THEM: i'd like the balls and hat . would you like the book ?
- YOU: yeah i'd like the book but i'd also like one ball
- THEM: i'll take two balls and the hat . you take one ball and the book . deal .
- YOU: <selection>
-
- THEM: i need 2 hats rest for you
- YOU: ok , deal
- THEM: <selection>
-
  YOU: i need 2 hats rest for you
  THEM: ok , deal
  YOU: <selection>
@@ -793,16 +773,6 @@
  YOU: deal
  THEM: <selection>
 
- THEM: give me the hats and balls
- YOU: would you take the hats and the books instead ?
- THEM: deal
- YOU: <selection>
-
- THEM: one ball for one hat ?
- YOU: i'd like balls . you can have rest ?
- THEM: ok deal
- YOU: <selection>
-
  YOU: one ball for one hat ?
  THEM: i'd like balls . you can have rest ?
  YOU: ok deal
@@ -818,27 +788,6 @@
  THEM: i'm sorry , i wish i could do better , but i'm limited with numbers / values .
  YOU: no worries but no deal
  THEM: no deal
- YOU: <selection>
-
- THEM: hats to you - every one of them if i get the book and balls
- YOU: i'm sorry , i can't do that . hats have little value to me . i need a book and a ball , and the hats .
- THEM: lol , , , a book a ball and the hats ? seems like a lot . ill take both balls and cede the rest but thats the best i can do
- YOU: hmm . how about i take the balls , a book and one hat , and you get three hats ?
- THEM: ok , ill make it easier . i need both balls . no other deal will be accepted
- YOU: i guess we're unablet to make a deal then . we'll have to keep saying "no deal" until the button appears .
- THEM: seems so . . .
- YOU: i'm sorry , i wish i could do better , but i'm limited with numbers / values .
- THEM: no worries but no deal
- YOU: no deal
- THEM: <selection>
-
- THEM: if i can have the hats and the book you can have the balls
- YOU: i will only accept three of any object .
- THEM: i can not make that deal . i need the hats or i can not make a deal .
- YOU: take the hats and give me the rest .
- THEM: that is correct .
- YOU: deal .
- THEM: okay thank you !
  YOU: <selection>
 
  YOU: if i can have the hats and the book you can have the balls
@@ -869,20 +818,6 @@
  YOU: deal
  THEM: <selection>
 
- THEM: i'll take the ball and one book
- YOU: i need the ball or we cant make a deal
- THEM: whats your deal
- YOU: i want one ball and one hat
- THEM: deal
- YOU: <selection>
-
- YOU: what would you like
- THEM: i'd like the two books for sure and maybe one of whatever is worth less to you between balls and hat .
- YOU: i will take the hats and you can have the rest
- THEM: sounds fair
- YOU: deal
- THEM: <selection>
-
  THEM: what would you like
  YOU: i'd like the two books for sure and maybe one of whatever is worth less to you between balls and hat .
  THEM: i will take the hats and you can have the rest
@@ -893,16 +828,6 @@
  THEM: i want the book . you ca have the rest .
  YOU: deal .
  THEM: <selection>
-
- YOU: i want the book . you ca have the rest .
- THEM: deal .
- YOU: <selection>
-
- YOU: i would like the balls and the hat .
- THEM: i need both as well . can we split the difference ? we can each get a ball , i will get the hat and we each get two books
- YOU: yes , that is what i was about to propose as well , i agree to that .
- THEM: okay thank you !
- YOU: <selection>
 
  THEM: i would like the balls and the hat .
  YOU: i need both as well . can we split the difference ? we can each get a ball , i will get the hat and we each get two books
@@ -915,16 +840,6 @@
  YOU: okay and thank you .
  THEM: <selection>
 
- THEM: how about you take the book and hat and i take the balls ?
- YOU: lets do it
- THEM: okay and thank you .
- YOU: <selection>
-
- YOU: if i can have the hat and the balls you can have the books
- THEM: that sounds okay to me . i agree .
- YOU: okay great ! thank you !
- THEM: <selection>
-
  THEM: if i can have the hat and the balls you can have the books
  YOU: that sounds okay to me . i agree .
  THEM: okay great ! thank you !
@@ -934,25 +849,11 @@
  YOU: i'll take the book and balls
  THEM: <selection>
 
- YOU: i'd like hats .
- THEM: i'll take the book and balls
- YOU: <selection>
-
- YOU: may i have 2 hats and 1 ball ?
- THEM: that is exactly what i need
- YOU: split the hats , i can have 1 ball 1 book ?
- THEM: sure
- YOU: <selection>
-
  YOU: i can give you one ball
  THEM: 2 balls
  YOU: okay you can have both balls and ill take the rest
  THEM: <selection>
 
- THEM: i can give you one ball
- YOU: 2 balls
- THEM: okay you can have both balls and ill take the rest
- YOU: <selection>
 
  THEM: i'd like a ball , hat and book please . deal ?
  YOU: i need 2 books and 2 hats or 1 ball , 1 book and 1 hat or 1 ball and 3 hats .
@@ -978,15 +879,6 @@
  YOU: deal .
  THEM: <selection>
 
- YOU: hi , i would like the hat and book and you can have the balls
- THEM: deal .
- YOU: <selection>
-
- YOU: i would like the books and the hat .
- THEM: i can give you the books but i need the hat and the balls .
- YOU: deal .
- THEM: <selection>
-
  THEM: i would like the books and the hat .
  YOU: i can give you the books but i need the hat and the balls .
  THEM: deal .
@@ -994,22 +886,6 @@
 
  YOU: i want the book and hat .
  THEM: deal
- YOU: <selection>
-
- THEM: i want the book and hat .
- YOU: deal
- THEM: <selection>
-
- YOU: i want the ball and the book you can have the hats
- THEM: i need book to lurnz to readz
- YOU: learn later i need the book and the ball , hats have to be worth something to you
- THEM: hats are - 3 points each to me , never seen that before
- YOU: me neither but that is beside the point , what it going to be ? i need the ball and the book and i'm not budging on that
- THEM: looks like a no deal
- YOU: no deal
- THEM: agreed
- YOU: okay
- THEM: show me the button , reveal yourself 'no deal'
  YOU: <selection>
 
  THEM: i want the ball and the book you can have the hats
@@ -1027,23 +903,6 @@
  THEM: i'm looking for two hats and a book
  YOU: book and balls to me , you can have 9 hats
  THEM: not into sports , you can have the basketballs
- YOU: <selection>
-
- YOU: i'm looking for two hats and a book
- THEM: book and balls to me , you can have 9 hats
- YOU: not into sports , you can have the basketballs
- THEM: <selection>
-
- YOU: i need the book . you can have the rest .
- THEM: that won't work , what is another offer
- YOU: that's all i can offer . book is 9 .
- THEM: i can't do that , no deal then
- YOU: okay . no deal till the button then .
- THEM: no deal
- YOU: no deal .
- THEM: no deal
- YOU: no deal .
- THEM: no deal
  YOU: <selection>
 
  THEM: i need the book . you can have the rest .
@@ -1070,25 +929,6 @@
  YOU: no deal .
  THEM: <selection>
 
- YOU: ok would you like all balls and thats it
- THEM: i would like the hat and two balls please
- YOU: how about you get all balls and i keep the rest
- THEM: i need the hat i can not give it up
- YOU: lets work towards no deal then
- THEM: okay no deal . sorry .
- YOU: sorry
- THEM: no deal .
- YOU: no
- THEM: no deal .
- YOU: <selection>
-
- YOU: i would like 2 hats and the ball
- THEM: what about one hat and the ball ?
- YOU: one book , one hat , and the ball
- THEM: okay that is fine .
- YOU: thanks
- THEM: <selection>
-
  THEM: i would like 2 hats and the ball
  YOU: what about one hat and the ball ?
  THEM: one book , one hat , and the ball
@@ -1112,20 +952,6 @@
  YOU: i need the ball and the books you can have the hats
  THEM: can i take the ball if i give you the rest ?
  YOU: sure .
- THEM: <selection>
-
- YOU: i would like the ball and the hats .
- THEM: i need the ball and the books you can have the hats
- YOU: can i take the ball if i give you the rest ?
- THEM: sure .
- YOU: <selection>
-
- THEM: i would like the hat and the balls .
- YOU: sorry , i need the hat , but you can have the balls .
- THEM: i will need every other object if i let you have the hat .
- YOU: no deal , i need the books too
- THEM: i will offer you the hat and one book , that's the best i can do .
- YOU: i can work with that .
  THEM: <selection>
 
  YOU: i would like the hat and the balls .
@@ -1156,18 +982,6 @@
  YOU: no deal . you can have the hats and one book
  THEM: i accept .
  YOU: okay thank you !
- THEM: <selection>
-
- YOU: i would like the books and the hats .
- THEM: you can have the hats and one book
- YOU: how about i get the books and one hat instead ?
- THEM: no deal . you can have the hats and one book
- YOU: i accept .
- THEM: okay thank you !
- YOU: <selection>
-
- THEM: i need the hat and the book , you can have the balls ?
- YOU: i can take the balls , but i need the hat or book . which do you want more ? hat or book ?
  THEM: <selection>
 
  THEM: i'd like the books , you can have the rest
@@ -1207,21 +1021,6 @@
  THEM: deal
  YOU: <selection>
 
- YOU: howd i would really those balls and a hat
- THEM: i want the balls and the books
- YOU: gonna have to split it all up then because i need those balls too
- THEM: okay , how about i get both balls and one book
- YOU: i'll give you one ball , one book , and one hat .
- THEM: how about you give me one ball and two books
- YOU: so im taking 1 ball and two hats correct ?
- THEM: yes
- YOU: deal
- THEM: <selection>
-
- YOU: i'd like the hat and one ball
- THEM: alright sounds good . pleasure doing business with you .
- YOU: <selection>
-
  THEM: i'd like the hat and one ball
  YOU: alright sounds good . pleasure doing business with you .
  THEM: <selection>
@@ -1247,18 +1046,6 @@
  THEM: i would like two balls and the book
  YOU: ok , what will you give me ?
  THEM: you can have the rest
- YOU: <selection>
-
- YOU: i would like two balls and the book
- THEM: ok , what will you give me ?
- YOU: you can have the rest
- THEM: <selection>
-
- THEM: you can have the hats if i can have the rest
- YOU: nope . i don't want the hats
- THEM: you can have 1 hat and 1 book if i can have the rest
- YOU: give me the ball , and you can have the rest
- THEM: deal
  YOU: <selection>
 
  YOU: you can have the hats if i can have the rest
