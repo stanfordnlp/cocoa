@@ -145,14 +145,11 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def valid_proposal(self, offer):
-        if offer['book'] > self.item_counts['book']:
-            return (False, 'book')
-        if offer['hat'] > self.item_counts['hat']:
-            return (False, 'hat')
-        if offer['ball'] > self.item_counts['ball']:
-            return (False, 'ball')
-        else:
-            return (True,)
+        for item in self.items:
+            if offer[item] > self.item_counts[item]:
+                return (False, item)
+        # if all items pass, then we have valid proposal
+        return (True,)
 
     def intro(self):
         s = [  "So what looks good to you?",
