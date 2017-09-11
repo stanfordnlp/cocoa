@@ -1,7 +1,8 @@
-<Receive>
+<Start>
   if their message contains an offer:
-    see if meets_bottomline
-  elif their message has no offer:   <Send>
+    <Receive> or <Clarify>
+  elif their message has no offer:
+    <Send>
     if p < 0.5:
       introduce()     # talk a bit, to hear their side first
     else:
@@ -39,6 +40,16 @@
   if third time:
     final_call()
 
+<Clarify>
+  if their_offer does not mention one or more items:
+  assume they want 0 of those items
+  repeat back what you think their offer is
+  Watch for [yes, sure, yep, yup, ok]
+  Example:
+    THEM: i would like the basketball .
+    assume their_offer = {'book':0, 'hat':0, 'ball':1}
+    YOU: if you get the [basketball], does that mean i get everything else ?
+
 At any time, when <Receive>
   if good_deal: (aka >= 8 points)
     agree()
@@ -55,3 +66,22 @@ def final_call():
     agree()
   else:
     reject()
+
+good_deal is >= 8 points
+bottomline is >= point total from
+  A = get one item of highest value
+  B = get two items of lowest value
+  C = 5 points
+  pick min(A, B, C)
+final_call is >= 2 points
+
+def compromise():
+  A = their_offer - 1 item of highest value
+  B = my_proposal + 1 item of lowest value
+  return min(A, B)
+
+def agree():
+  "ok deal, thanks!"
+  "yes, that sounds good"
+  "perfect, sounds like we have a deal"
+  "ok, it's a deal"
