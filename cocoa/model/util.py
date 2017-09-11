@@ -7,6 +7,9 @@ EPS = 1e-12
 
 linear = _linear
 
+def safe_div(numerator, denominator):
+    return numerator / (denominator + EPS)
+
 def embedding_lookup(embeddings, indices, zero_ind=None):
     '''
     Same as tf.nn.embedding_lookup except that it returns a zero vector if the
