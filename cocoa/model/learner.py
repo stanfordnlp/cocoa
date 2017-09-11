@@ -29,6 +29,7 @@ def add_learner_arguments(parser):
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--gpu', type=int, default=0, help='Use GPU or not')
     parser.add_argument('--summary-dir', default='/tmp', help='Path to summary logs')
+    parser.add_argument('--eval-modes', nargs='*', default=('loss',), help='What to evaluate {loss, generation}')
 
 optim = {'adagrad': tf.train.AdagradOptimizer,
          'sgd': tf.train.GradientDescentOptimizer,
@@ -76,22 +77,20 @@ class Learner(object):
             success = batcher.print_batch(batch, i, textint_map, preds)
         print 'BATCH LOSS:', loss
 
-    def eval(self, sess, name, test_data, num_batches, output=None):
+    def eval(self, sess, name, test_data, num_batches, output=None, modes=('loss',)):
         print '================== Eval %s ==================' % name
         results = {}
 
-        # TODO: print_batch doesn't work for model=lm
-        if (not name == 'test'):
-            print '================== Perplexity =================='
+        if 'loss' in modes:
+            print '================== Loss =================='
             start_time = time.time()
             summary_map = self.test_loss(sess, test_data, num_batches)
             results = self.collect_summary_test(summary_map, results)
             results_str = ' '.join(['{}={:.4f}'.format(k, v) for k, v in results.iteritems()])
             print '%s time(s)=%.4f' % (results_str, time.time() - start_time)
 
-        if name == 'test':
-        #if True:
-            print '================== Sampling =================='
+        if 'generation' in modes:
+            print '================== Generation =================='
             start_time = time.time()
             res = self.evaluator.test_response_generation(sess, test_data, num_batches, output=output)
             results.update(res)

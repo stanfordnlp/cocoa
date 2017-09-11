@@ -42,6 +42,17 @@ def get_data_generator(args, model_args, mappings, schema):
     if args.predict_price:
         model_config['price'] = True
 
+    # For retrieval-based models only: whether to add ground truth response in the candidates
+    if model_args.model == 'selector':
+        if 'loss' in args.eval_modes and 'generation' in args.eval_modes:
+            print '"loss" requires ground truth reponse to be added to the candidate set. Please evaluate "loss" and "generation" separately.'
+            raise ValueError
+        if (not args.test) or args.eval_modes == ('loss',):
+            add_ground_truth = True
+        else:
+            add_ground_truth = False
+        print 'Ground truth response {} be added to the candidate set.'.format('will' if add_ground_truth else 'will not')
+
     # TODO: hacky
     if args.model == 'lm':
         DataGenerator = LMDataGenerator
@@ -63,7 +74,7 @@ def get_data_generator(args, model_args, mappings, schema):
             train, dev, test = None, None, dataset.test_examples
         else:
             train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config)
+        data_generator = DataGenerator(train, dev, test, preprocessor, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config, add_ground_truth=add_ground_truth)
 
     return data_generator
 

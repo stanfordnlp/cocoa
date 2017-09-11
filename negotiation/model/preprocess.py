@@ -461,7 +461,7 @@ class DataGenerator(object):
     # TODO: hack
     trie = None
 
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}, add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -500,7 +500,7 @@ class DataGenerator(object):
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
-        self.batches = {k: self.create_batches(k, dialogues, batch_size) for k, dialogues in self.dialogues.iteritems()}
+        self.batches = {k: self.create_batches(k, dialogues, batch_size, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
 
         self.trie = None
         # NOTE: Trie should be built after batches are created
@@ -580,7 +580,7 @@ class DataGenerator(object):
                     rewritten.append(new_cand)
         return rewritten
 
-    def create_batches(self, name, dialogues, batch_size):
+    def create_batches(self, name, dialogues, batch_size, add_ground_truth=True):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
@@ -604,7 +604,7 @@ class DataGenerator(object):
                     #                    #print c['response']
                     #candidates = [c if c else self.retriever.empty_candidates for c in candidates]
 
-                    dialogue.add_candidates(candidates, add_ground_truth=(name in ('train', 'dev')))
+                    dialogue.add_candidates(candidates, add_ground_truth=add_ground_truth)
                 self.retriever.report_search_time()
 
             for dialogue in dialogues:

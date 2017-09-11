@@ -193,7 +193,8 @@ class CandidateSelector(BasicEncoderDecoder):
     def select(self, sess, feed_dict_args):
         feed_dict = self.get_feed_dict(**feed_dict_args)
         scores = sess.run(self.decoder.output_dict['scores'], feed_dict=feed_dict)
-        return np.argmax(scores, axis=1)
+        candidate_ids = np.argmax(scores, axis=1)
+        return candidate_ids
 
 class ContextEncoder(BasicEncoder):
     '''

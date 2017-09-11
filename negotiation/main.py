@@ -140,7 +140,7 @@ if __name__ == '__main__':
             model.set_tf_session(sess)
 
         for split, test_data, num_batches in evaluator.dataset():
-            results = learner.eval(sess, split, test_data, num_batches, output=args.eval_output)
+            results = learner.eval(sess, split, test_data, num_batches, output=args.eval_output, modes=args.eval_modes)
             learner.log_results(split, results)
 
         if sess:
