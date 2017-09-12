@@ -94,10 +94,8 @@ def read_examples(scenario_db, paths, max_examples, Scenario):
     examples = []
     for path in paths:
         print 'read_examples: %s' % path
-        if max_examples and len(examples) >= max_examples:
-            break
         for raw in read_json(path):
-            if max_examples and len(examples) >= max_examples:
+            if max_examples >= 0 and len(examples) >= max_examples:
                 break
             examples.append(Example.from_dict(scenario_db, raw, Scenario))
     return examples
