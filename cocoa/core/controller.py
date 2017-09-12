@@ -60,7 +60,7 @@ class Controller(object):
                     event_output = data if action == 'message' else "Action: {0}, Data: {1}".format(action, data)
                     print 'agent=%s, event=%s' % (agent, event_output)
                 num_turns += 1
-                if self.game_over(num_turns) or (max_turns and num_turns >= max_turns):
+                if self.game_over() or (max_turns and num_turns >= max_turns):
                     game_over = True
                     break
 
