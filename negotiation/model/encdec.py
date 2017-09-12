@@ -155,10 +155,20 @@ class BasicEncoderDecoder(object):
                 }
 
 
+class IRSelector(object):
+    """Simple candidate selector entirely based on the IR system (tf-idf).
+    """
+    def __init__(self):
+        self.name = 'ir'
+
+    def generate(self, batch):
+        candidate_ranks = [[0] + [1 for _ in xrange(len(candidates)-1)] for candidates in batch['token_candidates']]
+        responses = [candidates[0] if len(candidates) > 0 else [] for candidates in batch['token_candidates']]
+        return candidate_ranks, responses
+
 class CandidateSelector(BasicEncoderDecoder):
-    '''
-    Candidate selector for retrieval-based models.
-    '''
+    """Learned candidate selector.
+    """
     def __init__(self, encoder, decoder, pad, keep_prob):
         '''
         decoder: encode the reponse; doesn't actually decoder word by word.
@@ -195,8 +205,8 @@ class CandidateSelector(BasicEncoderDecoder):
     def select(self, sess, feed_dict_args):
         feed_dict = self.get_feed_dict(**feed_dict_args)
         scores = sess.run(self.decoder.output_dict['scores'], feed_dict=feed_dict)
-        candidate_ids = np.argmax(scores, axis=1)
-        return candidate_ids
+        candidate_ranks = np.argmax(scores, axis=1)
+        return candidate_ranks
 
     def generate(self, sess, batch, init_state, textint_map=None):
         encoder_args = batch['encoder_args']
@@ -206,10 +216,10 @@ class CandidateSelector(BasicEncoderDecoder):
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
                 }
-        candidate_ids = self.select(sess, kwargs)
+        candidate_ranks = self.select(sess, kwargs)
         batch_candidates = batch['token_candidates']
-        responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, candidate_ids)]
-        return candidate_ids, responses
+        responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, candidate_ranks)]
+        return candidate_ranks, responses
 
 
 class ContextEncoder(BasicEncoder):

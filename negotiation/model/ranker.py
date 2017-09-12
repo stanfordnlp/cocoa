@@ -32,14 +32,6 @@ class IRRanker(BaseRanker):
                 'responses': responses,
                 'candidates': batch['token_candidates'],
                 }
-        #responses = []
-        #for c in batch['token_candidates']:
-        #    if len(c) == 0:
-        #        responses.append([])
-        #    else:
-        #        r = np.random.choice([x for x in c if 'response' in x])
-        #        responses.append(r['response'])
-        #return responses
 
 class CheatRanker(BaseRanker):
     def __init__(self):

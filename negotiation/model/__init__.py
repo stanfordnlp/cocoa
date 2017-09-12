@@ -37,13 +37,13 @@ def get_data_generator(args, model_args, mappings, schema):
 
     # Model config tells data generator which batcher to use
     model_config = {}
-    if args.retrieve or model_args.model == 'selector':
+    if args.retrieve or model_args.model in ('ir', 'selector'):
         model_config['retrieve'] = True
     if args.predict_price:
         model_config['price'] = True
 
     # For retrieval-based models only: whether to add ground truth response in the candidates
-    if model_args.model == 'selector':
+    if model_args.model in ('selector', 'ir'):
         if 'loss' in args.eval_modes and 'generation' in args.eval_modes:
             print '"loss" requires ground truth reponse to be added to the candidate set. Please evaluate "loss" and "generation" separately.'
             raise ValueError
@@ -57,7 +57,7 @@ def get_data_generator(args, model_args, mappings, schema):
     if args.model == 'lm':
         DataGenerator = LMDataGenerator
 
-    if args.retrieve or args.model == 'selector':
+    if args.retrieve or args.model in ('selector', 'ir'):
         retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
     else:
         retriever = None
@@ -118,7 +118,7 @@ def build_model(schema, mappings, trie, args):
     from cocoa.model.word_embedder import WordEmbedder
     from cocoa.model.encdec import BasicEncoder, BasicDecoder, Sampler
     from price_predictor import PricePredictor
-    from encdec import BasicEncoderDecoder, PriceDecoder, PriceEncoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder, TrieDecoder, ClassifyDecoder, CandidateSelector
+    from encdec import BasicEncoderDecoder, PriceDecoder, PriceEncoder, ContextDecoder, AttentionDecoder, LM, SlotFillingDecoder, ContextEncoder, TrieDecoder, ClassifyDecoder, CandidateSelector, IRSelector
     from ranker import IRRanker, CheatRanker, EncDecRanker, SlotFillingRanker
     from context_embedder import ContextEmbedder
     from preprocess import markers
@@ -222,6 +222,8 @@ def build_model(schema, mappings, trie, args):
         decoder = get_decoder(args)
         encoder = get_encoder(args)
         model = CandidateSelector(encoder, decoder, pad, keep_prob)
+    elif args.model == 'ir':
+        model = IRSelector()
     elif args.model == 'lm':
         decoder = get_decoder(args)
         model = LM(decoder, pad)

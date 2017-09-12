@@ -38,7 +38,7 @@ if __name__ == '__main__':
     logstats.add_args('config', args)
 
     # Save or load models
-    if args.init_from:
+    if args.model != 'ir' and args.init_from:
         start = time.time()
         print 'Load model (config, vocab, checkpoint) from', args.init_from
         config_path = os.path.join(args.init_from, 'config.json')
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         evaluator = get_evaluator(data_generator, model, splits=('test',), batch_size=args.batch_size, verbose=args.verbose)
         learner = get_learner(data_generator, model, evaluator, batch_size=args.batch_size, verbose=args.verbose, summary_dir=args.summary_dir)
 
-        if args.init_from:
+        if args.model != 'ir' and args.init_from:
             sess = tf.Session(config=config)
             sess.run(tf.global_variables_initializer())
             print 'Load TF model'

@@ -18,6 +18,8 @@ def get_evaluator(data_generator, model, splits=('test',), batch_size=1, verbose
         return LMEvaluator(data_generator, model, splits, batch_size, verbose)
     elif model.name == 'selector':
         return SelectorEvaluator(data_generator, model, splits, batch_size, verbose)
+    elif model.name == 'ir':
+        return IREvaluator(data_generator, model, splits, batch_size, verbose)
     else:
         return EncDecEvaluator(data_generator, model, splits, batch_size, verbose)
 
@@ -112,7 +114,7 @@ class Evaluator(BaseEvaluator):
             self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
-                best_candidates = output_dict.get('candidate_ids', None)
+                best_candidates = output_dict.get('candidate_ranks', None)
                 self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
 
             prev_turns.append(batch['decoder_tokens'])
@@ -294,9 +296,9 @@ class SelectorEvaluator(Evaluator):
 
     def _generate_response(self, batch, model_vars, textint_map):
         sess = model_vars['sess']
-        candidate_ids, responses = self.model.generate(sess, batch, None)
+        candidate_ranks, responses = self.model.generate(sess, batch, None)
         return {
-                'candidate_ids': candidate_ids,
+                'candidate_ranks': candidate_ranks,
                 'pred_tokens': responses,
                 }
 
@@ -304,6 +306,22 @@ class SelectorEvaluator(Evaluator):
         model_vars = {
                 'sess': sess,
                 }
+        def eval_callback(output_dict, model_vars):
+            return
+        return super(SelectorEvaluator, self).generate_response(dialogue_batch, summary_map, model_vars, eval_callback)
+
+class IREvaluator(SelectorEvaluator):
+    """Evaluator for the IR system.
+    """
+    def _generate_response(self, batch, model_vars, textint_map):
+        candidate_ranks, responses = self.model.generate(batch)
+        return {
+                'candidate_ranks': candidate_ranks,
+                'pred_tokens': responses,
+                }
+
+    def generate_response(self, sess, dialogue_batch, summary_map):
+        model_vars = {}
         def eval_callback(output_dict, model_vars):
             return
         return super(SelectorEvaluator, self).generate_response(dialogue_batch, summary_map, model_vars, eval_callback)
