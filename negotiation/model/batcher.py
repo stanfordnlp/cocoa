@@ -328,6 +328,9 @@ class DialogueBatcherWrapper(object):
     def get_encoder_context(self, encoder_turns, num_context):
         return self.batcher.get_encoder_context(encoder_turns, num_context)
 
+    def list_to_text(self, tokens):
+        return self.batcher.list_to_text(tokens)
+
 class PriceWrapper(DialogueBatcherWrapper):
     '''
     Add prices in the input. Used for PricePredictor.
@@ -431,6 +434,7 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         for batch, candidate_batch in izip(dialogue_batch['batch_seq'], candidate_batch_seq):
             batch['decoder_args']['candidates'] = candidate_batch['candidates']
             batch['decoder_args']['candidate_labels'] = candidate_batch['candidate_labels']
+            batch['token_candidates'] = candidate_batch['token_candidates']
 
         return dialogue_batch
 

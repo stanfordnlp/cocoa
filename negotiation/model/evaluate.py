@@ -112,6 +112,7 @@ class Evaluator(BaseEvaluator):
             self.update_entity_stats(summary_map, pred_tokens, references, 'entity_')
 
             if self.verbose:
+                best_candidates = output_dict.get('candidate_ids', None)
                 self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
 
             prev_turns.append(batch['decoder_tokens'])
@@ -168,14 +169,19 @@ class Evaluator(BaseEvaluator):
         return ' '.join([str(w) for w in words if w not in self.remove_symbols])
 
     def _print_batch(self, batch, preds, targets, bleu_scores, best_candidates=None):
-        '''
-        inputs are integers; targets and preds are tokens (converted in test_bleu).
-        '''
+        """Print the generation results.
+
+        Args:
+            batch (dict): from DialogueBatcher
+            preds (list[list[str]]): predicted utterances
+            targets (list[list[str]]): reference utterences
+
+        """
         batcher = self.data.dialogue_batcher
         textint_map = self.data.textint_map
         print '-------------- Batch ----------------'
         for i, (pred, bleu) in enumerate(izip_longest(preds, bleu_scores)):
-            success = batcher.print_batch(batch, i, textint_map)
+            success = batcher.print_batch(batch, i, textint_map, best_candidates)
             if success:
                 print 'PRED:\n {}'.format(batcher.list_to_text(pred))
                 print 'BLEU:', bleu
@@ -286,7 +292,22 @@ class SelectorEvaluator(Evaluator):
         recall = safe_div(float(num_true_positive), num_positive_example)
         return recall
 
-    #def _generate_response(self, sess, dialogue_batch, summary_map):
+    def _generate_response(self, batch, model_vars, textint_map):
+        sess = model_vars['sess']
+        candidate_ids, responses = self.model.generate(sess, batch, None)
+        return {
+                'candidate_ids': candidate_ids,
+                'pred_tokens': responses,
+                }
+
+    def generate_response(self, sess, dialogue_batch, summary_map):
+        model_vars = {
+                'sess': sess,
+                }
+        def eval_callback(output_dict, model_vars):
+            return
+        return super(SelectorEvaluator, self).generate_response(dialogue_batch, summary_map, model_vars, eval_callback)
+
 
 class RetrievalEvaluator(Evaluator):
     def _generate_response(self, sess, dialogue_batch, summary_map):

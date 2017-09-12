@@ -1,13 +1,15 @@
-import tensorflow as tf
+from itertools import izip
 import numpy as np
+import tensorflow as tf
+from tensorflow.contrib.rnn import LSTMStateTuple
+
+from cocoa.model.util import EPS, tile_tensor
 from cocoa.model.util import transpose_first_two_dims, batch_embedding_lookup, EPS
 from cocoa.model.encdec import BasicEncoder, BasicDecoder, Sampler, optional_add
 from cocoa.model.sequence_embedder import AttentionRNNEmbedder, BoWEmbedder
+
 from preprocess import markers, START_PRICE
 from price_buffer import PriceBuffer
-from itertools import izip
-from tensorflow.contrib.rnn import LSTMStateTuple
-from cocoa.model.util import EPS, tile_tensor
 
 def add_model_arguments(parser):
     parser.add_argument('--attention-memory', nargs='*', default=None, help='Attention memory: title, description, encoder outputs')
@@ -195,6 +197,20 @@ class CandidateSelector(BasicEncoderDecoder):
         scores = sess.run(self.decoder.output_dict['scores'], feed_dict=feed_dict)
         candidate_ids = np.argmax(scores, axis=1)
         return candidate_ids
+
+    def generate(self, sess, batch, init_state, textint_map=None):
+        encoder_args = batch['encoder_args']
+        encoder_args['init_state'] = init_state
+        decoder_args = batch['decoder_args']
+        decoder_args['mask'] = batch.get('mask', None)
+        kwargs = {'encoder': encoder_args,
+                'decoder': decoder_args,
+                }
+        candidate_ids = self.select(sess, kwargs)
+        batch_candidates = batch['token_candidates']
+        responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, candidate_ids)]
+        return candidate_ids, responses
+
 
 class ContextEncoder(BasicEncoder):
     '''
