@@ -16,3 +16,5 @@ cocoa/tags
 *.png
 *.pdf
 cl*.sh
+aws_config.json
+*.DS_Store
