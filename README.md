@@ -64,26 +64,29 @@ examples.json
 A **dataset** reads in training and testing examples from JSON files.
 
 ## Code organization
-CoCoA is designed to be modular so that one can plug in their own task/modules easily. Below we use ```task``` as the custom task name (e.g. "mutualfriends").
+CoCoA is designed to be modular so that one can add their own task/modules easily, using `cocoa` as a package.
+Below we use ```task``` as the custom task name (e.g. "negotiation").
 
 ### Data collection
 #### Generate scenarios
-We provide basic infrastructure to set up a website that pairs two users or a user and a bot to chat in a given scenario. The first step is to generate/write a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in. The scenario generation script is ```task/scripts/generate_scenarios.py```.
+We provide basic infrastructure to set up a website that pairs two users or a user and a bot to chat in a given scenario. The first step is to generate/write a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in. The scenario generation script is ```scripts/generate_scenarios.py```.
 
 #### Setup the web server
 The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other to complete the task until the time limit is reached. Users are then directed to a survey to rate their partners in terms of fluency, collaboration etc. All dialogue events are logged in a database.
 
-Our server is built by [Flask](http://flask.pocoo.org/). The backend (```src/web/main/backend.py```) maintains multiple systems (e.g. ```HumanSystem```, ```RulebasedSystem```, ```NeuralSystem```); when two agents are paired, they are put in two sessions and send/receive messages through the controller. See ```src/web/main/routes.py``` for interacting with the front end. Task-specific templates are in ```src/web/templates/task```. The website config file is ```data/web/task/app_params.json```, specifying the time limit, systems/models etc.
+Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/web/main/backend.py```) maintains multiple systems (e.g. ```HumanSystem```, ```RulebasedSystem```, ```NeuralSystem```); when two agents are paired, they are put in two sessions and send/receive messages through the controller. See ```cocoa/web/main/routes.py``` for interacting with the front end. Task-specific templates are in ```cocoa/web/templates/task```. The website config file is ```task/web/app_params.json```, specifying the time limit, systems/models etc.
 
 To deploy the web server, run
 ```
-python src/web/main/start_app.py --port <port> --config <path-to-config> --scenario-path <path-to-scenarios>
+cd task;
+
+PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --scenario-path <path-to-scenarios> --output <output-dir>
 ```
 
-To collect data from Amazon Mechanical Turk, simply provide the address ```http://your-url:port/?mturk=1``` in your HIT. Workers will receive a Mturk code at the end of the survey to submit the HIT.
+To collect data from Amazon Mechanical Turk, workers should be directed to the link ```http://your-url:port/?mturk=1```. Workers will receive a Mturk code at the end of the survey to submit the HIT.
 
 #### Dump the data
-See ```src/web/dump_events_to_json.py```.
+See ```scripts/web/dump_db.py```.
 
 ### Dialogue agents
 To add an agent for a task, we need a corresponding system ```task/systems/agent_system.py``` and a session ```task/sessions/agent_session.py```.
