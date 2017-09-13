@@ -92,11 +92,16 @@ class BaseRulebasedSession(Session):
         return one * fraction + zero * (1. - fraction)
 
     @classmethod
-    def round_price(cls, price, multiple=10):
-        if price > multiple:
-            return int(price) / multiple * multiple
-        else:
+    def round_price(cls, price):
+        """Round the price so that it's not too specific.
+        """
+        if price == self.target:
             return price
+        if price > 100:
+            return round(price, -1)
+        if price > 1000:
+            return round(price, -2)
+        return price
 
     def estimate_bottomline(self):
         raise NotImplementedError
@@ -145,6 +150,7 @@ class BaseRulebasedSession(Session):
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
         self.state['last_act'] = 'greet'
+        self.state['said_hi'] = True
         return self.message(random.choice(greetings))
 
     def init_propose(self, price):
@@ -295,15 +301,18 @@ class BaseRulebasedSession(Session):
         """
         raise NotImplementedError
 
+    def wait(self):
+        return None
+
     def send(self):
         if self.bottomline is None:
             self.bottomline = self.estimate_bottomline()
 
         if self.state['offered']:
-            return None
+            return self.wait()
 
         if self.state['num_utterance_sent'] > 0:
-            return None
+            return self.wait()
         self.state['num_utterance_sent'] += 1
 
         if self.state['partner_offered']:
@@ -312,11 +321,9 @@ class BaseRulebasedSession(Session):
             return self.accept()
 
         if not self.state['said_hi']:
-            self.state['said_hi'] = True
             return self.greet()
 
         if not self.state['introduced'] and self.partner_price is None:
-            self.state['introduced'] = True
             return self.intro()
 
         if self.state['final_called']:
@@ -443,6 +450,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "I'm selling a %s" % title,
             )
         self.state['last_act'] = 'intro'
+        self.state['introduced'] = True
         return self.message(random.choice(s))
 
     def init_propose(self, price):
