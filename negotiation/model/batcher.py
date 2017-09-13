@@ -443,11 +443,11 @@ class RetrievalWrapper(DialogueBatcherWrapper):
         if success:
             candidates = batch['decoder_args']['candidates'][example_id]
             if preds is not None:
-                preds = preds[example_id]
+                ranks = preds[example_id]
             else:
-                preds = [-1] * len(candidates)
-            for i, (cand, pred) in enumerate(izip(candidates, preds)):
-                print 'CANDIDATE {} (label={})'.format(i, pred)
+                ranks = [-1] * len(candidates)
+            for i, (cand, rank) in enumerate(izip(candidates, ranks)):
+                print 'CANDIDATE {} (label={})'.format(i, rank)
                 if cand[0] == self.batcher.int_markers.PAD:
                     print 'PADDING'
                 else:
