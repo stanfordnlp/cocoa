@@ -25,28 +25,28 @@ class Event(object):
         return {'agent': self.agent, 'time': self.time, 'action': self.action, 'data': self.data,
                 'start_time': self.start_time}
 
-    @staticmethod
-    def MessageEvent(agent, data, time=None, start_time=None):
-        return Event(agent, time, 'message', data, start_time=start_time)
-
-    @staticmethod
-    def JoinEvent(agent, userid=None, time=None):
-        return Event(agent, time, 'join', userid)
-
-    @staticmethod
-    def LeaveEvent(agent, userid=None, time=None):
-        return Event(agent, time, 'leave', userid)
-
-    @staticmethod
-    def TypingEvent(agent, data, time=None):
-        return Event(agent, time, 'typing', data)
-
-    @staticmethod
-    def EvalEvent(agent, data, time):
-        return Event(agent, time, 'eval', data)
+    @classmethod
+    def MessageEvent(cls, agent, data, time=None, start_time=None):
+        return cls(agent, time, 'message', data, start_time=start_time)
 
     @classmethod
-    def gather_eval(cls, events):
+    def JoinEvent(cls, agent, userid=None, time=None):
+        return cls(agent, time, 'join', userid)
+
+    @classmethod
+    def LeaveEvent(cls, agent, userid=None, time=None):
+        return cls(agent, time, 'leave', userid)
+
+    @classmethod
+    def TypingEvent(cls, agent, data, time=None):
+        return cls(agent, time, 'typing', data)
+
+    @classmethod
+    def EvalEvent(cls, agent, data, time):
+        return cls(agent, time, 'eval', data)
+
+    @staticmethod
+    def gather_eval(events):
         event_dict = {e.time: e for e in events if e.action != 'eval'}
         for e in events:
             if e.action == 'eval':
