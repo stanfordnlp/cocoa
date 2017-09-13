@@ -118,7 +118,7 @@ For details of file formats, see `cocoa/turk/eval_data.py`.
 
 2. Launch HITs! 
 
-We use `boto`'s API.
+We use `boto`'s API. *NOTE*: always test on sandbox with `--debug` before launching.
 
 ```
 cd negotiation;

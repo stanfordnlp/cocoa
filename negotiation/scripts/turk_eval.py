@@ -27,7 +27,7 @@ if __name__ == '__main__':
     mtc = get_mturk_connection(config, debug=args.debug)
 
     task = HTMLEvalTask(mtc=mtc,
-            title='Dialogue response evaluation4',
+            title='Dialogue response evaluation',
             description='Rate a response in a dialogue',
             keywords='evaluation, dialogue',
             reward=args.reward_per_hit,
