@@ -205,8 +205,13 @@ class CandidateSelector(BasicEncoderDecoder):
     def select(self, sess, feed_dict_args):
         feed_dict = self.get_feed_dict(**feed_dict_args)
         scores = sess.run(self.decoder.output_dict['scores'], feed_dict=feed_dict)
-        candidate_ranks = np.argmax(scores, axis=1)
-        return candidate_ranks
+        # Padded candidates
+        candidates = feed_dict_args['decoder']['candidates']
+        padded_candidates = candidates[:, :, 0] == self.pad  # (batch_size, num_candidates)
+        scores[padded_candidates] = float('-inf')
+        candidate_ranks = self.output_to_preds(scores)
+        best_candidates = np.argmax(scores, axis=1)
+        return best_candidates, candidate_ranks
 
     def generate(self, sess, batch, init_state, textint_map=None):
         encoder_args = batch['encoder_args']
@@ -216,9 +221,9 @@ class CandidateSelector(BasicEncoderDecoder):
         kwargs = {'encoder': encoder_args,
                 'decoder': decoder_args,
                 }
-        candidate_ranks = self.select(sess, kwargs)
+        best_candidates, candidate_ranks = self.select(sess, kwargs)
         batch_candidates = batch['token_candidates']
-        responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, candidate_ranks)]
+        responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, best_candidates)]
         return candidate_ranks, responses
 
 

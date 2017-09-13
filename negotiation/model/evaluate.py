@@ -115,7 +115,7 @@ class Evaluator(BaseEvaluator):
 
             if self.verbose:
                 best_candidates = output_dict.get('candidate_ranks', None)
-                self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates)
+                self._print_batch(batch, pred_tokens, references, bleu_scores, best_candidates=best_candidates)
 
             prev_turns.append(batch['decoder_tokens'])
 

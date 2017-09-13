@@ -199,8 +199,7 @@ def build_model(schema, mappings, trie, args):
 
         # Retrieval-based models
         if args.model == 'selector':
-            if args.selector_loss == 'binary':
-                decoder = ClassifyDecoder(decoder)
+            decoder = ClassifyDecoder(decoder)
 
         #decoder = TrieDecoder(decoder)
         return decoder
