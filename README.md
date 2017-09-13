@@ -79,11 +79,10 @@ Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/w
 To deploy the web server, run
 ```
 cd task;
-
 PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --scenario-path <path-to-scenarios> --output <output-dir>
 ```
 
-To collect data from Amazon Mechanical Turk, workers should be directed to the link ```http://your-url:port/?mturk=1```. Workers will receive a Mturk code at the end of the survey to submit the HIT.
+To collect data from Amazon Mechanical Turk (AMT), workers should be directed to the link ```http://your-url:port/?mturk=1```. Workers will receive a Mturk code at the end of the survey to submit the HIT.
 
 #### Dump the data
 See ```scripts/web/dump_db.py```.
@@ -96,4 +95,38 @@ Once an agent is implemented, we can let it self-play, i.e. chat with itself, us
 
 ### Human evaluation
 
+Evaluations are done through AMT.
 
+#### Evaluate context-response pairs
+
+Two main classes are `EvalData` and `EvalTask`.
+Take a look at `cocoa/turk/eval_data.py` and `cocoa/turk/task.py`.
+They can be extended in `task/turk`.
+
+We embed HTML in the AMT interface; see `cocoa/turk/templates`.
+
+1. Generate system outpus and write to a JSON file.
+```
+outputs.json
+|--[i]
+|  |--"ex_id": unique id that identifies a context-reference pair
+|  |--"prev_turns"
+|  |--"reference"
+|  |--"response"
+```
+For details of file formats, see `cocoa/turk/eval_data.py`.
+
+2. Launch HITs! 
+
+We use `boto`'s API.
+
+```
+cd negotiation;
+PYTHONPATH=. python scripts/turk_eval.py --debug --aws-config <aws_credential> --question-template ../cocoa/turk/templates/question.html --overall-template ../cocoa/turk/templates/absolute_eval.html --instructions ../cocoa/turk/templates/instructions.html --num-eval 50 --num-assignments-per-hit 5 --system-outputs <system1_name> <system1_output> <system2_name> <system2_output>
+```
+
+3. Gather results.
+```
+cd negotiation;
+PYTHONPATH=. python scripts/turk_eval.py --review --debug --aws-config <aws_credential> --question-template ../cocoa/turk/templates/question.html --overall-template ../cocoa/turk/templates/absolute_eval.html --instructions ../cocoa/turk/templates/instructions.html 
+```
