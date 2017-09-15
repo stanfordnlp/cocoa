@@ -1,8 +1,8 @@
 from cocoa.core.controller import Controller as BaseController
 
 class Controller(BaseController):
-    def __init__(self, scenario, sessions, chat_id=None, debug=False):
-        super(Controller, self).__init__(scenario, sessions, chat_id, debug)
+    def __init__(self, scenario, sessions, chat_id=None):
+        super(Controller, self).__init__(scenario, sessions, chat_id)
         self.marked_agree = [False, False]
         self.quit = False
         self.outcomes = [None, None]

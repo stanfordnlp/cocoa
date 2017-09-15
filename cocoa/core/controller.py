@@ -7,7 +7,7 @@ class Controller(object):
     """
     Interface of the controller: takes two systems and can run them to generate a dialgoue.
     """
-    def __init__(self, scenario, sessions, chat_id=None, debug=True):
+    def __init__(self, scenario, sessions, chat_id=None):
 
         self.lock = Lock()
         self.scenario = scenario

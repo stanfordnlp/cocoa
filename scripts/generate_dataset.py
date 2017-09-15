@@ -23,6 +23,7 @@ parser.add_argument('--model-path', help='Path to model (used for neural agents)
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
+parser.add_argument('-v', '--verbose', default=False, action='store_true', help='whether or not to have verbose prints')
 add_scenario_arguments(parser)
 add_dataset_arguments(parser)
 add_system_arguments(parser)
@@ -31,7 +32,6 @@ if args.random_seed:
     random.seed(args.random_seed)
     np.random.seed(args.random_seed)
 
-debug_state = True
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
@@ -55,8 +55,8 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     for i in range(max_examples):
         scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]
         sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
-        controller = Controller(scenario, sessions, debug=debug_state)
-        ex = controller.simulate(max_turns)
+        controller = Controller(scenario, sessions)
+        ex = controller.simulate(max_turns, verbose=args.verbose)
         if ex.outcome['reward'] == 0:
             num_failed += 1
             if remove_fail:

@@ -1,4 +1,4 @@
-PYTHONPATH=. python ../scripts/generate_dataset.py \
+PYTHONPATH=. python ../scripts/generate_dataset.py -v \
     --schema-path data/bookhatball-schema.json \
     --scenarios-path data/toy-scenarios.json \
     --train-examples-paths data/toy-transcripts.json \
