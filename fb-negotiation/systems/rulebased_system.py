@@ -7,5 +7,5 @@ class RulebasedSystem(BaseRulebasedSystem):
         super(RulebasedSystem, self).__init__(timed_session)
         self.tracker = tracker
 
-    def _new_session(self, agent, kb):
-        return RulebasedSession.get_session(agent, kb, self.tracker)
+    def _new_session(self, agent, kb, config=None):
+        return RulebasedSession.get_session(agent, kb, self.tracker, config)

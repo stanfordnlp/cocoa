@@ -9,7 +9,7 @@ import operator
 
 class RulebasedSession(object):
     @staticmethod
-    def get_session(agent, kb, tracker=None):
+    def get_session(agent, kb, tracker, config=None):
         return BaseRulebasedSession(agent, kb, tracker)
 
 class BaseRulebasedSession(Session):
