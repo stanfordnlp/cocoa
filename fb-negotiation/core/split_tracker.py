@@ -302,12 +302,13 @@ if __name__ == '__main__':
   total_counter = 0
   with open(args.train_examples_path, 'r') as file:
     for idx, line1 in enumerate(file):
-      scenario = [int(x) for x in line1.rstrip().split(" ")]
-      line2 = next(file)
-      correct = [int(x) for x in line2.rstrip().split(" ")]
-      line3 = next(file)
-      tracker.reset_tracker()
-      if tracker.unit_test(scenario, correct, line3.rstrip()):
-        pass_counter += 1
-      total_counter += 1
+      if idx <= 14:
+        scenario = [int(x) for x in line1.rstrip().split(" ")]
+        line2 = next(file)
+        correct = [int(x) for x in line2.rstrip().split(" ")]
+        line3 = next(file)
+        tracker.reset()
+        if tracker.unit_test(scenario, correct, line3.rstrip()):
+          pass_counter += 1
+        total_counter += 1
   print("Passed {0} of {1} unit tests.".format(pass_counter, total_counter) )
