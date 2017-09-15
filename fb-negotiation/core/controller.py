@@ -11,12 +11,20 @@ class Controller(BaseController):
         if event.action == 'select':
             self.marked_agree[event.agent] = True
             self.outcomes[event.agent] = event.data
+        elif event.action == 'reject':
+            self.quit = True
+            self.outcomes[event.agent] = event.data
         elif event.action == 'quit':
             self.quit = True
 
     def valid_end_state(self):
-        first_agent_proposal = self.outcomes[0]['item_split']
-        second_agent_proposal = self.outcomes[1]['item_split']
+        try:
+            first_agent_proposal = self.outcomes[0]['item_split']
+            second_agent_proposal = self.outcomes[1]['item_split']
+        except TypeError:
+            self.outcomes[0] = {'item_split': 'deal_rejected'}
+            self.outcomes[1] = {'item_split': 'deal_rejected'}
+            return False
         items = ['book', 'hat', 'ball']
 
         for item in items:

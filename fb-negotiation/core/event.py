@@ -5,3 +5,7 @@ class Event(BaseEvent):
     def SelectEvent(agent, data, time=None):
         return Event(agent, time, 'select', data)
 
+    @staticmethod
+    def RejectEvent(agent, time=None):
+        return Event(agent, time, 'reject', None)
+
