@@ -261,48 +261,6 @@ class SplitTracker(object):
     # If you heard no items:
     #   check for question mark
 
-  def link_entity(self, raw_tokens, kb=None, scale=True, price_clip=None):
-    tokens = ['<s>'] + raw_tokens + ['</s>']
-    entity_tokens = []
-    if kb:
-      kb_numbers = self.get_kb_numbers(kb)
-      list_price = kb.facts['item']['Price']
-    for i in xrange(1, len(tokens)-1):
-      token = tokens[i]
-      try:
-        number = float(self.process_string(token))
-        # Check context
-        if not (token[0] == '$' or token[-1] == '$') and \
-            not self.is_price(tokens[i-1], tokens[i+1]):
-          number = None
-        # Avoid 'infinity' being recognized as a number
-        if number == float('inf') or number == float('-inf'):
-          number = None
-        # Check if the price is reasonable
-        elif kb:
-          if number > 1.5 * list_price:
-            number = None
-          # Probably a spec number
-          if number != list_price and number in kb_numbers:
-            number = None
-          if number is not None and price_clip is not None:
-            scaled_price = PriceScaler._scale_price(kb, number)
-            if abs(scaled_price) > price_clip:
-              number = None
-      except ValueError:
-        number = None
-      if number is None:
-        new_token = token
-      else:
-        assert not math.isnan(number)
-        if scale:
-          scaled_price = PriceScaler._scale_price(kb, number)
-        else:
-          scaled_price = number
-        new_token = Entity(surface=token, canonical=CanonicalEntity(value=scaled_price, type='price'))
-      entity_tokens.append(new_token)
-    return entity_tokens
-
 if __name__ == '__main__':
   import argparse
   parser = argparse.ArgumentParser()
