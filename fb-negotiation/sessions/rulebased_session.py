@@ -6,14 +6,19 @@ import copy
 import sys
 import re
 import operator
+from collections import namedtuple
 
 class RulebasedSession(object):
     @staticmethod
     def get_session(agent, kb, tracker, config=None):
-        return BaseRulebasedSession(agent, kb, tracker)
+        return BaseRulebasedSession(agent, kb, tracker, config)
+
+Config = namedtuple('Config', ['speaker_order', 'persuade_technique', 'good_deal_threshold'])
+
+default_config = Config(0.5, 1, 7)
 
 class BaseRulebasedSession(Session):
-    def __init__(self, agent, kb, tracker):
+    def __init__(self, agent, kb, tracker, config):
         super(BaseRulebasedSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
@@ -23,6 +28,7 @@ class BaseRulebasedSession(Session):
         self.item_counts = kb.facts['Item_counts']
         self.items = kb.facts['Item_values'].keys()
         self.my_proposal = {'made': False, 'book':-1, 'hat':-1, 'ball':-1}
+        self.config = default_config if config is None else config
 
         self.state = {
                 'introduced': False,
@@ -33,11 +39,9 @@ class BaseRulebasedSession(Session):
                 'num_utterance': 0,
                 'last_offer': None
                 # 'final_called': False,
-                # 'num_partner_insist': 0,
-                # 'num_persuade': 0,
-                # 'sides': set(),
                 }
 
+        self.set_configuration()
         self.init_item_ranking()
         self.set_breakpoints()
         self.pick_strategy()
@@ -61,6 +65,22 @@ class BaseRulebasedSession(Session):
             self.strategy = "balanced"
             self.state['num_utterance'] += 1
 
+    def set_configuration(self):
+        # ranges from 0-1, higher val means more likely greet rather than propose
+        self.speaker_order = self.config.speaker_order
+        # value is 0 or 1, representing 'creative' or 'boring'
+        self.persuade_technique = 'boring' if self.config.persuade_technique == 1 else 'creative'
+        # good values to try at 7 or 8
+        self.good_deal_threshold = self.config.good_deal_threshold
+
+    def random_configs(n=10):
+        overshoot = np.random.uniform(0, .5, 10)
+        bottomline_fraction = np.random.uniform(.1, .5, 10)
+        compromise_fraction = np.random.uniform(.1, .3, 10)
+        good_deal_threshold = np.random.uniform(0., 1., 10)
+        configs = set([Config(o, b, c, g) for o, b, c, g  in izip(overshoot, bottomline_fraction, compromise_fraction, good_deal_threshold)])
+        return list(configs)
+
     def init_item_ranking(self):
         values = copy.deepcopy(self.item_values)
         max_key = operator.itemgetter(1)
@@ -76,7 +96,7 @@ class BaseRulebasedSession(Session):
                 self.bottom_item, self.middle_item = self.middle_item, self.bottom_item
 
     def set_breakpoints(self):
-        self.good_deal = 7    # self.kb.facts['personal']['good_deal']
+        self.good_deal = self.good_deal_threshold
         self.final_call = 2    # minimum number of points willing to accept
 
         option_A = self.item_values[self.top_item]
@@ -354,28 +374,27 @@ class BaseRulebasedSession(Session):
 
     def persuade(self):
         self.state['last_act'] = 'persuade'   # 'request_more'
-        s = [   "Can you do better than that?",
-                "Maybe just one more item?",
-                "How about just one more item?"
-            ]
-        # if self.top_item == 'book':
-        #     persuade_detail = [
-        #         "I have always been a book worm.",
-        #         "The books come in a set, so I would want them all.",
-        #         "I'm trying to complete my collection of novels in this series.",
-        #         ]
-        # elif self.category == 'hat':
-        #     persuade_detail = [
-        #         "I need to hide a bald spot with the hat.",
-        #         "People tell me I look great with a hat on.",
-        #         "This hat fits perfectly with my head.",
-        #         ]
-        # elif self.category == 'ball':
-        #     persuade_detail = [
-        #         "I have always loved sports.",
-        #         "I need these for my youth rec league.",
-        #         "You would look great in a hat.",
-        #         ]
+        if self.persuade_technique == 'boring':
+            s = [   "Can you do better than that?",
+                    "Maybe just one more item?",
+                    "How about just one more item?"
+                ]
+        elif self.persuade_technique == 'creative':
+            if self.top_item == 'book':
+                s = [   "I have always been a book worm.",
+                    "The books come in a set, so I would want them all.",
+                    "I'm trying to complete my collection of novels in this series.",
+                    ]
+            elif self.category == 'hat':
+                s = [   "I need to hide a bald spot with the hat.",
+                    "People tell me I look great with a hat on.",
+                    "This hat fits perfectly with my head.",
+                    ]
+            elif self.category == 'ball':
+                s = [   "I have always loved sports.",
+                    "I need these for my youth rec league.",
+                    "You would look great in a hat.",
+                    ]
         return self.message(random.choice(s))
 
     def reverse(self, offer):
@@ -571,8 +590,8 @@ class BaseRulebasedSession(Session):
             return self.propose()
 
         if not self.state['introduced']:
-            if random.random() < 0.5:   # talk a bit by asking a question
-                return self.intro()     # to hear their side first
+            if random.random() < self.speaker_order: # talk a bit by asking a question
+                return self.intro()             # to hear their side first
             elif not self.my_proposal['made']:    # make a light proposal
                 return self.init_propose()      # to get the ball rolling
 
