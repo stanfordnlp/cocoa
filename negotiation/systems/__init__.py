@@ -17,7 +17,8 @@ def add_system_arguments(parser):
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
     if name == 'rulebased':
-        #return RulebasedSystem(lexicon, timed)
+        return RulebasedSystem(lexicon, timed)
+    elif name == 'config-rulebased':
         configs = read_json(args.rulebased_configs)
         return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db)
     elif name == 'cmd':

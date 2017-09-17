@@ -15,8 +15,14 @@ from utils import Status, UnexpectedStatusException, ConnectionTimeoutException,
 from db_reader import DatabaseReader
 from logger import WebLogger
 
-#m = hashlib.md5()
-#m.update("bot")
+
+# TODO: refactor to put DB operations in the DBManager
+#class DBManager(object):
+#    """Update database.
+#    """
+#    def __init__(self, db_path):
+#        self.conn = sqlite3.connect(db_path)
+
 
 class Backend(object):
     def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1, messages=Messages):
@@ -168,27 +174,29 @@ class Backend(object):
 
             return controller, my_session, partner_session
 
-        def _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id):
+        def _pair_with_human(cursor, my_id, my_index, partner_id, scenario, chat_id):
             controller, my_session, partner_session = _init_controller(my_index, HumanSystem.name(), scenario, chat_id)
-            self.controller_map[userid] = controller
+            self.controller_map[my_id] = controller
             self.controller_map[partner_id] = controller
 
-            self.sessions[userid] = my_session
+            self.sessions[my_id] = my_session
             self.sessions[partner_id] = partner_session
 
             # ensures that partner is actually in waiting state
             self._get_user_info(cursor, partner_id, assumed_status=Status.Waiting)
 
+            # Update partner
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
-                              partner_id=userid,
+                              partner_id=my_id,
                               partner_type=HumanSystem.name(),
                               scenario_id=scenario.uuid,
                               agent_index=1 - my_index,
                               message="",
                               chat_id=chat_id)
 
-            self._update_user(cursor, userid,
+            # Update me
+            self._update_user(cursor, my_id,
                               status=Status.Chat,
                               partner_id=partner_id,
                               partner_type=HumanSystem.name(),
@@ -202,7 +210,6 @@ class Backend(object):
         def _pair_with_bot(cursor, userid, my_index, bot_type, scenario, chat_id):
             controller, my_session, bot_session = _init_controller(my_index, bot_type, scenario, chat_id)
 
-            # TODO:
             config = bot_session.config
             if config is not None:
                 cursor.execute('INSERT INTO bot VALUES (?,?,?)',

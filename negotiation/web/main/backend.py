@@ -25,16 +25,16 @@ class Backend(BaseBackend):
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
             outcome = controller.get_outcome()
+            role = ex.scenario.kbs[agent_idx].facts['personal']['Role']
             if outcome['reward'] == 0:
-                return None
+                return role, None
             else:
                 try:
                     price = float(outcome['offer']['price'])
                 except (KeyError, ValueError) as e:
-                    return None
-                role = ex.scenario.kbs[agent_idx].facts['personal']['Role']
+                    return role, None
                 margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
-                return margin
+                return role, margin
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)
@@ -165,9 +165,7 @@ class Backend(BaseBackend):
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
 
-                self.logger.debug("partner type {:s} system {:s}".format(user_info.partner_type, self.systems['rulebased'].name()))
-                # TODO: hack, think about how to connect bot to system
-                if user_info.partner_type == 'rulebased' and self.systems['rulebased'].name() == 'config-rulebased':
+                if user_info.partner_type == 'config-rulebased':
                     self.logger.debug("Updating trials for user {}".format(userid))
                     agent_idx = self.get_agent_idx(userid)
                     bot_agent_idx = 1 - agent_idx
@@ -175,11 +173,11 @@ class Backend(BaseBackend):
                     # TODO: get config
                     cursor.execute('''SELECT config FROM bot WHERE chat_id=? AND type=?''', (user_info.chat_id, user_info.partner_type))
                     config = tuple(json.loads(cursor.fetchone()[0]))
-                    margin = self.get_margin(controller, bot_agent_idx)
-                    self.logger.debug("margin={}".format(margin))
-                    self.logger.debug("humanlike={}".format(data['negotiator']))
-                    self.systems['rulebased'].update_trials([
-                        (config, user_info.chat_id, {'margin': margin, 'humanlike': data['negotiator']}),
+                    role, margin = self.get_margin(controller, bot_agent_idx)
+                    self.logger.debug("role={}, margin={}, humanlike={}".format(role, margin, data['negotiator']))
+                    # TODO: add bot role
+                    self.systems['config-rulebased'].update_trials([
+                        (config, user_info.chat_id, {'role': role, 'margin': margin, 'humanlike': data['negotiator']}),
                         ])
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
