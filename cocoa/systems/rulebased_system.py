@@ -13,7 +13,7 @@ class RulebasedSystem(System):
     def new_session(self, agent, kb, config=None):
         session = self._new_session(agent, kb, config)
         if self.timed_session:
-            session = TimedSessionWrapper(agent, session)
+            session = TimedSessionWrapper(session)
         return session
 
     def _new_session(self, agent, kb, config=None):

@@ -4,8 +4,11 @@ from collections import namedtuple
 from itertools import izip
 
 from cocoa.core.entity import is_entity
-from session import Session
+
+from analysis.dialogue import Utterance
+from analysis.speech_acts import SpeechActAnalyzer, SpeechActs
 from core.tokenizer import tokenize
+from session import Session
 
 class RulebasedSession(object):
     @classmethod
@@ -67,6 +70,7 @@ class BaseRulebasedSession(Session):
                 'last_act': None,
                 'num_persuade': 0,
                 'sides': set(),
+                'partner_acts': [],
                 }
 
         self.persuade_price = []
@@ -91,8 +95,7 @@ class BaseRulebasedSession(Session):
         """
         return one * fraction + zero * (1. - fraction)
 
-    @classmethod
-    def round_price(cls, price):
+    def round_price(self, price):
         """Round the price so that it's not too specific.
         """
         if price == self.target:
@@ -117,33 +120,69 @@ class BaseRulebasedSession(Session):
             self.my_price = self.target
         else:
             self.my_price = self.target * (1 + self.inc * self.overshoot)
+            #print 'overshoot:', self.overshoot
+            #print 'target:', self.target
+            #print 'my price:', self.my_price
+
+    def tag_utterance(self, utterance):
+        """Simple NLU by pattern matching.
+
+        Args:
+            utterance (Utterance)
+
+        Returns:
+            (tag,) (tuple)
+
+        """
+        acts = []
+
+        if SpeechActAnalyzer.is_question(utterance):
+            acts.append(SpeechActs.QUESTION)
+
+        if SpeechActAnalyzer.is_agreement(utterance):
+            acts.append(SpeechActs.AGREEMENT)
+
+        sentiment = SpeechActAnalyzer.sentiment(utterance)
+        if sentiment == 1:
+            acts.append(SpeechActs.POS)
+        elif sentiment == -1:
+            acts.append(SpeechActs.NEG)
+
+        return acts
 
     def receive(self, event):
-        if event.action == 'message':
+        # Reset count
+        if event.action in ('message', 'offer'):
             self.state['num_utterance_sent'] = 0
+
+        if event.action == 'message':
             raw_utterance = event.data
             entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, scale=False)
             #print 'entity tokens:', entity_tokens
-            # Randomly choose one of the prices
-            prices = [x[1][0] for x in entity_tokens if is_entity(x)]
-            if len(prices) > 0:
-                price = prices[-1]
+            utterance = Utterance(raw_utterance, entity_tokens)
+            self.state['parter_acts'] = self.tag_utterance(utterance)
+            if len(utterance.prices) > 0:
+                # Use the last mentioned price
+                price = utterance.prices[-1].canonical.value
+                self.state['partner_acts'].append('price')
             else:
                 # Assuming price is the same as before
                 price = self.partner_price
         elif event.action == 'offer':
-            self.state['num_utterance_sent'] = 0
             price = event.data['price']
             self.state['partner_offered'] = True
         else:
             return
+
         if self.partner_price is not None and \
-            self.inc*price >= self.inc*self.partner_price:
-                self.state['num_partner_insist'] += 1
+                self.compare(price, self.partner_price) >= 0:
+                    self.state['num_partner_insist'] += 1
         elif self.partner_price is None and self.state['last_proposed_price'] is not None:
             self.state['num_partner_insist'] += 1
         else:
             self.state['num_partner_insist'] = 0
+
+        # Update partner price
         if price is not None:
             self.partner_price = price
 
@@ -157,6 +196,7 @@ class BaseRulebasedSession(Session):
         raise NotImplementedError
 
     def propose(self, price):
+        price = self.round_price(price)
         # Initial proposal
         if not self.state['last_proposed_price'] and not self.partner_price:
             s = self.init_propose(price)
@@ -170,7 +210,9 @@ class BaseRulebasedSession(Session):
                 )
         self.state['last_proposed_price'] = price
         self.state['last_act'] = 'propose'
-        return self.message(random.choice(s))
+        self.my_price = price
+        msg = random.choice(s)
+        return self.message(msg)
 
     def intro(self):
         raise NotImplementedError
@@ -191,7 +233,7 @@ class BaseRulebasedSession(Session):
         if self.bottomline is not None and self.compare(self.my_price, self.bottomline) <= 0:
             return self.final_call()
         self.my_price = self._compromise_price(self.my_price)
-        if self.partner_price and self.inc*self.my_price < self.inc*self.partner_price:
+        if self.partner_price and self.compare(self.my_price, self.partner_price) < 0:
             return self.agree()
         # Don't keep compromise
         self.state['num_partner_insist'] = 1  # Reset
@@ -235,7 +277,8 @@ class BaseRulebasedSession(Session):
         return super(BaseRulebasedSession, self).offer({'price': price})
 
     def agree(self):
-        self.my_price = self.partner_price
+        if 'price' in self.state['partner_acts']:
+            self.my_price = self.partner_price
         self.state['last_act'] = 'agree'
         return self.offer(self.my_price)
         # TODO
@@ -269,7 +312,12 @@ class BaseRulebasedSession(Session):
         return False
 
     def no_deal(self, price):
-        if self.inc*price < self.inc*self.bottomline:
+        if self.compare(price, self.my_price) >= 0:
+            return False
+        if self.bottomline is not None:
+            if self.compare(price, self.bottomline) < 0:
+                return True
+        else:
             return True
         return False
 
@@ -325,6 +373,13 @@ class BaseRulebasedSession(Session):
 
         if not self.state['introduced'] and self.partner_price is None:
             return self.intro()
+
+        # Initial proposal
+        if self.state['last_proposed_price'] is None:
+            return self.propose(self.my_price)
+
+        if SpeechActs.AGREEMENT in self.state['partner_acts']:
+            return self.offer()
 
         if self.state['final_called']:
             return self.offer(self.bottomline if self.compare(self.bottomline, self.partner_price) > 0 else self.partner_price)
@@ -456,7 +511,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
     def init_propose(self, price):
         # We're showing the listing price so no need to propose
         s = (
-                "Do you have any question?",
+                "Do you have any questions?",
                 "It is hard to find such a deal.",
             )
         self.state['last_act'] = 'init_propose'
@@ -508,7 +563,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
         if self.category == 'car':
             self.persuade_detail = [
                     "This car is pretty old...",
-                    "Does it have any accident?",
+                    "Does it have any accidents?",
                     "The mileage is too high; it won't run for too long",
                 ]
         elif self.category == 'housing':
@@ -549,7 +604,9 @@ class BuyerRulebasedSession(BaseRulebasedSession):
     def intro(self):
         s = (
                 "How much are you asking?",
+                "It looks great! Is it still available?",
             )
+        self.state['introduced'] = True
         self.state['last_act'] = 'intro'
         return self.message(random.choice(s))
 
