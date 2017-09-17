@@ -1,7 +1,7 @@
-PYTHONPATH=. python ../scripts/generate_dataset.py -v \
+PYTHONPATH=. python ../scripts/generate_dataset.py \
     --schema-path data/bookhatball-schema.json \
     --scenarios-path data/toy-scenarios.json \
     --train-examples-paths data/toy-transcripts.json \
-    --train-max-examples 1 --test-max-examples 0 --max-turns 20 \
+    --train-max-examples 7 --test-max-examples 0 --max-turns 20 \
     --agents rulebased rulebased \
-    # --random-seed 8
+    --verbose # --random-seed 8

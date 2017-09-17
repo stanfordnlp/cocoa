@@ -101,6 +101,15 @@ class SplitTracker(object):
       else:
         mention['count'] = -1
 
+  def resolve_persuasion(self, last_offer):
+    if len(self.lexicon) == 1:
+      mention = self.lexicon[0]
+      last_offer[mention['item_type']] -= 1
+      self.their_offer = last_offer
+    else:
+      self.resolve_tracker()
+      self.merge_their_offers()
+
   def resolve_tracker(self):
     for mention in self.lexicon:
       item_type = mention['item_type']
@@ -182,10 +191,14 @@ class SplitTracker(object):
       for token in mention['after']:
         if token == "me":
           mention['agent'] = 'for_them'
+          agent_found = True
           break
         elif token in ["you"]:
           mention['agent'] = 'for_me'
+          agent_found = True
           break
+      if agent_found:
+        continue
       # by default, if nothing matches, we assume the offer was for them
       mention['agent'] = 'for_them'
 

@@ -25,12 +25,11 @@ class Controller(BaseController):
             self.outcomes[0] = {'item_split': 'deal_rejected'}
             self.outcomes[1] = {'item_split': 'deal_rejected'}
             return False
-        items = ['book', 'hat', 'ball']
 
-        for item in items:
-            item_count = self.scenario.kbs[0].facts['Item_counts']
+        for item in ['book', 'hat', 'ball']:
+            item_count = self.scenario.kbs[0].facts['Item_counts'][item]
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
-            valid_deal = (item_count == item_proposal)
+            valid_deal = ( int(item_count) == int(item_proposal) )
             if not valid_deal:
                 return False
 

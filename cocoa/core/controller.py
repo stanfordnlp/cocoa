@@ -73,6 +73,7 @@ class Controller(object):
         outcome = self.get_outcome()
         if verbose:
             print 'outcome: %s' % outcome
+            print '----------------'
         # TODO: add configurable names to systems and sessions
         return Example(self.scenario, uuid, self.events, outcome, uuid, None)
 
