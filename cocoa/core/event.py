@@ -10,6 +10,9 @@ class Event(object):
     start_time: The time at which the event action was started (e.g. the time at which an agent starting typing a
     message to send)
     """
+
+    decorative_events = ('join', 'leave', 'typing', 'eval')
+
     def __init__(self, agent, time, action, data, start_time=None):
         self.agent = agent
         self.time = time
