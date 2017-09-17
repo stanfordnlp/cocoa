@@ -80,6 +80,18 @@ class Task(object):
             print 'Abort'
 
     def get_reviewable_results(self):
+        """Get HIT results.
+
+        Results are written in `self.db` in the following JSON structure:
+            |-hit_id
+              |-assignment_id
+                |-worker_id
+                |-answers
+                  |-[i]
+                    |-answer
+                    |-qid
+
+        """
         results = []
         for hit_id, hit_info in self.db.iteritems():
             assignments = self.mtc.get_assignments(hit_id)
