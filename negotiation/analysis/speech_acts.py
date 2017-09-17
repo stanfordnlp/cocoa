@@ -25,6 +25,7 @@ class SpeechActAnalyzer(object):
         r'that works',
         r'[^a-zA-Z]ok[^a-zA-Z]|okay',
         r'great'
+        r'i can do that[.]*'
     ]
 
     pos_patterns = [
@@ -63,6 +64,8 @@ class SpeechActAnalyzer(object):
     @classmethod
     def is_question(cls, utterance):
         tokens = utterance.tokens
+        if len(tokens) < 1:
+            return False
         last_word = tokens[-1]
         first_word = tokens[0]
         return last_word == '?' or first_word in cls.question_words
@@ -82,16 +85,16 @@ class SpeechActAnalyzer(object):
         return False
 
     @classmethod
-    def sentiment(cls, raw_sentence, tokens):
+    def sentiment(cls, utterance):
         for pattern in cls.pos_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return 1
         for pattern in cls.neg_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return -1
         return 0
 
-        for token in tokens:
+        for token in utterance.tokens:
             if token in ("n't", 'cannot'):
                 return -1
             elif token in ('can', 'willing', 'cound'):
@@ -99,9 +102,9 @@ class SpeechActAnalyzer(object):
         return 0
 
     @classmethod
-    def is_agreement(cls, raw_sentence):
+    def is_agreement(cls, utterance):
         for pattern in cls.agreement_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return True
         return False
 

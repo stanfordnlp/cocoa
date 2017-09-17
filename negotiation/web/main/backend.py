@@ -8,6 +8,7 @@ from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
 from core.event import Event
+from analysis.analyze_strategy import StrategyAnalyzer
 
 class Backend(BaseBackend):
     def should_reject_chat(self, userid, agent_idx):
@@ -16,16 +17,33 @@ class Backend(BaseBackend):
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
-            return reject_transcript(ex, agent_idx)
+            return reject_transcript(ex, agent_idx, min_tokens=30)
+
+    def get_margin(self, controller, agent_idx):
+        with self.conn:
+            cursor = self.conn.cursor()
+            chat_id = controller.get_chat_id()
+            ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
+            outcome = controller.get_outcome()
+            if outcome['reward'] == 0:
+                return None
+            else:
+                try:
+                    price = float(outcome['offer']['price'])
+                except (KeyError, ValueError) as e:
+                    return None
+                role = ex.scenario.kbs[agent_idx].facts['personal']['Role']
+                margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
+                return margin
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)
         game_over, game_complete = self.is_game_over(userid)
+        controller = self.controller_map[userid]
+        chat_id = controller.get_chat_id()
 
         def verify_chat(userid, agent_idx, is_partner):
             user_name = 'partner' if is_partner else 'user'
-            controller = self.controller_map[userid]
-            chat_id = controller.get_chat_id()
             if self.should_reject_chat(userid, agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
                                   "redirecting".format(chat_id, user_name, userid, agent_idx))
@@ -146,6 +164,23 @@ class Backend(BaseBackend):
                                 data['fair'], data['negotiator'], data['coherent'], data['comments']))
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
+
+                self.logger.debug("partner type {:s} system {:s}".format(user_info.partner_type, self.systems['rulebased'].name()))
+                # TODO: hack, think about how to connect bot to system
+                if user_info.partner_type == 'rulebased' and self.systems['rulebased'].name() == 'config-rulebased':
+                    self.logger.debug("Updating trials for user {}".format(userid))
+                    agent_idx = self.get_agent_idx(userid)
+                    bot_agent_idx = 1 - agent_idx
+                    controller = self.controller_map[userid]
+                    # TODO: get config
+                    cursor.execute('''SELECT config FROM bot WHERE chat_id=? AND type=?''', (user_info.chat_id, user_info.partner_type))
+                    config = tuple(json.loads(cursor.fetchone()[0]))
+                    margin = self.get_margin(controller, bot_agent_idx)
+                    self.logger.debug("margin={}".format(margin))
+                    self.logger.debug("humanlike={}".format(data['negotiator']))
+                    self.systems['rulebased'].update_trials([
+                        (config, user_info.chat_id, {'margin': margin, 'humanlike': data['negotiator']}),
+                        ])
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 

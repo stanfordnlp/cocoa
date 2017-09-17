@@ -179,6 +179,11 @@ class DatabaseReader(object):
             ex = cls.get_chat_example(cursor, chat_id[0], scenario_db)
             if ex is None or is_single_agent(ex):
                 continue
+            cursor.execute('SELECT config FROM bot where chat_id=?', chat_id)
+            result = cursor.fetchone()[0]
+            # TODO: make agents_info a dict
+            if result:
+                ex.agents_info = result
             examples.append(ex)
 
         write_json([ex.to_dict() for ex in examples], json_path)

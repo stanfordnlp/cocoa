@@ -7,18 +7,16 @@ from flask import Markup
 from collections import defaultdict
 import json
 
+from cocoa.systems.human_system import HumanSystem
+from core.controller import Controller
 from states import FinishedState, UserChatState, WaitingState, SurveyState
 from utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
-from logger import WebLogger
-from cocoa.systems.human_system import HumanSystem
-#from cocoa.web.dump_events_to_json import convert_events_to_json
-
 from db_reader import DatabaseReader
-from core.controller import Controller
+from logger import WebLogger
 
-m = hashlib.md5()
-m.update("bot")
+#m = hashlib.md5()
+#m.update("bot")
 
 class Backend(object):
     def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1, messages=Messages):
@@ -203,6 +201,13 @@ class Backend(object):
 
         def _pair_with_bot(cursor, userid, my_index, bot_type, scenario, chat_id):
             controller, my_session, bot_session = _init_controller(my_index, bot_type, scenario, chat_id)
+
+            # TODO:
+            config = bot_session.config
+            if config is not None:
+                cursor.execute('INSERT INTO bot VALUES (?,?,?)',
+                           (chat_id, bot_type, json.dumps(list(config))))
+
             self.controller_map[userid] = controller
 
             self.sessions[userid] = my_session

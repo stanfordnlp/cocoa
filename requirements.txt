@@ -7,3 +7,6 @@ matplotlib
 flask
 flask-socketio
 boto
+scipy
+pandas
+seaborn
