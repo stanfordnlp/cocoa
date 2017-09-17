@@ -10,7 +10,6 @@ from nltk.tokenize import word_tokenize
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import mpld3
 
 from cocoa.core.dataset import Example
 from cocoa.core.entity import Entity, is_entity, CanonicalEntity
@@ -280,6 +279,7 @@ class Dialogue(object):
         '''
         Plot price trend and utterances by mpld3 and return the json dict for html rendering.
         '''
+        import mpld3
         data = {k: [] for k in ('time_step', 'price', 'speech_acts', 'text', 'role')}
         turn_boundary = []
         stage_boundary = []
