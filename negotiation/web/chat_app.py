@@ -47,7 +47,7 @@ def close_connection(exception):
 def create_app(debug=False, templates_dir='templates'):
     """Create an application."""
 
-    app = Flask(__name__, template_folder=templates_dir)
+    app = Flask(__name__, template_folder=os.path.abspath(templates_dir))
     app.debug = debug
     app.config['SECRET_KEY'] = 'gjr39dkjn344_!67#'
     app.config['PROPAGATE_EXCEPTIONS'] = True
