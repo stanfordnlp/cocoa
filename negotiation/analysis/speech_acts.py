@@ -23,9 +23,12 @@ class SpeechActs(object):
 class SpeechActAnalyzer(object):
     agreement_patterns = [
         r'that works',
-        r'[^a-zA-Z]ok[^a-zA-Z]|okay',
-        r'great'
-        r'i can do that[.]*'
+        r'great',
+        r'ok|okay',
+        r'great, thanks[.!]*',
+        r'deal[.!]*',
+        r'[\w ]*have a deal[\w ]*',
+        r'i can do that[.]*',
     ]
 
     pos_patterns = [
@@ -52,7 +55,7 @@ class SpeechActAnalyzer(object):
 
     greeting_patterns = [
             r'how are you',
-            r'interested in'
+            r'interested in',
             ]
 
     greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
