@@ -14,7 +14,6 @@ class RulebasedSession(object):
         return BaseRulebasedSession(agent, kb, tracker, config)
 
 Config = namedtuple('Config', ['speaker_order', 'persuade_technique', 'good_deal_threshold'])
-
 default_config = Config(0.5, 1, 7)
 
 class BaseRulebasedSession(Session):
@@ -181,6 +180,14 @@ class BaseRulebasedSession(Session):
         for token in tokens:
             if token.lower() in ["nope", "not", "cannot", "can't", "sorry"]:
                 self.state['their_action'] = 'disagree'
+        utterance = " ".join(tokens)
+        regexes = [
+          re.compile('best (I|i) can do'),
+          re.compile('only get points'),
+          re.compile('(N|n)o can do'),
+        ]
+        if any([regex.search(utterance) for regex in regexes]):
+            self.state['their_action'] = 'disagree'
 
     def check_agreement(self, raw_utterance, tokens):
         they_agree = False
@@ -204,11 +211,11 @@ class BaseRulebasedSession(Session):
 
     def overvalued_proposal(self):
         test_proposal = copy.deepcopy(self.my_proposal)
-        test_proposal[self.middle_item] = 1
+        test_proposal[self.middle_item] += 1
         if self.meets_criteria(test_proposal, "good_deal"):
-            self.my_proposal[self.middle_item] = 1
+            self.my_proposal[self.middle_item] += 1
         else:
-            self.my_proposal[self.middle_item] = 2
+            self.my_proposal[self.middle_item] += 2
 
         prop = self.offer_to_string(self.my_proposal)
         s = ["I would really like " + prop + ".",
@@ -218,8 +225,10 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def balanced_proposal(self):
+        self.my_proposal[self.top_item] += 1
         test_proposal = copy.deepcopy(self.my_proposal)
         test_proposal[self.middle_item] += 1
+
         if self.meets_criteria(test_proposal, "good_deal"):
             self.my_proposal[self.middle_item] += 1
         else:
@@ -237,11 +246,18 @@ class BaseRulebasedSession(Session):
                     self.my_proposal[self.middle_item] += 2
                     self.my_proposal[self.bottom_item] += 1
         prop = self.offer_to_string(self.my_proposal)
+
         s = ["I would realy like " + prop + ".",
             "Would if be ok for me to get " + prop + "?",
             "How about I get " + prop + "?"
         ]
         return self.message(random.choice(s))
+
+    def make_proposal(self):
+        if self.my_proposal['made'] == False:
+            self.my_proposal['made'] = True
+            for item in self.items:
+                self.my_proposal[item] = 0
 
     def pluralize(self, item, word=None):
         if self.item_counts[item] > 1:
@@ -258,11 +274,12 @@ class BaseRulebasedSession(Session):
                 return word
 
     def obsessed_proposal(self):
+        self.my_proposal['made'] = True
         top = self.pluralize(self.top_item)
         s = ["I would really like the " + top + ", you can have the rest!",
             "The " + top + " " + self.pluralize(self.top_item, "is") + \
                 " the only item worth anything to me, you can have the rest!",
-            "Hmm, I only really get points for the " + top + "."
+            "Hmm, I actually only get points for the " + top + "."
             ]
         return self.message(random.choice(s))
 
@@ -274,7 +291,6 @@ class BaseRulebasedSession(Session):
         if not self.my_proposal['made']:
             return self.init_propose()
         else:
-            self.my_proposal['made'] = True
             if self.strategy == 'obsessed':
                 return self.obsessed_proposal()
             if self.strategy == 'overvalued':
@@ -311,14 +327,12 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def init_propose(self):
-        self.my_proposal['made'] = True
+        self.make_proposal()
         self.state['introduced'] = True
         self.state['last_act'] = 'init_propose'
 
         if self.strategy == 'obsessed':
             self.my_proposal[self.top_item] = self.item_counts[self.top_item]
-            self.my_proposal[self.middle_item] = 0
-            self.my_proposal[self.bottom_item] = 0
             top = self.pluralize(self.top_item)
 
             s = ["The " + top + " alone looks good to me. What about you?",
@@ -326,9 +340,8 @@ class BaseRulebasedSession(Session):
                 "I would really appreciate getting just the " + top + " :)"
                 ]
         elif self.strategy == 'overvalued':
-            self.my_proposal[self.top_item] = 1
-            self.my_proposal[self.middle_item] = 1
-            self.my_proposal[self.bottom_item] = 0
+            self.my_proposal[self.top_item] += 1
+            self.my_proposal[self.middle_item] += 1
             flipped_offer = self.offer_to_string( self.reverse(self.my_proposal) )
 
             s = ["What if I get a " + self.top_item + " along with a " + \
@@ -557,6 +570,9 @@ class BaseRulebasedSession(Session):
             self.tracker.build_lexicon(tokens)
 
     def send(self):
+        print self.my_proposal
+        print("------")
+
         if self.state['selected']:
             if self.state['last_act'] == 'select':
                 return self.mark_deal_agreed()
