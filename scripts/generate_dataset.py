@@ -65,7 +65,10 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
         num_examples += 1
     with open(examples_path, 'w') as out:
         print >>out, json.dumps([e.to_dict() for e in examples])
-    print 'number of failed dialogues:', num_failed
+    if num_failed == 0:
+        print 'All {} dialogues succeeded!'.format(num_examples)
+    else:
+        print 'Number of failed dialogues:', num_failed
 
 if args.train_max_examples:
     generate_examples('train', args.train_examples_paths[0], args.train_max_examples, args.remove_fail, args.max_turns)

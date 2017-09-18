@@ -1,5 +1,6 @@
 from session import Session
 
+
 class CmdSession(Session):
     def __init__(self, agent, kb):
         super(CmdSession, self).__init__(agent)
@@ -12,18 +13,18 @@ class CmdSession(Session):
 
     def parse_input(self, message):
         """Parse user input from the command line.
-
-        Args:
-            message (str)
-
-        Returns:
-            Event
-
+        Args:  message (str)
+        Returns: Event
         """
-        tokens = message.split()
+        raw_tokens = message.split()
+        tokens = self.remove_nonprintable(raw_tokens)
+
         if len(tokens) >= 2 and tokens[0] == '<offer>':
             return self.offer({'price': int(tokens[1]), 'sides': ''})
-        return self.message(message)
+        elif tokens[0] == '<accept>':
+            return self.accept()
+        else:
+            return self.message(message)
 
     def receive(self, event):
         print event.data
