@@ -301,7 +301,9 @@ if __name__ == "__main__":
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
-    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', 1)
+    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', {k: 1 for k in systems})
+    for k in systems:
+        assert k in app.config['num_chats_per_scenario']
     app.config['schema'] = schema
     app.config['user_params'] = params
     app.config['controller_map'] = defaultdict(None)
