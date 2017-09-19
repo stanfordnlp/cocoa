@@ -25,7 +25,7 @@ from logger import WebLogger
 
 
 class Backend(object):
-    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1, messages=Messages):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario, messages=Messages):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
 
@@ -256,7 +256,7 @@ class Backend(object):
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
-                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario:
+                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario[partner_type]:
                         active_scenarios[sid].append(partner_type)
 
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
@@ -316,6 +316,8 @@ class Backend(object):
                     ))
                     return True
                 else:
+                    # TODO: bot is always buyer
+                    #my_index = 1
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)
