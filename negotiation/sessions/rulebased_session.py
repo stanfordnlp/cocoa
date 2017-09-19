@@ -158,6 +158,7 @@ class BaseRulebasedSession(Session):
             price = event.data['price']
             self.state['curr_price'] = price
             self.state['partner_offered'] = True
+            self.partner_price = price
         # Decorative events
         else:
             return
@@ -204,6 +205,7 @@ class BaseRulebasedSession(Session):
             my_price = price * (1 - self.inc * 0.1)
         else:
             my_price = self.get_fraction(partner_price, price, self.config.compromise_fraction)
+        # Don't go below bottomline
         if self.bottomline is not None and self.compare(my_price, self.bottomline) <= 0:
             return self.bottomline
         else:

@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 
 from boto.mturk.question import QuestionContent, Question, QuestionForm, Overview, AnswerSpecification, SelectionAnswer, FormattedContent, FreeTextAnswer, HTMLQuestion
+from boto.mturk.connection import MTurkRequestError
 
 from cocoa.core.util import read_json, write_json
 from utils import default_qualifications, xml_safe
@@ -125,7 +126,10 @@ class Task(object):
         results = []
         num_reviewable_assignments = 0
         for hit_id, hit_info in self.db.iteritems():
-            assignments = self.mtc.get_assignments(hit_id)
+            try:
+                assignments = self.mtc.get_assignments(hit_id)
+            except MTurkRequestError:
+                continue
             if assignments:
                 for assignment in assignments:
                     answers = []
