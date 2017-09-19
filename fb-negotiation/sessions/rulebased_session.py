@@ -112,12 +112,16 @@ class BaseRulebasedSession(Session):
         self.state['introduced'] = True
 
         if self.meets_criteria(offer, 'good_deal'):
+            print("aaaa")
             return self.agree()
         elif self.meets_criteria(offer, 'my_proposal'):
+            print("bbbb")
             return self.agree()
         elif self.meets_criteria(offer, 'bottomline'):
+            print("cccc")
             return self.negotiate()
         else: # their offer is below the bottomline
+            print("dddd")
             return self.play_hardball()
 
     def process_persuasion(self):
@@ -225,6 +229,9 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def balanced_proposal(self):
+        for item in self.items:
+            if self.my_proposal[item] < 0:
+                self.my_proposal[item] = 0
         self.my_proposal[self.top_item] += 1
         test_proposal = copy.deepcopy(self.my_proposal)
         test_proposal[self.middle_item] += 1
@@ -327,11 +334,11 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def init_propose(self):
-        self.make_proposal()
         self.state['introduced'] = True
         self.state['last_act'] = 'init_propose'
 
         if self.strategy == 'obsessed':
+            self.make_proposal()
             self.my_proposal[self.top_item] = self.item_counts[self.top_item]
             top = self.pluralize(self.top_item)
 
@@ -340,6 +347,7 @@ class BaseRulebasedSession(Session):
                 "I would really appreciate getting just the " + top + " :)"
                 ]
         elif self.strategy == 'overvalued':
+            self.make_proposal()
             self.my_proposal[self.top_item] += 1
             self.my_proposal[self.middle_item] += 1
             flipped_offer = self.offer_to_string( self.reverse(self.my_proposal) )
@@ -351,6 +359,7 @@ class BaseRulebasedSession(Session):
                 ]
 
         elif self.strategy == 'balanced':
+            self.my_proposal['made'] = True
             s = [   "They all look good to me, what do you want?",
                     "Hi, they all look nice, what do you propose?",
                     "Would you like to have all the " + self.bottom_item + "s?",
@@ -570,9 +579,6 @@ class BaseRulebasedSession(Session):
             self.tracker.build_lexicon(tokens)
 
     def send(self):
-        print self.my_proposal
-        print("------")
-
         if self.state['selected']:
             if self.state['last_act'] == 'select':
                 return self.mark_deal_agreed()
@@ -599,7 +605,7 @@ class BaseRulebasedSession(Session):
             self.tracker.resolve_tracker()
             # print("B {}".format(self.tracker.their_offer) )
             self.tracker.merge_their_offers()
-            # print("C {}".format(self.tracker.their_offer) )
+            print("C {}".format(self.tracker.their_offer) )
             return self.process_offer()
 
         if self.state['last_act'] == 'heard_question':
