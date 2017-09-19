@@ -1,0 +1,233 @@
+[
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_cFqc6FiukST1ckZM",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 0, "hat": 1, "ball":3},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 4, "hat": 6, "ball":0},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_fJD3xvIBXJ1ooFN2",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 0, "hat": 10, "ball":0},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 1, "hat": 3, "ball":2},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_natbifsAeLV8VzMC",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 7, "hat": 3, "ball":0},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 1, "hat": 1, "ball":3},
+        "Item_values": {"book": 2, "hat": 5, "ball":1},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_OGiC3D5VkQRcp4PF",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 1, "hat": 3, "ball":1},
+        "Item_values": {"book": 3, "hat": 1, "ball":4},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 1, "hat": 3, "ball":1},
+        "Item_values": {"book": 8, "hat": 0, "ball":2},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_qzBiNl88EtQSeMGy",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 2, "hat": 1, "ball":2},
+        "Item_values": {"book": 2, "hat": 2, "ball":2},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 2, "hat": 1, "ball":2},
+        "Item_values": {"book": 0, "hat": 0, "ball":5},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_vjhBDKQnu1pkxghX",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 1, "hat": 3, "ball":2},
+        "Item_values": {"book": 1, "hat": 3, "ball":0},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 1, "hat": 3, "ball":2},
+        "Item_values": {"book": 6, "hat": 0, "ball":2},
+      }
+    ]
+  },
+  {
+    "attributes": [
+      { "entity": false,
+        "unique": false,
+        "value_type": "role",
+        "name": "Role",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "counts",
+        "name": "Item_counts",
+        "multivalued": false
+      },
+      { "entity": false,
+        "unique": false,
+        "value_type": "price",
+        "name": "Item_values",
+        "multivalued": false
+      }
+    ],
+    "uuid": "S_maz0qCoPdRCl1Utt",
+    "kbs": [
+      { "Role": "first",
+        "Item_counts": {"book": 2, "hat": 1, "ball":3},
+        "Item_values": {"book": 3, "hat": 1, "ball":1},
+      },
+      { "Role": "second",
+        "Item_counts": {"book": 2, "hat": 1, "ball":3},
+        "Item_values": {"book": 2, "hat": 0, "ball":2},
+      }
+    ]
+  }
+]
