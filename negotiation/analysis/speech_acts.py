@@ -22,13 +22,13 @@ class SpeechActs(object):
 
 class SpeechActAnalyzer(object):
     agreement_patterns = [
-        r'that works',
-        r'great',
-        r'ok|okay',
-        r'great, thanks[.!]*',
-        r'deal[.!]*',
-        r'[\w ]*have a deal[\w ]*',
-        r'i can do that[.]*',
+        r'^that works[.!]*$',
+        r'^great[.!]*$',
+        r'^(ok|okay)[.!]*$',
+        r'^great, thanks[.!]*$',
+        r'^deal[.!]*$',
+        r'^[\w ]*have a deal[\w ]*$',
+        r'^i can do that[.]*$',
     ]
 
     pos_patterns = [
