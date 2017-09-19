@@ -18,12 +18,13 @@ class EvalData(object):
         print 'Dumping data to {}'.format(output)
         write_json(self.data, output)
 
-    def sample_examples(self, num_context, evaluated=set()):
+    def sample_examples(self, num_context, evaluated=set(), systems=None):
         """Randomly sample num_context examples to evaluate.
 
         Args:
             num_context (int)
             evaluated (set): set of example ids that have been evaluated
+            systems (list): only use responses from `systems`
 
         Returns:
             examples (list[(qid, context, response)]): tuples that can be used to contruct questions by EvalTask.
@@ -39,6 +40,8 @@ class EvalData(object):
             responses = self.data[id_]['responses']
             context = self.data[id_]['context']
             for system, response in responses.iteritems():
+                if systems is not None and not system in systems:
+                    continue
                 qid = '{system}-{ex_id}'.format(system=system, ex_id=id_)
                 examples.append((qid, context, response))
         return examples
@@ -113,7 +116,7 @@ class EvalData(object):
             agent, utterance: (str, str)
 
         """
-        return (role, xml_safe(utterance))
+        return (role, utterance)
 
     @classmethod
     def from_json(cls, data_path):
