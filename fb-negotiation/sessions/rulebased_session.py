@@ -112,16 +112,12 @@ class BaseRulebasedSession(Session):
         self.state['introduced'] = True
 
         if self.meets_criteria(offer, 'good_deal'):
-            print("aaaa")
             return self.agree()
         elif self.meets_criteria(offer, 'my_proposal'):
-            print("bbbb")
             return self.agree()
         elif self.meets_criteria(offer, 'bottomline'):
-            print("cccc")
             return self.negotiate()
         else: # their offer is below the bottomline
-            print("dddd")
             return self.play_hardball()
 
     def process_persuasion(self):
@@ -398,8 +394,8 @@ class BaseRulebasedSession(Session):
         self.state['last_act'] = 'persuade'   # 'request_more'
         if self.persuade_technique == 'boring':
             s = [   "Can you do better than that?",
-                    "Maybe just one more item?",
-                    "How about just one more item?"
+                    "Maybe just one more item for me?",
+                    "Can you offer me just one more item?"
                 ]
         elif self.persuade_technique == 'creative':
             if self.top_item == 'book':
@@ -551,13 +547,8 @@ class BaseRulebasedSession(Session):
             elif self.my_proposal[item] < 0 and offer >= 0:
                 self.my_proposal[item] = self.item_counts[item] - offer
         self.state['last_act'] = 'select'
-
-    def mark_deal_agreed(self):
-        outcome = {}
-        outcome['deal_points'] = self.deal_points()
-        outcome['item_split'] = self.my_proposal
-
-        return self.select(outcome)
+        if 'made' in self.my_proposal.keys():
+            del self.my_proposal['made']
 
     def receive(self, event):
         if event.action == 'select':
@@ -581,13 +572,12 @@ class BaseRulebasedSession(Session):
     def send(self):
         if self.state['selected']:
             if self.state['last_act'] == 'select':
-                return self.mark_deal_agreed()
+                return self.select(self.my_proposal)
             # The check on deal_points is more of a unit test, rather than
             # to ensure a good deal, since default points are negative.
             if self.deal_points() >= 0:
                 self.finalize_my_proposal()
-                return self.mark_deal_agreed()
-                # self.message("Wonderful, we have a deal!")
+                return self.select(self.my_proposal)
             else:
                 return self.reject()
 
@@ -605,7 +595,7 @@ class BaseRulebasedSession(Session):
             self.tracker.resolve_tracker()
             # print("B {}".format(self.tracker.their_offer) )
             self.tracker.merge_their_offers()
-            print("C {}".format(self.tracker.their_offer) )
+            # print("C {}".format(self.tracker.their_offer) )
             return self.process_offer()
 
         if self.state['last_act'] == 'heard_question':
