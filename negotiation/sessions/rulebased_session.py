@@ -20,17 +20,10 @@ class RulebasedSession(object):
         else:
             raise ValueError('Unknown role: %s', kb['personal']['Role'])
 
-Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_fraction', 'good_deal_threshold'])
+# resistance: number of partner insistance before making a concession
+Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_fraction', 'good_deal_threshold', 'resistance', 'persuade_sides', 'persuade_price'])
 
-default_config = Config(.2, .3, .5, .5)
-
-def random_configs(n=10):
-    overshoot = np.random.uniform(0, .5, 10)
-    bottomline_fraction = np.random.uniform(.1, .5, 10)
-    compromise_fraction = np.random.uniform(.1, .3, 10)
-    good_deal_threshold = np.random.uniform(0., 1., 10)
-    configs = set([Config(o, b, c, g) for o, b, c, g  in izip(overshoot, bottomline_fraction, compromise_fraction, good_deal_threshold)])
-    return list(configs)
+default_config = Config(.2, .3, .5, .5, 2, .33, .33)
 
 class BaseRulebasedSession(Session):
     def __init__(self, agent, kb, lexicon, config):
@@ -44,6 +37,7 @@ class BaseRulebasedSession(Session):
         self.my_price = None
         self.partner_price = None
         self.target = self.kb.facts['personal']['Target']
+        self.bottomline = None
         self.list_price = self.kb.facts['item']['Price']
         self.category = self.kb.facts['item']['Category']
 
@@ -51,16 +45,11 @@ class BaseRulebasedSession(Session):
         self.inc = None
 
         self.config = config
-        self.overshoot = config.overshoot
-        self.bottomline_fraction = config.bottomline_fraction
-        self.compromise_fraction = config.compromise_fraction
-        # target = 1, bottomline = 0
-        self.good_deal_threshold = config.good_deal_threshold
 
         self.state = {
                 'said_hi': False,
                 'introduced': False,
-                'last_proposed_price': None,
+                'curr_price': None,
                 'num_partner_insist': 0,
                 'offered': False,
                 'partner_offered': False,
@@ -74,7 +63,7 @@ class BaseRulebasedSession(Session):
                 }
 
         self.persuade_price = []
-        self.persuade_detail = []
+        self.product_info = []
         self.sides = {}
 
     @classmethod
@@ -110,19 +99,9 @@ class BaseRulebasedSession(Session):
         raise NotImplementedError
 
     def init_price(self):
-        '''
-        Initial offer
-        '''
-        self.bottomline = self.estimate_bottomline()
-
-        # Seller: The target/listing price is shown.
-        if self.inc == 1:
-            self.my_price = self.target
-        else:
-            self.my_price = self.target * (1 + self.inc * self.overshoot)
-            #print 'overshoot:', self.overshoot
-            #print 'target:', self.target
-            #print 'my price:', self.my_price
+        """Initial offer.
+        """
+        raise NotImplementedError
 
     def tag_utterance(self, utterance):
         """Simple NLU by pattern matching.
@@ -158,33 +137,33 @@ class BaseRulebasedSession(Session):
         if event.action == 'message':
             raw_utterance = event.data
             entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, scale=False)
-            #print 'entity tokens:', entity_tokens
             utterance = Utterance(raw_utterance, entity_tokens)
-            self.state['parter_acts'] = self.tag_utterance(utterance)
+            self.state['partner_acts'] = self.tag_utterance(utterance)
             if len(utterance.prices) > 0:
                 # Use the last mentioned price
                 price = utterance.prices[-1].canonical.value
-                self.state['partner_acts'].append('price')
+                self.state['partner_acts'].append(SpeechActs.PRICE)
+                self.state['curr_price'] = price
+
+                # If it's the first proposal or a new and better proposal, consider a new round of negotiation
+                if self.partner_price is None or self.compare(price, self.partner_price) > 0:
+                    self.state['num_partner_insist'] = 0
+                else:
+                    self.state['num_partner_insist'] += 1
+                # Update partner price
+                self.partner_price = price
             else:
-                # Assuming price is the same as before
-                price = self.partner_price
+                self.state['num_partner_insist'] += 1
         elif event.action == 'offer':
             price = event.data['price']
+            self.state['curr_price'] = price
             self.state['partner_offered'] = True
+        # Decorative events
         else:
             return
 
-        if self.partner_price is not None and \
-                self.compare(price, self.partner_price) >= 0:
-                    self.state['num_partner_insist'] += 1
-        elif self.partner_price is None and self.state['last_proposed_price'] is not None:
-            self.state['num_partner_insist'] += 1
-        else:
-            self.state['num_partner_insist'] = 0
-
-        # Update partner price
-        if price is not None:
-            self.partner_price = price
+        if self.bottomline is None:
+            self.bottomline = self.estimate_bottomline()
 
     def greet(self):
         greetings = ('hi', 'hello', 'hey')
@@ -198,24 +177,25 @@ class BaseRulebasedSession(Session):
     def propose(self, price):
         price = self.round_price(price)
         # Initial proposal
-        if not self.state['last_proposed_price'] and not self.partner_price:
+        if not self.state['curr_price']:
             s = self.init_propose(price)
         else:
             s = (
-                    "Can you take %d?" % price,
-                    "What about %d?" % price,
-                    "What do you think of %d?" % price,
-                    "ok, I guess I can take %d" % price,
-                    "%d and we have a deal" % price,
+                    "Can you take ${}".format(price),
+                    "What about ${}?".format(price),
+                    "What do you think of ${}?".format(price),
+                    "I guess I can do ${}".format(price),
+                    "${} and we have a deal".format(price),
                 )
-        self.state['last_proposed_price'] = price
+        self.state['curr_price'] = price
         self.state['last_act'] = 'propose'
         self.my_price = price
         msg = random.choice(s)
         return self.message(msg)
 
     def intro(self):
-        raise NotImplementedError
+        self.state['introduced'] = True
+        self.state['last_act'] = 'intro'
 
     def _compromise_price(self, price):
         partner_price = self.partner_price if self.partner_price is not None else self.bottomline
@@ -229,69 +209,59 @@ class BaseRulebasedSession(Session):
         else:
             return my_price
 
-    def compromise_price(self):
-        if self.bottomline is not None and self.compare(self.my_price, self.bottomline) <= 0:
-            return self.final_call()
-        self.my_price = self._compromise_price(self.my_price)
-        if self.partner_price and self.compare(self.my_price, self.partner_price) < 0:
-            return self.agree()
-        # Don't keep compromise
-        self.state['num_partner_insist'] = 1  # Reset
-        self.state['last_act'] = 'compromise'
-        return self.propose(self.my_price)
-
     def offer_sides(self):
         side_offer = self.sample_templates(self.sides.keys())
         self.state['sides'].add(side_offer)
-        return self.message(self.sides[side_offer])
+        return self.message(self.sides[side_offer].format(price=self.my_price))
 
     def compromise(self):
-        return self.compromise_price()
-        # TODO
-        if random.random() < 0.7 or len(self.state['sides']) == len(self.sides):
-            return self.compromise_price()
-        else:
-            return self.offer_sides()
+        if self.bottomline is not None and self.compare(self.my_price, self.bottomline) <= 0:
+            return self.final_call()
+
+        self.my_price = self._compromise_price(self.my_price)
+        if self.partner_price and self.compare(self.my_price, self.partner_price) < 0:
+            return self.agree(self.partner_price)
+
+        self.state['num_partner_insist'] = 0  # Reset
+        self.state['last_act'] = 'compromise'
+        return self.propose(self.my_price)
 
     def persuade(self):
-        if self.state['num_persuade'] > 3:
-            if not self.state['last_proposed_price']:
-                return self.propose(self.my_price)
-            return self.compromise()
-        if self.state['last_act'] == 'persuade':
-            self.state['num_persuade'] += 1
-        else:
+        # Reset
+        if self.state['last_act'] != 'persuade':
             self.state['num_persuade'] = 0
         self.state['last_act'] = 'persuade'
+        self.state['num_persuade'] += 1
 
-        s = self.persuade_detail
-        if self.partner_price is not None:
-            s.extend(self.persuade_price)
+        p = random.random()
+        if p < self.config.persuade_sides:
+            # There are still side offers we haven't mentioned
+            if len(self.sides) < len(self.state['sides']):
+                return self.offer_sides()
+            else:
+                p += self.config.persuade_sides
+        if p < self.config.persuade_price + self.config.persuade_sides:
+            if SpeechActs.PRICE in self.state['partner_acts']:
+                return self.complain_price()
+        return self.persuade_product()
+
+    def complain_price(self):
+        s = self.persuade_price
         u = self.sample_templates(s)
         return self.message(u)
 
-    def offer(self, price, sides=''):
+    def persuade_product(self):
+        s = self.product_info
+        u = self.sample_templates(s)
+        return self.message(u)
+
+    def offer(self, price):
         self.state['offered'] = True
-        #if not sides and len(self.state['sides']) > 0:
-        #    sides = '; '.join(self.state['sides'])
         return super(BaseRulebasedSession, self).offer({'price': price})
 
-    def agree(self):
-        if 'price' in self.state['partner_acts']:
-            self.my_price = self.partner_price
+    def agree(self, price):
         self.state['last_act'] = 'agree'
-        return self.offer(self.my_price)
-        # TODO
-        if random.random() < 0.5:
-            return self.offer(self.my_price)
-        else:
-            s = (
-                    'ok!',
-                    'Deal.',
-                    'I can take that.',
-                    'I can do that.',
-                )
-            return self.message(random.choice(s))
+        return self.offer(price)
 
     def deal(self, price):
         if self.bottomline is None:
@@ -353,15 +323,13 @@ class BaseRulebasedSession(Session):
         return None
 
     def send(self):
-        if self.bottomline is None:
-            self.bottomline = self.estimate_bottomline()
-
-        if self.state['offered']:
-            return self.wait()
-
+        # Strict turn-taking
         if self.state['num_utterance_sent'] > 0:
             return self.wait()
         self.state['num_utterance_sent'] += 1
+
+        if self.state['offered']:
+            return self.wait()
 
         if self.state['partner_offered']:
             if self.no_deal(self.partner_price):
@@ -375,37 +343,27 @@ class BaseRulebasedSession(Session):
             return self.intro()
 
         # Initial proposal
-        if self.state['last_proposed_price'] is None:
+        if self.state['curr_price'] is None:
             return self.propose(self.my_price)
 
         if SpeechActs.AGREEMENT in self.state['partner_acts']:
-            return self.offer()
+            if self.state['curr_price'] is not None:
+                return self.offer(self.state['curr_price'])
 
         if self.state['final_called']:
             return self.offer(self.bottomline if self.compare(self.bottomline, self.partner_price) > 0 else self.partner_price)
 
-        if self.state['num_partner_insist'] > 2:
+        #if self.state['num_partner_insist'] > self.config.resistance:
+        if self.state['num_persuade'] > self.config.resistance:
+            self.state['num_persuade'] = 0
             return self.compromise()
 
         if self.partner_price is None:
-            if self.state['last_proposed_price'] != self.my_price:
-                return self.propose(self.my_price)
-            else:
-                return self.persuade()
-        elif self.deal(self.partner_price):
-            return self.agree()
-        elif self.no_deal(self.partner_price):
             return self.persuade()
+        elif self.deal(self.partner_price):
+            return self.agree(self.partner_price)
         else:
             return self.persuade()
-            # TODO
-            p = random.random()
-            #if p < 0.2:
-            #    return self.agree()
-            if p < 0.5:
-                return self.compromise()
-            else:
-                return self.persuade()
 
         raise Exception('Uncatched case')
 
@@ -418,34 +376,31 @@ class SellerRulebasedSession(BaseRulebasedSession):
 
         # Side offers
         self.sides = {
-            'credit': "I can accept credit card",
-            'extra': "I can throw in a $10 Amazon gift card.",
+            'credit': "I can accept credit card if you can do {price}.",
+            'extra': "I can throw in a $10 Amazon gift card. How does that sound?",
             }
-        if self.category != 'furniture':
-            self.sides['delivery'] = "I can deliver it tomorrow"
+
+        if self.category != 'housing':
+            self.sides['delivery'] = "Can you go higher if I deliver it to you tomorrow?"
 
         if self.category == 'car':
             self.sides.update({
-                'warranty': "I can give you one year warranty.",
-                'fix scratch': "I can fix the scratches.",
+                'warranty': "I can give you one year warranty for ${price}.",
+                'fix scratch': "Could you go higher if I fix the scratches?",
                 })
         elif self.category == 'housing':
             self.sides.update({
-                'first month free for two-year lease': "If you can sign a two-year lease, I can waive the first month's rent",
-                'pets allowed': "Will you have pets? Pets are allowed for you.",
-                'new appliance': "I can update some kitchen appliance if needed",
-                })
-        elif self.category == 'furniture':
-            self.sides.update({
-                'extra': "I can throw in a few books.",
+                'first month free for two-year lease': "If you can sign a two-year lease, I can waive the first month's rent for you.",
+                'pets allowed': "Will you have pets? Pets are allowed for you!",
+                'new appliance': "I can update some kitchen appliance if needed.",
                 })
         elif self.category == 'bike':
             self.sides.update({
-                'extra': "It will come with a lock and the headlight.",
+                'bike-extra': "I can throw in a lock and my headlight.",
                 })
         elif self.category == 'phone':
             self.sides.update({
-                'extra': "I can throw in a few screen protectors.",
+                'phone-extra': "I can throw in a few screen protectors.",
                 })
 
         # Persuade
@@ -455,31 +410,31 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "There is no way I can sell at that price",
                 ]
         if self.category == 'car':
-            self.persuade_detail = [
+            self.product_info = [
                 "This car runs pretty well.",
-                "It has low milleage for a car of this age",
-                "I've been regularly taking it to maintainence",
+                "It has low milleage for a car of this age. My price is very fair.",
+                "I've been regularly taking it to maintainence.",
                 ]
         elif self.category == 'housing':
-            self.persuade_detail = [
-                "It is in a great location with stores and restuarants",
-                "The place has been remodeled.",
+            self.product_info = [
+                "It is in a great location with stores and restuarants. You will not regret.",
+                "The place has been remodeled. I can assure you the money is well spent.",
                 "You will be able to enjoy a nice view from the living room window.",
                 ]
         elif self.category == 'furniture':
-            self.persuade_detail = [
-                "It is solid and sturdy",
+            self.product_info = [
+                "It is solid and sturdy. Definitely worth the price.",
                 "The color matches with most furniture.",
-                "It will show your good taste.",
+                "It will show your good taste. Definitely worth the price.",
                 ]
         elif self.category == 'bike':
-            self.persuade_detail = [
-                "The color is really attractive.",
-                "It's great for commute.",
-                "It's been maintained regularly and is in great shape.",
+            self.product_info = [
+                "The color is really attractive. I'm sure you'll like it.",
+                "It's great for commute and will save you gas money.",
+                "It's been maintained regularly and is in great shape. My price is very fair.",
                 ]
         if self.category != 'housing':
-            self.persuade_detail.extend([
+            self.product_info.extend([
                 "It's been rarely used and is kept in great condition!",
                 "It's almost brand new.",
                 ])
@@ -490,6 +445,10 @@ class SellerRulebasedSession(BaseRulebasedSession):
         else:
             return self.get_fraction(self.partner_price, self.list_price, self.config.bottomline_fraction)
 
+    def init_price(self):
+        # Seller: The target/listing price is shown.
+        self.my_price = self.target
+
     def compare(self, x, y):
         if x == y:
             return 0
@@ -499,19 +458,18 @@ class SellerRulebasedSession(BaseRulebasedSession):
             return 1
 
     def intro(self):
+        super(SellerRulebasedSession, self).intro()
         title = self.kb.facts['item']['Title']
         s = (
-                "I have a %s" % title,
-                "I'm selling a %s" % title,
+                "I have a %s." % title,
+                "I'm selling a %s." % title,
+                "Are you interested in my %s?" % title,
             )
-        self.state['last_act'] = 'intro'
-        self.state['introduced'] = True
         return self.message(random.choice(s))
 
     def init_propose(self, price):
         # We're showing the listing price so no need to propose
         s = (
-                "Do you have any questions?",
                 "It is hard to find such a deal.",
             )
         self.state['last_act'] = 'init_propose'
@@ -525,6 +483,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
                 "%d or you'll have to go to another place" % self.bottomline,
             )
         self.state['last_act'] = 'final_call'
+        self.state['curr_price'] = self.bottomline
         return self.message(random.choice(s))
 
 class BuyerRulebasedSession(BaseRulebasedSession):
@@ -536,62 +495,57 @@ class BuyerRulebasedSession(BaseRulebasedSession):
 
         # Side offers
         self.sides = {
-            'cash': "I can pay cash",
+            'cash': "Can you go lower if I pay cash?",
             }
-        if self.category == 'car':
-            self.sides.update({
-                'warranty': "Do you provide warranty?",
-                'delivery': "Can you help deliver it to my place?",
-                })
+        if self.category != 'housing':
+            self.sides['delivery'] = "What if I come pick it up?"
         elif self.category == 'housing':
             self.sides.update({
-                'first month free for two-year lease': "If I sign a two-year lease, can you waive the first month's rent?",
-                'pets allowed': "Is it okay if I have a small dog?",
-                'new appliance': "Is it possible to update some kitchen appliance?",
-                })
-        elif self.category == 'housing':
-            self.sides.update({
-                'delivery': "Can you help deliver it to my place?",
+                'first month free for two-year lease': "If I sign a two-year lease, can you go lower?",
+                'good tenant': "I do not smoke nor do I have pets. I don't think I'll have overnight guests either. Can you consider it?",
                 })
 
         # Persuade
         self.persuade_price = [
                 "Can you go a little lower?",
                 "That's way too expensive!",
-                "It looks really nice but way out of my budget...",
+                "It looks really nice but this is way out of my budget...",
                 ]
         if self.category == 'car':
-            self.persuade_detail = [
-                    "This car is pretty old...",
+            self.product_info = [
+                    "This car is pretty old... it's a bit over-priced.",
                     "Does it have any accidents?",
-                    "The mileage is too high; it won't run for too long",
+                    "The mileage is too high; it won't run for too long.",
                 ]
         elif self.category == 'housing':
-            self.persuade_detail = [
+            self.product_info = [
                     "What is the lighting condition?",
                     "Is the location good for kids?",
-                    "This is a really old property.",
+                    "This seems to be a really old property and I'll need to fix things...",
                 ]
         elif self.category == 'furniture':
-            self.persuade_detail = [
+            self.product_info = [
                     "Hmm...The color doesn't really match with my place",
                     "Can it be dissembled?",
                 ]
         elif self.category == 'bike':
-            self.persuade_detail = [
+            self.product_info = [
                     "Can you go lower since I need to purchase locks and headlight?",
                 ]
         elif self.category == 'phone':
-            self.persuade_detail = [
+            self.product_info = [
                     "Is it unlocked?",
                 ]
         if self.category != 'housing':
-            self.persuade_detail.extend([
+            self.product_info.extend([
                     "It looks really nice; why are you selling it?",
                 ])
 
     def estimate_bottomline(self):
         return self.get_fraction(self.list_price, self.target, self.config.bottomline_fraction)
+
+    def init_price(self):
+        self.my_price = self.target * (1 + self.inc * self.config.overshoot)
 
     def compare(self, x, y):
         if x == y:
@@ -602,12 +556,13 @@ class BuyerRulebasedSession(BaseRulebasedSession):
             return -1
 
     def intro(self):
+        super(BuyerRulebasedSession, self).intro()
+        title = self.kb.facts['item']['Title']
         s = (
                 "How much are you asking?",
                 "It looks great! Is it still available?",
+                "I'm interested in your {}.".format(title.encode('utf-8')),
             )
-        self.state['introduced'] = True
-        self.state['last_act'] = 'intro'
         return self.message(random.choice(s))
 
     def init_propose(self, price):
@@ -627,10 +582,3 @@ class BuyerRulebasedSession(BaseRulebasedSession):
             )
         self.state['last_act'] = 'final_call'
         return self.message(random.choice(s))
-
-    def persuade(self):
-        p = random.random()
-        if p < 0.7 or len(self.sides) == len(self.state['sides']):
-            return super(BuyerRulebasedSession, self).persuade()
-        else:
-            return self.offer_sides()
