@@ -270,14 +270,18 @@ class Retriever(object):
         return candidates
 
 if __name__ == '__main__':
-    from cocoa.core.negotiation.price_tracker import PriceTracker, add_price_tracker_arguments
-    from cocoa.core.negotiation.slot_detector import SlotDetector, add_slot_detector_arguments
-    from cocoa.core.dataset import read_dataset, add_dataset_arguments
-    from cocoa.core.schema import Schema
-    from cocoa.model.negotiation.preprocess import Preprocessor, markers
-    from cocoa.core.util import write_json
     import argparse
     import time
+
+    from cocoa.core.dataset import read_dataset, add_dataset_arguments
+    from cocoa.core.schema import Schema
+    from cocoa.core.util import write_json
+
+    from core.price_tracker import PriceTracker, add_price_tracker_arguments
+    from core.slot_detector import SlotDetector, add_slot_detector_arguments
+    from core.scenario import Scenario
+
+    from preprocess import Preprocessor, markers
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--schema-path', help='Input path that describes the schema of the domain', required=True)
@@ -292,7 +296,7 @@ if __name__ == '__main__':
 
     random.seed(args.seed)
 
-    dataset = read_dataset(None, args)
+    dataset = read_dataset(args, Scenario)
     lexicon = PriceTracker(args.price_tracker_model)
     if args.slot_scores is not None:
         slot_detector = SlotDetector(slot_scores_path=args.slot_scores)

@@ -24,12 +24,15 @@ class Example(object):
         self.events.append(event)
 
     @classmethod
-    def from_dict(cls, scenario_db, raw, Scenario):
-        # compatibility with older data format
+    def from_dict(cls, raw, Scenario, scenario_db=None):
         if 'scenario' in raw:
             scenario = Scenario.from_dict(None, raw['scenario'])
-        else:
+        # Compatible with old data formats (to be removed)
+        elif scenario_db:
+            print 'WARNING: scenario should be provided in the example'
             scenario = scenario_db.get(raw['scenario_uuid'])
+        else:
+            raise ValueError('No scenario')
         uuid = raw['scenario_uuid']
         events = Event.gather_eval([Event.from_dict(e) for e in raw['events']])
         outcome = raw['outcome']
@@ -90,7 +93,7 @@ class EvalExample(object):
 
 ############################################################
 
-def read_examples(scenario_db, paths, max_examples, Scenario):
+def read_examples(paths, max_examples, Scenario):
     '''
     Read a maximum of |max_examples| examples from |paths|.
     '''
@@ -100,7 +103,7 @@ def read_examples(scenario_db, paths, max_examples, Scenario):
         for raw in read_json(path):
             if max_examples >= 0 and len(examples) >= max_examples:
                 break
-            examples.append(Example.from_dict(scenario_db, raw, Scenario))
+            examples.append(Example.from_dict(raw, Scenario))
     return examples
 
 def add_dataset_arguments(parser):
@@ -110,11 +113,11 @@ def add_dataset_arguments(parser):
     parser.add_argument('--test-max-examples', help='Maximum number of test examples', type=int)
     parser.add_argument('--eval-examples-paths', help='Path to multi-response evaluation files', nargs='*', default=[])
 
-def read_dataset(scenario_db, args, Scenario):
+def read_dataset(args, Scenario):
     '''
     Return the dataset specified by the given args.
     '''
-    train_examples = read_examples(scenario_db, args.train_examples_paths, args.train_max_examples, Scenario)
-    test_examples = read_examples(scenario_db, args.test_examples_paths, args.test_max_examples, Scenario)
+    train_examples = read_examples(args.train_examples_paths, args.train_max_examples, Scenario)
+    test_examples = read_examples(args.test_examples_paths, args.test_max_examples, Scenario)
     dataset = Dataset(train_examples, test_examples)
     return dataset
