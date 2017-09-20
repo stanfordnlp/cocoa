@@ -1,0 +1,10 @@
+{
+    "values": {
+    },
+    "attributes": [
+      {"name": "Role", "value_type": "role", "multivalued": false, "entity": false},
+      {"name": "Item_counts", "value_type": "counts", "multivalued": true, "entity": false},
+      {"name": "Item_values", "value_type": "price", "multivalued": true, "entity": false}
+
+    ]
+}

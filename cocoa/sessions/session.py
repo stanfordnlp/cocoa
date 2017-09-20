@@ -1,5 +1,7 @@
 import time
+import string
 from cocoa.core.event import Event
+
 
 class Session(object):
     """An abstarct class for instantiating an agent.
@@ -34,8 +36,20 @@ class Session(object):
         """
         raise NotImplementedError
 
-    @classmethod
-    def timestamp(cls):
+    @staticmethod
+    def remove_nonprintable(raw_tokens):
+        tokens = []
+        for token in raw_tokens:
+            all_valid_characters = True
+            for char in token:
+                if not char in string.printable:
+                    all_valid_characters = False
+            if all_valid_characters:
+                tokens.append(token)
+        return tokens
+
+    @staticmethod
+    def timestamp():
         return str(time.time())
 
     def message(self, text):
