@@ -4,6 +4,16 @@ class KB(BaseKB):
     def __init__(self, attributes, facts):
         super(KB, self).__init__(attributes)
         self.facts = facts
+        self._category = self.facts['item']['Category']
+        self._role = self.facts['personal']['Role']
+
+    @property
+    def category(self):
+        return self._category
+
+    @property
+    def role(self):
+        return self._role
 
     def to_dict(self):
         return self.facts
