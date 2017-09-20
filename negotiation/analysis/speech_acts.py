@@ -28,6 +28,12 @@ class SpeechActAnalyzer(object):
         r'i can do that[.]*'
     ]
 
+    price_patterns = [
+            r'high|low|higher|lower|more|less',
+            r'come down',
+            r'(highest|lowest) price',
+            ]
+
     pos_patterns = [
             r'i can',
             r'i could',
@@ -69,6 +75,13 @@ class SpeechActAnalyzer(object):
         last_word = tokens[-1]
         first_word = tokens[0]
         return last_word == '?' or first_word in cls.question_words
+
+    @classmethod
+    def is_price(cls, utterance):
+        for pattern in cls.price_patterns:
+            if re.search(pattern, utterance):
+                return True
+        return False
 
     @classmethod
     def has_person(cls, utterance):
