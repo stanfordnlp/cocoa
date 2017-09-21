@@ -51,7 +51,7 @@ class Visualizer(BaseVisualizer):
     def compute_effectiveness(self):
         chats = defaultdict(list)
         for raw in self.chats:
-            ex = Example.from_dict(None, raw, Scenario)
+            ex = Example.from_dict(raw, Scenario)
             if ex.agents[0] == 'human' and ex.agents[1] == 'human':
                 chats['human'].append(ex)
             elif ex.agents[0] != 'human':
