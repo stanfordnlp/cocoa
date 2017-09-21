@@ -2,6 +2,7 @@ import nltk
 nltk.download('punkt')
 from nltk.tokenize import word_tokenize
 import re
+import string
 
 def is_number(s):
     if re.match(r'[.,0-9]+', s):
@@ -67,6 +68,15 @@ def tokenize(utterance, lowercase=True):
     #tokens = stick_marker_sign(tokens)
     tokens = stick_dollar_sign(tokens)
     return tokens
+
+def detokenize(tokens):
+    new_tokens = []
+    for token in tokens:
+        if token in string.punctuation or "'" in token and len(new_tokens) > 0:
+            new_tokens[-1] += token
+        else:
+            new_tokens.append(token)
+    return ' '.join(new_tokens)
 
 # ========= TEST ===========
 if __name__ == '__main__':

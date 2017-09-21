@@ -31,7 +31,7 @@ def get_data_generator(args, model_args, mappings, schema):
         for path in args.eval_examples_paths:
             dataset.extend([EvalExample.from_dict(schema, e) for e in read_json(path)])
     else:
-        dataset = read_dataset(None, args, Scenario)
+        dataset = read_dataset(args, Scenario)
     lexicon = PriceTracker(model_args.price_tracker_model)
     slot_detector = SlotDetector(slot_scores_path=model_args.slot_scores)
 
