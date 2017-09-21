@@ -155,14 +155,21 @@ class Dialogue(object):
             val = cls.scenario_map[key]
         return val
 
-    def has_deal(self):
-        if self.outcome is None or self.outcome.get('offer', None) is None:
+    @classmethod
+    def agreed_deal(cls, outcome):
+        if outcome and outcome.get('reward') == 1:
+            return True
+        return False
+
+    @classmethod
+    def has_deal(cls, outcome):
+        if outcome is None or outcome.get('offer') is None or outcome['offer'].get('price') is None:
             return False
         return True
 
     def compute_margin(self):
         margins = {'seller': None, 'buyer': None}
-        if not self.has_deal():
+        if not self.has_deal(self.outcome):
             return margins
 
         targets = {}
