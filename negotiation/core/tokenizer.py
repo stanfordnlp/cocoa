@@ -72,7 +72,7 @@ def tokenize(utterance, lowercase=True):
 def detokenize(tokens):
     new_tokens = []
     for token in tokens:
-        if token in string.punctuation or "'" in token and len(new_tokens) > 0:
+        if (token in string.punctuation or "'" in token) and len(new_tokens) > 0:
             new_tokens[-1] += token
         else:
             new_tokens.append(token)
