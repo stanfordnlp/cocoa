@@ -317,7 +317,7 @@ class Backend(object):
                     return True
                 else:
                     # TODO: bot is always buyer
-                    #my_index = 1
+                    my_index = 1
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)

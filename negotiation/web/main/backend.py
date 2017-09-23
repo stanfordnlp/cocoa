@@ -175,7 +175,6 @@ class Backend(BaseBackend):
                     role, margin = self.get_margin(controller, bot_agent_idx)
                     self.logger.debug("Updating trials for user {}".format(userid))
                     self.logger.debug("scenario_id={}, role={}, margin={}, humanlike={}".format(scenario_id, role, margin, data['negotiator']))
-                    # TODO: add bot role
                     self.systems['config-rulebased'].update_trials([
                         (config, user_info.chat_id, {'scenario_id': scenario_id, 'role': role, 'margin': margin, 'humanlike': data['negotiator']}),
                         ])
