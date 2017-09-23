@@ -20,6 +20,7 @@ from cocoa.web.main.logger import WebLogger
 from core.scenario import Scenario
 from systems import get_system, add_system_arguments
 from main.db_reader import DatabaseReader
+from main.backend import DatabaseManager
 
 __author__ = 'anushabala'
 
@@ -79,62 +80,6 @@ def add_website_arguments(parser):
                              '--reuse parameter is provided.')
     parser.add_argument('--reuse', action='store_true', help='If provided, reuses the existing database file in the '
                                                              'output directory.')
-
-
-def add_survey_table(cursor):
-    cursor.execute(
-        '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-        honest integer, persuasive integer, fair integer, negotiator integer, coherent integer, comments text)''')
-
-
-def init_database(db_file):
-
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
-    c.execute(
-        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
-        connected_status integer, connected_timestamp integer, message text, partner_type text,
-        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
-    )
-    c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
-
-    c.execute(
-        '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
-    )
-    c.execute(
-        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
-        start_time text)'''
-    )
-    c.execute(
-        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
-        PRIMARY KEY (scenario_id, partner_type))'''
-    )
-    c.execute(
-        '''CREATE TABLE feedback (name text, comments text)'''
-    )
-    c.execute(
-        '''CREATE TABLE bot (chat_id text, type text, config text)'''
-    )
-
-    add_survey_table(c)
-
-    conn.commit()
-    conn.close()
-
-
-def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
-    for scenario in scenario_db.scenarios_list:
-        sid = scenario.uuid
-        for agent_type in systems.keys():
-            if update:
-                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-            else:
-                c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-
-    conn.commit()
-    conn.close()
 
 
 def add_systems(args, config_dict, schema):
@@ -214,13 +159,15 @@ def init(output_dir, reuse=False):
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
-        init_database(db_file)
+        db = DatabaseManager.init_database(db_file)
 
         if os.path.exists(transcripts_dir):
             shutil.rmtree(transcripts_dir)
         os.makedirs(transcripts_dir)
+    else:
+        db = DatabaseManager(db_file)
 
-    return db_file, log_file, error_log_file, transcripts_dir
+    return db, log_file, error_log_file, transcripts_dir
 
 
 if __name__ == "__main__":
@@ -235,12 +182,12 @@ if __name__ == "__main__":
     with open(params_file) as fin:
         params = json.load(fin)
 
-    db_file, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
+    db, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
     error_log_file = open(error_log_file, 'w')
 
     WebLogger.initialize(log_file)
     params['db'] = {}
-    params['db']['location'] = db_file
+    params['db']['location'] = db.db_file
     params['logging'] = {}
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
@@ -296,7 +243,8 @@ if __name__ == "__main__":
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
-    add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
+    db.add_scenarios(scenario_db, systems, update=args.reuse)
+    #add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)

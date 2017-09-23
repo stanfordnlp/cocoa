@@ -3,12 +3,49 @@ import json
 import time
 
 from cocoa.web.main.backend import Backend as BaseBackend
+from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status, Messages
 from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
 from core.event import Event
 from analysis.analyze_strategy import StrategyAnalyzer
+
+class DatabaseManager(BaseDatabaseManager):
+    @classmethod
+    def add_survey_table(cls, cursor):
+        cursor.execute(
+            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
+            honest integer, persuasive integer, fair integer, negotiator integer, coherent integer, comments text)''')
+
+    @classmethod
+    def init_database(cls, db_file):
+        super(DatabaseManager, cls).init_database(db_file)
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
+        c.execute(
+            '''CREATE TABLE bot (chat_id text, type text, config text)'''
+        )
+        cls.add_survey_table(c)
+        conn.commit()
+        conn.close()
+        return cls(db_file)
+
+    def add_scenarios(self, scenario_db, systems, update=False):
+        """Add used scenarios to DB so that we don't collect data on duplicated scenarios.
+        """
+        conn = sqlite3.connect(self.db_file)
+        c = conn.cursor()
+        for scenario in scenario_db.scenarios_list:
+            sid = scenario.uuid
+            for agent_type in systems.keys():
+                if update:
+                    c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+                else:
+                    c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+
+        conn.commit()
+        conn.close()
 
 class Backend(BaseBackend):
     def should_reject_chat(self, userid, agent_idx):

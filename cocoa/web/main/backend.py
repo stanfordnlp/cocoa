@@ -16,14 +16,47 @@ from db_reader import DatabaseReader
 from logger import WebLogger
 
 
-# TODO: refactor to put DB operations in the DBManager
-#class DBManager(object):
-#    """Update database.
-#    """
-#    def __init__(self, db_path):
-#        self.conn = sqlite3.connect(db_path)
+class DatabaseManager(object):
+    """Update database with user/chat information.
+    """
+    def __init__(self, db_file):
+        self.db_file = db_file
+
+    @classmethod
+    def init_database(cls, db_file):
+        """Create a database at `db_file` that records basic chat and user information.
+        """
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
+        c.execute(
+            '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
+            connected_status integer, connected_timestamp integer, message text, partner_type text,
+            partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
+        )
+        c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
+
+        c.execute(
+            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
+        )
+        c.execute(
+            '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
+            start_time text)'''
+        )
+        c.execute(
+            '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
+            PRIMARY KEY (scenario_id, partner_type))'''
+        )
+        c.execute(
+            '''CREATE TABLE feedback (name text, comments text)'''
+        )
+
+        conn.commit()
+        conn.close()
+
+        return cls(db_file)
 
 
+# TODO: refactor to put database operations in the DBManager
 class Backend(object):
     def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario, messages=Messages):
         self.config = params
@@ -169,8 +202,7 @@ class Backend(object):
             my_session = self.systems[HumanSystem.name()].new_session(my_index, scenario.get_kb(my_index))
             partner_session = self.systems[partner_type].new_session(1 - my_index, scenario.get_kb(1 - my_index))
 
-            controller = Controller(scenario, [my_session, partner_session], chat_id=chat_id,
-                                                   debug=False)
+            controller = Controller(scenario, [my_session, partner_session], chat_id=chat_id)
 
             return controller, my_session, partner_session
 
