@@ -35,11 +35,10 @@
     "end_survey": 1,
     "skip_chat_enabled": false,
     "debug": false,
-    "num_chats_per_scenario": {"human": 10, "config-rulebased": 40},
     "models": {
-        "config-rulebased": {
+        "rulebased": {
             "active": true,
-            "type": "config-rulebased"
+            "type": "rulebased"
         }
     }
 }

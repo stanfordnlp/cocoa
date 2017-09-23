@@ -74,7 +74,7 @@ We provide basic infrastructure to set up a website that pairs two users or a us
 #### Setup the web server
 The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other to complete the task until the time limit is reached. Users are then directed to a survey to rate their partners in terms of fluency, collaboration etc. All dialogue events are logged in a database.
 
-Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/web/main/backend.py```) maintains multiple systems (e.g. ```HumanSystem```, ```RulebasedSystem```, ```NeuralSystem```); when two agents are paired, they are put in two sessions and send/receive messages through the controller. See ```cocoa/web/main/routes.py``` for interacting with the front end. Task-specific templates are in ```cocoa/web/templates/task```. The website config file is ```task/web/app_params.json```, specifying the time limit, systems/models etc.
+Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/web/main/backend.py```) maintains multiple systems (e.g. ```HumanSystem```, ```RulebasedSystem```, ```NeuralSystem```); when two agents are paired, they are put in two sessions and send/receive messages through the controller. See ```cocoa/web/views/``` for interacting with the front end. Task-specific templates are in ```task/web/templates```. The website config file specifies the time limit, systems/models etc.
 
 To deploy the web server, run
 ```

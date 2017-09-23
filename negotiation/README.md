@@ -26,3 +26,14 @@ PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist
 --agents rulebased rulebased --price-tracker price-tracker.pkl --max-turns 20 
 ```
 Path to output transcripts is given by `--train-examples-paths`.
+
+To set up the website,
+```
+PYTHONPATH=. python web/chat_app.py --port 5000 --schema-path data/craigslist-schema.json \
+--config web/app_params.json --scenarios-path data/sample-scenarios.json \
+--output web_output/<dir-name> --price-tracker price-tracker.pkl
+```
+Arguments:
+- `port`: The port of the web server.
+- `config`: Path to the configuration file. See an example at `web/app_params.json`. To add a bot, put its arguments in `models`. 
+- `output`: Location of the database, error logs, and transcripts. *NOTE*: currently the path exists, then the whole directory is deleted (even files not related to the website) during initialization unless `--reuse` is specified. **TODO**: only delete relevatn files.
