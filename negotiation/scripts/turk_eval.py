@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--review', action='store_true', help='Review completed hits')
     parser.add_argument('--check-workers', action='store_true', help='Detect spammers')
-    parser.add_argument('--remove-evaluated', help='Path to JSON file that saves old result')
+    parser.add_argument('--remove-evaluated', nargs='*', default=[], help='Path to JSON file that saves old result')
     parser.add_argument('--debug', action='store_true', help='If ture, run in sandbox')
     parser.add_argument('--aws-config', required=True, help='AWS credential')
     parser.add_argument('--num-eval', type=int, default=20, help='Number of unique context to evaluate')
@@ -63,11 +63,10 @@ if __name__ == '__main__':
             data = EvalData.from_file(eval_data, args.num_context)
             data.dump(args.eval_data_output)
 
-        if args.remove_evaluated is not None:
-            evaluated_qids = task.get_evaluated_qids(args.remove_evaluated)
-            print 'Skip {} evaluated examples.'.format(len(evaluated_qids))
-        else:
-            evaluated_qids = set()
+        evaluated_qids = set()
+        for db in args.remove_evaluated:
+            qids = task.get_evaluated_qids(db)
+            evaluated_qids.update(qids)
         questions = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=args.systems)
         references = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=['reference'])
         random.shuffle(questions)
