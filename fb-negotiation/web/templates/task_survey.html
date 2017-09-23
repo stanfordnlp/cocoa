@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Let's negotiate!</title>
+    <style>
+        td {
+            padding: 0 15px 0 15px;
+        }
+
+        #instructions > p,li {
+            font-size:15px;
+        }
+
+        table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+            content: " \25B4\25BE"
+        }
+
+        table.sortable {
+            color:#004d00;
+        }
+
+        table { 
+            border-collapse: collapse; 
+            border: 1px solid black;
+            padding: 30px;
+            margin: 15px auto;
+        }
+
+        td {
+            padding: 30px;
+            margin-left: 20px;
+        }
+
+        form {
+            padding: 10px;
+        }
+
+        #facts {
+            font-size: 18px;
+        }
+
+        .header {
+            padding: 10px 5px 10px 5px;
+            border: 3px solid #000e7f;
+            color: #000e7f;
+        }
+        tr:nth-child(n) { 
+            border: solid thin;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="../static/css/survey.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+</head>
+
+<script>
+
+    questionAnswers = {};
+
+    // Ensure all questions have a selected response
+    function ensureAllAnswered(){
+        fluentVal = $("#fluent").val();
+        coherentVal = $("#coherent").val();
+        persuasiveVal = $("#persuasive").val();
+        fairVal = $("#fair").val();
+        negotiatorVal = $("#negotiator").val();
+        comments = $("#comments").val();
+        
+        //fluentVal = document.getElementById("#myRange").value
+        console.log("FLUENT: " + fluentVal);
+        console.log("PERSUASIVE: " + persuasiveVal);
+        console.log("FAIR: " + fairVal);
+        console.log("COHERENT:" + coherentVal);
+        console.log("NEGOTIATOR: " + negotiatorVal)
+
+
+        //if (fluentVal == null || 
+        //    persuasiveVal == null || 
+        //    fairVal == null ||
+        //    negotiatorVal == null ||
+        //    coherentVal == null ) {
+        //    return false;
+        //}
+        if (negotiatorVal == null) {
+            return false;
+        }
+        else{
+            questionAnswers["fluent"] = "null"; //fluentVal;
+            questionAnswers["honest"] = "null";    
+            questionAnswers["persuasive"] = "null"; //persuasiveVal;
+            questionAnswers["fair"] = "null"; //fairVal;
+            questionAnswers["negotiator"] = negotiatorVal;
+            questionAnswers["coherent"] = "null"; //coherentVal;
+            if(comments == null) {
+            	comments = "";
+            }
+            questionAnswers["comments"] = comments;
+            return true;
+        }
+    }
+
+    $(document).ready(function() {
+    	window.scrollTo(0,0);
+        $.ajax({
+			url: '/_connect/',
+			type: "get",
+			data: {"uid": "{{ uid }}" },
+			dataType: "json"
+		});
+		questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
+
+        $('.btn.btn-default.eval-tag').click(function () {
+            $(this).toggleClass('btn-default btn-primary');
+        });
+
+
+        $("#submit").click(function() {
+            allAnswered = ensureAllAnswered()
+            if (allAnswered){
+            	response = {"uid": "{{ uid }}", "response": questionAnswers};
+                console.log(questionAnswers);
+                $.ajax({
+                url: "/_submit_survey/",
+                type: "POST",
+                data: JSON.stringify(response),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    disconnect();
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log(":(");
+                }
+                })
+            }else{
+                alert("You have not selected an answer for every question. Please do so before submitting the HIT.");
+            }
+
+        });
+        
+        function disconnect() {
+			$.ajax({
+				url: '/_disconnect/',
+				type: "get",
+				data: {"uid": "{{ uid }}" },
+				dataType: "json"
+			});
+		}
+    });
+
+</script>
+
+
+<body >
+    <div class="wrapper" >
+        <div class="header">
+        	<h2 style="text-align: center;"><b>Results</b></h2> <br>
+        	<p style="text-align: center;"><b>{{ message }}</b></p>
+            {% if results %}
+            <table align="center">
+            <tr>
+                <td> </td>
+                <td><b>You</b></td>
+                <td><b>Partner<b></td>
+            </tr>
+            <tr>
+                <td>Target</td>
+                <td>{{ results[agent_idx]['Target'] }}</td>
+                <td>{{ results[1 - agent_idx]['Target'] }}</td>
+            </tr>
+            <tr>
+                <td>Bottomline</td>
+                <td>{{ results[agent_idx]['Bottomline'] }}</td>
+                <td>{{ results[1 - agent_idx]['Bottomline'] }}</td>
+            </tr>
+            <tr>
+                <td>Final offer</td>
+                <td>{{ results[agent_idx]['Offer'] }}</td>
+                <td>{{ results[1 - agent_idx]['Offer'] }}</td>
+            </tr>
+            </table>
+            {% endif %}
+        </div>
+         
+        <br>
+        <br>
+
+        <div class="header">
+            <h2><b>Survey Instructions</b></h2> <br>
+            <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        </div>
+
+        <br> <br>
+       
+        <!--
+        <div class="q">
+            <p style="text-align: center;">Rate each of your partner's utterances (highlighted below) - you can choose multiple ratings if you want </p>
+            <table class="chatLog">
+            {% for event in visualization['chat'] if event['action'] == 'message' or event['action'] == 'offer' or event['action'] == 'accept' or event['action'] == 'reject' %}
+                {% if event['action'] == 'message' %}
+                {% set displayed_msg = event['data'] %}
+                {% elif event['action'] == 'offer' %}
+                {% set displayed_msg = 'OFFER ' ~ event['data']['price'] %}
+                {% elif event['action'] == 'accept' %}
+                {% set displayed_msg = 'ACCEPT' %}
+                {% elif event['action'] == 'reject' %}
+                {% set displayed_msg = 'reject' %}
+                {% endif %}
+
+                {% if event['agent'] == agent_idx %}
+                <tr class="me">
+                <td style="padding-left: 5px; padding-right: 5px;"> You: </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"> {{ displayed_msg }} </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"></td>
+                </tr>
+                {% else %}
+                <tr class="partner">
+                <td style="padding-left: 5px; padding-right: 5px;"><b> Partner:</b> </td> 
+                <td style="padding-left: 5px; padding-right: 5px;"><b>{{ displayed_msg }}</b> </td> 
+                <td style="padding-left: 5px; padding-right: 5px;">
+                    <button type="button" class="btn btn-default eval-tag"  id="ok_{{loop.index}}">OK response!</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical_{{loop.index}}">NOT grammatical</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="incoherent_{{loop.index}}">Out-of-context</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="contradiction_{{loop.index}}">Contradiction</button>
+                    <button type="button" class="btn btn-default eval-tag" id="persuasive_{{loop.index}}">Persuasive!</button>
+                </td>
+                </tr>
+                {% endif %}
+            {% endfor %}
+            </table>
+        </div>
+        -->
+
+        <br>
+        <br>
+
+         <!--
+         <div class="q">
+
+            <p style="text-align:center;">How <strong>fluent</strong> was your partner? I.e., are the sentences complete and grammatical? </p> <br>
+            <form id="q_f">
+                <p style="float:left;">Not fluent at all</p>
+                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:13%;" >
+                <p style="float:right;">Very fluent</p>
+            </form>
+        </div>
+
+
+
+        <br><br>
+        
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>persuasive</strong> was your partner? Being persuasive means providing <strong>concrete evidence</strong> for each request instead of simply asking for a price.</p> <br>
+            <form id="q_s">
+                <p style="float:left;">Not persuasive</p>
+                <input type="range" id="persuasive" min="1" max="5" style="width:50%; margin-left:13%" >
+                <p style="float:right;">Very persuasive</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>fair</strong> was the final offer that you agreed on?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not fair at all</p>
+                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:14%;" >
+                <p style="float:right;">Very fair</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <p style="text-align:center;">How <strong>coherent</strong> was your partner? Being coherent means saying things related to the context and not self-contradicting; an incoherent speaker might repeat him/herself, frequently switch topics, and/or ignore what the partner said.</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not coherent at all</p>
+                <input type="range" id="coherent" min="1" max="5" style="width:50%; margin-left:14%;" >
+                <p style="float:right;">Very coherent</p>
+            </form>
+        </div>
+
+        <br> <br>
+        -->
+
+        <div class="q">
+            <!--<p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not at all</p>
+                <input type="range" id="negotiator" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <p style="float:right;">Definitely</p>
+            </form>
+        </div>
+        
+        <br> <br>
+        
+        <div class="q">
+        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
+        	<form id="q_comm">
+        	<textarea id="comments" cols="100" rows="5"></textarea>
+        	</form>
+        </div>
+
+        <br>
+
+        <br>
+
+
+        <div class="buttons" style="text-align:center;">
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
+
+    </div>
+
+
+</body>
+</html>

@@ -1,0 +1,712 @@
+<html>
+    <head>
+        <title>{{ title }}</title>
+        <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <style>
+            .clearfix {
+                overflow: auto;
+            }
+            .points {
+                color: #009933;
+            }
+
+            .modal-body{
+                font-size: 16px;
+            }
+
+            div#modal_description {
+                color:#004d00;
+                font-style: italic;
+            }
+
+            div#report {
+                color:#ff0000;
+                font-weight: bold;
+            }
+            div#chat_container {
+                float:left;
+                width: 45%;
+            }
+
+            div#info_container {
+                margin-left: 47%;
+                color:#004d00;
+            }
+
+
+            div#icon {
+                padding: 10px 100px 10px 20px;
+                display: inline-block;
+            }
+
+            div#offer {
+                color: ##004d00;
+                border: 1px solid #004d00;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                margin-left: 2px;
+                padding: 10px 5px 10px 5px;
+                font-size: 18px;
+            }
+
+            div#quit_option {
+                color: #bf1e1e;
+                border: 1px solid #bf1e1e;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                margin-left: 2px;
+                padding: 10px 5px 10px 5px;
+                font-size: 18px;
+            }
+
+            textarea#chat {
+                width: 100%;
+                cols: 100;
+                height: 25%;
+                color:#004d00;
+                font-size:14px;
+            }
+
+            input#text {
+                margin-top: 10px;
+                margin-bottom: 10px;
+                width: 100%;
+            }
+
+            div#eval{
+                width: 100%;
+            }
+
+            td {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                padding: 0 15px 0 15px;
+            }
+
+            #instructions > p,li {
+                font-size:15px;
+            }
+
+            #inner {
+                border: 1px solid #003305;
+                margin-top: 10px;
+                margin-bottom: 10px;
+                margin-left: 2px;
+                padding: 0px 5px 0px 5px;
+            }
+
+            table {
+                border-collapse: collapse;
+            }
+
+            #facts {
+                font-size: 18px;
+            }
+
+            tr:nth-child(n) {
+                border: solid thin;
+            }
+            #clockdiv{
+                display: inline-block;
+                font-weight: bold;
+                text-align: center;
+                font-size: 18px;
+                padding: 15px 0 15px 0;
+            }
+
+
+            #clockdiv > div{
+                display: inline-block;
+            }
+
+            #clockdiv div > span{
+                display: inline-block;
+            }
+
+            #clockdiv div > .seconds{
+                margin-left:-3px;
+            }
+
+        </style>
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var validCheckInterval, inboxCheckInterval;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
+            var selectTime = null, messageStartTime = null;
+            var messageTime = 0.0;
+            var num_offer = 0;
+            var eval_data = {};
+            var utterance_regex = /(You|Partner): (.*)/;
+            {% if not debug %}
+                var read_time = 20000; // milliseconds
+            {% else %}
+                var read_time = 1000;  // In peek/debug mode, skip it
+            {% endif %}
+            $(document).ready(function(){
+                $('#description').modal({backdrop: 'static', keyboard: false});
+                $('#description').modal('show');
+                $("#instructionCollapse").click();
+                window.onbeforeunload = disconnect;
+
+                document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
+
+                var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
+
+                $.ajax({
+                    url: BASE_URL +'/_connect/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}" },
+                    dataType: "json"
+                });
+
+                $.ajax({
+                    url: BASE_URL + '/_join_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"},
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+                });
+                validCheckInterval = setInterval(pollServer, 3000);
+
+                // This part executes after the description is shown
+                setTimeout(function(){
+
+                $('#description').modal('hide')
+
+                // $('#accept').style.display = 'none';
+                // $('#reject').style.display = 'none';
+
+                //initializeClock('clockdiv', deadline);
+
+                inboxCheckInterval = setInterval(checkInbox, 1000);
+
+                $('#text').keypress(function(e) {
+                    var code = e.keyCode || e.which;
+                    if ($('#text').val().length == 0) {
+                        messageStartTime = Date.now() / 1000.0;
+                        startedTyping();
+                    }
+                    if (code == 13) {
+                        stoppedTyping();
+                        text = $('#text').val();
+                        $('#text').val('');
+                        var currentTime = Date.now() / 1000.0;
+                        messageTime = currentTime - messageStartTime;
+                        sendMessage(text);
+                        $("#text").attr("disabled", "disabled")
+                        messageStartTime = null;
+                        messageTime = 0.0;
+                    }
+
+                });
+
+                //$('#text').focus().keyup(
+                //    function(e) {
+                //        if(e.keyCode == 8 && $('#text').val().length == 0) {
+                //            stoppedTyping();
+                //        }
+                //    })
+
+                $('#price').on('keyup blur', function () { // fires on every keyup & blur
+                    if (num_offer < 1) {
+                        var priceStr = $('#price').val()
+                        if (isNaN(priceStr)) { // ensure that string entered is a valid number
+                            $('#submit').prop('disabled', 'disabled');
+                        } else {
+                            $('#submit').prop('disabled', false);        // enables button
+                        }
+                    }
+
+                });
+
+                $('.btn.btn-default.eval-tag').click(function () {
+                    $(this).toggleClass('btn-default btn-primary');
+                });
+
+                }, read_time);  // delay due to reading the description
+            });
+
+            function makeOffer() {
+                num_offer += 1;
+                var price = parseInt($('#price').val());
+                var sides = "";
+                $("#price").attr("disabled", "disabled")
+                // $("#side_offers").attr("disabled", "disabled")
+                $.ajax({
+                    url: BASE_URL + '/_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "price": price,
+                        "sides": sides
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+
+                });
+            }
+
+            function accept() {
+                $.ajax({
+                    url: BASE_URL +'/_accept_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
+
+            function reject() {
+                $.ajax({
+                    url: BASE_URL +'/_reject_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
+            function quit() {
+                $.ajax({
+                    url: BASE_URL + '/_quit/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+
+                });
+            }
+
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_init_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        disconnect();
+                        window.location.reload(true);
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
+            function startedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "started"
+                    }
+                });
+            }
+
+            function stoppedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "stopped"
+                    }
+                });
+            }
+
+            function displayText(message) {
+                $('#chat').val($('#chat').val() + message + '\n');
+                $('#chat').scrollTop($('#chat')[0].scrollHeight);
+            }
+
+            function displayStatus(message) {
+                $('#status').val(message);
+            }
+
+            function clearEvalTags() {
+                $('.btn.btn-primary.eval-tag').toggleClass('btn-primary btn-default');
+            }
+
+            function collectEvalTags() {
+                var data = {};
+                var sum = 0;
+                $('.eval-tag').each(function (i) {
+                    var key = $(this).attr('id');
+                    if ( $(this).hasClass('btn-primary') ) {
+                        data[key] = 1;
+                        sum += 1;
+                    } else {
+                        data[key] = 0;
+                    }
+                });
+                if (sum > 0) {
+                    return data;
+                }
+                return null;
+            }
+
+            function sendEval() {
+                if (!jQuery.isEmptyObject(eval_data)) {
+                    var labels = collectEvalTags();
+                    if ( labels != null ) {
+                        //console.log('send eval:');
+                        var data = {
+                                "uid": "{{ uid }}",
+                                "eval_data": eval_data,
+                                "labels": labels
+                            }
+                        //console.log(JSON.stringify(data)) 
+                        $.ajax({
+                            url: BASE_URL + '/_send_eval/',
+                            type: "post",
+                            data: JSON.stringify(data),
+                            contentType: "application/json; charset=utf-8",
+                            dataType: "json",
+                            success: function(response) {
+                                //console.log('success');
+                                clearEvalTags();
+                            }
+                        });
+                    }
+                }
+            }
+
+            function sendMessage(message) {
+                $.ajax({
+                    url: BASE_URL + '/_send_message/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "message": message,
+                        "time_taken": messageTime
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+                });
+            }
+
+            function checkInbox() {
+                $.ajax({
+                    url: BASE_URL + '/_check_inbox/',
+                    type: "get",
+                    data: { "uid": "{{ uid }}" },
+                    dataType: "json",
+                    success: function(response) {
+                        if(response['received']) {
+                            if(response['status']) {
+                                displayStatus(response['message'])
+                            } else if ('message' in response) {
+                                $("#text").removeAttr('disabled');
+                                displayText(response['message']);
+
+                                // sendEval();
+                                // eval_utterance = response['message'].match(utterance_regex);
+                                // if (eval_utterance != null && eval_utterance.length > 2) {
+                                //     eval_data['utterance'] = eval_utterance[2];
+                                // } else {
+                                //     eval_data['utterance'] = '';
+                                // }
+                                // eval_data['timestamp'] = response['timestamp'];
+                                // $("#partner_utterance").html(eval_data['utterance']);
+                            }
+                            if ('price' in response) {
+                                $("#price").attr("disabled", "disabled")
+                                // $("#side_offers").attr("disabled", "disabled")
+                                $('#price').val(response['price']);
+                                $('#submit').hide();
+                                $('#accept').show();
+                                $('#reject').show();
+                            }
+                            // if ('sides' in response) {
+                            //     if(response['sides'].length == 0) {
+                            //         $('#side_offers').val("<No additional terms>");
+                            //     } else {
+                            //         $('#side_offers').val(response['sides']);
+                            //     }
+                            // }
+                        }
+                    }
+                });
+            }
+
+            function pollServer() {
+                $.ajax({
+                    url: BASE_URL + '/_check_chat_valid/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"},
+                    dataType: "json",
+                    success: function(response) {
+                        if(!response['valid']) {
+                            disconnect();
+                            window.location.reload(true);
+                        }
+                    }
+                });
+            }
+
+            function disconnect() {
+                clearInterval(validCheckInterval);
+                clearInterval(inboxCheckInterval);
+                $.ajax({
+                    url: BASE_URL + '/_leave_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"}
+                });
+                $.ajax({
+                    url: BASE_URL + '/_disconnect/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}" }
+                });
+            }
+
+            function skipChat() {
+                disconnect();
+                $.ajax({
+                    url: BASE_URL + '/_skip_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"}
+                });
+                window.location.reload(true);
+            }
+
+            function getTimeRemaining(endtime) {
+                var t = Date.parse(endtime) - Date.parse(new Date());
+                t = Math.min(t, Date.parse(endtime))
+                var seconds = Math.floor((t / 1000) % 60);
+                var minutes = Math.floor((t / 1000 / 60));
+                return {
+                    'total': t,
+                    'minutes': minutes,
+                    'seconds': seconds
+                };
+            }
+
+            function initializeClock(id, endtime) {
+                var clock = document.getElementById(id);
+                var minutesSpan = clock.querySelector('.minutes');
+                var secondsSpan = clock.querySelector('.seconds');
+
+                function updateClock() {
+                    var t = getTimeRemaining(endtime);
+                    minutesSpan.innerHTML = t.minutes+':';
+                    secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+                    if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
+                        $("#leave").css("display", "inline-block");
+                    }
+                    if (t.total <= 0) {
+                        clearInterval(validCheckInterval);
+                        clearInterval(timeinterval);
+                        pollServer();
+                    }
+                }
+
+                updateClock();
+                var timeinterval = setInterval(updateClock, 1000);
+            }
+
+        </script>
+    </head>
+
+    <body oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
+    <div class="clearfix">
+        <!-- Modal -->
+        <div class="modal fade" id="description" role="dialog">
+          <div class="modal-dialog">
+
+            <!-- Modal content-->
+            <div class="modal-content">
+              <div class="modal-header">
+                <h4 class="modal-title">Negotiation scenario</h4>
+                <b><p id="modal_instruction"></p></b>
+              </div>
+              <div class="modal-body">
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p> You just saw the following post: </p>
+                {% else %}
+                    <p> You have posted the following ad (note that the buyer may not see all information): </p>
+                {% endif %}
+                <br>
+                <div id="modal_description">
+                <p><b>  {{ kb['item']['Title'] }} </b></p>
+                {% if kb['item']['Images']|length >= 1 %}
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
+                {% endif %}
+                <p>
+                    {% for s in kb['item']['Description'] %}
+                        {{ s }}<br/>
+                    {% endfor %}
+                </p>
+                </div>
+                <br>
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p>You are very interested in this item and decide to ask about its details and negotiate the price.</p>
+                {% else %}
+                    <p>You want to get rid of this item soon and are willing to negotiate the price.</p>
+                {% endif %}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div id="chat_container">
+            <div id="instructions">
+                <h1 style="color:#004d00">{{ title}}</h1>
+                <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
+                <div id="inner" class="collapse">
+                    {{ instructions }}
+                </div>
+            </div>
+
+            <!--
+            <div id="clockdiv" align="right">
+              Time Remaining:
+              <div>
+                <span class="minutes"></span>
+                <span class="seconds"></span>
+              </div>
+            </div> -->
+
+            <textarea readonly id="chat"></textarea>
+            <!-- <input readonly id="status" style="width:100%;"><br><br> -->
+            <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
+            <!-- <div class="eval_container" id="eval">
+                <h4>Rate your partner's utterance:</h4>
+                <p id="partner_utterance"></p>
+                <div class="button_container">
+                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical">NOT grammatical</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="incoherent">Out-of-context</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="contradiction">Contradiction</button>
+                    <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
+                    
+                </div>
+            </div> -->
+            <input id="text" placeholder="Enter your message here"><br><br>
+
+        </div>
+
+        <div id="info_container">
+            <div id="report">
+                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
+                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
+            </div>
+            <div id="facts">
+                <h3>Scenario</h3>
+                {% if kb['personal']['Role'] == 'buyer' %}
+                    <p>You are the potential <b>buyer</b>.
+                    The list price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
+                    You would like to pay for <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
+                    You can accept higher price though if the item is really good or there are other perks.</p>
+                {% else %}
+                    <p>You are the <b>seller</b>.
+                    Your listing price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
+                    You are willing to negotiate but should not go too low.
+                {% endif %}
+                <h3>Basic facts</h3>
+                <table>
+                <tbody>
+                    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline' or attr == 'Price' or attr == 'Images' or attr == 'Category') %}
+                        {% if attr == 'Title' %}
+                            <p><b>{{ kb['item'][attr] }}</b></p>
+                            {% if kb['item']['Images']|length >= 1 %}
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
+                {% endif %}
+                        {% elif attr == 'Description' %}
+                            {% for s in kb['item'][attr] %}
+                            <div id="factDescription" class="description-collapse">
+                                {{ s }}<br/>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td><b>{{attr}}</b></td>
+                            {% set value = kb['item'][attr] %}
+                            {% if value is none %}
+                                <td>?</td>
+                            {% elif value is string %}
+                                <td>{{ value }}</td>
+                            {% else %}
+                                <td>{{ value|join(', ') }}</td>
+                            {% endif %}
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+                </table>
+            </div>
+            {% if partner_kb %}
+                <div id="facts">
+                    <h3>Partner Goal</h3>
+                    <p>
+                    Your listing price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
+                    </p>
+                </div>
+            {% endif %}
+
+            <div id="offer">
+                <h4>Final agreement:</h4>
+                <p>Be careful. You can only enter the offer <b>once</b>.</p>
+                <label for="price">Price</label>
+                <input id="price" pattern="\d+"/>
+                <!-- <label for="side_offers">Additional Terms</label> -->
+                <!-- <textarea id="side_offers" rows="2" cols="50"></textarea> -->
+                <button onclick="this.disabled=true;makeOffer()" style="display:inline-block" id="submit">Submit</button>
+                <button onclick="this.disabled=true;accept();" style="display:none" id="accept">Accept</button>
+                <button onclick="this.disabled=true;reject();" style="display:none" id="reject">Reject</button>
+            </div>
+            <div id="quit_option">
+                <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
+                <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
+            </div>
+
+
+            <div class="modal fade" id="report_box" role="dialog">
+              <div class="modal-dialog">
+
+                <!-- Modal content-->
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h4 class="modal-title">Report Issue</h4>
+                    <b><p id="modal_instruction"></p></b>
+                  </div>
+                  <div class="modal-body" id="report-body">
+                    <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.<span style="color: #ff0000"><b>Please also include your Mechanical Turk worker ID in the feedback so that we can grant you a bonus if you have significant trouble.</b></span></p>
+                    <textarea id="report_feedback"></textarea>
+                    <button onclick="report()" style="display: block;">Submit</button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+        </div>
+    </div>
+    </body>
+</html>
