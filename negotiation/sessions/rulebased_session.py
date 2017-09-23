@@ -1,4 +1,5 @@
 import random
+import re
 import numpy as np
 from collections import namedtuple
 from itertools import izip
@@ -12,34 +13,36 @@ from session import Session
 
 class RulebasedSession(object):
     @classmethod
-    def get_session(cls, agent, kb, lexicon, config):
-        if kb.facts['personal']['Role'] == 'buyer':
-            return BuyerRulebasedSession(agent, kb, lexicon, config)
-        elif kb.facts['personal']['Role'] == 'seller':
-            return SellerRulebasedSession(agent, kb, lexicon, config)
+    def get_session(cls, agent, kb, lexicon, config, templates):
+        if kb.role == 'buyer':
+            return BuyerRulebasedSession(agent, kb, lexicon, config, templates)
+        elif kb.role == 'seller':
+            return SellerRulebasedSession(agent, kb, lexicon, config, templates)
         else:
-            raise ValueError('Unknown role: %s', kb['personal']['Role'])
+            raise ValueError('Unknown role: %s', kb.role)
 
 # resistance: number of partner insistance before making a concession
-Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_fraction', 'good_deal_threshold', 'resistance', 'persuade_sides', 'persuade_price'])
+Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_fraction', 'good_deal_threshold', 'resistance', 'persuade_sides', 'persuade_price', 'sample_temperature'])
 
-default_config = Config(.2, .3, .5, .5, 2, .33, .33)
+default_config = Config(.2, .3, .5, .5, 1, .33, .33, 1.)
 
 class BaseRulebasedSession(Session):
-    def __init__(self, agent, kb, lexicon, config):
+    def __init__(self, agent, kb, lexicon, config, templates):
         super(BaseRulebasedSession, self).__init__(agent)
         self.agent = agent
         self.kb = kb
+        self.title = self.shorten_title(self.kb.facts['item']['Title'])
         self.lexicon = lexicon
         if config is None:
             config = default_config
+        self.templates = templates
 
         self.my_price = None
         self.partner_price = None
-        self.target = self.kb.facts['personal']['Target']
+        self.target = self.kb.target
         self.bottomline = None
-        self.list_price = self.kb.facts['item']['Price']
-        self.category = self.kb.facts['item']['Category']
+        self.list_price = self.kb.listing_price
+        self.category = self.kb.category
 
         # Direction of desired price
         self.inc = None
@@ -58,6 +61,7 @@ class BaseRulebasedSession(Session):
                 'last_utterance': None,
                 'last_act': None,
                 'num_persuade': 0,
+                'num_inquiry': 0,
                 'sides': set(),
                 'partner_acts': [],
                 }
@@ -65,6 +69,23 @@ class BaseRulebasedSession(Session):
         self.persuade_price = []
         self.product_info = []
         self.sides = {}
+
+    def shorten_title(self, title):
+        """If the title is too long, shorten it using a generic name for filling in the templates.
+        """
+        if len(title.split()) > 3:
+            if self.kb.category == 'car':
+                return 'car'
+            elif self.kb.category == 'housing':
+                return 'apartment'
+            elif self.kb.category == 'phone':
+                return 'phone'
+            elif self.kb.category == 'bike':
+                return 'bike'
+            else:
+                return 'item'
+        else:
+            return title
 
     @classmethod
     def get_fraction(cls, zero, one, fraction):
@@ -90,10 +111,10 @@ class BaseRulebasedSession(Session):
         if price == self.target:
             return price
         if price > 100:
-            return round(price, -1)
+            return int(round(price, -1))
         if price > 1000:
-            return round(price, -2)
-        return price
+            return int(round(price, -2))
+        return int(round(price))
 
     def estimate_bottomline(self):
         raise NotImplementedError
@@ -129,6 +150,22 @@ class BaseRulebasedSession(Session):
 
         return acts
 
+    def parse_partner_price(self, prices):
+        """When the partner mentions multiple prices, decide which one they meant.
+        """
+        partner_prices = []
+        inc = self.inc * -1.
+        curr_price = self.state['curr_price']
+        for price in prices:
+            price = price.canonical.value
+            # Assuming one's latest price is always worse than previous ones
+            if price != curr_price and (self.partner_price is None or inc * price <= inc * self.partner_price):
+                partner_prices.append(price)
+        if partner_prices:
+            i = np.argmax(inc * np.array(partner_prices))
+            return partner_prices[i]
+        return None
+
     def receive(self, event):
         # Reset count
         if event.action in ('message', 'offer'):
@@ -141,17 +178,18 @@ class BaseRulebasedSession(Session):
             self.state['partner_acts'] = self.tag_utterance(utterance)
             if len(utterance.prices) > 0:
                 # Use the last mentioned price
-                price = utterance.prices[-1].canonical.value
-                self.state['partner_acts'].append(SpeechActs.PRICE)
-                self.state['curr_price'] = price
+                price = self.parse_partner_price(utterance.prices)
+                if price is not None:
+                    self.state['partner_acts'].append(SpeechActs.PRICE)
+                    self.state['curr_price'] = price
 
-                # If it's the first proposal or a new and better proposal, consider a new round of negotiation
-                if self.partner_price is None or self.compare(price, self.partner_price) > 0:
-                    self.state['num_partner_insist'] = 0
+                    # If it's the first proposal or a new and better proposal, consider a new round of negotiation
+                    if self.partner_price is None or self.compare(price, self.partner_price) > 0:
+                        self.state['num_partner_insist'] = 0
+                    # Update partner price
+                    self.partner_price = price
                 else:
                     self.state['num_partner_insist'] += 1
-                # Update partner price
-                self.partner_price = price
             else:
                 self.state['num_partner_insist'] += 1
         elif event.action == 'offer':
@@ -173,7 +211,11 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(greetings))
 
     def init_propose(self, price):
-        raise NotImplementedError
+        s = self.choose_template('init-price').format(title=self.title, price=price)
+        s = self.remove_greeting(s)
+        self.state['curr_price'] = price
+        self.my_price = price
+        return self.message(s)
 
     def propose(self, price):
         price = self.round_price(price)
@@ -194,9 +236,29 @@ class BaseRulebasedSession(Session):
         msg = random.choice(s)
         return self.message(msg)
 
+    def softmax(self, scores, T=1.):
+        exp_scores = np.exp((scores - np.max(scores)) / T)
+        return exp_scores / np.sum(exp_scores)
+
+    def choose_template(self, action):
+        key = (self.kb.category, self.kb.role, action)
+        templates = self.templates[key]
+        counts = np.log(np.array([t[0] for t in templates]))
+        probs = self.softmax(counts, T=self.config.sample_temperature)
+        template_id = np.random.multinomial(1, probs).argmax()
+        template = templates[template_id][1]
+        #print 'choosing template for', key
+        #print len(templates), probs[template_id], template
+        return template
+
     def intro(self):
         self.state['introduced'] = True
         self.state['last_act'] = 'intro'
+        template = self.choose_template('intro')
+        if '{price}' in template:
+            self.state['curr_price'] = self.my_price
+        s = template.format(title=self.title.encode('utf-8'), price=self.my_price)
+        return self.message(s)
 
     def _compromise_price(self, price):
         partner_price = self.partner_price if self.partner_price is not None else self.bottomline
@@ -205,6 +267,7 @@ class BaseRulebasedSession(Session):
             my_price = price * (1 - self.inc * 0.1)
         else:
             my_price = self.get_fraction(partner_price, price, self.config.compromise_fraction)
+        my_price = self.round_price(my_price)
         # Don't go below bottomline
         if self.bottomline is not None and self.compare(my_price, self.bottomline) <= 0:
             return self.bottomline
@@ -226,7 +289,13 @@ class BaseRulebasedSession(Session):
 
         self.state['num_partner_insist'] = 0  # Reset
         self.state['last_act'] = 'compromise'
-        return self.propose(self.my_price)
+
+        if self.templates is not None:
+            self.state['curr_price'] = self.my_price
+            s = self.choose_template('counter-price').format(title=self.title, price=self.my_price)
+            return self.message(s)
+        else:
+            return self.propose(self.my_price)
 
     def persuade(self):
         # Reset
@@ -235,17 +304,21 @@ class BaseRulebasedSession(Session):
         self.state['last_act'] = 'persuade'
         self.state['num_persuade'] += 1
 
-        p = random.random()
-        if p < self.config.persuade_sides:
-            # There are still side offers we haven't mentioned
-            if len(self.sides) < len(self.state['sides']):
-                return self.offer_sides()
-            else:
-                p += self.config.persuade_sides
-        if p < self.config.persuade_price + self.config.persuade_sides:
-            if SpeechActs.PRICE in self.state['partner_acts']:
-                return self.complain_price()
-        return self.persuade_product()
+        if self.templates is not None:
+            s = self.choose_template('vague-price').format(title=self.title)
+            return self.message(s)
+        else:
+            p = random.random()
+            if p < self.config.persuade_sides:
+                # There are still side offers we haven't mentioned
+                if len(self.sides) < len(self.state['sides']):
+                    return self.offer_sides()
+                else:
+                    p += self.config.persuade_sides
+            if p < self.config.persuade_price + self.config.persuade_sides:
+                if SpeechActs.PRICE in self.state['partner_acts']:
+                    return self.complain_price()
+            return self.persuade_product()
 
     def complain_price(self):
         s = self.persuade_price
@@ -324,6 +397,18 @@ class BaseRulebasedSession(Session):
     def wait(self):
         return None
 
+    # TODO: move this to templates
+    def remove_greeting(self, s):
+        s = re.sub(r'(hi|hello|hey)[ ,!]*', '', s)
+        return s
+
+    def inquire(self):
+        s = self.choose_template('inquiry').format(title=self.title)
+        s = self.remove_greeting(s)
+        self.state['last_act'] = 'inquire'
+        self.state['num_inquiry'] += 1
+        return self.message(s)
+
     def send(self):
         # Strict turn-taking
         if self.state['num_utterance_sent'] > 0:
@@ -338,16 +423,23 @@ class BaseRulebasedSession(Session):
                 return self.reject()
             return self.accept()
 
-        if not self.state['said_hi']:
-            return self.greet()
+        #if not self.state['said_hi']:
+        #    return self.greet()
 
         if not self.state['introduced'] and self.partner_price is None:
             return self.intro()
 
+        if self.kb.role == 'buyer':
+            if self.state['num_inquiry'] < 1:
+                return self.inquire()
+
+        # TODO: add inform
+
         # Initial proposal
         if self.state['curr_price'] is None:
-            return self.propose(self.my_price)
+            return self.init_propose(self.my_price)
 
+        # TODO: check against agree templates
         if SpeechActs.AGREEMENT in self.state['partner_acts']:
             if self.state['curr_price'] is not None:
                 return self.offer(self.state['curr_price'])
@@ -370,8 +462,8 @@ class BaseRulebasedSession(Session):
         raise Exception('Uncatched case')
 
 class SellerRulebasedSession(BaseRulebasedSession):
-    def __init__(self, agent, kb, lexicon, config):
-        super(SellerRulebasedSession, self).__init__(agent, kb, lexicon, config)
+    def __init__(self, agent, kb, lexicon, config, templates):
+        super(SellerRulebasedSession, self).__init__(agent, kb, lexicon, config, templates)
         # Direction of desired price
         self.inc = 1.
         self.init_price()
@@ -460,22 +552,27 @@ class SellerRulebasedSession(BaseRulebasedSession):
             return 1
 
     def intro(self):
-        super(SellerRulebasedSession, self).intro()
-        title = self.kb.facts['item']['Title']
-        s = (
-                "I have a %s." % title,
-                "I'm selling a %s." % title,
-                "Are you interested in my %s?" % title,
-            )
-        return self.message(random.choice(s))
+        if self.templates is not None:
+            return super(SellerRulebasedSession, self).intro()
+        else:
+            title = self.kb.facts['item']['Title']
+            s = (
+                    "I have a %s." % title,
+                    "I'm selling a %s." % title,
+                    "Are you interested in my %s?" % title,
+                )
+            return self.message(random.choice(s))
 
     def init_propose(self, price):
-        # We're showing the listing price so no need to propose
-        s = (
-                "It is hard to find such a deal.",
-            )
-        self.state['last_act'] = 'init_propose'
-        return s
+        if self.templates:
+            return super(SellerRulebasedSession, self).init_propose(price)
+        else:
+            # We're showing the listing price so no need to propose
+            s = (
+                    "It is hard to find such a deal.",
+                )
+            self.state['last_act'] = 'init_propose'
+            return s
 
     def final_call(self):
         super(SellerRulebasedSession, self).final_call()
@@ -489,8 +586,8 @@ class SellerRulebasedSession(BaseRulebasedSession):
         return self.message(random.choice(s))
 
 class BuyerRulebasedSession(BaseRulebasedSession):
-    def __init__(self, agent, kb, lexicon, config):
-        super(BuyerRulebasedSession, self).__init__(agent, kb, lexicon, config)
+    def __init__(self, agent, kb, lexicon, config, templates):
+        super(BuyerRulebasedSession, self).__init__(agent, kb, lexicon, config, templates)
         # Direction of desired price
         self.inc = -1.
         self.init_price()
@@ -547,7 +644,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
         return self.get_fraction(self.list_price, self.target, self.config.bottomline_fraction)
 
     def init_price(self):
-        self.my_price = self.target * (1 + self.inc * self.config.overshoot)
+        self.my_price = self.round_price(self.target * (1 + self.inc * self.config.overshoot))
 
     def compare(self, x, y):
         if x == y:
@@ -558,22 +655,27 @@ class BuyerRulebasedSession(BaseRulebasedSession):
             return -1
 
     def intro(self):
-        super(BuyerRulebasedSession, self).intro()
-        title = self.kb.facts['item']['Title']
-        s = (
-                "How much are you asking?",
-                "It looks great! Is it still available?",
-                "I'm interested in your {}.".format(title.encode('utf-8')),
-            )
-        return self.message(random.choice(s))
+        if self.templates is not None:
+            return super(BuyerRulebasedSession, self).intro()
+        else:
+            title = self.kb.facts['item']['Title']
+            s = (
+                    "How much are you asking?",
+                    "It looks great! Is it still available?",
+                    "I'm interested in your {}.".format(title.encode('utf-8')),
+                )
+            return self.message(random.choice(s))
 
     def init_propose(self, price):
-        s = (
-                "I would like to take it for %d" % price,
-                "I'm thinking to spend %d" % price,
-            )
-        self.state['last_act'] = 'init_propose'
-        return s
+        if self.templates:
+            return super(BuyerRulebasedSession, self).init_propose(price)
+        else:
+            s = (
+                    "I would like to take it for %d" % price,
+                    "I'm thinking to spend %d" % price,
+                )
+            self.state['last_act'] = 'init_propose'
+            return s
 
     def final_call(self):
         super(BuyerRulebasedSession, self).final_call()

@@ -8,14 +8,15 @@ def add_configurable_rulebased_arguments(parser):
     parser.add_argument('--trials-db', default='trials.json')
 
 class ConfigurableRulebasedSystem(BaseConfigurableRulebasedSystem):
-    def __init__(self, configs, lexicon, timed_session=False, policy='random', max_chats_per_config=10, db='trials.json'):
+    def __init__(self, configs, lexicon, timed_session=False, policy='random', max_chats_per_config=10, db='trials.json', templates=None):
         configs = [tuple(c) for c in configs]
         super(ConfigurableRulebasedSystem, self).__init__(timed_session, configs, policy=policy, max_chats_per_config=max_chats_per_config, db=db)
         self.lexicon = lexicon
+        self.templates = templates
 
     def _new_session(self, agent, kb, config):
         config = Config(*config)
-        return RulebasedSession.get_session(agent, kb, self.lexicon, config)
+        return RulebasedSession.get_session(agent, kb, self.lexicon, config, self.templates)
 
 
 ############# TEST ##############
