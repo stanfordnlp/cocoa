@@ -32,9 +32,10 @@ class SpeechActAnalyzer(object):
     ]
 
     price_patterns = [
-            r'high|low|higher|lower|more|less',
             r'come down',
-            r'(highest|lowest) price',
+            r'(highest|lowest)',
+            r'go (lower|higher)',
+            r'too (high|low)',
             ]
 
     pos_patterns = [
@@ -82,7 +83,7 @@ class SpeechActAnalyzer(object):
     @classmethod
     def is_price(cls, utterance):
         for pattern in cls.price_patterns:
-            if re.search(pattern, utterance):
+            if re.search(pattern, utterance.text):
                 return True
         return False
 
