@@ -4,6 +4,26 @@ class KB(BaseKB):
     def __init__(self, attributes, facts):
         super(KB, self).__init__(attributes)
         self.facts = facts
+        self._category = self.facts['item']['Category']
+        self._role = self.facts['personal']['Role']
+        self._listing_price = self.facts['item']['Price']
+        self._target = self.facts['personal']['Target']
+
+    @property
+    def listing_price(self):
+        return self._listing_price
+
+    @property
+    def target(self):
+        return self._target
+
+    @property
+    def category(self):
+        return self._category
+
+    @property
+    def role(self):
+        return self._role
 
     def to_dict(self):
         return self.facts
@@ -14,7 +34,7 @@ class KB(BaseKB):
 
     def dump(self):
         personal_info = self.facts['personal']
-        role = personal_info['Role']
+        role = self._role
         price_range = (personal_info['Bottomline'], personal_info['Target'])
         print '----------------'
         print 'Listing price:', self.facts['item']['Price']

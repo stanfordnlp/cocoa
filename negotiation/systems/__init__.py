@@ -1,6 +1,8 @@
+from cocoa.core.util import read_json, read_pickle
 from core.price_tracker import PriceTracker, add_price_tracker_arguments
 from model.retriever import Retriever, add_retriever_arguments
-from rulebased_system import RulebasedSystem
+from rulebased_system import RulebasedSystem, add_rulebased_arguments
+from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from ranker_system import IRRankerSystem, NeuralRankerSystem
 #from neural_system import NeuralSystem, add_neural_system_arguments
 from cmd_system import CmdSystem
@@ -8,13 +10,19 @@ from cmd_system import CmdSystem
 def add_system_arguments(parser):
     #add_neural_system_arguments(parser)
     add_retriever_arguments(parser)
+    add_rulebased_arguments(parser)
+    add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
+    templates = read_pickle(args.templates)
     if name == 'rulebased':
-        return RulebasedSystem(lexicon, timed)
+        return RulebasedSystem(lexicon, timed, templates=templates)
+    elif name == 'config-rulebased':
+        configs = read_json(args.rulebased_configs)
+        return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db, templates=templates)
     elif name == 'cmd':
         return CmdSystem()
     elif name.startswith('ranker'):

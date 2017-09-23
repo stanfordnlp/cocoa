@@ -7,9 +7,10 @@ from core.scenario import Scenario
 from analyze_strategy import StrategyAnalyzer
 
 class Visualizer(BaseVisualizer):
-    agents = ('human', 'rulebased')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    agents = ('human', 'rulebased', 'config-rule')
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased'}
+    #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    questions = ('negotiator',)
     question_labels = {"fluent": 'Fluency', "negotiator": 'Humanlikeness', 'persuasive': 'Persuasiveness', "fair": 'Fairness', 'coherent': 'Coherence'}
 
     def __init__(self, chats, surveys=None, worker_ids=None):
@@ -50,7 +51,7 @@ class Visualizer(BaseVisualizer):
     def compute_effectiveness(self):
         chats = defaultdict(list)
         for raw in self.chats:
-            ex = Example.from_dict(None, raw, Scenario)
+            ex = Example.from_dict(raw, Scenario)
             if ex.agents[0] == 'human' and ex.agents[1] == 'human':
                 chats['human'].append(ex)
             elif ex.agents[0] != 'human':

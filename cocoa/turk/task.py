@@ -1,7 +1,9 @@
 import sys
 import os
+from collections import defaultdict
 
 from boto.mturk.question import QuestionContent, Question, QuestionForm, Overview, AnswerSpecification, SelectionAnswer, FormattedContent, FreeTextAnswer, HTMLQuestion
+from boto.mturk.connection import MTurkRequestError
 
 from cocoa.core.util import read_json, write_json
 from utils import default_qualifications, xml_safe
@@ -10,6 +12,7 @@ def add_turk_task_arguments(parser):
     parser.add_argument('--overall-template', help='Path to HTML templates')
     parser.add_argument('--question-template', help='Path to HTML templates')
     parser.add_argument('--instructions', help='Path to instructions')
+    parser.add_argument('--script', help='Path to .js script')
     parser.add_argument('--num-assignments-per-hit', type=int, default=3, help='How many lables do we want on each example')
     parser.add_argument('--num-questions-per-hit', type=int, default=10, help='How many questions in a hit')
     parser.add_argument('--reward-per-hit', type=float, default=0.10, help='Payment per hit in dollar')
@@ -79,10 +82,54 @@ class Task(object):
         else:
             print 'Abort'
 
-    def get_reviewable_results(self):
-        results = []
+    def check_workers(self):
+        """Print workers' answers to check spammers.
+        """
+        worker_answers = defaultdict(lambda : defaultdict(int))
         for hit_id, hit_info in self.db.iteritems():
-            assignments = self.mtc.get_assignments(hit_id)
+            for assignment_id, result in hit_info.iteritems():
+                worker_id = result['worker_id']
+                answers = result['answers']
+                for answer in answers:
+                    if answer['qid'] == 'comment':
+                        continue
+                    worker_answers[worker_id][int(answer['answer'])] += 1
+        for worker, answers in worker_answers.iteritems():
+            print worker, [answers[score] for score in xrange(-2, 3)]
+
+    @classmethod
+    def get_evaluated_qids(cls, db_path):
+        db = read_json(db_path)
+        qids = set()
+        for hit_id, hit_info in db.iteritems():
+            for assignment_id, result in hit_info.iteritems():
+                answers = result['answers']
+                for answer in answers:
+                    if answer['qid'] == 'comment':
+                        continue
+                    qids.add(answer['qid'])
+        return qids
+
+    def get_reviewable_results(self):
+        """Get HIT results.
+
+        Results are written in `self.db` in the following JSON structure:
+            |-hit_id
+              |-assignment_id
+                |-"worker_id"
+                |-"answers"
+                  |-[i]
+                    |-"answer"
+                    |-"qid"
+
+        """
+        results = []
+        num_reviewable_assignments = 0
+        for hit_id, hit_info in self.db.iteritems():
+            try:
+                assignments = self.mtc.get_assignments(hit_id)
+            except MTurkRequestError:
+                continue
             if assignments:
                 for assignment in assignments:
                     answers = []
@@ -92,6 +139,8 @@ class Task(object):
                             'worker_id': assignment.WorkerId,
                             'answers': answers,
                             }
+                    num_reviewable_assignments += 1
+        print '{} assignments ready'.format(num_reviewable_assignments)
         self.dump_db()
 
 class EvalTask(Task):
@@ -108,12 +157,12 @@ class EvalTask(Task):
         display_context = []
         for i, (agent, utterance) in enumerate(context):
             color = 'red' if i % 2 == 0 else 'green'
-            display_context.append(self.utterance_formatter(linebreak=True, color=color).format(agent=agent, text=utterance))
+            display_context.append(self.utterance_formatter(linebreak=True, color=color).format(agent=agent, text=utterance.encode('utf-8')))
         return ''.join(display_context)
 
 
 class HTMLEvalTask(EvalTask):
-    def __init__(self, question_template_path=None, overall_template_path=None, instructions_path=None, question_title='Dialogue evaluation', **kwargs):
+    def __init__(self, question_template_path=None, overall_template_path=None, instructions_path=None, script_path=None, question_title='Dialogue evaluation', **kwargs):
         super(HTMLEvalTask, self).__init__(**kwargs)
         with open(overall_template_path, 'r') as fin:
             self.overall_template = fin.read().strip()
@@ -121,6 +170,11 @@ class HTMLEvalTask(EvalTask):
             self.question_template = fin.read().strip()
         with open(instructions_path, 'r') as fin:
             self.instructions = fin.read().strip()
+        if script_path is not None:
+            with open(script_path, 'r') as fin:
+                self.script = fin.read().strip()
+        else:
+            self.script = ''
         self.title = question_title
 
     def create_questions(self, questions):
@@ -130,6 +184,7 @@ class HTMLEvalTask(EvalTask):
             html_hit = self.overall_template.format(
                     title=self.title,
                     instructions=self.instructions,
+                    script=self.script,
                     questions=html_questions,
                     )
             html_hit = HTMLQuestion(html_hit, 600)

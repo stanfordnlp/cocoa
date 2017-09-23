@@ -7,21 +7,25 @@ from flask import Markup
 from collections import defaultdict
 import json
 
+from cocoa.systems.human_system import HumanSystem
+from core.controller import Controller
 from states import FinishedState, UserChatState, WaitingState, SurveyState
 from utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
     StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
-from logger import WebLogger
-from cocoa.systems.human_system import HumanSystem
-#from cocoa.web.dump_events_to_json import convert_events_to_json
-
 from db_reader import DatabaseReader
-from core.controller import Controller
+from logger import WebLogger
 
-m = hashlib.md5()
-m.update("bot")
+
+# TODO: refactor to put DB operations in the DBManager
+#class DBManager(object):
+#    """Update database.
+#    """
+#    def __init__(self, db_path):
+#        self.conn = sqlite3.connect(db_path)
+
 
 class Backend(object):
-    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario=1, messages=Messages):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario, messages=Messages):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
 
@@ -170,27 +174,29 @@ class Backend(object):
 
             return controller, my_session, partner_session
 
-        def _pair_with_human(cursor, userid, my_index, partner_id, scenario, chat_id):
+        def _pair_with_human(cursor, my_id, my_index, partner_id, scenario, chat_id):
             controller, my_session, partner_session = _init_controller(my_index, HumanSystem.name(), scenario, chat_id)
-            self.controller_map[userid] = controller
+            self.controller_map[my_id] = controller
             self.controller_map[partner_id] = controller
 
-            self.sessions[userid] = my_session
+            self.sessions[my_id] = my_session
             self.sessions[partner_id] = partner_session
 
             # ensures that partner is actually in waiting state
             self._get_user_info(cursor, partner_id, assumed_status=Status.Waiting)
 
+            # Update partner
             self._update_user(cursor, partner_id,
                               status=Status.Chat,
-                              partner_id=userid,
+                              partner_id=my_id,
                               partner_type=HumanSystem.name(),
                               scenario_id=scenario.uuid,
                               agent_index=1 - my_index,
                               message="",
                               chat_id=chat_id)
 
-            self._update_user(cursor, userid,
+            # Update me
+            self._update_user(cursor, my_id,
                               status=Status.Chat,
                               partner_id=partner_id,
                               partner_type=HumanSystem.name(),
@@ -203,6 +209,12 @@ class Backend(object):
 
         def _pair_with_bot(cursor, userid, my_index, bot_type, scenario, chat_id):
             controller, my_session, bot_session = _init_controller(my_index, bot_type, scenario, chat_id)
+
+            config = bot_session.config
+            if config is not None:
+                cursor.execute('INSERT INTO bot VALUES (?,?,?)',
+                           (chat_id, bot_type, json.dumps(list(config))))
+
             self.controller_map[userid] = controller
 
             self.sessions[userid] = my_session
@@ -244,7 +256,7 @@ class Backend(object):
             active_scenarios = defaultdict(list)
             for sid in scenario_dialogues.keys():
                 for partner_type in all_partners:
-                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario:
+                    if scenario_dialogues[sid][partner_type] < self.num_chats_per_scenario[partner_type]:
                         active_scenarios[sid].append(partner_type)
 
             # if all scenarios have at least one dialogue per agent type (i.e. no active scenarios),
@@ -304,6 +316,8 @@ class Backend(object):
                     ))
                     return True
                 else:
+                    # TODO: bot is always buyer
+                    my_index = 1
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)

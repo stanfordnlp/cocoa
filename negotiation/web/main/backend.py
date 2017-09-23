@@ -8,6 +8,7 @@ from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
 from core.event import Event
+from analysis.analyze_strategy import StrategyAnalyzer
 
 class Backend(BaseBackend):
     def should_reject_chat(self, userid, agent_idx):
@@ -16,16 +17,33 @@ class Backend(BaseBackend):
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
-            return reject_transcript(ex, agent_idx)
+            return reject_transcript(ex, agent_idx, min_tokens=40)
+
+    def get_margin(self, controller, agent_idx):
+        with self.conn:
+            cursor = self.conn.cursor()
+            chat_id = controller.get_chat_id()
+            ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
+            outcome = controller.get_outcome()
+            role = ex.scenario.kbs[agent_idx].facts['personal']['Role']
+            if outcome['reward'] == 0:
+                return role, None
+            else:
+                try:
+                    price = float(outcome['offer']['price'])
+                except (KeyError, ValueError) as e:
+                    return role, None
+                margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
+                return role, margin
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)
         game_over, game_complete = self.is_game_over(userid)
+        controller = self.controller_map[userid]
+        chat_id = controller.get_chat_id()
 
         def verify_chat(userid, agent_idx, is_partner):
             user_name = 'partner' if is_partner else 'user'
-            controller = self.controller_map[userid]
-            chat_id = controller.get_chat_id()
             if self.should_reject_chat(userid, agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
                                   "redirecting".format(chat_id, user_name, userid, agent_idx))
@@ -118,9 +136,7 @@ class Backend(BaseBackend):
         def _user_finished(userid):
             self._update_user(cursor, userid, status=Status.Finished)
 
-        def _update_scenario_db(chat_id, partner_type):
-            cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (chat_id,))
-            scenario_id = cursor.fetchone()[0]
+        def _update_scenario_db(chat_id, scenario_id, partner_type):
             # make sure that the # of completed dialogues for the scenario is only updated once if both agents are human
             cursor.execute('''SELECT complete FROM scenario WHERE scenario_id=? AND partner_type=?''',
                            (scenario_id, partner_type))
@@ -139,13 +155,29 @@ class Backend(BaseBackend):
             with self.conn:
                 cursor = self.conn.cursor()
                 user_info = self._get_user_info_unchecked(cursor, userid)
-                _update_scenario_db(user_info.chat_id, user_info.partner_type)
+                cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (user_info.chat_id,))
+                scenario_id = cursor.fetchone()[0]
+                _update_scenario_db(user_info.chat_id, scenario_id, user_info.partner_type)
                 cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?,?,?)',
                                (userid, user_info.chat_id, user_info.partner_type,
                                 data['fluent'], data['honest'], data['persuasive'],
                                 data['fair'], data['negotiator'], data['coherent'], data['comments']))
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
+
+                if user_info.partner_type == 'config-rulebased':
+                    agent_idx = self.get_agent_idx(userid)
+                    bot_agent_idx = 1 - agent_idx
+                    controller = self.controller_map[userid]
+                    # TODO: get config
+                    cursor.execute('''SELECT config FROM bot WHERE chat_id=? AND type=?''', (user_info.chat_id, user_info.partner_type))
+                    config = tuple(json.loads(cursor.fetchone()[0]))
+                    role, margin = self.get_margin(controller, bot_agent_idx)
+                    self.logger.debug("Updating trials for user {}".format(userid))
+                    self.logger.debug("scenario_id={}, role={}, margin={}, humanlike={}".format(scenario_id, role, margin, data['negotiator']))
+                    self.systems['config-rulebased'].update_trials([
+                        (config, user_info.chat_id, {'scenario_id': scenario_id, 'role': role, 'margin': margin, 'humanlike': data['negotiator']}),
+                        ])
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 

@@ -350,7 +350,7 @@ class StrategyAnalyzer(object):
 
     @classmethod
     def has_deal(cls, ex):
-        if ex.outcome is None or ex.outcome.get('offer', None) is None:
+        if ex.outcome is None or ex.outcome['reward'] == 0 or ex.outcome.get('offer', None) is None or ex.outcome['offer']['price'] is None:
             return False
         return True
 

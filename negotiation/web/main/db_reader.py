@@ -16,6 +16,16 @@ class DatabaseReader(BaseDatabaseReader):
         return outcome
 
     @classmethod
+    def get_chat_example(cls, cursor, chat_id, scenario_db):
+        ex = super(DatabaseReader, cls).get_chat_example(cursor, chat_id, scenario_db)
+        if not ex is None:
+            cursor.execute('SELECT config FROM bot where chat_id=?', (chat_id,))
+            result = cursor.fetchone()
+            if result:
+                ex.agents_info = {'config': result[0]}
+        return ex
+
+    @classmethod
     def process_event_data(cls, action, data):
         if action == 'offer':
             data = json.loads(data)

@@ -1,10 +1,12 @@
 import os
 
 from cocoa.analysis.html_visualizer import HTMLVisualizer as BaseHTMLVisualizer
+from cocoa.analysis.utils import reject_transcript
 
 class HTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based'}
-    questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased'}
+    #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
+    questions = ('negotiator',)
 
     @classmethod
     def render_scenario(cls, scenario, img_path=None, kbs=None, uuid=None):
@@ -41,7 +43,8 @@ class HTMLVisualizer(BaseHTMLVisualizer):
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
         complete, _, html_lines = super(HTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type, worker_ids=worker_ids)
-        # TODO
-        from cocoa.turk.accept_negotiation_hits import reject_transcript
+        # Show config and results
+        if chat.get('agents_info') is not None:
+            html_lines.append('<p>Bot config: {}</p>'.format(str(chat['agents_info']['config'])))
         rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
         return complete, rejected, html_lines

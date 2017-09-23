@@ -1,12 +1,12 @@
 __author__ = 'anushabala'
-from session import Session as BaseSession
+from session import Session
 import time
 import random
 from collections import deque
 from cocoa.core.event import Event
 
 
-class TimedSessionWrapper(BaseSession):
+class TimedSessionWrapper(Session):
     """
     TimedSessionWrapper is a wrapper around a Session class that adds timing logic to the send() function in Session.
     This class can be used to wrap around a session that produces event responses generated using rules (or a model) -
@@ -18,8 +18,8 @@ class TimedSessionWrapper(BaseSession):
     REPEATED_SELECTION_DELAY = 10
     PATIENCE = 2
 
-    def __init__(self, agent, session):
-        super(TimedSessionWrapper, self).__init__(agent)
+    def __init__(self, session):
+        super(TimedSessionWrapper, self).__init__(session.agent)
         self.session = session
         self.last_message_timestamp = time.time()
         self.queued_event = deque()
@@ -31,10 +31,15 @@ class TimedSessionWrapper(BaseSession):
         self.num_utterances = 0
         self.start_typing = False
 
+    # TODO:
+    @property
+    def config(self):
+        if hasattr(self.session, 'config'):
+            return self.session.config
+        return None
+
     def receive(self, event):
-        # join and leave events
-        # TODO move this var to Event
-        if event.action in ('join', 'leave', 'typing'):
+        if event.action in Event.decorative_events:
             return
         self.last_message_timestamp = time.time()
         self.session.receive(event)

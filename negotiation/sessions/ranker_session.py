@@ -6,9 +6,9 @@ from itertools import izip
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
 
-from model.evaluate import pred_to_token
 from model.preprocess import markers, Dialogue
 from session import Session
+
 
 class StreamingDialogue(Dialogue):
     def __init__(self, agent, kb):

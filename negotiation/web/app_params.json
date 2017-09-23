@@ -34,12 +34,12 @@
     "icon": "handshake.jpg",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "num_chats_per_scenario": 1,
     "debug": false,
+    "num_chats_per_scenario": {"human": 10, "config-rulebased": 40},
     "models": {
-        "rulebased": {
+        "config-rulebased": {
             "active": true,
-            "type": "rulebased"
+            "type": "config-rulebased"
         }
     }
 }

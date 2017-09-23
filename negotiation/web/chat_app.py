@@ -31,16 +31,6 @@ TRANSCRIPTS_DIR = 'transcripts'
 from flask import g
 from web.main.backend import Backend
 
-def init_backend(app):
-    g._backend = Backend(app.config["user_params"],
-                         app.config["schema"],
-                         app.config["scenario_db"],
-                         app.config["systems"],
-                         app.config["sessions"],
-                         app.config["controller_map"],
-                         app.config["pairing_probabilities"],
-                         app.config["num_chats_per_scenario"])
-
 ###############
 from flask import Flask, current_app
 
@@ -57,7 +47,7 @@ def close_connection(exception):
 def create_app(debug=False, templates_dir='templates'):
     """Create an application."""
 
-    app = Flask(__name__, template_folder=templates_dir)
+    app = Flask(__name__, template_folder=os.path.abspath(templates_dir))
     app.debug = debug
     app.config['SECRET_KEY'] = 'gjr39dkjn344_!67#'
     app.config['PROPAGATE_EXCEPTIONS'] = True
@@ -121,6 +111,9 @@ def init_database(db_file):
     )
     c.execute(
         '''CREATE TABLE feedback (name text, comments text)'''
+    )
+    c.execute(
+        '''CREATE TABLE bot (chat_id text, type text, config text)'''
     )
 
     add_survey_table(c)
@@ -215,6 +208,7 @@ def init(output_dir, reuse=False):
     log_file = os.path.join(output_dir, LOG_FILE_NAME)
     error_log_file = os.path.join(output_dir, ERROR_LOG_FILE_NAME)
     transcripts_dir = os.path.join(output_dir, TRANSCRIPTS_DIR)
+    # TODO: don't remove everything
     if not reuse:
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)
@@ -231,6 +225,7 @@ def init(output_dir, reuse=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--num-scenarios', type=int)
     add_website_arguments(parser)
     add_scenario_arguments(parser)
     add_system_arguments(parser)
@@ -278,7 +273,10 @@ if __name__ == "__main__":
         raise ValueError("No schema file found at %s" % schema_path)
 
     schema = Schema(schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
+    scenarios = read_json(args.scenarios_path)
+    if args.num_scenarios is not None:
+        scenarios = scenarios[:args.num_scenarios]
+    scenario_db = ScenarioDB.from_dict(schema, scenarios, Scenario)
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
@@ -303,10 +301,11 @@ if __name__ == "__main__":
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
-    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', 1)
+    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', {k: 1 for k in systems})
+    for k in systems:
+        assert k in app.config['num_chats_per_scenario']
     app.config['schema'] = schema
     app.config['user_params'] = params
-    app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)
     app.config['instructions'] = instructions
     app.config['task_title'] = params['task_title']

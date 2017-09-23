@@ -22,10 +22,21 @@ class SpeechActs(object):
 
 class SpeechActAnalyzer(object):
     agreement_patterns = [
-        r'that works',
-        r'[^a-zA-Z]ok[^a-zA-Z]|okay',
-        r'great'
+        r'^that works[.!]*$',
+        r'^great[.!]*$',
+        r'^(ok|okay)[.!]*$',
+        r'^great, thanks[.!]*$',
+        r'^deal[.!]*$',
+        r'^[\w ]*have a deal[\w ]*$',
+        r'^i can do that[.]*$',
     ]
+
+    price_patterns = [
+            r'come down',
+            r'(highest|lowest)',
+            r'go (lower|higher)',
+            r'too (high|low)',
+            ]
 
     pos_patterns = [
             r'i can',
@@ -51,7 +62,7 @@ class SpeechActAnalyzer(object):
 
     greeting_patterns = [
             r'how are you',
-            r'interested in'
+            r'interested in',
             ]
 
     greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
@@ -63,9 +74,18 @@ class SpeechActAnalyzer(object):
     @classmethod
     def is_question(cls, utterance):
         tokens = utterance.tokens
+        if len(tokens) < 1:
+            return False
         last_word = tokens[-1]
         first_word = tokens[0]
         return last_word == '?' or first_word in cls.question_words
+
+    @classmethod
+    def is_price(cls, utterance):
+        for pattern in cls.price_patterns:
+            if re.search(pattern, utterance.text):
+                return True
+        return False
 
     @classmethod
     def has_person(cls, utterance):
@@ -82,16 +102,16 @@ class SpeechActAnalyzer(object):
         return False
 
     @classmethod
-    def sentiment(cls, raw_sentence, tokens):
+    def sentiment(cls, utterance):
         for pattern in cls.pos_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return 1
         for pattern in cls.neg_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return -1
         return 0
 
-        for token in tokens:
+        for token in utterance.tokens:
             if token in ("n't", 'cannot'):
                 return -1
             elif token in ('can', 'willing', 'cound'):
@@ -99,9 +119,9 @@ class SpeechActAnalyzer(object):
         return 0
 
     @classmethod
-    def is_agreement(cls, raw_sentence):
+    def is_agreement(cls, utterance):
         for pattern in cls.agreement_patterns:
-            if re.match(pattern, raw_sentence, re.IGNORECASE) is not None:
+            if re.match(pattern, utterance.text, re.IGNORECASE) is not None:
                 return True
         return False
 
