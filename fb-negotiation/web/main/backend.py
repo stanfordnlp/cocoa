@@ -9,7 +9,7 @@ from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
 from core.event import Event
-from analysis.analyze_strategy import StrategyAnalyzer
+# from analysis.analyze_strategy import StrategyAnalyzer
 
 class DatabaseManager(BaseDatabaseManager):
     @classmethod
@@ -70,7 +70,8 @@ class Backend(BaseBackend):
                     price = float(outcome['offer']['price'])
                 except (KeyError, ValueError) as e:
                     return role, None
-                margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
+                # margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
+                margin = 7  # this is a stub to allow the server to run
                 return role, margin
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):

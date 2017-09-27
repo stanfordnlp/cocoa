@@ -7,37 +7,34 @@ import os
 import shutil
 import warnings
 import atexit
+import sys
 from gevent.pywsgi import WSGIServer
 
 from cocoa.core.scenario_db import add_scenario_arguments, ScenarioDB
 from cocoa.core.schema import Schema
 from cocoa.core.util import read_json
-#from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
 from cocoa.systems.human_system import HumanSystem
 from cocoa.web.main.logger import WebLogger
-#from cocoa.web import create_app
+#from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
 
 from core.scenario import Scenario
 from systems import get_system, add_system_arguments
 from main.db_reader import DatabaseReader
 from main.backend import DatabaseManager
 
-__author__ = 'anushabala'
+from web.main.backend import Backend
+from flask import g
+from flask import Flask, current_app
+from flask_socketio import SocketIO
+socketio = SocketIO()
+
+
+__author__ = 'derekchen'
 
 DB_FILE_NAME = 'chat_state.db'
 LOG_FILE_NAME = 'log.out'
 ERROR_LOG_FILE_NAME = 'error_log.out'
 TRANSCRIPTS_DIR = 'transcripts'
-
-from flask import g
-from web.main.backend import Backend
-
-###############
-from flask import Flask, current_app
-
-from flask_socketio import SocketIO
-socketio = SocketIO()
-
 
 def close_connection(exception):
     backend = getattr(g, '_backend', None)
@@ -72,7 +69,7 @@ def add_website_arguments(parser):
     parser.add_argument('--config', type=str, default='app_params.json',
                         help='Path to JSON file containing configurations for website')
     parser.add_argument('--output', type=str,
-                        default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
+                        default="web/output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
                              'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '

@@ -24,13 +24,13 @@
                 color:#ff0000;
                 font-weight: bold;
             }
-            div#chat_container {
+            div#info_container {
                 float:left;
-                width: 45%;
+                width: 43%;
             }
 
-            div#info_container {
-                margin-left: 47%;
+            div#chat_container {
+                margin-left: 45%;
                 color:#004d00;
             }
 
@@ -149,12 +149,12 @@
                 var read_time = 1000;  // In peek/debug mode, skip it
             {% endif %}
             $(document).ready(function(){
-                $('#description').modal({backdrop: 'static', keyboard: false});
-                $('#description').modal('show');
+                // $('#description').modal({backdrop: 'static', keyboard: false});
+                // $('#description').modal('show');
                 $("#instructionCollapse").click();
                 window.onbeforeunload = disconnect;
 
-                document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
+                // document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
 
                 var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
 
@@ -178,59 +178,55 @@
 
                 // This part executes after the description is shown
                 setTimeout(function(){
+                    // $('#description').modal('hide')
+                    // $('#accept').style.display = 'none';
+                    // $('#reject').style.display = 'none';
+                    //initializeClock('clockdiv', deadline);
 
-                $('#description').modal('hide')
+                    inboxCheckInterval = setInterval(checkInbox, 1000);
 
-                // $('#accept').style.display = 'none';
-                // $('#reject').style.display = 'none';
-
-                //initializeClock('clockdiv', deadline);
-
-                inboxCheckInterval = setInterval(checkInbox, 1000);
-
-                $('#text').keypress(function(e) {
-                    var code = e.keyCode || e.which;
-                    if ($('#text').val().length == 0) {
-                        messageStartTime = Date.now() / 1000.0;
-                        startedTyping();
-                    }
-                    if (code == 13) {
-                        stoppedTyping();
-                        text = $('#text').val();
-                        $('#text').val('');
-                        var currentTime = Date.now() / 1000.0;
-                        messageTime = currentTime - messageStartTime;
-                        sendMessage(text);
-                        $("#text").attr("disabled", "disabled")
-                        messageStartTime = null;
-                        messageTime = 0.0;
-                    }
-
-                });
-
-                //$('#text').focus().keyup(
-                //    function(e) {
-                //        if(e.keyCode == 8 && $('#text').val().length == 0) {
-                //            stoppedTyping();
-                //        }
-                //    })
-
-                $('#price').on('keyup blur', function () { // fires on every keyup & blur
-                    if (num_offer < 1) {
-                        var priceStr = $('#price').val()
-                        if (isNaN(priceStr)) { // ensure that string entered is a valid number
-                            $('#submit').prop('disabled', 'disabled');
-                        } else {
-                            $('#submit').prop('disabled', false);        // enables button
+                    $('#text').keypress(function(e) {
+                        var code = e.keyCode || e.which;
+                        if ($('#text').val().length == 0) {
+                            messageStartTime = Date.now() / 1000.0;
+                            startedTyping();
                         }
-                    }
+                        if (code == 13) {
+                            stoppedTyping();
+                            text = $('#text').val();
+                            $('#text').val('');
+                            var currentTime = Date.now() / 1000.0;
+                            messageTime = currentTime - messageStartTime;
+                            sendMessage(text);
+                            $("#text").attr("disabled", "disabled")
+                            messageStartTime = null;
+                            messageTime = 0.0;
+                        }
 
-                });
+                    });
 
-                $('.btn.btn-default.eval-tag').click(function () {
-                    $(this).toggleClass('btn-default btn-primary');
-                });
+                    //$('#text').focus().keyup(
+                    //    function(e) {
+                    //        if(e.keyCode == 8 && $('#text').val().length == 0) {
+                    //            stoppedTyping();
+                    //        }
+                    //    })
 
+                    $('#price').on('keyup blur', function () { // fires on every keyup & blur
+                        if (num_offer < 1) {
+                            var priceStr = $('#price').val()
+                            if (isNaN(priceStr)) { // ensure that string entered is a valid number
+                                $('#submit').prop('disabled', 'disabled');
+                            } else {
+                                $('#submit').prop('disabled', false);        // enables button
+                            }
+                        }
+
+                    });
+
+                    $('.btn.btn-default.eval-tag').click(function () {
+                        $(this).toggleClass('btn-default btn-primary');
+                    });
                 }, read_time);  // delay due to reading the description
             });
 
@@ -540,43 +536,10 @@
         <div class="modal fade" id="description" role="dialog">
           <div class="modal-dialog">
 
-            <!-- Modal content-->
-            <div class="modal-content">
-              <div class="modal-header">
-                <h4 class="modal-title">Negotiation scenario</h4>
-                <b><p id="modal_instruction"></p></b>
-              </div>
-              <div class="modal-body">
-                {% if kb['personal']['Role'] == 'buyer' %}
-                    <p> You just saw the following post: </p>
-                {% else %}
-                    <p> You have posted the following ad (note that the buyer may not see all information): </p>
-                {% endif %}
-                <br>
-                <div id="modal_description">
-                <p><b>  {{ kb['item']['Title'] }} </b></p>
-                {% if kb['item']['Images']|length >= 1 %}
-                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
-                {% endif %}
-                <p>
-                    {% for s in kb['item']['Description'] %}
-                        {{ s }}<br/>
-                    {% endfor %}
-                </p>
-                </div>
-                <br>
-                {% if kb['personal']['Role'] == 'buyer' %}
-                    <p>You are very interested in this item and decide to ask about its details and negotiate the price.</p>
-                {% else %}
-                    <p>You want to get rid of this item soon and are willing to negotiate the price.</p>
-                {% endif %}
-              </div>
-            </div>
-
           </div>
         </div>
 
-        <div id="chat_container">
+        <div id="info_container">
             <div id="instructions">
                 <h1 style="color:#004d00">{{ title}}</h1>
                 <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
@@ -585,90 +548,46 @@
                 </div>
             </div>
 
-            <!--
-            <div id="clockdiv" align="right">
-              Time Remaining:
-              <div>
-                <span class="minutes"></span>
-                <span class="seconds"></span>
-              </div>
-            </div> -->
-
-            <textarea readonly id="chat"></textarea>
-            <!-- <input readonly id="status" style="width:100%;"><br><br> -->
-            <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
-            <!-- <div class="eval_container" id="eval">
-                <h4>Rate your partner's utterance:</h4>
-                <p id="partner_utterance"></p>
-                <div class="button_container">
-                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical">NOT grammatical</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="incoherent">Out-of-context</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="contradiction">Contradiction</button>
-                    <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
-                    
-                </div>
-            </div> -->
-            <input id="text" placeholder="Enter your message here"><br><br>
-
-        </div>
-
-        <div id="info_container">
-            <div id="report">
-                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
-                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
-            </div>
             <div id="facts">
-                <h3>Scenario</h3>
-                {% if kb['personal']['Role'] == 'buyer' %}
-                    <p>You are the potential <b>buyer</b>.
-                    The list price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
-                    You would like to pay for <b>{{ "$%d"|format(kb['personal']['Target']) }}</b>.
-                    You can accept higher price though if the item is really good or there are other perks.</p>
+                {% if kb['Role'] == 'first' %}
+                    <p>You are the <b>first</b> speaker.
                 {% else %}
-                    <p>You are the <b>seller</b>.
-                    Your listing price for this item is <b>{{ "$%d"|format(kb['item']['Price']) }}</b>.
-                    You are willing to negotiate but should not go too low.
+                    <p>You are the <b>second</b> speaker.
                 {% endif %}
-                <h3>Basic facts</h3>
-                <table>
-                <tbody>
-                    {% for attr in attributes if not (attr == 'Role' or attr == 'Target' or attr == 'Bottomline' or attr == 'Price' or attr == 'Images' or attr == 'Category') %}
-                        {% if attr == 'Title' %}
-                            <p><b>{{ kb['item'][attr] }}</b></p>
-                            {% if kb['item']['Images']|length >= 1 %}
-                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
-                {% endif %}
-                        {% elif attr == 'Description' %}
-                            {% for s in kb['item'][attr] %}
-                            <div id="factDescription" class="description-collapse">
-                                {{ s }}<br/>
-                            </div>
-                            {% endfor %}
-                        {% else %}
+                <p>Some balls bats and beets.</p>
+
+                <h3>Items</h3>
+                <ul>
+                    <li>Book: {{kb['Item_counts']['book'] }} </li>
+                    <li>Hat: {{kb['Item_counts']['book'] }} </li>
+                    <li>Ball: {{kb['Item_counts']['book'] }} </li>
+                </ul>
+
+            <!--    for attr in attributes
+                        if attr == 'Title'
+                            <p><b> kb['item'][attr] </b></p>
+                            if kb['item']['Images']|length >= 1
+                                <img class="img-thumbnail" height="250" width="250" src=" url"/>
+                            endif
+                        elif attr == 'Description'
+                            for s in kb['item'][attr]
+                                <div id="factDescription"> s </div>
+                            endfor
+                        else
                             <tr>
-                                <td><b>{{attr}}</b></td>
-                            {% set value = kb['item'][attr] %}
-                            {% if value is none %}
+                                <td><b>attr</b></td>
+                            set value = kb['item'][attr]
+                            if value is none
                                 <td>?</td>
-                            {% elif value is string %}
-                                <td>{{ value }}</td>
-                            {% else %}
-                                <td>{{ value|join(', ') }}</td>
-                            {% endif %}
+                            elif value is string
+                                <td> value </td>
+                            else
+                                <td> value|join(', ') </td>
+                            endif
                             </tr>
-                        {% endif %}
-                    {% endfor %}
-                </tbody>
-                </table>
+                        endif
+                    endfor -->
             </div>
-            {% if partner_kb %}
-                <div id="facts">
-                    <h3>Partner Goal</h3>
-                    <p>
-                    Your listing price for this item is {{ "$%d"|format(kb['item']['Price']) }}.
-                    </p>
-                </div>
-            {% endif %}
 
             <div id="offer">
                 <h4>Final agreement:</h4>
@@ -705,8 +624,39 @@
 
               </div>
             </div>
-
         </div>
+
+        <div id="chat_container">
+            <div id="report">
+                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
+                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
+            </div>
+
+            <!--
+            <div id="clockdiv" align="right">
+              Time Remaining:
+              <div>
+                <span class="minutes"></span>
+                <span class="seconds"></span>
+              </div>
+            </div> -->
+
+            <textarea readonly id="chat"></textarea>
+            <!-- <input readonly id="status" style="width:100%;"><br><br> -->
+            <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
+            <!-- <div class="eval_container" id="eval">
+                <h4>Rate your partner's utterance:</h4>
+                <p id="partner_utterance"></p>
+                <div class="button_container">
+                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical">NOT grammatical</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="incoherent">Out-of-context</button>
+                    <button type="button" class="btn btn-default eval-tag"  id="contradiction">Contradiction</button>
+                    <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
+                </div>
+            </div> -->
+            <input id="text" placeholder="Enter your message here"><br><br>
+        </div>
+
     </div>
     </body>
 </html>
