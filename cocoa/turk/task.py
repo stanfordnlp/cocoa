@@ -128,6 +128,7 @@ class Task(object):
         for hit_id, hit_info in self.db.iteritems():
             try:
                 assignments = self.mtc.get_assignments(hit_id)
+                print hit_id, len(assignments)
             except MTurkRequestError:
                 continue
             if assignments:
@@ -204,78 +205,3 @@ class HTMLEvalTask(EvalTask):
                 )
             html_questions.append(html_question)
         return '\n'.join(html_questions)
-
-
-################ DEPRECATED ################
-
-class QuestionFormEvalTask(EvalTask):
-    ratings = [
-            ('Very unlikely', -2),
-            ('Not likely', -1),
-            ('Neutral', 0),
-            ('Likely', 1),
-            ('Very likely', 2),
-            ]
-
-    def build_question(self, qid, context, response):
-        qc = QuestionContent()
-
-        utterance_formatter = '{agent}: {text}'
-        #qc.append_field('Text', 'Dialogue context:')
-        display_context = []
-        for agent, utterance in context:
-            display_context.append(self.utterance_formatter(linebreak=True).format(agent=agent, text=utterance))
-        qc.append(FormattedContent(''.join(display_context)))
-
-        #qc.append_field('Text', 'Response:')
-        agent, utterance = response
-        qc.append(FormattedContent(self.utterance_formatter().format(agent=agent, text=utterance)))
-
-        qc.append_field('Text', 'Please rate how likely the response (in bold) continues from the conversation above.')
-
-        ans = SelectionAnswer(min=-2, max=2, style='radiobutton',
-                selections=self.ratings,
-                type='text', other=False)
-
-        q = Question(identifier=qid,
-                content=qc,
-                answer_spec=AnswerSpecification(ans),
-                is_required=True)
-
-        return q
-
-    def build_comment(self):
-        qc = QuestionContent()
-        qc.append_field('Text', 'Comments:')
-        ans = FreeTextAnswer()
-        q = Question(identifier='comment',
-              content=qc,
-              answer_spec=AnswerSpecification(ans),
-              is_required=False)
-        return q
-
-    def build_question_form(self, questions):
-        question_form = QuestionForm()
-        question_form.append(self.build_overview())
-        for qid, context, response in questions:
-            question_form.append(self.build_question(qid, context, response))
-            question_form.append(self.build_comment())
-        return question_form
-
-    def build_overview(self,):
-        overview = Overview()
-        overview.append_field('Title', 'Rate a response in a dialogue')
-        overview.append(FormattedContent('''
-                <p>You are given an excerpt of a conversation (the context)
-                happened between a buyer and a seller negotiating the price of an
-                item for sale, and a response following the context.
-                Your task is to decide how likely the response (<b>in bold</b>)
-                and the context actually come from the same dialogue, i.e. together
-                they form a natual, coherent dialogue.</p>
-                <p>Mentions of prices are replaced by the symbol <b>PRICE</b>;
-                you can assume the actual amount is reasonable. </p>
-                <p>Symbols such as OFFER, ACCEPT, REJECT denote actions.</p>
-                <p><b>NOTE:</b> We use verification answers to identify abusers.
-                Randomly chosen answers will <b>get rejected</b>.</p>
-        '''))
-        return overview
