@@ -25,7 +25,6 @@ class Scenario(object):
         return self.kbs[agent]
 
 
-
 class ScenarioDB(object):
     '''
     Consists a list of scenarios (specifies the pair of KBs).

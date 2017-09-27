@@ -17,7 +17,7 @@ def add_system_arguments(parser):
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
-    templates = read_pickle(args.templates)
+    templates = read_pickle(args.templates) if args.templates else args.templates
     if name == 'rulebased':
         return RulebasedSystem(lexicon, timed, templates=templates)
     elif name == 'config-rulebased':
