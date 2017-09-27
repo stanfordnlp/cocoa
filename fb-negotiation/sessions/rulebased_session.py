@@ -250,7 +250,7 @@ class BaseRulebasedSession(Session):
                     self.my_proposal[self.bottom_item] += 1
         prop = self.offer_to_string(self.my_proposal)
 
-        s = ["I would realy like " + prop + ".",
+        s = ["I would really like " + prop + ".",
             "Would if be ok for me to get " + prop + "?",
             "How about I get " + prop + "?"
         ]
