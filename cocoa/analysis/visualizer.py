@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 import numpy as np
 from itertools import izip, chain
-from scipy.stats import ttest_ind as ttest
+from scipy.stats import ttest_ind as ttest, sem
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -179,6 +179,7 @@ class Visualizer(object):
                 for i, (agent, stat, total) in enumerate(results):
                     agent_ratings[agent] = stat[1]
                     summary[question][agent]['score'] = stat[0]
+                    summary[question][agent]['sem'] = sem(stat[1])
                     summary[question][agent]['total'] = total
                     summary[question][agent]['ttest'] = ''
                 # T-test
@@ -200,11 +201,14 @@ class Visualizer(object):
             # Print
             for question, agent_stats in summary.iteritems():
                 print '============= %s ===============' % self.question_labels[question]
-                print '{:<12s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', '#score', 'win')
+                print '{:<12s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', 'error', '#score', 'win')
                 print '---------------------------------------'
                 for i, agent in enumerate(agents):
                     stats = agent_stats[agent]
-                    print '{:<12s} {:<10.1f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['total'], stats['ttest'])
+                    try:
+                        print '{:<12s} {:<10.1f} {:<10.2f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], stats['ttest'])
+                    except KeyError:
+                        continue
         return summary
 
     def get_dialogue_responses(self, question_scores):
