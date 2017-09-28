@@ -4,15 +4,23 @@
         <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
         <style>
+            body {
+                font-size: 16px;
+                margin: 40px 70px;
+                /*background-color: #efcf4c;*/
+            }
+            h3 {
+                font-weight: bold;
+            }
             .clearfix {
                 overflow: auto;
             }
-            .points {
-                color: #009933;
-            }
-
             .modal-body{
                 font-size: 16px;
+            }
+
+            div#task-description {
+                font-style: italic;
             }
 
             div#modal_description {
@@ -26,11 +34,12 @@
             }
             div#info_container {
                 float:left;
-                width: 43%;
+                width: 50%;
+                font-family: calibri, sans-serif;
             }
 
             div#chat_container {
-                margin-left: 45%;
+                margin-left: 52%;
                 color:#004d00;
             }
 
@@ -42,11 +51,8 @@
 
             div#offer {
                 color: ##004d00;
-                border: 1px solid #004d00;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                margin-left: 2px;
-                padding: 10px 5px 10px 5px;
+                margin: 10px 2px;
+                padding: 10px 5px;
                 font-size: 18px;
             }
 
@@ -78,16 +84,11 @@
                 width: 100%;
             }
 
-            td {
-                white-space: pre-wrap;
-                word-wrap: break-word;
-                padding: 0 15px 0 15px;
-            }
 
-            #instructions > p,li {
+/*            #instructions > p,li {
                 font-size:15px;
             }
-
+*/
             #inner {
                 border: 1px solid #003305;
                 margin-top: 10px;
@@ -96,17 +97,43 @@
                 padding: 0px 5px 0px 5px;
             }
 
-            table {
-                border-collapse: collapse;
-            }
-
-            #facts {
-                font-size: 18px;
+/*
+            td {
+                white-space: pre-wrap;
+                word-wrap: break-word;
             }
 
             tr:nth-child(n) {
                 border: solid thin;
             }
+
+*/
+            table {
+                border-collapse: collapse;
+                margin-top: 60px ;
+            }
+
+            td {
+                font-size: 18px;
+                padding: 3px 0px;
+            }
+            td.points {
+                text-align: center
+            }
+            tr {
+                margin-bottom: 5px;
+            }
+            th {
+                padding: 3px 3px 3px 0;
+            }
+            #items-table th:last-child {
+                text-align: center
+            }
+            img.item{
+                height: 75px;
+                width: 75px;
+            }
+
             #clockdiv{
                 display: inline-block;
                 font-weight: bold;
@@ -181,7 +208,7 @@
                     // $('#description').modal('hide')
                     // $('#accept').style.display = 'none';
                     // $('#reject').style.display = 'none';
-                    //initializeClock('clockdiv', deadline);
+                    initializeClock('clockdiv', deadline);
 
                     inboxCheckInterval = setInterval(checkInbox, 1000);
 
@@ -230,19 +257,16 @@
                 }, read_time);  // delay due to reading the description
             });
 
-            function makeOffer() {
+            function select() {
                 num_offer += 1;
                 var price = parseInt($('#price').val());
-                var sides = "";
                 $("#price").attr("disabled", "disabled")
-                // $("#side_offers").attr("disabled", "disabled")
                 $.ajax({
-                    url: BASE_URL + '/_offer/',
+                    url: BASE_URL + '/_select/',
                     type: "get",
                     data: {
                         "uid": "{{ uid }}",
                         "price": price,
-                        "sides": sides
                     },
                     dataType: "json",
                     success: function(response) {
@@ -251,48 +275,20 @@
 
                 });
             }
+            // function reject() {
+            //     $.ajax({
+            //         url: BASE_URL +'/_reject_offer/',
+            //         type: "get",
+            //         data: {
+            //             "uid": "{{ uid }}"
+            //         },
+            //         dataType: "json",
+            //         success: function(response) {
+            //             displayText(response['message'])
+            //         }
+            //     })
+            // }
 
-            function accept() {
-                $.ajax({
-                    url: BASE_URL +'/_accept_offer/',
-                    type: "get",
-                    data: {
-                        "uid": "{{ uid }}"
-                    },
-                    dataType: "json",
-                    success: function(response) {
-                        displayText(response['message'])
-                    }
-                })
-            }
-
-            function reject() {
-                $.ajax({
-                    url: BASE_URL +'/_reject_offer/',
-                    type: "get",
-                    data: {
-                        "uid": "{{ uid }}"
-                    },
-                    dataType: "json",
-                    success: function(response) {
-                        displayText(response['message'])
-                    }
-                })
-            }
-            function quit() {
-                $.ajax({
-                    url: BASE_URL + '/_quit/',
-                    type: "get",
-                    data: {
-                        "uid": "{{ uid }}"
-                    },
-                    dataType: "json",
-                    success: function(response) {
-                        displayText(response['message']);
-                    }
-
-                });
-            }
 
             function report() {
                 $.ajax({
@@ -376,7 +372,7 @@
                                 "eval_data": eval_data,
                                 "labels": labels
                             }
-                        //console.log(JSON.stringify(data)) 
+                        //console.log(JSON.stringify(data))
                         $.ajax({
                             url: BASE_URL + '/_send_eval/',
                             type: "post",
@@ -530,7 +526,7 @@
         </script>
     </head>
 
-    <body oncopy="return false" oncut="return false" onpaste="return false" style="margin:10">
+    <body oncopy="return false" oncut="return false" onpaste="return false">
     <div class="clearfix">
         <!-- Modal -->
         <div class="modal fade" id="description" role="dialog">
@@ -540,28 +536,80 @@
         </div>
 
         <div id="info_container">
-            <div id="instructions">
-                <h1 style="color:#004d00">{{ title}}</h1>
-                <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
-                <div id="inner" class="collapse">
-                    {{ instructions }}
-                </div>
+            <h3>Divide these items between you and your partner.</h3>
+            <div id="task-description">
+            <p>Your partner sees the <b>SAME ITEMS</b> but with <b>DIFFERENT VALUES</b></p>
+            <p>You get some items, and your partner will get the rest.</p>
+            <p>Please try hard to negotiate a good deal for yourself!</p>
             </div>
 
             <div id="facts">
-                {% if kb['Role'] == 'first' %}
+<!--                 {% if kb['Role'] == 'first' %}
                     <p>You are the <b>first</b> speaker.
                 {% else %}
                     <p>You are the <b>second</b> speaker.
                 {% endif %}
-                <p>Some balls bats and beets.</p>
-
-                <h3>Items</h3>
-                <ul>
-                    <li>Book: {{kb['Item_counts']['book'] }} </li>
-                    <li>Hat: {{kb['Item_counts']['book'] }} </li>
-                    <li>Ball: {{kb['Item_counts']['book'] }} </li>
-                </ul>
+ -->        <table id="items-table">
+              <tr>
+                <th>Items You BOTH See</th>
+                <th>Value to You</th>
+                <th>Number You Get</th>
+              </tr>
+              <tr>
+                <td>{% for count in range(kb['Item_counts']['book']) %}
+                    <img class="book item" src="{{ url_for('static', filename='img/book.png')}}"/>
+                    {% endfor %}
+                </td>
+                <td class="points">{{kb['Item_values']['book'] }}</td>
+                <td><div class="dropdown">
+                  <button class="btn dropdown-toggle" data-toggle="dropdown">
+                    You Get 0, They get 2
+                  <span class="caret"></span></button>
+                  <ul class="dropdown-menu">
+                    {% for count in range(kb['Item_counts']['book']) %}
+                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                </td>
+              </tr>
+              <tr>
+                <td>{% for count in range(kb['Item_counts']['hat']) %}
+                    <img class="hat item" src="{{ url_for('static', filename='img/hat.png')}}"/>
+                    {% endfor %}
+                </td>
+                <td class="points">{{kb['Item_values']['hat'] }}</td>
+                <td><div class="dropdown">
+                  <button class="btn dropdown-toggle" data-toggle="dropdown">
+                    You Get 0, They get 2
+                  <span class="caret"></span></button>
+                  <ul class="dropdown-menu">
+                    {% for count in range(kb['Item_counts']['book']) %}
+                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                </td>
+              </tr>
+              <tr>
+                <td>{% for count in range(kb['Item_counts']['ball']) %}
+                    <img class="ball item" src="{{ url_for('static', filename='img/ball.png')}}"/>
+                    {% endfor %}
+                </td>
+                <td class="points">{{kb['Item_values']['ball'] }}</td>
+                <td><div class="dropdown">
+                  <button class="btn dropdown-toggle" data-toggle="dropdown">
+                    You Get 0, They get 2
+                  <span class="caret"></span></button>
+                  <ul class="dropdown-menu">
+                    {% for count in range(kb['Item_counts']['book']) %}
+                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                </td>
+              </tr>
+            </table>
 
             <!--    for attr in attributes
                         if attr == 'Title'
@@ -590,21 +638,13 @@
             </div>
 
             <div id="offer">
-                <h4>Final agreement:</h4>
-                <p>Be careful. You can only enter the offer <b>once</b>.</p>
-                <label for="price">Price</label>
-                <input id="price" pattern="\d+"/>
-                <!-- <label for="side_offers">Additional Terms</label> -->
-                <!-- <textarea id="side_offers" rows="2" cols="50"></textarea> -->
-                <button onclick="this.disabled=true;makeOffer()" style="display:inline-block" id="submit">Submit</button>
-                <button onclick="this.disabled=true;accept();" style="display:none" id="accept">Accept</button>
-                <button onclick="this.disabled=true;reject();" style="display:none" id="reject">Reject</button>
+            <button class="btn btn-primary" onclick="this.disabled=true;select()" style="display:inline-block" id="submit">Mark Deal Agreed</button>
             </div>
-            <div id="quit_option">
+<!--             <div id="quit_option">
                 <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
                 <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
             </div>
-
+ -->
 
             <div class="modal fade" id="report_box" role="dialog">
               <div class="modal-dialog">
@@ -632,14 +672,20 @@
                 <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
             </div>
 
-            <!--
+            <div id="instructions">
+                <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
+                <div id="inner" class="collapse">
+                    {{ instructions }}
+                </div>
+            </div>
+
             <div id="clockdiv" align="right">
               Time Remaining:
               <div>
                 <span class="minutes"></span>
                 <span class="seconds"></span>
               </div>
-            </div> -->
+            </div>
 
             <textarea readonly id="chat"></textarea>
             <!-- <input readonly id="status" style="width:100%;"><br><br> -->
