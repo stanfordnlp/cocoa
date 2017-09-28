@@ -8,8 +8,9 @@ from cocoa.core.entity import is_entity
 
 from analysis.dialogue import Utterance
 from analysis.speech_acts import SpeechActAnalyzer, SpeechActs
-from core.tokenizer import tokenize
+from core.tokenizer import tokenize, detokenize
 from session import Session
+from systems.templates import TemplateExtractor
 
 class RulebasedSession(object):
     @classmethod
@@ -41,7 +42,7 @@ class BaseRulebasedSession(Session):
         self.partner_price = None
         self.target = self.kb.target
         self.bottomline = None
-        self.list_price = self.kb.listing_price
+        self.listing_price = self.kb.listing_price
         self.category = self.kb.category
 
         # Direction of desired price
@@ -50,6 +51,7 @@ class BaseRulebasedSession(Session):
         self.config = config
 
         self.state = {
+                'time': 0,
                 'said_hi': False,
                 'introduced': False,
                 'curr_price': None,
@@ -60,11 +62,15 @@ class BaseRulebasedSession(Session):
                 'num_utterance_sent': 0,
                 'last_utterance': None,
                 'last_act': None,
+                'my_act': '<start>',
+                'partner_act': '<start>',
                 'num_persuade': 0,
                 'num_inquiry': 0,
                 'sides': set(),
                 'partner_acts': [],
                 }
+        self.used_templates = set()
+        self.partner_template = '<start>'
 
         self.persuade_price = []
         self.product_info = []
@@ -142,11 +148,11 @@ class BaseRulebasedSession(Session):
         if SpeechActAnalyzer.is_agreement(utterance):
             acts.append(SpeechActs.AGREEMENT)
 
-        sentiment = SpeechActAnalyzer.sentiment(utterance)
-        if sentiment == 1:
-            acts.append(SpeechActs.POS)
-        elif sentiment == -1:
-            acts.append(SpeechActs.NEG)
+        #sentiment = SpeechActAnalyzer.sentiment(utterance)
+        #if sentiment == 1:
+        #    acts.append(SpeechActs.POS)
+        #elif sentiment == -1:
+        #    acts.append(SpeechActs.NEG)
 
         return acts
 
@@ -159,12 +165,26 @@ class BaseRulebasedSession(Session):
         for price in prices:
             price = price.canonical.value
             # Assuming one's latest price is always worse than previous ones
-            if price != curr_price and (self.partner_price is None or inc * price <= inc * self.partner_price):
-                partner_prices.append(price)
+            # Seller might propose the listing price but the buyer won't
+            if price != curr_price and \
+                (self.partner_price is None or inc * price <= inc * self.partner_price) and \
+                (self.kb.role == 'seller' or price != self.listing_price):
+                    partner_prices.append(price)
         if partner_prices:
             i = np.argmax(inc * np.array(partner_prices))
             return partner_prices[i]
         return None
+
+    # TODO: price format
+    def utterance_to_template(self, utterance, partner=True):
+        prev_prices = {self.agent: [self.my_price], 1 - self.agent: [self.partner_price], 'listing_price': self.listing_price}
+        if partner:
+            agent_id = 1 - self.agent
+        else:
+            agent_id = self.agent
+        tokens, _ = TemplateExtractor.parse_prices(utterance.tokens, prev_prices, agent_id)
+        tokens = TemplateExtractor.parse_title(tokens, self.kb)
+        return detokenize(tokens)
 
     def receive(self, event):
         # Reset count
@@ -172,26 +192,37 @@ class BaseRulebasedSession(Session):
             self.state['num_utterance_sent'] = 0
 
         if event.action == 'message':
-            raw_utterance = event.data
-            entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, scale=False)
-            utterance = Utterance(raw_utterance, entity_tokens)
-            self.state['partner_acts'] = self.tag_utterance(utterance)
-            if len(utterance.prices) > 0:
-                # Use the last mentioned price
-                price = self.parse_partner_price(utterance.prices)
-                if price is not None:
-                    self.state['partner_acts'].append(SpeechActs.PRICE)
-                    self.state['curr_price'] = price
-
-                    # If it's the first proposal or a new and better proposal, consider a new round of negotiation
-                    if self.partner_price is None or self.compare(price, self.partner_price) > 0:
-                        self.state['num_partner_insist'] = 0
-                    # Update partner price
-                    self.partner_price = price
-                else:
-                    self.state['num_partner_insist'] += 1
+            self.state['time'] += 1
+            utterance = Utterance.from_text(event.data, self.lexicon, self.kb)
+            template = self.utterance_to_template(utterance, partner=True)
+            self.state['partner_template'] = template
+            # Find the (new) proposed price
+            price = self.parse_partner_price(utterance.prices)
+            # Tag utterance
+            acts = TemplateExtractor.parse_utterance(utterance)
+            if self.state['time'] == 1 and not 'price' in acts:
+                tag = 'intro'
+            elif 'price' in acts and self.state['curr_price'] is None:
+                tag = 'init-price'
+            elif (not 'price' in acts) and 'vague-price' in acts:
+                tag = 'vague-price'
+            elif price is not None:
+                tag = 'counter-price'
+            elif acts == ['question']:
+                tag = 'inquiry'
+            elif not acts and self.state['my_act'] == 'inquiry':
+                tag = 'inform'
+            elif 'agree' in acts:
+                tag = 'agree'
             else:
-                self.state['num_partner_insist'] += 1
+                tag = 'unknown'
+
+            # Update state
+            self.state['partner_act'] = tag
+            if price:
+                self.state['curr_price'] = price
+                self.partner_price = price
+
         elif event.action == 'offer':
             price = event.data['price']
             self.state['curr_price'] = price
@@ -210,11 +241,15 @@ class BaseRulebasedSession(Session):
         self.state['said_hi'] = True
         return self.message(random.choice(greetings))
 
+    def fill_template(self, template, price=None):
+        return template.format(title=self.title, price=(price or ''), listing_price=self.listing_price, partner_price=(self.partner_price or ''), my_price=(self.my_price or ''))
+
     def init_propose(self, price):
-        s = self.choose_template('init-price').format(title=self.title, price=price)
+        s = self.fill_template(self.choose_template('init-price', context_tag=self.state['partner_act']), price)
         s = self.remove_greeting(s)
         self.state['curr_price'] = price
         self.my_price = price
+        self.state['my_act'] = 'init-price'
         return self.message(s)
 
     def propose(self, price):
@@ -236,25 +271,18 @@ class BaseRulebasedSession(Session):
         msg = random.choice(s)
         return self.message(msg)
 
-    def softmax(self, scores, T=1.):
-        exp_scores = np.exp((scores - np.max(scores)) / T)
-        return exp_scores / np.sum(exp_scores)
-
-    def choose_template(self, action):
-        key = (self.kb.category, self.kb.role, action)
-        templates = self.templates[key]
-        counts = np.log(np.array([t[0] for t in templates]))
-        probs = self.softmax(counts, T=self.config.sample_temperature)
-        template_id = np.random.multinomial(1, probs).argmax()
-        template = templates[template_id][1]
-        #print 'choosing template for', key
-        #print len(templates), probs[template_id], template
-        return template
+    def choose_template(self, response_tag, context_tag=None, sample=False):
+        if sample:
+            template = self.templates.choose(category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, T=self.config.sample_temperature, used_templates=self.used_templates)
+        else:
+            template = self.templates.search(self.partner_template, category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, used_templates=self.used_templates)
+        self.used_templates.add(template['id'])
+        return template['response']
 
     def intro(self):
         self.state['introduced'] = True
-        self.state['last_act'] = 'intro'
-        template = self.choose_template('intro')
+        self.state['my_act'] = 'intro'
+        template = self.fill_template(self.choose_template('intro', sample=True))
         if '{price}' in template:
             self.state['curr_price'] = self.my_price
         s = template.format(title=self.title.encode('utf-8'), price=self.my_price)
@@ -289,10 +317,11 @@ class BaseRulebasedSession(Session):
 
         self.state['num_partner_insist'] = 0  # Reset
         self.state['last_act'] = 'compromise'
+        self.state['my_act'] = 'counter-price'
 
         if self.templates is not None:
             self.state['curr_price'] = self.my_price
-            s = self.choose_template('counter-price').format(title=self.title, price=self.my_price)
+            s = self.fill_template(self.choose_template('counter-price', context_tag=self.state['partner_act']), self.my_price)
             return self.message(s)
         else:
             return self.propose(self.my_price)
@@ -302,10 +331,11 @@ class BaseRulebasedSession(Session):
         if self.state['last_act'] != 'persuade':
             self.state['num_persuade'] = 0
         self.state['last_act'] = 'persuade'
+        self.state['my_act'] = 'persuade'
         self.state['num_persuade'] += 1
 
         if self.templates is not None:
-            s = self.choose_template('vague-price').format(title=self.title)
+            s = self.fill_template(self.choose_template('vague-price', context_tag=self.state['partner_act']))
             return self.message(s)
         else:
             p = random.random()
@@ -344,7 +374,7 @@ class BaseRulebasedSession(Session):
         good_price = self.get_fraction(self.bottomline, self.target, self.config.good_deal_threshold)
         # Seller
         if self.inc == 1 and (
-                price >= min(self.list_price, good_price) or \
+                price >= min(self.listing_price, good_price) or \
                 price >= self.my_price
                 ):
             return True
@@ -360,7 +390,7 @@ class BaseRulebasedSession(Session):
         if self.compare(price, self.my_price) >= 0:
             return False
         if self.bottomline is not None:
-            if self.compare(price, self.bottomline) < 0:
+            if self.compare(price, self.bottomline) < 0 and abs(price - self.bottomline) > 1:
                 return True
         else:
             return True
@@ -403,9 +433,9 @@ class BaseRulebasedSession(Session):
         return s
 
     def inquire(self):
-        s = self.choose_template('inquiry').format(title=self.title)
+        s = self.fill_template(self.choose_template('inquiry', context_tag=self.state['partner_act'], sample=True))
         s = self.remove_greeting(s)
-        self.state['last_act'] = 'inquire'
+        self.state['my_act'] = 'inquiry'
         self.state['num_inquiry'] += 1
         return self.message(s)
 
@@ -419,45 +449,65 @@ class BaseRulebasedSession(Session):
             return self.wait()
 
         if self.state['partner_offered']:
+            if self.state['my_act'] == 'agree':
+                return self.accept()
             if self.no_deal(self.partner_price):
                 return self.reject()
             return self.accept()
 
-        #if not self.state['said_hi']:
-        #    return self.greet()
+        if self.state['my_act'] == 'agree':
+            return self.offer(self.state['curr_price'])
+
+        self.state['time'] += 1
 
         if not self.state['introduced'] and self.partner_price is None:
+            #print 'INTRO'
             return self.intro()
 
         if self.kb.role == 'buyer':
             if self.state['num_inquiry'] < 1:
+                #print 'INQUIRE'
                 return self.inquire()
 
         # TODO: add inform
 
         # Initial proposal
         if self.state['curr_price'] is None:
+            #print 'INIT PROPOSE'
             return self.init_propose(self.my_price)
 
         # TODO: check against agree templates
-        if SpeechActs.AGREEMENT in self.state['partner_acts']:
+        if self.state['partner_act'] == 'agree':
+            #print 'AGREE'
             if self.state['curr_price'] is not None:
                 return self.offer(self.state['curr_price'])
 
         if self.state['final_called']:
             return self.offer(self.bottomline if self.compare(self.bottomline, self.partner_price) > 0 else self.partner_price)
 
-        #if self.state['num_partner_insist'] > self.config.resistance:
-        if self.state['num_persuade'] > self.config.resistance:
-            self.state['num_persuade'] = 0
-            return self.compromise()
+        #if self.state['num_persuade'] > self.config.resistance:
+        #    self.state['num_persuade'] = 0
+        #    return self.compromise()
 
-        if self.partner_price is None:
-            return self.persuade()
-        elif self.deal(self.partner_price):
+        if self.partner_price is not None and self.deal(self.partner_price):
             return self.agree(self.partner_price)
+        elif self.state['partner_act'] in ('vague-price', 'counter-price'):
+            #print 'COMPROMISE'
+            return self.compromise()
         else:
-            return self.persuade()
+            temp = self.templates.search(self.state['partner_template'], category=self.kb.category, role=self.kb.role)
+            if '{price}' in temp['response']:
+                return self.compromise()
+            else:
+                self.state['my_act'] = temp['response_tag']
+                return self.message(self.fill_template(temp['response']))
+
+        #if self.partner_price is None:
+        #    return self.persuade()
+        #elif self.deal(self.partner_price):
+        #    return self.agree(self.partner_price)
+        #else:
+        #    return self.compromise()
 
         raise Exception('Uncatched case')
 
@@ -537,7 +587,7 @@ class SellerRulebasedSession(BaseRulebasedSession):
         if self.partner_price is None:
             return None
         else:
-            return self.get_fraction(self.partner_price, self.list_price, self.config.bottomline_fraction)
+            return self.get_fraction(self.partner_price, self.listing_price, self.config.bottomline_fraction)
 
     def init_price(self):
         # Seller: The target/listing price is shown.
@@ -641,7 +691,7 @@ class BuyerRulebasedSession(BaseRulebasedSession):
                 ])
 
     def estimate_bottomline(self):
-        return self.get_fraction(self.list_price, self.target, self.config.bottomline_fraction)
+        return self.get_fraction(self.listing_price, self.target, self.config.bottomline_fraction)
 
     def init_price(self):
         self.my_price = self.round_price(self.target * (1 + self.inc * self.config.overshoot))
