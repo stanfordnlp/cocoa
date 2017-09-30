@@ -21,21 +21,17 @@ def offer():
     return jsonify(message=displayed_message)
 
 
-@action.route('/_accept_offer/', methods=['GET'])
-def accept_offer():
+@action.route('/_select/', methods=['GET'])
+def select():
     backend = get_backend()
-    backend.accept_offer(userid())
+    book = int(request.args.get('book-split'))
+    hat = int(request.args.get('hat-split'))
+    ball = int(request.args.get('ball-split'))
 
-    msg = format_message("You accepted the offer!", True)
-    return jsonify(message=msg)
+    proposal = {'book': book, 'hat': hat, 'ball': ball}
+    backend.select(userid(), proposal)
 
-
-@action.route('/_reject_offer/', methods=['GET'])
-def reject_offer():
-    backend = get_backend()
-    backend.reject_offer(userid())
-
-    msg = format_message("You rejected the offer.", True)
+    msg = format_message("You selected items and marked deal as agreed!", True)
     return jsonify(message=msg)
 
 

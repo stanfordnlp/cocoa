@@ -3,160 +3,9 @@
         <title>{{ title }}</title>
         <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-        <style>
-            body {
-                font-size: 16px;
-                margin: 40px 70px;
-                /*background-color: #efcf4c;*/
-            }
-            h3 {
-                font-weight: bold;
-            }
-            .clearfix {
-                overflow: auto;
-            }
-            .modal-body{
-                font-size: 16px;
-            }
-
-            div#task-description {
-                font-style: italic;
-            }
-
-            div#modal_description {
-                color:#004d00;
-                font-style: italic;
-            }
-
-            div#report {
-                color:#ff0000;
-                font-weight: bold;
-            }
-            div#info_container {
-                float:left;
-                width: 50%;
-                font-family: calibri, sans-serif;
-            }
-
-            div#chat_container {
-                margin-left: 52%;
-                color:#004d00;
-            }
-
-
-            div#icon {
-                padding: 10px 100px 10px 20px;
-                display: inline-block;
-            }
-
-            div#offer {
-                color: ##004d00;
-                margin: 10px 2px;
-                padding: 10px 5px;
-                font-size: 18px;
-            }
-
-            div#quit_option {
-                color: #bf1e1e;
-                border: 1px solid #bf1e1e;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                margin-left: 2px;
-                padding: 10px 5px 10px 5px;
-                font-size: 18px;
-            }
-
-            textarea#chat {
-                width: 100%;
-                cols: 100;
-                height: 25%;
-                color:#004d00;
-                font-size:14px;
-            }
-
-            input#text {
-                margin-top: 10px;
-                margin-bottom: 10px;
-                width: 100%;
-            }
-
-            div#eval{
-                width: 100%;
-            }
-
-
-/*            #instructions > p,li {
-                font-size:15px;
-            }
-*/
-            #inner {
-                border: 1px solid #003305;
-                margin-top: 10px;
-                margin-bottom: 10px;
-                margin-left: 2px;
-                padding: 0px 5px 0px 5px;
-            }
-
-/*
-            td {
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            }
-
-            tr:nth-child(n) {
-                border: solid thin;
-            }
-
-*/
-            table {
-                border-collapse: collapse;
-                margin-top: 60px ;
-            }
-
-            td {
-                font-size: 18px;
-                padding: 3px 0px;
-            }
-            td.points {
-                text-align: center
-            }
-            tr {
-                margin-bottom: 5px;
-            }
-            th {
-                padding: 3px 3px 3px 0;
-            }
-            #items-table th:last-child {
-                text-align: center
-            }
-            img.item{
-                height: 75px;
-                width: 75px;
-            }
-
-            #clockdiv{
-                display: inline-block;
-                font-weight: bold;
-                text-align: center;
-                font-size: 18px;
-                padding: 15px 0 15px 0;
-            }
-
-
-            #clockdiv > div{
-                display: inline-block;
-            }
-
-            #clockdiv div > span{
-                display: inline-block;
-            }
-
-            #clockdiv div > .seconds{
-                margin-left:-3px;
-            }
-
-        </style>
+        <link rel="stylesheet" type="text/css" href="../static/css/chat.css">
         <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
         <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
         <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
@@ -171,7 +20,7 @@
             var eval_data = {};
             var utterance_regex = /(You|Partner): (.*)/;
             {% if not debug %}
-                var read_time = 20000; // milliseconds
+                var read_time = 4000; // milliseconds
             {% else %}
                 var read_time = 1000;  // In peek/debug mode, skip it
             {% endif %}
@@ -203,6 +52,15 @@
                 });
                 validCheckInterval = setInterval(pollServer, 3000);
 
+                $('.btn.btn-default.eval-tag').click(function () {
+                    $(this).toggleClass('btn-default btn-primary');
+                });
+
+                $(".dropdown-menu>li>a").click(function() {
+                    $(this).parents(".dropdown").find('.btn').html($(this).text() + ' <span class="caret"></span>');
+                    $(this).parents(".dropdown").find('.btn').val($(this).data('value'));
+                });
+
                 // This part executes after the description is shown
                 setTimeout(function(){
                     // $('#description').modal('hide')
@@ -232,41 +90,22 @@
 
                     });
 
-                    //$('#text').focus().keyup(
-                    //    function(e) {
-                    //        if(e.keyCode == 8 && $('#text').val().length == 0) {
-                    //            stoppedTyping();
-                    //        }
-                    //    })
-
-                    $('#price').on('keyup blur', function () { // fires on every keyup & blur
-                        if (num_offer < 1) {
-                            var priceStr = $('#price').val()
-                            if (isNaN(priceStr)) { // ensure that string entered is a valid number
-                                $('#submit').prop('disabled', 'disabled');
-                            } else {
-                                $('#submit').prop('disabled', false);        // enables button
-                            }
-                        }
-
-                    });
-
-                    $('.btn.btn-default.eval-tag').click(function () {
-                        $(this).toggleClass('btn-default btn-primary');
-                    });
                 }, read_time);  // delay due to reading the description
             });
 
             function select() {
-                num_offer += 1;
-                var price = parseInt($('#price').val());
-                $("#price").attr("disabled", "disabled")
+                var book_split = parseInt($('.book-split').val());
+                var hat_split = parseInt($('.hat-split').val());
+                var ball_split = parseInt($('.ball-split').val());
+
                 $.ajax({
                     url: BASE_URL + '/_select/',
                     type: "get",
                     data: {
                         "uid": "{{ uid }}",
-                        "price": price,
+                        "book-split": book_split,
+                        "hat-split": hat_split,
+                        "ball-split": ball_split,
                     },
                     dataType: "json",
                     success: function(response) {
@@ -562,12 +401,13 @@
                 </td>
                 <td class="points">{{kb['Item_values']['book'] }}</td>
                 <td><div class="dropdown">
-                  <button class="btn dropdown-toggle" data-toggle="dropdown">
-                    You Get 0, They get 2
-                  <span class="caret"></span></button>
+                  <button class="btn dropdown-toggle book-split" type="button" data-toggle="dropdown" value=0 aria-expanded="true">
+                    You Get 0, They get {{kb['Item_counts']['book']}}
+                    <span class="caret"></span>
+                  </button>
                   <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['book']) %}
-                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% for count in range(kb['Item_counts']['book'] + 1) %}
+                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['book'] - count}}</a></li>
                     {% endfor %}
                   </ul>
                 </div>
@@ -580,12 +420,12 @@
                 </td>
                 <td class="points">{{kb['Item_values']['hat'] }}</td>
                 <td><div class="dropdown">
-                  <button class="btn dropdown-toggle" data-toggle="dropdown">
-                    You Get 0, They get 2
+                  <button class="btn dropdown-toggle hat-split" data-toggle="dropdown" value=0>
+                    You Get 0, They get {{kb['Item_counts']['hat']}}
                   <span class="caret"></span></button>
                   <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['book']) %}
-                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% for count in range(kb['Item_counts']['hat'] + 1) %}
+                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['hat'] - count}}</a></li>
                     {% endfor %}
                   </ul>
                 </div>
@@ -598,12 +438,12 @@
                 </td>
                 <td class="points">{{kb['Item_values']['ball'] }}</td>
                 <td><div class="dropdown">
-                  <button class="btn dropdown-toggle" data-toggle="dropdown">
-                    You Get 0, They get 2
+                  <button class="btn dropdown-toggle ball-split" data-toggle="dropdown" value=0>
+                    You Get 0, They get {{kb['Item_counts']['ball']}}
                   <span class="caret"></span></button>
                   <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['book']) %}
-                        <li><a href="#">You Get {{count}}, They get 2</a></li>
+                    {% for count in range(kb['Item_counts']['ball'] + 1) %}
+                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['ball'] - count}}</a></li>
                     {% endfor %}
                   </ul>
                 </div>
@@ -667,13 +507,8 @@
         </div>
 
         <div id="chat_container">
-            <div id="report">
-                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
-                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
-            </div>
-
             <div id="instructions">
-                <button type="button" id="instructionCollapse" class="btn btn-info" data-toggle="collapse" data-target="#inner">Show/Hide Instructions</button>
+                <button type="button" id="instructionCollapse" class="btn btn-sm btn-info" data-toggle="collapse" data-target="#inner">Show/Hide</button>
                 <div id="inner" class="collapse">
                     {{ instructions }}
                 </div>
@@ -688,20 +523,15 @@
             </div>
 
             <textarea readonly id="chat"></textarea>
-            <!-- <input readonly id="status" style="width:100%;"><br><br> -->
-            <!--<button type="button" class="btn btn-default eval-tag" id="ok">OK response.</button>-->
-            <!-- <div class="eval_container" id="eval">
-                <h4>Rate your partner's utterance:</h4>
-                <p id="partner_utterance"></p>
-                <div class="button_container">
-                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical">NOT grammatical</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="incoherent">Out-of-context</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="contradiction">Contradiction</button>
-                    <button type="button" class="btn btn-default eval-tag" id="persuasive">Persuasive!</button>
-                </div>
-            </div> -->
-            <input id="text" placeholder="Enter your message here"><br><br>
+            <input id="text" placeholder="Please enter here ... "><br><br>
+
+            <div id="report">
+                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
+                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
+            </div>
         </div>
+
+
 
     </div>
     </body>

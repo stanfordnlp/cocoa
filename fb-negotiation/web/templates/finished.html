@@ -6,6 +6,7 @@
         <style>
             #content > p {
                 font-size:18px;
+                margin-bottom: 40px 70px;
             }
         </style>
         <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
@@ -23,7 +24,7 @@
 	</div>
 	<div id="mturk">
 		{% if mturk_code is not none %}
-		<hr>	
+		<hr>
 		<h3>Thanks for completing this HIT! Please copy and paste this code into the HIT on Mechanical Turk: {{ mturk_code }}</h3>
 		{% endif %}
 		<hr>

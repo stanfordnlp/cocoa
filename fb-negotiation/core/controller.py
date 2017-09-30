@@ -25,6 +25,9 @@ class Controller(BaseController):
         except TypeError:
             return False
 
+        print("first_agent_proposal: {}".format(first_agent_proposal) )
+        print("second_agent_proposal: {}".format(second_agent_proposal) )
+
         for item, count in self.scenario.kbs[0].facts['Item_counts'].iteritems():
             item_count = self.scenario.kbs[0].facts['Item_counts'][item]
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
@@ -79,3 +82,8 @@ class Controller(BaseController):
             return True
         else:
             return False
+
+    def complete(self):
+        option1 = (self.marked_agree[1] is True) and (self.outcomes[0] is not None)
+        option2 = (self.marked_agree[0] is True) and (self.outcomes[1] is not None)
+        return (option1 or option2)

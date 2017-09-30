@@ -8,5 +8,5 @@
 
 PYTHONPATH=. python web/chat_app.py --port 1414 \
     --schema-path data/bookhatball-schema.json \
-    --config web/app_params.json --scenarios-path data/toy-scenarios.json \
+    --config web/app_params.json --scenarios-path data/test-scenarios.json \
     --output web/output
