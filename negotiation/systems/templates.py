@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from cocoa.core.dataset import read_examples
 from cocoa.core.entity import is_entity
-from cocoa.core.util import read_pickle
+from cocoa.core.util import read_pickle, write_json
 
 from core.scenario import Scenario
 from core.tokenizer import detokenize
@@ -35,9 +35,14 @@ class Templates(object):
         scores = self.tfidf_matrix * features.T
         scores = scores.todense()
         scores[loc == 0] = float('-inf')
-        id_ = np.argmax(scores)
-        row = self.templates.iloc[id_]
-        return row
+        #id_ = np.argmax(scores)
+        #row = self.templates.iloc[id_]
+        #return row
+        scores = np.squeeze(np.array(scores))
+        ids = np.argsort(scores)[::-1][:10]
+        rows = self.templates.iloc[ids]
+        counts = rows['count'].values
+        return self.sample(counts, rows)
 
     def softmax(self, scores, T=1.):
         exp_scores = np.exp((scores - np.max(scores)) / T)
@@ -46,9 +51,6 @@ class Templates(object):
     def sample(self, counts, templates, T=1.):
         probs = self.softmax(counts, T=T)
         template_id = np.random.multinomial(1, probs).argmax()
-        #template = templates[template_id][2]
-        #id_ = templates[template_id][0]
-        #return id_, template
         template = templates.iloc[template_id]
         return template
 
@@ -90,15 +92,21 @@ class Templates(object):
         #print 'WARNING: no available templates found, returning a random one'
         #return self.sample(self.templates[['id', 'count', 'response']].values, T)
 
-    def dump(self):
+    def dump(self, n=-1):
         df = self.templates.groupby(['category', 'role', 'context_tag', 'response_tag'])
         for group in df.groups:
             category, role, context_tag, response_tag = group
+            if response_tag == 'offer':
+                continue
             print '--------------------------------------'
             print 'category={}, role={}, context={}, response={}'.format(category, role, context_tag, response_tag)
             print '--------------------------------------'
-            for _, row in df.get_group(group).iterrows():
-                print row['count'], row['response']
+            rows = [x[1] for x in df.get_group(group).iterrows()]
+            rows = sorted(rows, key=lambda r: r['count'], reverse=True)
+            for i, row in enumerate(rows):
+                if i == n:
+                    break
+                print row['count'], row['response'].encode('utf-8')
 
 class TemplateExtractor(object):
     stopwords = set(stopwords.words('english'))
@@ -123,6 +131,8 @@ class TemplateExtractor(object):
             acts.append('vague-price')
         if SpeechActAnalyzer.is_agreement(utterance):
             acts.append('agree')
+        if SpeechActAnalyzer.is_greeting(utterance):
+            acts.append('greet')
         return acts
 
     @classmethod
@@ -182,9 +192,6 @@ class TemplateExtractor(object):
             else:
                 self.ngram_counter[ngram] += 1
 
-        #response_template = detokenize(response_tokens)
-        #key = (category, role, response_tag, context_tag)
-        #response = {'response': response_tokens, 'context': context_tokens, 'id': self.template_id}
         row = {
                 'category': category,
                 'role': role,
@@ -196,10 +203,8 @@ class TemplateExtractor(object):
                 }
         self.template_id += 1
         self.templates.append(row)
-        #if key in self.templates:
-        #    self.templates[key].append(response)
-        #else:
-        #    self.templates[key] = [response]
+
+        return len(self.templates) - 1
 
     def parse_example(self, example, ngram_N):
         kbs = example.scenario.kbs
@@ -233,10 +238,12 @@ class TemplateExtractor(object):
 
             if i == 0 and not 'price' in acts:
                 tag = 'intro'
+            elif 'greet' in acts and not 'price' in acts:
+                tag = 'greet'
             elif 'price' in acts and not mentioned_price:
                 mentioned_price = True
                 tag = 'init-price'
-            elif i + 1 < N and example.events[i+1].action == 'offer' and not acts:
+            elif i + 1 < N and example.events[i+1].action == 'offer' and not '{price}' in price_templates:
                 tag = 'agree'
             elif (not 'price' in acts) and 'vague-price' in acts:
                 tag = 'vague-price'
@@ -251,10 +258,11 @@ class TemplateExtractor(object):
 
             # TODO:
             if event.action == 'offer':
-                tokens = '<offer>'
+                tokens = ['<offer>']
                 tag = 'offer'
 
-            self.add_template(category, roles[agent], utterance_tags[-1], tag, tokens, prev_tokens, n=ngram_N)
+            template_id = self.add_template(category, roles[agent], utterance_tags[-1], tag, tokens, prev_tokens, n=ngram_N)
+            event.template = template_id
 
             prices[agent] = [p.canonical.value for p in utterance.prices]
             prev_acts = acts
@@ -271,6 +279,16 @@ class TemplateExtractor(object):
 
         self.add_counts(ngram_N)
         self.detokenize_templates()
+
+        # TODO
+        for example in examples:
+            if Preprocessor.skip_example(example):
+                continue
+            for event in example.events:
+                template_id = event.template
+                if template_id is not None:
+                    event.template = self.templates[template_id]
+        write_json([ex.to_dict() for ex in examples], 'scr/data/parsed_transcripts.json')
 
     def ngrams(self, tokens, n=1):
         for i in xrange(max(1, len(tokens)-n+1)):
@@ -330,8 +348,10 @@ if __name__ == '__main__':
         write_pickle(template_extractor.templates, args.output)
         templates = Templates(template_extractor.templates)
 
+    templates.dump(n=20)
+    import sys; sys.exit()
     templates.build_tfidf()
-    print templates.search(['<start>'], category='bike', role='seller')
+    print templates.search('<start>', category='bike', role='seller')
 
     if args.debug:
         templates.dump()
