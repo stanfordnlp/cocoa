@@ -205,3 +205,23 @@ class HTMLEvalTask(EvalTask):
                 )
             html_questions.append(html_question)
         return '\n'.join(html_questions)
+
+class HTMLCompareEvalTask(HTMLEvalTask):
+    def create_question_group(self, questions):
+        html_questions = []
+        for qid, context, responses in questions:
+            html_context = self.format_context(context)
+            html_responses = []
+            for response in responses:
+                agent, utterance = response
+                html_response = self.utterance_formatter().format(agent=agent, text=utterance.encode('utf-8'))
+                html_responses.append(html_response)
+            html_question = self.question_template.format(
+                qid=qid,
+                context=html_context,
+                response0=html_responses[0],
+                response1=html_responses[1],
+                )
+            html_questions.append(html_question)
+        return '\n'.join(html_questions)
+
