@@ -78,6 +78,7 @@ if __name__ == "__main__":
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
     conn = sqlite3.connect(args.db)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     DatabaseReader.dump_chats(cursor, scenario_db, args.output, args.uid)
     if args.surveys:
