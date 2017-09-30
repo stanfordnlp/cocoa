@@ -43,12 +43,17 @@ Upon exit, the server dumps the data to `<output>/transcripts/transcripts.json` 
 
 To dump the data explicitly (e.g. while the server is running), run
 ```
-PYTHONPATH=. python ../scripts/web/dump_db.py --db <path_to_chat_state.db> --output <path_to_transcripts.json> --surveys <path_to_surveys.json> --schema data/craigslist-schema.json --scenarios-path data/sample-scenarios.json 
+PYTHONPATH=. python ../scripts/web/dump_db.py --db <path_to_chat_state.db> \
+--output <path_to_transcripts.json> --surveys <path_to_surveys.json> \
+--schema data/craigslist-schema.json --scenarios-path data/sample-scenarios.json 
 ```
 
 To visualize the data in HTML,
 ```
-PYTHONPATH=. python ../scripts/visualize_transcripts.py --dialogue-transcripts <path_to_transcripts.json> --survey-transcripts <path_to_surveys.json> --html-output <path_to_transcripts.html> --img-path images --css-file ../chat_viewer/css/my.css
+PYTHONPATH=. python ../scripts/visualize_transcripts.py \
+--dialogue-transcripts <path_to_transcripts.json> --survey-transcripts <path_to_surveys.json> \
+--html-output <path_to_transcripts.html> --img-path images \
+--css-file ../chat_viewer/css/my.css
 ```
 Arguments:
 - `images`: image path used in HTML.
