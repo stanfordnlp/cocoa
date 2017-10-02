@@ -9,8 +9,12 @@ class DatabaseReader(BaseDatabaseReader):
     def get_chat_outcome(cls, cursor, chat_id):
         outcome = super(DatabaseReader, cls).get_chat_outcome(cursor, chat_id)
         try:
-            if math.isnan(outcome['offer']['price']):
-                outcome['offer']['price'] = None
+            if math.isnan(outcome['book']):
+                outcome['book'] = None
+            if math.isnan(outcome['hat']):
+                outcome['hat'] = None
+            if math.isnan(outcome['ball']):
+                outcome['ball'] = None
         except (ValueError, TypeError, KeyError) as e:
             pass
         return outcome
@@ -27,18 +31,22 @@ class DatabaseReader(BaseDatabaseReader):
 
     @classmethod
     def process_event_data(cls, action, data):
-        if action == 'offer':
+        if action == 'select':
             data = json.loads(data)
             try:
-                if math.isnan(data['price']):
-                    data['price'] = None
+                if math.isnan(outcome['book']):
+                    outcome['book'] = None
+                if math.isnan(outcome['hat']):
+                    outcome['hat'] = None
+                if math.isnan(outcome['ball']):
+                    outcome['ball'] = None
             except (ValueError, TypeError) as e:
                 pass
         return data
 
     @classmethod
     def dump_surveys(cls, cursor, json_path):
-        questions = ['fluent', 'honest', 'persuasive', 'fair', 'negotiator', 'coherent', 'comments']
+        questions = ['negotiator', 'comments']
 
         cursor.execute('''SELECT * FROM survey''')
         logged_surveys = cursor.fetchall()
@@ -47,8 +55,8 @@ class DatabaseReader(BaseDatabaseReader):
 
         for survey in logged_surveys:
             # todo this is pretty lazy - support variable # of questions per task eventually..
-            (userid, cid, _, q1, q2, q3, q4, q5, q6, comments) = survey
-            responses = dict(zip(questions, [q1, q2, q3, q4, q5, q6, comments]))
+            (cid, q1, comments) = survey
+            responses = dict(zip(questions, [q1, comments]))
             cursor.execute('''SELECT agent_types, agent_ids FROM chat WHERE chat_id=?''', (cid,))
             chat_result = cursor.fetchone()
             agents = json.loads(chat_result[0])

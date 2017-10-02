@@ -15,8 +15,7 @@ class DatabaseManager(BaseDatabaseManager):
     @classmethod
     def add_survey_table(cls, cursor):
         cursor.execute(
-            '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-            honest integer, persuasive integer, fair integer, negotiator integer, coherent integer, comments text)''')
+            '''CREATE TABLE survey (chat_id text, negotiator integer, comments text)''')
 
     @classmethod
     def init_database(cls, db_file):
@@ -80,23 +79,9 @@ class Backend(BaseBackend):
         controller = self.controller_map[userid]
         chat_id = controller.get_chat_id()
 
-        def verify_chat(userid, agent_idx, is_partner):
-            user_name = 'partner' if is_partner else 'user'
-            if self.should_reject_chat(userid, agent_idx):
-                self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
-                                  "redirecting".format(chat_id, user_name, userid, agent_idx))
-                self.end_chat_and_redirect(cursor, userid,
-                                           message=self.messages.Redirect + " " + self.messages.Waiting)
-            else:
-                msg, _ = self.get_completion_messages(userid)
-                self.logger.debug("Accepted chat with ID {:s} for {:s} {:s} (agent ID {:d}), and redirecting to "
-                                  "survey".format(chat_id, user_name, userid, agent_idx))
-                self.end_chat_and_finish(cursor, userid, message=msg)
-
         if game_over:
             if not self.is_user_partner_bot(cursor, userid):
                 verify_chat(partner_id, 1 - agent_idx, True)
-            verify_chat(userid, agent_idx, False)
             return True
 
         return False
@@ -104,10 +89,8 @@ class Backend(BaseBackend):
     def get_completion_messages(self, userid):
         """
         Returns two completion messages: one for the current user and one for the user's partner. This function doesn't
-        check whether the user's partner is a bot or not. It just decides which user is the winner of the negotiation
-        and assigns completion messages accordingly.
-        :param userid:
-        :return:
+        check whether the user's partner is a bot or not. It just decides how many points the user gets and reports
+        that score accordingly, along with the completion message
         """
 
         _, game_complete = self.is_game_over(userid)
@@ -119,19 +102,6 @@ class Backend(BaseBackend):
             partner_msg = msg
 
         return msg, partner_msg
-
-    def make_offer(self, userid, offer):
-        try:
-            with self.conn:
-                cursor = self.conn.cursor()
-                u = self._get_user_info_unchecked(cursor, userid)
-                self._update_user(cursor, userid, connected_status=1)
-                self.send(userid, Event.OfferEvent(u.agent_index,
-                                                   offer,
-                                                   str(time.time())))
-        except sqlite3.IntegrityError:
-            print("WARNING: Rolled back transaction")
-            return None
 
     def select(self, userid, proposal):
         try:
@@ -157,19 +127,6 @@ class Backend(BaseBackend):
     #     except sqlite3.IntegrityError:
     #         print("WARNING: Rolled back transaction")
     #         return None
-
-    def quit(self, userid):
-        try:
-            with self.conn:
-                cursor = self.conn.cursor()
-                u = self._get_user_info_unchecked(cursor, userid)
-                self._update_user(cursor, userid, connected_status=1)
-                self.send(userid, Event.QuitEvent(u.agent_index,
-                                                  None,
-                                                  str(time.time())))
-        except sqlite3.IntegrityError:
-            print("WARNING: Rolled back transaction")
-            return None
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):
@@ -197,10 +154,8 @@ class Backend(BaseBackend):
                 cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (user_info.chat_id,))
                 scenario_id = cursor.fetchone()[0]
                 _update_scenario_db(user_info.chat_id, scenario_id, user_info.partner_type)
-                cursor.execute('INSERT INTO survey VALUES (?,?,?,?,?,?,?,?,?,?)',
-                               (userid, user_info.chat_id, user_info.partner_type,
-                                data['fluent'], data['honest'], data['persuasive'],
-                                data['fair'], data['negotiator'], data['coherent'], data['comments']))
+                cursor.execute('INSERT INTO survey VALUES (?,?,?)',
+                                (user_info.chat_id, data['negotiator'], data['comments']))
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
 
