@@ -32,7 +32,7 @@ class BaseRulebasedSession(Session):
         self.state = {
                 'introduced': False,
                 'selected': False,
-                'last_act': None,
+                'my_action': None,
                 'their_action': None,
                 'last_utterance': None,
                 'num_utterance': 0,
@@ -174,17 +174,17 @@ class BaseRulebasedSession(Session):
             is_question = True
 
         if is_question:
-            self.state['last_act'] = 'heard_question'
+            self.state['my_action'] = 'heard_question'
 
     def check_disagreement(self, tokens):
         for token in tokens:
             if token.lower() in ["nope", "not", "cannot", "can't", "sorry"]:
                 self.state['their_action'] = 'disagree'
-        utterance = " ".join(tokens)
+        utterance = " ".join(tokens).lower()
         regexes = [
-          re.compile('best (I|i) can do'),
+          re.compile('best i can do'),
           re.compile('only get points'),
-          re.compile('(N|n)o can do'),
+          re.compile('no can do')
         ]
         if any([regex.search(utterance) for regex in regexes]):
             self.state['their_action'] = 'disagree'
@@ -194,7 +194,7 @@ class BaseRulebasedSession(Session):
         regexes = [
           re.compile('(W|w)orks for me'),
           re.compile('(I|i) can (take|do|accept)'),
-          re.compile('(S|s)ounds (good|great)'),
+          re.compile('(S|s)ounds (good|great)')
         ]
         if any([regex.search(raw_utterance) for regex in regexes]):
             they_agree = True
@@ -288,7 +288,7 @@ class BaseRulebasedSession(Session):
 
     def propose(self):
         self.state['introduced'] = True
-        self.state['last_act'] = 'propose'
+        self.state['my_action'] = 'propose'
         self.state['num_utterance'] += 1
         # if I have not yet made a proposal
         if not self.my_proposal['made']:
@@ -320,7 +320,7 @@ class BaseRulebasedSession(Session):
         return (True,)
 
     def intro(self):
-        self.state['last_act'] = 'intro'
+        self.state['my_action'] = 'intro'
         self.state['introduced'] = True
 
         s = [  "So what looks good to you?",
@@ -331,7 +331,7 @@ class BaseRulebasedSession(Session):
 
     def init_propose(self):
         self.state['introduced'] = True
-        self.state['last_act'] = 'init_propose'
+        self.state['my_action'] = 'init_propose'
 
         if self.strategy == 'obsessed':
             self.make_proposal()
@@ -381,7 +381,7 @@ class BaseRulebasedSession(Session):
 
     def agree(self):
         self.state['selected'] = True
-        self.state['last_act'] = 'agree'
+        self.state['my_action'] = 'agree'
         self.finalize_my_proposal()
 
         s = ["Great deal, thanks!",
@@ -391,7 +391,7 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def persuade(self):
-        self.state['last_act'] = 'persuade'   # 'request_more'
+        self.state['my_action'] = 'persuade'   # 'request_more'
         if self.persuade_technique == 'boring':
             s = [   "Can you do better than that?",
                     "Maybe just one more item for me?",
@@ -503,7 +503,7 @@ class BaseRulebasedSession(Session):
         if has_some_idea:
             s = ["I believe you want", "I think you want", "Do you want"]
             msg = random.choice(s) + self.offer_to_string(self.tracker.their_offer)
-            self.state['last_act'] = 'clarification'
+            self.state['my_action'] = 'clarification'
             return self.message(msg)
         else:
             s = ["I'm not sure what you meant there, can you clarify?",
@@ -511,13 +511,6 @@ class BaseRulebasedSession(Session):
                     "Sorry, what is it that you want exactly?"
                 ]
             return self.message(random.choice(s))
-
-    def one_word_clarify(self):
-        s = ["OK, what did you have in mind?",
-                "So, what do you think?",
-                "So, what are you thinking?"
-            ]
-        return self.message(random.choice(s))
 
     def verify_deal(self):
         matches = 0
@@ -542,27 +535,25 @@ class BaseRulebasedSession(Session):
     def finalize_my_proposal(self):
         for item in self.items:
             offer = self.tracker.their_offer[item]
-            if self.state['last_act'] == 'agree':
+            if self.state['my_action'] == 'agree':
                 self.my_proposal[item] = self.item_counts[item] - offer
             elif self.my_proposal[item] < 0 and offer >= 0:
                 self.my_proposal[item] = self.item_counts[item] - offer
-        self.state['last_act'] = 'select'
+        self.state['my_action'] = 'select'
         if 'made' in self.my_proposal.keys():
             del self.my_proposal['made']
 
     def receive(self, event):
         if event.action == 'select':
             self.state['selected'] = True
-            self.state['last_act'] = 'select'
+            self.state['my_action'] = 'select'
         elif event.action == 'reject':
-            self.state['last_act'] = 'reject'
+            self.state['my_action'] = 'reject'
         elif event.action == 'message':
             tokens = tokenize(event.data)
-            if self.state['last_act'] == 'persuade':
+            if self.state['my_action'] == 'persuade':
                 self.last_offer = self.tracker.their_offer
                 self.check_disagreement(tokens)
-            elif len(tokens) == 1:
-                self.state['their_action'] = 'one_word_response'
             else:
                 self.check_question(tokens)
                 self.check_agreement(event.data, tokens)
@@ -571,7 +562,7 @@ class BaseRulebasedSession(Session):
 
     def send(self):
         if self.state['selected']:
-            if self.state['last_act'] == 'select':
+            if self.state['my_action'] == 'select':
                 return self.select(self.my_proposal)
             # The check on deal_points is more of a unit test, rather than
             # to ensure a good deal, since default points are negative.
@@ -581,9 +572,9 @@ class BaseRulebasedSession(Session):
             else:
                 return self.reject()
 
-        if self.state['last_act'] == 'reject':
+        if self.state['my_action'] == 'reject':
             return self.reject()
-        if self.state['last_act'] == 'persuade':
+        if self.state['my_action'] == 'persuade':
             self.tracker.determine_item_count()
             return self.process_persuasion()
 
@@ -598,7 +589,7 @@ class BaseRulebasedSession(Session):
             # print("C {}".format(self.tracker.their_offer) )
             return self.process_offer()
 
-        if self.state['last_act'] == 'heard_question':
+        if self.state['my_action'] == 'heard_question':
             return self.propose()
 
         if not self.state['introduced']:
@@ -608,14 +599,12 @@ class BaseRulebasedSession(Session):
                 return self.init_propose()      # to get the ball rolling
 
         if not self.tracker.made['their_offer']:
-            if self.state['last_act'] == 'init_propose':
+            if self.state['my_action'] == 'init_propose':
                 return self.propose()
             else:
                 return self.init_propose()
 
         if self.tracker.needs_clarification:
             return self.clarify()
-        if self.state['their_action'] == 'one_word_response':
-            return self.one_word_clarify()
 
         raise Exception('Uncaught case')
