@@ -29,20 +29,19 @@ class Templates(object):
         documents = self.templates['context'].values
         self.tfidf_matrix = self.vectorizer.fit_transform(documents)
 
-    def search(self, context, category=None, role=None, context_tag=None, response_tag=None, used_templates=None):
+    def search(self, context, category=None, role=None, context_tag=None, response_tag=None, used_templates=None, T=1.):
         loc = self.get_filter(category=category, role=role, context_tag=context_tag, response_tag=response_tag, used_templates=used_templates).values
         features = self.vectorizer.transform([context])
         scores = self.tfidf_matrix * features.T
-        scores = scores.todense()
-        scores[loc == 0] = float('-inf')
-        #id_ = np.argmax(scores)
-        #row = self.templates.iloc[id_]
-        #return row
+
+        scores = scores.todense()[loc]
+        rows = self.templates[loc]
+
         scores = np.squeeze(np.array(scores))
-        ids = np.argsort(scores)[::-1][:10]
-        rows = self.templates.iloc[ids]
+        ids = np.argsort(scores)[::-1][:20]
+        rows = rows.iloc[ids]
         counts = rows['count'].values
-        return self.sample(counts, rows)
+        return self.sample(counts, rows, T=T)
 
     def softmax(self, scores, T=1.):
         exp_scores = np.exp((scores - np.max(scores)) / T)
@@ -269,7 +268,7 @@ class TemplateExtractor(object):
             prev_tokens = tokens
             utterance_tags.append(tag)
 
-    def extract_templates(self, transcripts_paths, max_examples=-1, ngram_N=4):
+    def extract_templates(self, transcripts_paths, max_examples=-1, ngram_N=4, log=None):
         examples = read_examples(transcripts_paths, max_examples, Scenario)
 
         for example in examples:
@@ -280,7 +279,10 @@ class TemplateExtractor(object):
         self.add_counts(ngram_N)
         self.detokenize_templates()
 
-        # TODO
+        if log:
+            self.log_examples_with_templates(examples, log)
+
+    def log_examples_with_templates(self, examples, log):
         for example in examples:
             if Preprocessor.skip_example(example):
                 continue
@@ -288,7 +290,7 @@ class TemplateExtractor(object):
                 template_id = event.template
                 if template_id is not None:
                     event.template = self.templates[template_id]
-        write_json([ex.to_dict() for ex in examples], 'scr/data/parsed_transcripts.json')
+        write_json([ex.to_dict() for ex in examples], log)
 
     def ngrams(self, tokens, n=1):
         for i in xrange(max(1, len(tokens)-n+1)):
@@ -312,17 +314,7 @@ class TemplateExtractor(object):
                 import sys; sys.exit()
             mean_count = np.mean(counts)
             row['count'] = mean_count
-        #for k, temps in self.templates.iteritems():
-        #    for temp in temps:
-        #        counts = []
-        #        tokens = temp['response']
-        #        for ngram in self.ngrams(tokens, n):
-        #            counts.append(self.ngram_counter[ngram])
-        #        if not counts:
-        #            print tokens
-        #            import sys; sys.exit()
-        #        mean_count = np.mean(counts)
-        #        temp['count'] = mean_count
+
 
 ############# TEST #############
 if __name__ == '__main__':
@@ -331,11 +323,12 @@ if __name__ == '__main__':
     from core.price_tracker import PriceTracker
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--transcripts', nargs='*')
+    parser.add_argument('--transcripts', nargs='*', help='JSON transcripts to extract templates')
     parser.add_argument('--price-tracker-model')
     parser.add_argument('--max-examples', default=-1, type=int)
-    parser.add_argument('--output')
-    parser.add_argument('--templates')
+    parser.add_argument('--output', help='Path to save templates')
+    parser.add_argument('--output-transcripts', help='Path to JSON examples with templates')
+    parser.add_argument('--templates', help='Path to load templates')
     parser.add_argument('--debug', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -348,7 +341,7 @@ if __name__ == '__main__':
         write_pickle(template_extractor.templates, args.output)
         templates = Templates(template_extractor.templates)
 
-    templates.dump(n=20)
+    templates.dump(n=10)
     import sys; sys.exit()
     templates.build_tfidf()
     print templates.search('<start>', category='bike', role='seller')
