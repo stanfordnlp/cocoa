@@ -30,7 +30,7 @@ Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_f
 
 default_config = Config(.2, .3, .5, .5, 1.)
 
-DEBUG = False
+DEBUG = True
 
 class BaseRulebasedSession(Session):
     def __init__(self, agent, kb, lexicon, config, templates):
@@ -244,10 +244,10 @@ class BaseRulebasedSession(Session):
         return self.message(s, template=template)
 
     def choose_template(self, response_tag, context_tag=None, sample=False):
-        if sample:
-            template = self.templates.choose(category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, T=self.config.sample_temperature, used_templates=self.used_templates)
-        else:
-            template = self.templates.search(self.partner_template, category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, used_templates=self.used_templates)
+        #if sample:
+        #    template = self.templates.choose(category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, T=self.config.sample_temperature, used_templates=self.used_templates)
+        #else:
+        template = self.templates.search(self.partner_template, category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, used_templates=self.used_templates, T=self.config.sample_temperature)
         self.used_templates.add(template['id'])
         template = template.to_dict()
         template['source'] = 'rule'
@@ -284,6 +284,7 @@ class BaseRulebasedSession(Session):
         if self.partner_price and self.compare(self.my_price, self.partner_price) < 0:
             return self.agree(self.partner_price)
 
+        self.logger.debug('compromise')
         self.state['my_act'] = 'counter-price'
         self.state['curr_price'] = self.my_price
         template = self.choose_template('counter-price', context_tag=self.state['partner_act'])
@@ -422,15 +423,15 @@ class BaseRulebasedSession(Session):
         if self.partner_price is not None and self.deal(self.partner_price):
             return self.agree(self.partner_price)
         elif self.state['partner_act'] in ('vague-price', 'counter-price', 'init-price'):
-            self.logger.debug('compromise')
             return self.compromise()
         else:
             self.logger.debug('retrieve')
             temp = self.templates.search(self.state['partner_template'], category=self.kb.category, role=self.kb.role)
+            self.logger.debug(temp['response'])
             if '{price}' in temp['response']:
                 return self.compromise()
             elif '<offer>' == temp['response']:
-                if self.deal(self.partner_price):
+                if self.deal(self.state['curr_price']):
                     return self.agree(self.state['curr_price'])
                 else:
                     return self.compromise()
