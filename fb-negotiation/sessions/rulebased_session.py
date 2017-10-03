@@ -81,18 +81,8 @@ class BaseRulebasedSession(Session):
         return list(configs)
 
     def init_item_ranking(self):
-        values = copy.deepcopy(self.item_values)
-        max_key = operator.itemgetter(1)
-
-        self.top_item = max(values.iteritems(), key=max_key)[0]
-        values[self.top_item] = -10
-        self.middle_item = max(values.iteritems(), key=max_key)[0]
-        values[self.middle_item] = -10
-        self.bottom_item = max(values.iteritems(), key=max_key)[0]
-
-        if self.item_values[self.middle_item] == self.item_values[self.bottom_item]:
-            if self.item_counts[self.bottom_item] > self.item_counts[self.middle_item]:
-                self.bottom_item, self.middle_item = self.middle_item, self.bottom_item
+        sorted_items = sorted(self.item_values.keys(), key=lambda k: self.item_values[k], reverse=True)
+        self.top_item, self.bottom_item, self.middle_item = sorted_items
 
     def set_breakpoints(self):
         self.good_deal = self.good_deal_threshold
@@ -526,10 +516,9 @@ class BaseRulebasedSession(Session):
     def deal_points(self, proposal=None):
         if proposal == None:
             proposal = self.my_proposal
-        book_total = self.item_values['book'] * proposal['book']
-        hat_total = self.item_values['hat'] * proposal['hat']
-        ball_total = self.item_values['ball'] * proposal['ball']
-        deal_points = book_total + hat_total + ball_total
+        deal_points = 0
+        for item, value in self.item_values.iteritems():
+            deal_points += value * proposal[item]
         return deal_points
 
     def finalize_my_proposal(self):
