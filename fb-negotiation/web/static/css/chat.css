@@ -16,8 +16,7 @@ ul.help{
 .clearfix {
     overflow: auto;
 }
-.modal-body{
-    font-size: 16px;
+.modal-body{    font-size: 16px;
 }
 
 div#task-description {
@@ -54,21 +53,15 @@ div#icon {
     display: inline-block;
 }
 
-div#offer {
+div#options {
     color: ##001133;
     margin: 10px 2px;
     padding: 10px 5px;
     font-size: 18px;
 }
 
-div#quit_option {
-    color: #bf1e1e;
-    border: 1px solid #bf1e1e;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    margin-left: 2px;
-    padding: 10px 5px 10px 5px;
-    font-size: 18px;
+button.btn-default {
+    margin-left: 10px;
 }
 
 textarea#chat {
@@ -103,20 +96,8 @@ div#eval{
 }
 #instructionCollapse {
     float: right;
-    padding-bottom: 
 }
 
-/*
-td {
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-tr:nth-child(n) {
-    border: solid thin;
-}
-
-*/
 table {
     border-collapse: collapse;
     margin-top: 60px ;
