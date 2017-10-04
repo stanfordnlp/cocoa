@@ -10,9 +10,10 @@
 function validateForm() {{
     if ($('div.question:not(:has(:radio:checked))').length) {{
             alert("At least one question is blank");
-            return False;
+            return false;
     }}
-    return True;
+    document.form.submit();
+    return true;
 }}
 </script>
 </head>
@@ -38,7 +39,7 @@ function validateForm() {{
     <textarea class="form-control" rows="2" name="comment" id="comment"></textarea>
   </div> 
 
-  <button type='submit' class="btn btn-default" id='submitButton'>Submit</button>
+  <button type='submit' class="btn btn-default" id='submitButton' onclick="validateForm()">Submit</button>
   </form>
 
 <script language='Javascript'>turkSetAssignmentID();</script>
