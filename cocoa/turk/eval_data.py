@@ -18,7 +18,7 @@ class EvalData(object):
         print 'Dumping data to {}'.format(output)
         write_json(self.data, output)
 
-    def sample_examples(self, num_context, evaluated=set(), systems=None, pairs=None):
+    def sample_examples(self, num_context, evaluated=set(), systems=None, pairs=None, qids=None):
         """Randomly sample num_context examples to evaluate.
 
         Args:
@@ -26,12 +26,16 @@ class EvalData(object):
             evaluated (set): set of example ids that have been evaluated
             systems (list): only use responses from `systems`
             pairs (list): return pairs of responses for CompareTask
+            qids (list): list of example ids to use
 
         Returns:
             examples (list[(qid, context, response)]): tuples that can be used to contruct questions by EvalTask.
 
         """
-        example_ids = [x for x in self.data.keys() if not x in evaluated]
+        if not qids:
+            example_ids = [x for x in self.data.keys() if not x in evaluated]
+        else:
+            example_ids = qids
         if num_context > len(example_ids):
             print 'WARNING: wanted {} examples, only has {}'.format(num_context, len(example_ids))
             num_context = len(example_ids)
