@@ -14,6 +14,7 @@ if __name__ == '__main__':
     parser.add_argument('--review', action='store_true', help='Review completed hits')
     parser.add_argument('--check-workers', action='store_true', help='Detect spammers')
     parser.add_argument('--remove-evaluated', nargs='*', default=[], help='Path to JSON file that saves old result')
+    parser.add_argument('--qids', help='Path to JSON file that contains question/context ids to be evaluated')
     parser.add_argument('--debug', action='store_true', help='If ture, run in sandbox')
     parser.add_argument('--aws-config', required=True, help='AWS credential')
     parser.add_argument('--num-eval', type=int, default=20, help='Number of unique context to evaluate')
@@ -79,12 +80,19 @@ if __name__ == '__main__':
             pairs = ['ir', 'generative']
         else:
             pairs = None
-        questions, selected_ids = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=args.systems, pairs=pairs)
+        if args.qids:
+            qids = read_json(args.qids)
+        else:
+            qids = None
+        questions, selected_ids = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=args.systems, pairs=pairs, qids=qids)
         if args.num_overlap_questions > 0:
             evaluated_qids.update(selected_ids)
             test_questions, _ = data.sample_examples(args.num_overlap_questions, evaluated=evaluated_qids, systems=args.systems, pairs=pairs)
         #references, selected_ids = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=['reference'])
         #random.shuffle(questions)
+
+        #task.launch_hits(task.create_questions([questions]))
+        #import sys; sys.exit()
 
         num_questions_per_hit = args.num_questions_per_hit - args.num_test_questions
         if (not args.compare and (args.num_eval * len(args.systems)) % num_questions_per_hit != 0) or \
