@@ -1,0 +1,34 @@
+<div class="question">
+
+<div class="panel panel-default context">
+  <div class="panel-body">
+      <p><b>Context:</b></p>
+      <p>{context}</p>
+  </div>
+</div>
+
+<p><b>{response}</b></p>
+
+<div class="form-group">
+    <p>Please select all <b>problems</b> presented in the response given the above context.</p>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="grammar" data-validation="checkbox_group" data-validation-qty="min1">NOT grammatical</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="relatedness">NOT related (off-topic)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="informativeness">NOT informative (common, generic)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="coherence">NOT coherent (illogical nor irrational)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="none">None of the above</label>
+  </div>
+  <label for="others">Other problems:</label>
+  <label><input type="text" name="{qid}"></label>
+</div>
+
+</div>
+<hr />
