@@ -186,10 +186,13 @@ class HTMLEvalTask(EvalTask):
             html_questions = self.create_question_group(question_group)
             html_hit = self.overall_template.format(
                     title=self.title,
-                    instructions=self.instructions,
+                    instructions=self.instructions.format(batch_size=len(question_group)),
                     script=self.script,
                     questions=html_questions,
                     )
+            #with open('/afs/cs.stanford.edu/u/hehe/www/question.html', 'w') as fout:
+            #    fout.write(html_hit)
+            #    import sys; sys.exit()
             html_hit = HTMLQuestion(html_hit, 600)
             hit_questions.append(html_hit)
         return hit_questions
