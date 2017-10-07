@@ -14,9 +14,11 @@ class Attribute(object):
         self.multivalued = multivalued
         # Whether the value of this attribute is an entity
         self.entity = entity
+
     @staticmethod
     def from_json(raw):
         return Attribute(raw['name'], raw['value_type'], raw.get('unique', False), raw.get('multivalued', False), raw.get('entity', True))
+
     def to_json(self):
         return {'name': self.name, 'value_type': self.value_type, 'unique': self.unique, 'multivalued': self.multivalued, 'entity': self.entity}
 
