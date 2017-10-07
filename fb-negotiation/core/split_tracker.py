@@ -10,11 +10,7 @@ from cocoa.core.entity import Entity, is_entity
 from tokenizer import tokenize
 
 class SplitTracker(object):
-    def __init__(self, lexicon):
-        self.lexicon = lexicon
-
     def parse_offer(self, tokens, agent, item_counts):
-        tokens = self.lexicon.link_entity(tokens)
         split = defaultdict(dict)
         items = []
         curr_agent = -1
@@ -51,7 +47,7 @@ class SplitTracker(object):
     def merge_offers(self, split, item_counts, speaking_agent):
         # If a proposal exists, assume non-mentioned item counts to be zero.
         for agent in (0, 1):
-            if len(split[agent]) > 0:
+            if agent in split:
                 for item in item_counts:
                     if not item in split[agent]:
                         split[agent][item] = 0
@@ -71,7 +67,7 @@ class SplitTracker(object):
                     print ('WARNINT: trying to merge offers but both counts are none.')
                     split[me][item] = total
                     split[them][item] = 0
-        return split
+        return dict(split)
 
     def parse_count(self, token, prev_token, total):
         if prev_token is None:
@@ -80,6 +76,8 @@ class SplitTracker(object):
             return min(prev_token.canonical.value, total)
         elif prev_token in ('a', 'an'):
             return 1
+        elif prev_token == 'no':
+            return 0
         else:
             return total
 

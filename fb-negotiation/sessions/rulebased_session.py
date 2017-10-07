@@ -1,50 +1,105 @@
 import random
-from cocoa.core.entity import is_entity
-from session import Session
-from core.tokenizer import tokenize
 import copy
 import sys
 import re
 import operator
-from collections import namedtuple
+from collections import namedtuple, defaultdict
+
+from cocoa.core.entity import is_entity
+
+from session import Session
+from core.tokenizer import tokenize
+from core.split_tracker import SplitTracker
 
 class RulebasedSession(object):
     @staticmethod
     def get_session(agent, kb, tracker, config=None):
         return BaseRulebasedSession(agent, kb, tracker, config)
 
-Config = namedtuple('Config', ['speaker_order', 'persuade_technique', 'good_deal_threshold'])
+Config = namedtuple('Config', ['propose_first', 'persuade_technique', 'good_deal_threshold'])
 default_config = Config(0.5, 1, 7)
 
 class BaseRulebasedSession(Session):
-    def __init__(self, agent, kb, tracker, config):
+    def __init__(self, agent, kb, lexicon, config):
         super(BaseRulebasedSession, self).__init__(agent)
-        self.agent = agent
         self.kb = kb
-        self.tracker = tracker
 
-        self.item_values = kb.facts['Item_values']
-        self.item_counts = kb.facts['Item_counts']
-        self.items = kb.facts['Item_values'].keys()
-        self.my_proposal = {'made': False, 'book':-1, 'hat':-1, 'ball':-1}
+        self.lexicon = lexicon
+        self.tracker = SplitTracker()
+
+        self.item_values = kb.item_values
+        self.item_counts = kb.item_counts
+        self.items = kb.item_values.keys()
+        #self.my_proposal = {'made': False, 'book':-1, 'hat':-1, 'ball':-1}
+        self.my_proposal = None
+        self.their_proposal = None
         self.config = default_config if config is None else config
 
         self.state = {
-                'introduced': False,
                 'selected': False,
+                'proposed': False,
                 'my_action': None,
                 'their_action': None,
-                'last_utterance': None,
                 'num_utterance': 0,
-                'last_offer': None
-                # 'final_called': False,
+                'last_offer': None,
+                'num_utterance_sent': 0,
+                'time': 0,
                 }
 
+        items = [(item, value, self.item_counts[item]) for item, value in self.item_values.iteritems()]
+        # Sort items by value from high to low
+        self.sorted_items = sorted(items, key=lambda x: x[1], reverse=True)
+        self.init_proposal()
+
         self.set_configuration()
-        self.init_item_ranking()
-        self.set_breakpoints()
-        self.pick_strategy()
-        self.initialize_tracker()
+        #self.init_item_ranking()
+        #self.set_breakpoints()
+        #self.pick_strategy()
+        #self.initialize_tracker()
+
+    def init_proposal(self):
+        points = 0
+        target = self.config.good_deal_threshold
+        my_split = {item: 0 for item in self.items}
+        for item, value, count in self.sorted_items:
+            if value == 0:
+                continue
+            for i in xrange(count):
+                my_split[item] += 1
+                points += value
+                if points >= target:
+                    break
+            if points >= target:
+                break
+        split = {self.agent: my_split, 1 - self.agent: {}}
+        self.my_proposal = self.tracker.merge_offers(split, self.item_counts, self.agent)
+
+    def negotiate(self):
+        their_offer = self.their_proposal[1 - self.agent]
+        my_offer = self.my_proposal[self.agent]
+
+        conflict_items = []
+        valuable_items = []
+        for item, value, count in self.sorted_items[::-1]:
+            if their_offer[item] + my_offer[item] > count:
+                conflict_items.append(item)
+            elif my_offer[item] < count and self.item_values[item] > 0:
+                valuable_items.append(item)
+
+        if not conflict_items:
+            return self.agree()
+
+        conflict_items = sorted(conflict_items, key=lambda k: self.item_values[k])
+        my_offer[conflict_items[0]] -= 1
+        for item in valuable_items:
+            my_offer[item] += 1
+        self.state['my_action'] = 'propose'
+        return self.propose(self.my_proposal)
+
+    def propose(self, proposal):
+        self.state['proposed'] = True
+        s = 'I need {}.'.format(self.offer_to_string(proposal[self.agent]))
+        return self.message(s)
 
     def pick_strategy(self):
         valuation = [self.item_values[item] for item in self.items]
@@ -66,7 +121,7 @@ class BaseRulebasedSession(Session):
 
     def set_configuration(self):
         # ranges from 0-1, higher val means more likely greet rather than propose
-        self.speaker_order = self.config.speaker_order
+        self.propose_first = self.config.propose_first
         # value is 0 or 1, representing 'creative' or 'boring'
         self.persuade_technique = 'boring' if self.config.persuade_technique == 1 else 'creative'
         # good values to try at 7 or 8
@@ -99,7 +154,6 @@ class BaseRulebasedSession(Session):
 
     def process_offer(self):
         offer = self.reverse(self.tracker.their_offer)
-        self.state['introduced'] = True
 
         if self.meets_criteria(offer, 'good_deal'):
             return self.agree()
@@ -123,7 +177,7 @@ class BaseRulebasedSession(Session):
         else:
             return self.clarify()
 
-    def negotiate(self):
+    def negotiate_(self):
         self.state['num_utterance'] += 1
         if self.state['num_utterance'] < 2:
             return self.propose()
@@ -165,6 +219,23 @@ class BaseRulebasedSession(Session):
 
         if is_question:
             self.state['my_action'] = 'heard_question'
+
+    def is_neg(self, tokens):
+        for token in tokens:
+            if token in ("nope", "not", "cannot", "n't", "sorry"):
+                return True
+        return False
+
+    def is_agree(self, raw_utterance, tokens):
+        if re.search(r'ok|okay|deal|fine|yes', raw_utterance) and not self.is_neg(tokens):
+            return True
+        return False
+
+    def has_item(self, tokens):
+        for token in tokens:
+            if is_entity(token) and token.canonical.type == 'item':
+                return True
+        return False
 
     def check_disagreement(self, tokens):
         for token in tokens:
@@ -276,8 +347,7 @@ class BaseRulebasedSession(Session):
             ]
         return self.message(random.choice(s))
 
-    def propose(self):
-        self.state['introduced'] = True
+    def propose_(self):
         self.state['my_action'] = 'propose'
         self.state['num_utterance'] += 1
         # if I have not yet made a proposal
@@ -311,7 +381,6 @@ class BaseRulebasedSession(Session):
 
     def intro(self):
         self.state['my_action'] = 'intro'
-        self.state['introduced'] = True
 
         s = [  "So what looks good to you?",
                 "Which items do you value highly?",
@@ -320,7 +389,6 @@ class BaseRulebasedSession(Session):
         return self.message(random.choice(s))
 
     def init_propose(self):
-        self.state['introduced'] = True
         self.state['my_action'] = 'init_propose'
 
         if self.strategy == 'obsessed':
@@ -370,9 +438,8 @@ class BaseRulebasedSession(Session):
             return False if my_total < 0 else (total_points >= my_total)
 
     def agree(self):
-        self.state['selected'] = True
         self.state['my_action'] = 'agree'
-        self.finalize_my_proposal()
+        #self.finalize_my_proposal()
 
         s = ["Great deal, thanks!",
           "Yes, that sounds good",
@@ -452,6 +519,10 @@ class BaseRulebasedSession(Session):
             return self.bottom_item
 
     def offer_to_string(self, offer):
+        items = ['{count} {item}{plural}'.format(item=item, count=count, plural='s' if count > 1 else '')
+                for item, count in offer.iteritems() if count > 0]
+        return ', '.join(items)
+
         use_no = True if sum([offer[item] == 0 for item in self.items]) < 2 else False
 
         message_string = ""
@@ -533,23 +604,72 @@ class BaseRulebasedSession(Session):
             del self.my_proposal['made']
 
     def receive(self, event):
-        if event.action == 'select':
-            self.state['selected'] = True
-            self.state['my_action'] = 'select'
-        elif event.action == 'reject':
-            self.state['my_action'] = 'reject'
+        if event.action in ('reject', 'select'):
+            self.state['num_utterance_sent'] = 0
+            self.state['their_action'] = event.action
+            self.state['num_utterance_sent'] = 0
         elif event.action == 'message':
-            tokens = tokenize(event.data)
-            if self.state['my_action'] == 'persuade':
-                self.last_offer = self.tracker.their_offer
-                self.check_disagreement(tokens)
+            self.state['num_utterance_sent'] = 0
+            self.state['time'] += 1
+            tokens = self.lexicon.link_entity(tokenize(event.data))
+            split = self.tracker.parse_offer(tokens, 1-self.agent, self.item_counts)
+            if split:
+                self.their_proposal = split
+                self.state['their_action'] = 'propose'
             else:
-                self.check_question(tokens)
-                self.check_agreement(event.data, tokens)
-            self.tracker.reset()
-            self.tracker.build_lexicon(tokens)
+                if self.is_agree(event.data, tokens):
+                    self.state['their_action'] = 'agree'
+                elif self.has_item(tokens):
+                    self.state['their_action'] = 'item'
+                else:
+                    self.state['their_action'] = 'unknown'
+
+            #if self.state['my_action'] == 'persuade':
+            #    self.last_offer = self.tracker.their_offer
+            #    self.check_disagreement(tokens)
+            #else:
+            #    self.check_question(tokens)
+            #    self.check_agreement(event.data, tokens)
+            #self.tracker.reset()
+            #self.tracker.build_lexicon(tokens)
+
+    def wait(self):
+        return None
 
     def send(self):
+        # Strict turn-taking
+        # TODO: put this in the controller
+        if self.state['num_utterance_sent'] > 0:
+            return self.wait()
+        self.state['num_utterance_sent'] += 1
+
+        if self.state['their_action'] == 'select' or self.state['my_action'] == 'agree':
+            return self.select(self.my_proposal[self.agent])
+
+        self.state['time'] += 1
+
+        # Opening utterance
+        if self.state['time'] == 1:
+            if random.random() < self.propose_first: # talk a bit by asking a question
+                return self.propose(self.my_proposal)
+            else:
+                return self.intro()             # to hear their side first
+
+        # Initial offer
+        if not self.state['proposed']:
+            #print 'propose'
+            return self.propose(self.my_proposal)
+
+        if self.state['their_action'] == 'agree':
+            #print 'agree'
+            return self.agree()
+        else:
+            #print 'negotiate'
+            return self.negotiate()
+
+        raise Exception('Uncaught case')
+
+        #########################################
         if self.state['selected']:
             if self.state['my_action'] == 'select':
                 return self.select(self.my_proposal)
@@ -582,7 +702,7 @@ class BaseRulebasedSession(Session):
             return self.propose()
 
         if not self.state['introduced']:
-            if random.random() < self.speaker_order: # talk a bit by asking a question
+            if random.random() < self.propose_first: # talk a bit by asking a question
                 return self.intro()             # to hear their side first
             elif not self.my_proposal['made']:    # make a light proposal
                 return self.init_propose()      # to get the ball rolling
