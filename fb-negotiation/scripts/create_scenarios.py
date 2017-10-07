@@ -1,35 +1,28 @@
 import json
 import copy
-from cocoa.core.util import generate_uuid
+from cocoa.core.scenario_db import ScenarioDB
+from cocoa.core.schema import Schema
+from cocoa.core.util import generate_uuid, write_json, read_json
+from core.kb import KB
+from core.scenario import Scenario
 
-root_path = "fb-negotiation/data/"
+root_path = "data/"
 scenario_list = []
 
-with open(root_path + "bookhatball-schema.json") as schema_file:
-    schema = json.load(schema_file)
+schema = Schema(root_path + "bookhatball-schema.json")
 
-with open(root_path + "selfplay.txt") as file:
-  for line in file:
-    lineA = line.strip('\n')
-    line = next(file)
-    lineB = line.strip('\n')
+scenarios = []
+with open(root_path + "selfplay.txt") as fin:
+    kbs = []
+    names = ['book', 'hat', 'ball']
+    for line in fin:
+        ints = [int(x) for x in line.strip().split()]
+        kb = KB.from_ints(schema.attributes, names, ints)
+        kbs.append(kb)
+        if len(kbs) == 2:
+            scenario = Scenario(generate_uuid("FB"), schema.attributes, kbs)
+            scenarios.append(scenario)
+            kbs = []
 
-    scenario = copy.deepcopy(schema)
-    scenario["uuid"] = generate_uuid("FB")
-
-    kb_A = [int(x) for x in lineA.split(" ")]
-    kb_B = [int(x) for x in lineB.split(" ")]
-    kb1 = { "Role": "first",
-      "Item_counts": {"book": kb_A[0], "hat": kb_A[2], "ball":kb_A[4]},
-      "Item_values": {"book": kb_A[1], "hat": kb_A[3], "ball":kb_A[5]},
-    }
-    kb2 = { "Role": "second",
-      "Item_counts": {"book": kb_B[0], "hat": kb_B[2], "ball":kb_B[4]},
-      "Item_values": {"book": kb_B[1], "hat": kb_B[3], "ball":kb_B[5]},
-    }
-    scenario["kbs"] = [kb1, kb2]
-
-    scenario_list.append(scenario)
-
-with open(root_path + "test-scenarios.json", "w") as outfile:
-    json.dump(scenario_list, outfile)
+scenario_db = ScenarioDB(scenarios)
+write_json(scenario_db.to_dict(), root_path + "test-scenarios.json")
