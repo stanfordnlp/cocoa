@@ -11,8 +11,8 @@
 #     --config web/app_params.json --scenarios-path data/test-scenarios.json \
 #     --output web/output
 
-PYTHONPATH=. python ../scripts/visualize_transcripts.py \
-    --dialogue-transcripts web/output/transcripts/transcripts.json \
-    --survey-transcripts web/output/transcripts/surveys.json \
-    --html-output web/templates/visualize.html --img-path images \
-    --css-file ../chat_viewer/css/my.css
+PYTHONPATH=. python scripts/visualize_transcripts.py \
+    --dialogue-transcripts web/archive_output/oct-08-handcrafted/transcripts/transcripts.json \
+    --survey-transcripts web/archive_output/oct-08-handcrafted/transcripts/surveys.json \
+    --html-output web/output/transcripts/transcripts.html \
+    --img-path images --css-file ../chat_viewer/css/my.css

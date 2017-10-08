@@ -5,6 +5,7 @@ from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 from core.scenario import Scenario
 from analyze_strategy import StrategyAnalyzer
+from analysis.html_visualizer import HTMLVisualizer
 
 class Visualizer(BaseVisualizer):
     agents = ('human', 'rulebased', 'config-rule')
@@ -13,8 +14,8 @@ class Visualizer(BaseVisualizer):
     questions = ('negotiator',)
     question_labels = {"negotiator": 'Humanlikeness'}
 
-    def __init__(self, chats, surveys=None, worker_ids=None):
-        super(Visualizer, self).__init__(chats, surveys, worker_ids)
+    def __init__(self, chats, surveys=None):
+        super(Visualizer, self).__init__(chats, surveys)
         mask = None
         self.question_scores = None
         if surveys:
@@ -36,16 +37,37 @@ class Visualizer(BaseVisualizer):
             results[system] = self._compute_effectiveness(examples, system)
             print system, results[system]
 
-    def filter(self, bad_worker_ids):
-        good_dialogues = []
-        for chat_id, wid in self.worker_ids.iteritems():
-            if len(wid) < 2:
-                continue
-            good = True
-            for agent_id, agent_wid in wid.iteritems():
-                if agent_wid in bad_worker_ids:
-                    good = False
-                    break
-            if good:
-                good_dialogues.append(chat_id)
-        return set(good_dialogues)
+    def filter(self, deprecated):
+        print("tried to filter for #bad_worker_ids, this has been deprecated")
+        return deprecated
+
+    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None):
+        chats = []
+        scenario_to_chats = defaultdict(set)
+        dialogue_responses = None
+        if self.question_scores:
+            dialogue_responses = self.get_dialogue_responses(self.question_scores)
+
+            # Put chats in the order of responses
+            chats_with_survey = set()
+            for dialogue_id, agent_responses in dialogue_responses.iteritems():
+                chat = self.uuid_to_chat[dialogue_id]
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                chats_with_survey.add(dialogue_id)
+                scenario_to_chats[scenario_id].add(dialogue_id)
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+            # Incomplete chats (redirected, no survey)
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                if dialogue_id not in chats_with_survey:
+                    chats.append(chat)
+        else:
+            for (dialogue_id, chat) in self.uuid_to_chat.iteritems():
+                scenario_id = chat['scenario_uuid']
+                chats.append((scenario_id, chat))
+                scenario_to_chats[scenario_id].add(dialogue_id)
+            chats = [x[1] for x in sorted(chats, key=lambda x: x[0])]
+
+        html_visualizer = HTMLVisualizer()
+        html_visualizer.visualize(viewer_mode, html_output, chats,
+            responses=dialogue_responses, css_file=css_file, img_path=img_path)

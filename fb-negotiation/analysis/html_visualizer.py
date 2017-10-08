@@ -41,10 +41,19 @@ class HTMLVisualizer(BaseHTMLVisualizer):
         return html
 
     @classmethod
-    def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
-        complete, _, html_lines = super(HTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type, worker_ids=worker_ids)
+    def render_chat(cls, chat, agent=None, partner_type='human'):
+        complete, _, html_lines = super(HTMLVisualizer, cls).render_chat(chat, agent=agent, partner_type=partner_type)
         # Show config and results
         if chat.get('agents_info') is not None:
             html_lines.append('<p>Bot config: {}</p>'.format(str(chat['agents_info']['config'])))
         rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
         return complete, rejected, html_lines
+
+    @classmethod
+    def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None, img_path=None):
+        if viewer_mode:
+            # External js and css
+            cls.write_viewer_data(html_output, chats, responses=responses)
+        else:
+            # Inline style
+            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses, img_path=img_path)
