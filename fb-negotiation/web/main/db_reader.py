@@ -34,12 +34,12 @@ class DatabaseReader(BaseDatabaseReader):
         if action == 'select':
             data = json.loads(data)
             try:
-                if math.isnan(outcome['book']):
-                    outcome['book'] = None
-                if math.isnan(outcome['hat']):
-                    outcome['hat'] = None
-                if math.isnan(outcome['ball']):
-                    outcome['ball'] = None
+                if math.isnan(data['book']):
+                    data['book'] = None
+                if math.isnan(data['hat']):
+                    data['hat'] = None
+                if math.isnan(data['ball']):
+                    data['ball'] = None
             except (ValueError, TypeError) as e:
                 pass
         return data
@@ -68,3 +68,9 @@ class DatabaseReader(BaseDatabaseReader):
             survey_data[cid][partner_idx] = responses
 
         write_json([agent_types, survey_data], json_path)
+
+    @staticmethod
+    def dump_all(connection, db_path):
+        with open(db_path, 'w') as f:
+            all_data = '\n'.join(connection.iterdump())
+            f.write(all_data)

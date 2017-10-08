@@ -68,6 +68,8 @@ def add_website_arguments(parser):
                         help='Host IP address to run app on. Defaults to localhost.')
     parser.add_argument('--config', type=str, default='app_params.json',
                         help='Path to JSON file containing configurations for website')
+    parser.add_argument('--debug', default=False, action='store_true',
+                        help='Go into debug mode for running the server')
     parser.add_argument('--output', type=str,
                         default="web/output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
@@ -142,8 +144,8 @@ def cleanup(flask_app):
     if flask_app.config['user_params']['end_survey'] == 1:
         surveys_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'surveys.json')
         DatabaseReader.dump_surveys(cursor, surveys_path)
+    DatabaseReader.dump_all(conn, db_path)
     conn.close()
-
 
 def init(output_dir, reuse=False):
     db_file = os.path.join(output_dir, DB_FILE_NAME)
@@ -188,6 +190,7 @@ if __name__ == "__main__":
     params['logging'] = {}
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
+    params['debug'] = args.debug
 
     if 'task_title' not in params.keys():
         raise ValueError("Title of task should be specified in config file with the key 'task_title'")
@@ -209,7 +212,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=False, templates_dir=templates_dir)
+    app = create_app(debug=params['debug'], templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
@@ -235,13 +238,8 @@ if __name__ == "__main__":
     if 'end_survey' not in params.keys() :
         params['end_survey'] = 0
 
-    if 'debug' not in params:
-        params['debug'] = False
-
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
-
     db.add_scenarios(scenario_db, systems, update=args.reuse)
-    #add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
