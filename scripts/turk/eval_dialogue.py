@@ -54,6 +54,7 @@ if __name__ == '__main__':
             max_assignments=args.num_assignments_per_hit,
             db_path=args.hit_db,
             lifetime=lifetime,
+            qualifications=None,
             )
 
     if args.check_workers:
