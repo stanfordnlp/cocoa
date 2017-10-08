@@ -17,6 +17,7 @@
             var selectTime = null, messageStartTime = null;
             var messageTime = 0.0;
             var num_offer = 0;
+            var turn_counter = 0;
             var eval_data = {};
             var utterance_regex = /(You|Partner): (.*)/;
             {% if not debug %}
@@ -61,13 +62,12 @@
                     $(this).parents(".dropdown").find('.btn').val($(this).data('value'));
                 });
 
+                initializeClock('clockdiv', deadline);
                 // This part executes after the description is shown
                 setTimeout(function(){
                     // $('#description').modal('hide')
                     // $('#accept').style.display = 'none';
                     // $('#reject').style.display = 'none';
-                    initializeClock('clockdiv', deadline);
-
                     inboxCheckInterval = setInterval(checkInbox, 1000);
 
                     $('#text').keypress(function(e) {
@@ -86,11 +86,19 @@
                             $("#text").attr("disabled", "disabled")
                             messageStartTime = null;
                             messageTime = 0.0;
+
+                            turn_counter++
+                            if (turn_counter > 1) {
+                                $(".no-deal").css("display", "inline-block");
+                            }
                         }
 
                     });
 
                 }, read_time);  // delay due to reading the description
+
+                setTimeout(function(){ $(".yes-deal").removeAttr('disabled');
+                    }, 7000);  // wait 7 seconds before allowing deal to end
             });
 
             function select() {
@@ -114,19 +122,19 @@
 
                 });
             }
-            // function reject() {
-            //     $.ajax({
-            //         url: BASE_URL +'/_reject_offer/',
-            //         type: "get",
-            //         data: {
-            //             "uid": "{{ uid }}"
-            //         },
-            //         dataType: "json",
-            //         success: function(response) {
-            //             displayText(response['message'])
-            //         }
-            //     })
-            // }
+            function reject() {
+                $.ajax({
+                    url: BASE_URL +'/_reject_offer/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
 
 
             function report() {
@@ -477,14 +485,10 @@
                     endfor -->
             </div>
 
-            <div id="offer">
-            <button class="btn btn-primary" onclick="this.disabled=true;select()" style="display:inline-block" id="submit">Mark Deal Agreed</button>
+            <div id="options">
+            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;select()" style="display:inline-block" id="submit">Mark Deal Agreed</button>
+            <button class="btn btn-default no-deal" onclick="this.disabled=true;reject()" style="display:none" id="submit">No Deal</button>
             </div>
-<!--             <div id="quit_option">
-                <h4>Quit: </h4><p> If you think that it will not be possible to negotiate a deal, you can choose to <b>quit</b> this dialogue.</p>
-                <button onclick="this.disabled=true;quit();" style="display: block" id="quit">Quit</button>
-            </div>
- -->
 
             <div class="modal fade" id="report_box" role="dialog">
               <div class="modal-dialog">

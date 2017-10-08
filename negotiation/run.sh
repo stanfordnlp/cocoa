@@ -1,13 +1,3 @@
-# PYTHONPATH=. python negotiation/web/chat_app.py --port 5000 \
-#     --schema-path negotiation/data/craigslist-schema.json \
-#     --config negotiation/web/app_params.json --scenarios-path negotiation/data/sample-scenarios.json \
-#     --output negotiation/web/output --price-tracker negotiation/price-tracker.pkl \
-
-PYTHONPATH=. python web/chat_app.py --port 5000 \
-    --schema-path data/craigslist-schema.json \
-    --config web/app_params.json --scenarios-path data/sample-scenarios.json \
-    --output web/output --price-tracker price-tracker.pkl \
-
 # PYTHONPATH=. python ../scripts/generate_dataset.py \
 #     --schema-path data/craigslist-schema.json \
 #     --scenarios-path data/test-scenarios.json \
@@ -16,3 +6,14 @@ PYTHONPATH=. python web/chat_app.py --port 5000 \
 #     --agents rulebased cmd --verbose \
 #     --price-tracker-model price-tracker.pkl \
 #     --random-seed 8
+
+PYTHONPATH=. python web/chat_app.py --port 5000 \
+    --schema-path data/craigslist-schema.json --templates templates.pkl \
+    --config web/app_params.json --scenarios-path data/sample-scenarios.json \
+    --output web/output --price-tracker price-tracker.pkl\
+
+# PYTHONPATH=. python ../scripts/visualize_transcripts.py \
+#     --dialogue-transcripts web/output/transcripts/transcripts.json \
+#     --survey-transcripts web/output/transcripts/surveys.json \
+#     --html-output web/output/transcripts/transcripts.html \
+#     --img-path images --css-file ../chat_viewer/css/my.css
