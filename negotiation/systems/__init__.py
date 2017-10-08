@@ -2,6 +2,7 @@ from cocoa.core.util import read_json, read_pickle
 from core.price_tracker import PriceTracker, add_price_tracker_arguments
 from model.retriever import Retriever, add_retriever_arguments
 from rulebased_system import RulebasedSystem, add_rulebased_arguments
+from templates import Templates
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from ranker_system import IRRankerSystem, NeuralRankerSystem
 #from neural_system import NeuralSystem, add_neural_system_arguments
@@ -17,7 +18,7 @@ def add_system_arguments(parser):
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
-    templates = read_pickle(args.templates) if args.templates else args.templates
+    templates = Templates.from_pickle(args.templates)
     if name == 'rulebased':
         return RulebasedSystem(lexicon, timed, templates=templates)
     elif name == 'config-rulebased':

@@ -47,7 +47,7 @@ def get_data_generator(args, model_args, mappings, schema):
         if 'loss' in args.eval_modes and 'generation' in args.eval_modes:
             print '"loss" requires ground truth reponse to be added to the candidate set. Please evaluate "loss" and "generation" separately.'
             raise ValueError
-        if (not args.test) or args.eval_modes == ('loss',):
+        if (not args.test) or args.eval_modes == ['loss']:
             add_ground_truth = True
         else:
             add_ground_truth = False

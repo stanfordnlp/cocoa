@@ -37,7 +37,10 @@ class EvalData(BaseEvalData):
                 tokens[-1] += w
             else:
                 tokens.append(w)
-        return super(EvalData, cls).process_utterance(' '.join(tokens), role)
+        s = ' '.join(tokens)
+        s = s.replace('<', '')
+        s = s.replace('>', '')
+        return super(EvalData, cls).process_utterance(s, role)
 
     @classmethod
     def valid_example(cls, example, num_context_utterances):

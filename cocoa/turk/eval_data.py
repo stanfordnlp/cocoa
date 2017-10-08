@@ -18,19 +18,24 @@ class EvalData(object):
         print 'Dumping data to {}'.format(output)
         write_json(self.data, output)
 
-    def sample_examples(self, num_context, evaluated=set(), systems=None):
+    def sample_examples(self, num_context, evaluated=set(), systems=None, pairs=None, qids=None):
         """Randomly sample num_context examples to evaluate.
 
         Args:
             num_context (int)
             evaluated (set): set of example ids that have been evaluated
             systems (list): only use responses from `systems`
+            pairs (list): return pairs of responses for CompareTask
+            qids (list): list of example ids to use
 
         Returns:
             examples (list[(qid, context, response)]): tuples that can be used to contruct questions by EvalTask.
 
         """
-        example_ids = [x for x in self.data.keys() if not x in evaluated]
+        if not qids:
+            example_ids = [x for x in self.data.keys() if not x in evaluated]
+        else:
+            example_ids = qids
         if num_context > len(example_ids):
             print 'WARNING: wanted {} examples, only has {}'.format(num_context, len(example_ids))
             num_context = len(example_ids)
@@ -39,12 +44,17 @@ class EvalData(object):
         for id_ in selected_ids:
             responses = self.data[id_]['responses']
             context = self.data[id_]['context']
-            for system, response in responses.iteritems():
-                if systems is not None and not system in systems:
-                    continue
-                qid = '{system}-{ex_id}'.format(system=system, ex_id=id_)
-                examples.append((qid, context, response))
-        return examples
+            if not pairs:
+                for system, response in responses.iteritems():
+                    if systems is not None and not system in systems:
+                        continue
+                    qid = '{system}-{ex_id}'.format(system=system, ex_id=id_)
+                    examples.append((qid, context, response))
+            else:
+                qid = '{system0}-{system1}-{ex_id}'.format(system0=pairs[0], system1=pairs[1], ex_id=id_)
+                responses = [responses[system] for system in pairs]
+                examples.append((qid, context, responses))
+        return examples, selected_ids
 
     @classmethod
     def valid_example(cls, example, num_context_utterances):

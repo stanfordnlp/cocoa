@@ -19,7 +19,7 @@ def add_turk_task_arguments(parser):
     parser.add_argument('--hit-db', default='hits.json', help='Path to JSON file that saves hits info')
 
 class Task(object):
-    def __init__(self, mtc=None, title=None, description=None, keywords=None, reward=None, max_assignments=1, qualifications=None, duration=60, approval_delay=3, lifetime=30, db_path='hits.json'):
+    def __init__(self, mtc=None, title=None, description=None, keywords=None, reward=None, max_assignments=1, qualifications='default', duration=60, approval_delay=3, lifetime=30, db_path='hits.json'):
         """Initialize a Turk task with basic properties.
 
         Args:
@@ -41,8 +41,10 @@ class Task(object):
         self.keywords = keywords
         self.reward = reward
         self.max_assignments = max_assignments
-        if qualifications is None:
+        if qualifications == 'default':
             qualifications = default_qualifications()
+        else:
+            qualifications = None
         self.qualifications = qualifications
         self.duration = duration * 60
         self.approval_delay = approval_delay * 24 * 60 * 60
@@ -128,6 +130,7 @@ class Task(object):
         for hit_id, hit_info in self.db.iteritems():
             try:
                 assignments = self.mtc.get_assignments(hit_id)
+                print hit_id, len(assignments)
             except MTurkRequestError:
                 continue
             if assignments:
@@ -183,10 +186,13 @@ class HTMLEvalTask(EvalTask):
             html_questions = self.create_question_group(question_group)
             html_hit = self.overall_template.format(
                     title=self.title,
-                    instructions=self.instructions,
+                    instructions=self.instructions.format(batch_size=len(question_group)),
                     script=self.script,
                     questions=html_questions,
                     )
+            #with open('/afs/cs.stanford.edu/u/hehe/www/question.html', 'w') as fout:
+            #    fout.write(html_hit)
+            #    import sys; sys.exit()
             html_hit = HTMLQuestion(html_hit, 600)
             hit_questions.append(html_hit)
         return hit_questions
@@ -205,77 +211,22 @@ class HTMLEvalTask(EvalTask):
             html_questions.append(html_question)
         return '\n'.join(html_questions)
 
+class HTMLCompareEvalTask(HTMLEvalTask):
+    def create_question_group(self, questions):
+        html_questions = []
+        for qid, context, responses in questions:
+            html_context = self.format_context(context)
+            html_responses = []
+            for response in responses:
+                agent, utterance = response
+                html_response = self.utterance_formatter().format(agent=agent, text=utterance.encode('utf-8'))
+                html_responses.append(html_response)
+            html_question = self.question_template.format(
+                qid=qid,
+                context=html_context,
+                response0=html_responses[0],
+                response1=html_responses[1],
+                )
+            html_questions.append(html_question)
+        return '\n'.join(html_questions)
 
-################ DEPRECATED ################
-
-class QuestionFormEvalTask(EvalTask):
-    ratings = [
-            ('Very unlikely', -2),
-            ('Not likely', -1),
-            ('Neutral', 0),
-            ('Likely', 1),
-            ('Very likely', 2),
-            ]
-
-    def build_question(self, qid, context, response):
-        qc = QuestionContent()
-
-        utterance_formatter = '{agent}: {text}'
-        #qc.append_field('Text', 'Dialogue context:')
-        display_context = []
-        for agent, utterance in context:
-            display_context.append(self.utterance_formatter(linebreak=True).format(agent=agent, text=utterance))
-        qc.append(FormattedContent(''.join(display_context)))
-
-        #qc.append_field('Text', 'Response:')
-        agent, utterance = response
-        qc.append(FormattedContent(self.utterance_formatter().format(agent=agent, text=utterance)))
-
-        qc.append_field('Text', 'Please rate how likely the response (in bold) continues from the conversation above.')
-
-        ans = SelectionAnswer(min=-2, max=2, style='radiobutton',
-                selections=self.ratings,
-                type='text', other=False)
-
-        q = Question(identifier=qid,
-                content=qc,
-                answer_spec=AnswerSpecification(ans),
-                is_required=True)
-
-        return q
-
-    def build_comment(self):
-        qc = QuestionContent()
-        qc.append_field('Text', 'Comments:')
-        ans = FreeTextAnswer()
-        q = Question(identifier='comment',
-              content=qc,
-              answer_spec=AnswerSpecification(ans),
-              is_required=False)
-        return q
-
-    def build_question_form(self, questions):
-        question_form = QuestionForm()
-        question_form.append(self.build_overview())
-        for qid, context, response in questions:
-            question_form.append(self.build_question(qid, context, response))
-            question_form.append(self.build_comment())
-        return question_form
-
-    def build_overview(self,):
-        overview = Overview()
-        overview.append_field('Title', 'Rate a response in a dialogue')
-        overview.append(FormattedContent('''
-                <p>You are given an excerpt of a conversation (the context)
-                happened between a buyer and a seller negotiating the price of an
-                item for sale, and a response following the context.
-                Your task is to decide how likely the response (<b>in bold</b>)
-                and the context actually come from the same dialogue, i.e. together
-                they form a natual, coherent dialogue.</p>
-                <p>Mentions of prices are replaced by the symbol <b>PRICE</b>;
-                you can assume the actual amount is reasonable. </p>
-                <p>Symbols such as OFFER, ACCEPT, REJECT denote actions.</p>
-                <p><b>NOTE:</b> We use verification answers to identify abusers.
-                Randomly chosen answers will <b>get rejected</b>.</p>
-        '''))
-        return overview

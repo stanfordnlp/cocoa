@@ -1,0 +1,40 @@
+<p>You will be rating <b>{batch_size}</b> sets of dialogue responses.
+<b>Please read the following instructions carefully.</b>
+</p>
+
+<p>In each question, you are given an excerpt of a conversation (the context)
+happened between a buyer and a seller negotiating the price of an
+item for sale, and two responses following the context.
+Your task is to decide which response is more appropriate in the context.
+</p>
+<p>
+Mentions of prices are replaced by the symbol <b>PRICE</b>;
+you can assume the actual amount is reasonable.
+Symbols such as OFFER, ACCEPT, REJECT, QUIT denote corresponding actions.
+Given an action, you need to decide if it is reasonable given the context. For example, REJECT after agreeing to a deal (in the context) is not appropriate.
+</p>
+<p>
+A good response should be <b>grammatical</b>, <b>relevant</b> to the context, and <b>informative</b>. For example, given the buyer's utterance<br>
+
+<i>Buyer: Can you go lower?</i><br><br>
+
+Consider the following responses:<br>
+<i>Seller A: It is in great condition!</i><br>
+<i>Seller B: What about PRICE?</i><br>
+<i>Seller C: The price is fair as it's practically brand new. However, if you can pick it up today I can do PRICE.</i><br>
+
+Response A is clearly bad because it is not answering the buyer's question.
+Both response B and C are okay.
+However, C is more specific and informative, therefore it is a better response.
+</p>
+<p>
+In some cases, it is hard to decide which one is better.
+If they are equally appropriate, please select "Both are appropriate".
+If they are equally bad, for example, one is non-grammatical and one is irrelevant, please select "Both are NOT appropriate".
+</p>
+<p>
+<b>NOTE:</b><br>
+We use verification questions to identify abusers.
+In addition, each question is answered by multiple people.
+Outliers (e.g. randomly chosen answers) will <b>get rejected</b>.
+</p>

@@ -78,22 +78,17 @@ class DatabaseReader(object):
             [Event]
 
         """
-        try:
-            cursor.execute('SELECT agent, action, time, data, start_time FROM event WHERE chat_id=? ORDER BY time ASC', (chat_id,))
-            logged_events = cursor.fetchall()
-        # Compatible with older schema
-        except sqlite3.OperationalError:
-            cursor.execute('SELECT agent, action, time, data FROM event WHERE chat_id=? ORDER BY time ASC', (chat_id,))
-            logged_events = cursor.fetchall()
-            events = []
-            # start_time == time
-            for i, (agent, action, time, data) in enumerate(logged_events):
-                events.append((agent, action, time, data, time))
-            logged_events = events
+        cursor.execute('SELECT * FROM event WHERE chat_id=? ORDER BY time ASC', (chat_id,))
+        logged_events = cursor.fetchall()
 
         chat_events = []
         agent_chat = {0: False, 1: False}
-        for (agent, action, time, data, start_time) in logged_events:
+        for row in logged_events:
+            # Compatible with older event structure
+            agent, action, time, data = [row[k] for k in ('agent', 'action', 'time', 'data')]
+            start_time = row['start_time'] if 'start_time' in row else time
+            template = row['template'] if 'template' in row else None
+
             if action == 'join' or action == 'leave' or action == 'typing':
                 continue
             if action == 'message' and len(data.strip()) == 0:
@@ -103,7 +98,9 @@ class DatabaseReader(object):
             agent_chat[agent] = True
             time = cls.convert_time_format(time)
             start_time = cls.convert_time_format(start_time)
-            event = Event(agent, time, action, data, start_time)
+            if template is not None:
+                template = json.loads(template)
+            event = Event(agent, time, action, data, start_time, template=template)
             chat_events.append(event)
 
         return chat_events
