@@ -5,7 +5,8 @@
 <p>In each question, you are given an excerpt of a conversation (the context)
 happened between a buyer and a seller negotiating the price of an
 item for sale, and two responses following the context.
-Your task is to identify problems presented in the response in the following aspects.
+Your task is to identify problems presented in the response in the following aspects
+and rate the overall appropriateness of the response.
 </p>
 <ul>
     <li><b>NOT grammatical:</b> there are grammatical errors, e.g. <i>I cannot give you lower.</i></li>
@@ -16,8 +17,9 @@ Your task is to identify problems presented in the response in the following asp
 <p>
 Mentions of prices are replaced by the symbol <b>PRICE</b>;
 you can assume the actual amount is reasonable.
-Symbols such as OFFER, ACCEPT, REJECT, QUIT denote corresponding actions.
-Given an action, you need to decide if it is reasonable given the context. For example, REJECT after agreeing to a deal (in the context) is not appropriate.
+Symbols such as <b>OFFER, ACCEPT, REJECT, QUIT</b> denote corresponding actions,
+thus they should not affect the grammaticality of the sentence.
+However, given an action, you need to decide if it is reasonable given the context. For example, REJECT after agreeing to a deal (in the context) is not appropriate.
 </p>
 <p>
 <b>NOTE:</b><br>
