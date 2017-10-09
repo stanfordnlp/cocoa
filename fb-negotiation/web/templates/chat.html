@@ -391,98 +391,33 @@
             </div>
 
             <div id="facts">
-<!--                 {% if kb['Role'] == 'first' %}
-                    <p>You are the <b>first</b> speaker.
-                {% else %}
-                    <p>You are the <b>second</b> speaker.
-                {% endif %}
- -->        <table id="items-table">
+            <table id="items-table">
               <tr>
                 <th>Items You BOTH See</th>
                 <th>Value to You</th>
                 <th>Number You Get</th>
               </tr>
-              <tr>
-                <td>{% for count in range(kb['Item_counts']['book']) %}
-                    <img class="book item" src="{{ url_for('static', filename='img/book.png')}}"/>
-                    {% endfor %}
-                </td>
-                <td class="points">{{kb['Item_values']['book'] }}</td>
-                <td><div class="dropdown">
-                  <button class="btn dropdown-toggle book-split" type="button" data-toggle="dropdown" value=0 aria-expanded="true">
-                    You Get 0, They get {{kb['Item_counts']['book']}}
-                    <span class="caret"></span>
-                  </button>
-                  <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['book'] + 1) %}
-                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['book'] - count}}</a></li>
-                    {% endfor %}
-                  </ul>
-                </div>
-                </td>
-              </tr>
-              <tr>
-                <td>{% for count in range(kb['Item_counts']['hat']) %}
-                    <img class="hat item" src="{{ url_for('static', filename='img/hat.png')}}"/>
-                    {% endfor %}
-                </td>
-                <td class="points">{{kb['Item_values']['hat'] }}</td>
-                <td><div class="dropdown">
-                  <button class="btn dropdown-toggle hat-split" data-toggle="dropdown" value=0>
-                    You Get 0, They get {{kb['Item_counts']['hat']}}
-                  <span class="caret"></span></button>
-                  <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['hat'] + 1) %}
-                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['hat'] - count}}</a></li>
-                    {% endfor %}
-                  </ul>
-                </div>
-                </td>
-              </tr>
-              <tr>
-                <td>{% for count in range(kb['Item_counts']['ball']) %}
-                    <img class="ball item" src="{{ url_for('static', filename='img/ball.png')}}"/>
-                    {% endfor %}
-                </td>
-                <td class="points">{{kb['Item_values']['ball'] }}</td>
-                <td><div class="dropdown">
-                  <button class="btn dropdown-toggle ball-split" data-toggle="dropdown" value=0>
-                    You Get 0, They get {{kb['Item_counts']['ball']}}
-                  <span class="caret"></span></button>
-                  <ul class="dropdown-menu">
-                    {% for count in range(kb['Item_counts']['ball'] + 1) %}
-                        <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{kb['Item_counts']['ball'] - count}}</a></li>
-                    {% endfor %}
-                  </ul>
-                </div>
-                </td>
-              </tr>
-            </table>
-
-            <!--    for attr in attributes
-                        if attr == 'Title'
-                            <p><b> kb['item'][attr] </b></p>
-                            if kb['item']['Images']|length >= 1
-                                <img class="img-thumbnail" height="250" width="250" src=" url"/>
-                            endif
-                        elif attr == 'Description'
-                            for s in kb['item'][attr]
-                                <div id="factDescription"> s </div>
-                            endfor
-                        else
-                            <tr>
-                                <td><b>attr</b></td>
-                            set value = kb['item'][attr]
-                            if value is none
-                                <td>?</td>
-                            elif value is string
-                                <td> value </td>
-                            else
-                                <td> value|join(', ') </td>
-                            endif
-                            </tr>
-                        endif
-                    endfor -->
+              {% for item in kb|sort(attribute='Name') %}
+                <tr>
+                  <td>{% for _ in range(item.Count) %}
+                      <img class="{{item.Name}} item" src="{{ url_for('static', filename='img/') }}{{ item.Name }}.png"/>
+                      {% endfor %}
+                  </td>
+                  <td class="points">{{item.Value}}</td>
+                  <td><div class="dropdown">
+                    <button class="btn dropdown-toggle book-split" type="button" data-toggle="dropdown" value=0 aria-expanded="true">
+                      You Get 0, They get {{item.Count}}
+                      <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu">
+                      {% for count in range(item.Count + 1) %}
+                          <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{item.Count - count}}</a></li>
+                      {% endfor %}
+                    </ul>
+                  </div>
+                  </td>
+                </tr>
+              {% endfor %}
             </div>
 
             <div id="options">
