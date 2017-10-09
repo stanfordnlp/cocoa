@@ -16,8 +16,8 @@ class RulebasedSession(object):
     def get_session(agent, kb, tracker, config=None):
         return BaseRulebasedSession(agent, kb, tracker, config)
 
-Config = namedtuple('Config', ['propose_first', 'persuade_technique', 'good_deal_threshold'])
-default_config = Config(0.5, 1, 7)
+Config = namedtuple('Config', ['propose_first', 'persuade_technique', 'good_deal_threshold', 'target', 'bottomline'])
+default_config = Config(0.5, 1, 7, 7, 5)
 
 class BaseRulebasedSession(Session):
     def __init__(self, agent, kb, lexicon, config):
@@ -59,7 +59,7 @@ class BaseRulebasedSession(Session):
 
     def init_proposal(self):
         points = 0
-        target = self.config.good_deal_threshold
+        target = self.config.target
         my_split = {item: 0 for item in self.items}
         for item, value, count in self.sorted_items:
             if value == 0:
@@ -73,6 +73,9 @@ class BaseRulebasedSession(Session):
                 break
         split = {self.agent: my_split, 1 - self.agent: {}}
         self.my_proposal = self.tracker.merge_offers(split, self.item_counts, self.agent)
+
+    def get_points(self, offer):
+        return sum([count * self.item_values[item] for item, count in offer.iteritems()])
 
     def negotiate(self):
         their_offer = self.their_proposal[1 - self.agent]
@@ -89,14 +92,23 @@ class BaseRulebasedSession(Session):
         if not conflict_items:
             return self.agree()
 
+        compromised_offer = copy.deepcopy(my_offer)
         conflict_items = sorted(conflict_items, key=lambda k: self.item_values[k])
-        my_offer[conflict_items[0]] -= 1
+        compromised_offer[conflict_items[0]] -= 1
         for item in valuable_items:
-            my_offer[item] += 1
-        self.state['my_action'] = 'propose'
-        return self.propose(self.my_proposal)
+            compromised_offer[item] += 1
+
+        if self.get_points(compromised_offer) < self.config.bottomline:
+            self.state['my_action'] = 'final_call'
+            return self.final_call(self.my_proposal)
+        else:
+            self.my_proposal[self.agent] = compromised_offer
+            self.my_proposal = self.tracker.merge_offers(self.my_proposal, self.item_counts, self.agent)
+            self.state['my_action'] = 'propose'
+            return self.propose(self.my_proposal)
 
     def propose(self, proposal):
+        # TODO: more templates
         self.state['proposed'] = True
         s = 'I need {}.'.format(self.offer_to_string(proposal[self.agent]))
         return self.message(s)
@@ -362,6 +374,8 @@ class BaseRulebasedSession(Session):
                 return self.balanced_proposal()
 
     def final_call():
+        # TODO: more templates
+        return "Can't do that. That's my final offer."
         # If they are only offering 0 or 1 points, then
         # might as well reject since "No Deal" does not cause negative reward
         if self.meets_criteria(self.tracker.their_offer, "final_call"):
