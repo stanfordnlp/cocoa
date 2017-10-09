@@ -1,0 +1,44 @@
+{
+    "status_params": {
+	"waiting": {
+      "num_seconds": 10
+  },
+	"chat": {
+	    "num_seconds": 1234
+	},
+
+	"finished": {
+	    "num_seconds": -1
+	},
+
+	"survey": {
+	    "num_seconds": -1
+	},
+	"redirected": {
+	    "num_seconds": -1
+	},
+	"incomplete": {
+	    "num_seconds": -1
+	},
+	"reporting": {
+	    "num_seconds": -1
+	}
+    },
+    "connection_timeout_num_seconds": 3,
+    "idle_timeout_num_seconds": 210,
+    "templates_dir": "web/templates",
+    "images_base": "web/static/images",
+    "instructions": "web/templates/instructions.html",
+    "task_title": "Deal or No Deal",
+    "icon": "handshake.jpg",
+    "end_survey": 1,
+    "skip_chat_enabled": false,
+    "debug": false,
+    "models": {
+        "rulebased": {
+            "active": true,
+            "type": "rulebased"
+        }
+    }
+}
+
