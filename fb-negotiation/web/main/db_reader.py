@@ -55,7 +55,7 @@ class DatabaseReader(BaseDatabaseReader):
 
         for survey in logged_surveys:
             # todo this is pretty lazy - support variable # of questions per task eventually..
-            (cid, q1, comments) = survey
+            (userid, cid, q1, comments) = survey
             responses = dict(zip(questions, [q1, comments]))
             cursor.execute('''SELECT agent_types, agent_ids FROM chat WHERE chat_id=?''', (cid,))
             chat_result = cursor.fetchone()

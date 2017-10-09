@@ -15,7 +15,7 @@ class DatabaseManager(BaseDatabaseManager):
     @classmethod
     def add_survey_table(cls, cursor):
         cursor.execute(
-            '''CREATE TABLE survey (chat_id text, negotiator integer, comments text)''')
+            '''CREATE TABLE survey (name text, chat_id text, negotiator integer, comments text)''')
 
     @classmethod
     def init_database(cls, db_file):
@@ -155,8 +155,8 @@ class Backend(BaseBackend):
                 cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (user_info.chat_id,))
                 scenario_id = cursor.fetchone()[0]
                 _update_scenario_db(user_info.chat_id, scenario_id, user_info.partner_type)
-                cursor.execute('INSERT INTO survey VALUES (?,?,?)',
-                                (user_info.chat_id, data['negotiator'], data['comments']))
+                cursor.execute('INSERT INTO survey VALUES (?, ?,?,?)',
+                                (userid, user_info.chat_id, data['negotiator'], data['comments']))
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
 
