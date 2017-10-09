@@ -5,9 +5,12 @@ class KB(BaseKB):
         super(KB, self).__init__(attributes)
         self.items = items
         # print(items)
-        self.item_counts = items["Item_counts"]
-        self.item_values = items["Item_values"]
-        self._role = items["Role"]
+        self.item_counts = {item['Name']: item['Count'] for item in items}
+        self.item_values = {item['Name']: item['Value'] for item in items}
+        # deprecated schema style
+        # self.item_counts = items["Item_counts"]
+        # self.item_values = items["Item_values"]
+        # self._role = items["Role"]
 
     def to_dict(self):
         return self.items
