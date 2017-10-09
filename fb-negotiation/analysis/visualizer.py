@@ -24,7 +24,7 @@ class Visualizer(BaseVisualizer):
         print("tried to filter for #bad_worker_ids, this has been deprecated")
         return deprecated
 
-    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None):
+    def html_visualize(self, viewer_mode, html_output, css_file=None, img_path=None, worker_ids=None):
         chats = []
         scenario_to_chats = defaultdict(set)
         dialogue_responses = None

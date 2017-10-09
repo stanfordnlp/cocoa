@@ -22,7 +22,7 @@ class HTMLVisualizer(object):
     def add_html_visualizer_arguments(cls, parser):
         parser.add_argument('--html-output', help='Name of directory to write HTML report to')
         parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
-        parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+        parser.add_argument('--css-file', default='../chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
         parser.add_argument('--img-path', help='path to images')
 
     @classmethod
