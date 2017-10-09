@@ -103,7 +103,7 @@ def add_systems(args, config_dict, schema):
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args, timed=timed)
+                model = get_system(name, args, schema=schema, timed=timed)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -139,12 +139,12 @@ def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     DatabaseReader.dump_chats(cursor, flask_app.config['scenario_db'], transcript_path)
     if flask_app.config['user_params']['end_survey'] == 1:
         surveys_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'surveys.json')
         DatabaseReader.dump_surveys(cursor, surveys_path)
-    DatabaseReader.dump_all(conn, db_path)
     conn.close()
 
 def init(output_dir, reuse=False):

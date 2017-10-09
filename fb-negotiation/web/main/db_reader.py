@@ -68,9 +68,3 @@ class DatabaseReader(BaseDatabaseReader):
             survey_data[cid][partner_idx] = responses
 
         write_json([agent_types, survey_data], json_path)
-
-    @staticmethod
-    def dump_all(connection, db_path):
-        with open(db_path, 'w') as f:
-            all_data = '\n'.join(connection.iterdump())
-            f.write(all_data)
