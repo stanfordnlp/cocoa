@@ -4,8 +4,10 @@ class KB(BaseKB):
     def __init__(self, attributes, items):
         super(KB, self).__init__(attributes)
         self.items = items
-        self.item_counts = {item['Name']: item['Count'] for item in items}
-        self.item_values = {item['Name']: item['Value'] for item in items}
+        # print(items)
+        self.item_counts = items["Item_counts"]
+        self.item_values = items["Item_values"]
+        self._role = items["Role"]
 
     def to_dict(self):
         return self.items
