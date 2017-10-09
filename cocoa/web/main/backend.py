@@ -695,6 +695,7 @@ class Backend(object):
                         return False
 
                 if self.check_game_over_and_transition(cursor, userid, u.partner_id):
+                    self.logger.debug("game_over_and_transition")
                     return False
 
                 return True

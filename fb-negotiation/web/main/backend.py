@@ -80,8 +80,9 @@ class Backend(BaseBackend):
         chat_id = controller.get_chat_id()
 
         if game_over:
-            if not self.is_user_partner_bot(cursor, userid):
-                verify_chat(partner_id, 1 - agent_idx, True)
+            # TODO: message
+            msg, _ = self.get_completion_messages(userid)
+            self.end_chat_and_finish(cursor, userid, message=msg)
             return True
 
         return False
