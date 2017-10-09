@@ -4,7 +4,6 @@ from cocoa.core.dataset import Example
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 from core.scenario import Scenario
-from analyze_strategy import StrategyAnalyzer
 from analysis.html_visualizer import HTMLVisualizer
 
 class Visualizer(BaseVisualizer):
@@ -20,22 +19,6 @@ class Visualizer(BaseVisualizer):
         self.question_scores = None
         if surveys:
             self.agents, self.question_scores = self.read_eval(self.surveys, mask)
-
-    def compute_effectiveness(self):
-        chats = defaultdict(list)
-        for raw in self.chats:
-            ex = Example.from_dict(raw, Scenario)
-            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
-                chats['human'].append(ex)
-            elif ex.agents[0] != 'human':
-                chats[ex.agents[0]].append(ex)
-            elif ex.agents[1] != 'human':
-                chats[ex.agents[1]].append(ex)
-
-        results = {}
-        for system, examples in chats.iteritems():
-            results[system] = self._compute_effectiveness(examples, system)
-            print system, results[system]
 
     def filter(self, deprecated):
         print("tried to filter for #bad_worker_ids, this has been deprecated")
