@@ -78,10 +78,6 @@ class BaseRulebasedSession(Session):
         return sum([count * self.item_values[item] for item, count in offer.iteritems()])
 
     def negotiate(self):
-        if self.their_proposal is None:
-            # sometimes the user types too fast and we need to go back a level
-            return self.propose(self.my_proposal)
-
         their_offer = self.their_proposal[1 - self.agent]
         my_offer = self.my_proposal[self.agent]
 
@@ -112,9 +108,17 @@ class BaseRulebasedSession(Session):
             return self.propose(self.my_proposal)
 
     def propose(self, proposal):
-        # TODO: more templates
         self.state['proposed'] = True
-        s = 'I need {}.'.format(self.offer_to_string(proposal[self.agent]))
+        templates = [
+                "i need {my_offer}, you can have the rest.",
+                "how about i get {my_offer}?",
+                "i would like {my_offer}.",
+                "i'll take {my_offer}",
+                "you get {their_offer}, i take the rest.",
+                ]
+        s = random.choice(templates).format(
+                my_offer=self.offer_to_string(proposal[self.agent]),
+                their_offer=self.offer_to_string(proposal[1-self.agent]))
         return self.message(s)
 
     def pick_strategy(self):
@@ -379,7 +383,12 @@ class BaseRulebasedSession(Session):
 
     def final_call():
         # TODO: more templates
-        return "Can't do that. That's my final offer."
+        templates = [
+                "Can't do that. That's my final offer.",
+                "sorry no deal. i really need {my_offer}.",
+                ]
+        return random.choice(templates).format(my_offer=self.offer_to_string(self.my_proposal[self.agent]))
+
         # If they are only offering 0 or 1 points, then
         # might as well reject since "No Deal" does not cause negative reward
         if self.meets_criteria(self.tracker.their_offer, "final_call"):
@@ -539,7 +548,12 @@ class BaseRulebasedSession(Session):
     def offer_to_string(self, offer):
         items = ['{count} {item}{plural}'.format(item=item, count=count, plural='s' if count > 1 else '')
                 for item, count in offer.iteritems() if count > 0]
-        return ', '.join(items)
+        if len(items) == 1:
+            return 'just {}'.format(items[0])
+        elif len(items) == 2:
+            return ' and '.join(items)
+        else:
+            return ', '.join(items[:-1]) + ' and ' + items[-1]
 
         use_no = True if sum([offer[item] == 0 for item in self.items]) < 2 else False
 
@@ -634,6 +648,8 @@ class BaseRulebasedSession(Session):
             if split:
                 self.their_proposal = split
                 self.state['their_action'] = 'propose'
+                #print 'parsed split:'
+                #print split
             else:
                 if self.is_agree(event.data, tokens):
                     self.state['their_action'] = 'agree'
@@ -674,13 +690,15 @@ class BaseRulebasedSession(Session):
                 return self.intro()             # to hear their side first
 
         # Initial offer
-        if not self.state['proposed']:
+        if not self.state['proposed'] and not self.their_proposal:
             #print 'propose'
             return self.propose(self.my_proposal)
 
         if self.state['their_action'] == 'agree':
             #print 'agree'
             return self.agree()
+        elif not self.their_proposal:
+            return self.propose(self.my_proposal)
         else:
             #print 'negotiate'
             return self.negotiate()
