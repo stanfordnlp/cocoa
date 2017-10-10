@@ -89,18 +89,24 @@ class BaseRulebasedSession(Session):
             elif my_offer[item] < count and self.item_values[item] > 0:
                 valuable_items.append(item)
 
-        if not conflict_items:
+        my_points = self.get_points(my_offer)
+        my_points_by_them = self.get_points(self.their_proposal[self.agent])
+
+        if (not conflict_items) or my_points_by_them >= min(self.config.target, my_points):
             return self.agree()
 
         compromised_offer = copy.deepcopy(my_offer)
         conflict_items = sorted(conflict_items, key=lambda k: self.item_values[k])
+        print 'conflict:', conflict_items
+        print 'valuable:', valuable_items
         compromised_offer[conflict_items[0]] -= 1
         for item in valuable_items:
             compromised_offer[item] += 1
 
         if self.get_points(compromised_offer) < self.config.bottomline:
-            self.state['my_action'] = 'final_call'
-            return self.final_call(self.my_proposal)
+            return self.disagree()
+        if self.state['num_utterance'] >= 10:
+            return self.final_call()
         else:
             self.my_proposal[self.agent] = compromised_offer
             self.my_proposal = self.tracker.merge_offers(self.my_proposal, self.item_counts, self.agent)
@@ -242,7 +248,7 @@ class BaseRulebasedSession(Session):
 
     def is_neg(self, tokens):
         for token in tokens:
-            if token in ("nope", "not", "cannot", "n't", "sorry"):
+            if token in ("nope", "not", "cannot", "n't", "sorry", "no"):
                 return True
         return False
 
@@ -381,13 +387,17 @@ class BaseRulebasedSession(Session):
             elif self.strategy == 'balanced':
                 return self.balanced_proposal()
 
-    def final_call():
+    def final_call(self):
         # TODO: more templates
+        self.state['my_action'] = 'final_call'
         templates = [
-                "Can't do that. That's my final offer.",
                 "sorry no deal. i really need {my_offer}.",
                 ]
-        return random.choice(templates).format(my_offer=self.offer_to_string(self.my_proposal[self.agent]))
+        return self.message(
+                random.choice(templates).format(
+                    my_offer=self.offer_to_string(self.my_proposal[self.agent])
+                    )
+                )
 
         # If they are only offering 0 or 1 points, then
         # might as well reject since "No Deal" does not cause negative reward
@@ -463,6 +473,14 @@ class BaseRulebasedSession(Session):
         elif deal_type == "my_proposal":
             my_total = sum([self.item_values[item] * self.my_proposal[item] for item in self.items])
             return False if my_total < 0 else (total_points >= my_total)
+
+    def disagree(self):
+        self.state['my_action'] = 'disagree'
+        s = ["You drive a hard bargain here!",
+            "That is too low for me, I can't do that!",
+            "Sorry, can't take it.",
+            ]
+        return self.message(random.choice(s))
 
     def agree(self):
         self.state['my_action'] = 'agree'
@@ -677,6 +695,9 @@ class BaseRulebasedSession(Session):
             return self.wait()
         self.state['num_utterance_sent'] += 1
 
+        if self.state['their_action'] == 'reject':
+            return self.reject()
+
         if self.state['their_action'] == 'select' or self.state['my_action'] == 'agree':
             return self.select(self.my_proposal[self.agent])
 
@@ -699,9 +720,11 @@ class BaseRulebasedSession(Session):
             return self.agree()
         elif not self.their_proposal:
             return self.propose(self.my_proposal)
-        else:
+        elif self.state['their_action'] in ('propose', 'item'):
             #print 'negotiate'
             return self.negotiate()
+        else:
+            return self.message('no deal')
 
         raise Exception('Uncaught case')
 
