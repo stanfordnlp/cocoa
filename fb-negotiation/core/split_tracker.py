@@ -22,7 +22,7 @@ class SplitTracker(object):
 
         # TODO: pop items before switching curr_agent
         for i, token in enumerate(tokens):
-            if token in ('i', 'ill', 'id'):
+            if token in ('i', 'ill', 'id', 'me'):
                 curr_agent = agent
             elif token in ('u', 'you'):
                 curr_agent = 1 - agent
