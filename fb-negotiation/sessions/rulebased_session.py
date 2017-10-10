@@ -78,6 +78,10 @@ class BaseRulebasedSession(Session):
         return sum([count * self.item_values[item] for item, count in offer.iteritems()])
 
     def negotiate(self):
+        if self.their_proposal is None:
+            # sometimes the user types too fast and we need to go back a level
+            return self.propose(self.my_proposal)
+
         their_offer = self.their_proposal[1 - self.agent]
         my_offer = self.my_proposal[self.agent]
 

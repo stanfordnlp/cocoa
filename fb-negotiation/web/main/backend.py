@@ -62,48 +62,24 @@ class Backend(BaseBackend):
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
             outcome = controller.get_outcome()
-            role = ex.scenario.kbs[agent_idx].facts['personal']['Role']
-            if outcome['reward'] == 0:
-                return role, None
-            else:
-                try:
-                    price = float(outcome['offer']['price'])
-                except (KeyError, ValueError) as e:
-                    return role, None
-                # margin = StrategyAnalyzer.get_margin(ex, price, agent_idx, role, remove_outlier=False)
-                margin = 7  # this is a stub to allow the server to run
-                return role, margin
+            print("No margin for fb-neg")
+            return None, 0
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)
         game_over, game_complete = self.is_game_over(userid)
         controller = self.controller_map[userid]
         chat_id = controller.get_chat_id()
+        outcome = controller.get_outcome()
+
 
         if game_over:
-            # TODO: message
-            msg, _ = self.get_completion_messages(userid)
+            msg = self.messages.ChatCompleted if game_complete else self.messages.ChatIncomplete
             self.end_chat_and_finish(cursor, userid, message=msg)
             return True
 
         return False
 
-    def get_completion_messages(self, userid):
-        """
-        Returns two completion messages: one for the current user and one for the user's partner. This function doesn't
-        check whether the user's partner is a bot or not. It just decides how many points the user gets and reports
-        that score accordingly, along with the completion message
-        """
-
-        _, game_complete = self.is_game_over(userid)
-        if game_complete:
-            msg = self.messages.ChatCompleted
-            partner_msg = msg
-        else:
-            msg = self.messages.ChatIncomplete
-            partner_msg = msg
-
-        return msg, partner_msg
 
     def select(self, userid, proposal):
         try:
@@ -118,17 +94,17 @@ class Backend(BaseBackend):
             print("WARNING: Rolled back transaction")
             return None
 
-    # def reject_offer(self, userid):
-    #     try:
-    #         with self.conn:
-    #             cursor = self.conn.cursor()
-    #             u = self._get_user_info_unchecked(cursor, userid)
-    #             self._update_user(cursor, userid, connected_status=1)
-    #             self.send(userid, Event.RejectEvent(u.agent_index,
-    #                                                str(time.time())))
-    #     except sqlite3.IntegrityError:
-    #         print("WARNING: Rolled back transaction")
-    #         return None
+    def reject(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info_unchecked(cursor, userid)
+                self._update_user(cursor, userid, connected_status=1)
+                self.send(userid, Event.RejectEvent(u.agent_index,
+                                                   str(time.time())))
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+            return None
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):

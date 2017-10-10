@@ -77,6 +77,11 @@
                             startedTyping();
                         }
                         if (code == 13) {
+                            turn_counter++
+                            if (turn_counter > 1) {
+                                $(".no-deal").css("display", "inline-block");
+                            }
+
                             stoppedTyping();
                             text = $('#text').val();
                             $('#text').val('');
@@ -86,11 +91,6 @@
                             $("#text").attr("disabled", "disabled")
                             messageStartTime = null;
                             messageTime = 0.0;
-
-                            turn_counter++
-                            if (turn_counter > 1) {
-                                $(".no-deal").css("display", "inline-block");
-                            }
                         }
 
                     });
@@ -124,7 +124,7 @@
             }
             function reject() {
                 $.ajax({
-                    url: BASE_URL +'/_reject_offer/',
+                    url: BASE_URL +'/_reject/',
                     type: "get",
                     data: {
                         "uid": "{{ uid }}"

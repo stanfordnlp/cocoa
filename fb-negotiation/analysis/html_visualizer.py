@@ -37,9 +37,9 @@ class HTMLVisualizer(BaseHTMLVisualizer):
 
         # Private info
         for idx, kb in enumerate(kbs):
-            speaker = kb._role
-            html.append("<div class=\"kb%d\"><table><tr>"
-                        "<td colspan=\"2\" class=\"agentLabel\">%s Agent</td></tr>" % (idx, speaker.title()))
+            # speaker = kb._role
+            # html.append("<div class=\"kb%d\"><table><tr>"
+            #             "<td colspan=\"2\" class=\"agentLabel\">%s Agent</td></tr>" % (idx, speaker.title()))
 
             html.append("<tr><th colspan=\"2\">Personal Attributes</th></tr>")
 

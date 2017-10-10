@@ -1,7 +1,7 @@
 {
     "status_params": {
 	"waiting": {
-      "num_seconds": 10
+      "num_seconds": 100
   },
 	"chat": {
 	    "num_seconds": 1234

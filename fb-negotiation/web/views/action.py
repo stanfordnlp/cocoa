@@ -34,6 +34,14 @@ def select():
     msg = format_message("You selected items and marked deal as agreed!", True)
     return jsonify(message=msg)
 
+@action.route('/_reject/', methods=['GET'])
+def reject():
+    backend = get_backend()
+    backend.reject(userid())
+
+    msg = format_message("You declared there was no deal!", True)
+    return jsonify(message=msg)
+
 
 @action.route('/_quit/', methods=['GET'])
 def quit():
