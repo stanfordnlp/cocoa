@@ -78,6 +78,7 @@ class Controller(BaseController):
             valid_deal = False
         split_0 = self.outcomes[0]
         split_1 = self.outcomes[1]
+        # TODO: use dict as reward
         return {'reward':reward, 'item_split':{0: split_0, 1: split_1}, 'valid_deal':valid_deal}
 
     def game_over(self):
