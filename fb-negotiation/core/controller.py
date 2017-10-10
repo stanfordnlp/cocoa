@@ -61,7 +61,17 @@ class Controller(BaseController):
 
     def get_outcome(self):
         if not self.quit and self.valid_end_state():
-            reward = {0: self.calculate_reward(agent=0), 1: self.calculate_reward(agent=1)}
+            first_agent_reward = self.calculate_reward(agent=0)
+            second_agent_reward = self.calculate_reward(agent=1)
+
+            print("First agent {0} and second agent {1}".format(first_agent_reward, second_agent_reward))
+            print(self.outcomes[0])
+            print(self.outcomes[1])
+
+            self.outcomes[0]["reward"] = first_agent_reward
+            self.outcomes[1]["reward"] = second_agent_reward
+
+            reward = {0: first_agent_reward, 1: second_agent_reward}
             valid_deal = True
         else:
             reward = 0

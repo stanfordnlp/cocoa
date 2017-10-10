@@ -5,6 +5,7 @@ import time
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
+from cocoa.web.main.states import SurveyState
 from cocoa.analysis.utils import reject_transcript
 
 from utils import Messages
@@ -56,14 +57,23 @@ class Backend(BaseBackend):
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
             return reject_transcript(ex, agent_idx, min_tokens=40)
 
-    def get_margin(self, controller, agent_idx):
-        with self.conn:
-            cursor = self.conn.cursor()
-            chat_id = controller.get_chat_id()
-            ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
-            outcome = controller.get_outcome()
-            print("No margin for fb-neg")
-            return None, 0
+
+    def get_survey_info(self, userid):
+        try:
+            with self.conn:
+                cursor = self.conn.cursor()
+                u = self._get_user_info(cursor, userid, assumed_status=Status.Survey)
+                scenario = self.scenario_db.get(u.scenario_id)
+                controller = self.controller_map[userid]
+                final_results = None if controller.quit else controller.outcomes
+
+                return SurveyState(u.message, u.agent_index, scenario.uuid, scenario.get_kb(u.agent_index),
+                                   scenario.get_kb(1 - u.agent_index),
+                                   scenario.attributes, final_results)
+
+        except sqlite3.IntegrityError:
+            print("WARNING: Rolled back transaction")
+
 
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)

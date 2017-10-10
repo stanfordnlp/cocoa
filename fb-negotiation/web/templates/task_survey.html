@@ -2,7 +2,7 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Let's negotiate!</title>
+    <title>Deal or No Deal</title>
     <style>
         td {
             padding: 0 15px 0 15px;
@@ -65,38 +65,17 @@
 
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
-        fluentVal = $("#fluent").val();
-        coherentVal = $("#coherent").val();
-        persuasiveVal = $("#persuasive").val();
-        fairVal = $("#fair").val();
         negotiatorVal = $("#negotiator").val();
         comments = $("#comments").val();
-        
+
         //fluentVal = document.getElementById("#myRange").value
-        console.log("FLUENT: " + fluentVal);
-        console.log("PERSUASIVE: " + persuasiveVal);
-        console.log("FAIR: " + fairVal);
-        console.log("COHERENT:" + coherentVal);
         console.log("NEGOTIATOR: " + negotiatorVal)
 
-
-        //if (fluentVal == null || 
-        //    persuasiveVal == null || 
-        //    fairVal == null ||
-        //    negotiatorVal == null ||
-        //    coherentVal == null ) {
-        //    return false;
-        //}
         if (negotiatorVal == null) {
             return false;
         }
         else{
-            questionAnswers["fluent"] = "null"; //fluentVal;
-            questionAnswers["honest"] = "null";    
-            questionAnswers["persuasive"] = "null"; //persuasiveVal;
-            questionAnswers["fair"] = "null"; //fairVal;
             questionAnswers["negotiator"] = negotiatorVal;
-            questionAnswers["coherent"] = "null"; //coherentVal;
             if(comments == null) {
             	comments = "";
             }
@@ -148,7 +127,7 @@
             }
 
         });
-        
+
         function disconnect() {
 			$.ajax({
 				url: '/_disconnect/',
@@ -168,31 +147,13 @@
         	<h2 style="text-align: center;"><b>Results</b></h2> <br>
         	<p style="text-align: center;"><b>{{ message }}</b></p>
             {% if results %}
-            <table align="center">
-            <tr>
-                <td> </td>
-                <td><b>You</b></td>
-                <td><b>Partner<b></td>
-            </tr>
-            <tr>
-                <td>Target</td>
-                <td>{{ results[agent_idx]['Target'] }}</td>
-                <td>{{ results[1 - agent_idx]['Target'] }}</td>
-            </tr>
-            <tr>
-                <td>Bottomline</td>
-                <td>{{ results[agent_idx]['Bottomline'] }}</td>
-                <td>{{ results[1 - agent_idx]['Bottomline'] }}</td>
-            </tr>
-            <tr>
-                <td>Final offer</td>
-                <td>{{ results[agent_idx]['Offer'] }}</td>
-                <td>{{ results[1 - agent_idx]['Offer'] }}</td>
-            </tr>
-            </table>
+            <p>You recieved {{ results[agent_idx]['book'] }} books, {{ results[agent_idx]['hat'] }} hats and {{ results[agent_idx]['ball'] }} balls for a total of {{ results[agent_idx]['reward'] }} points. </p>
+            <p>Your partner recieved {{ results[1 - agent_idx]['book'] }} books, {{ results[1 - agent_idx]['hat'] }} hats and {{ results[1- agent_idx]['ball'] }} balls for a total of {{ results[1 - agent_idx]['reward'] }} points. </p>
+            <p> Recall these points do not add up because the value of each item for you is <b>different</b> than the value
+                    of each item for your partner.</p>
             {% endif %}
         </div>
-         
+
         <br>
         <br>
 
@@ -201,101 +162,8 @@
             <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
         </div>
 
-        <br> <br>
-       
-        <!--
-        <div class="q">
-            <p style="text-align: center;">Rate each of your partner's utterances (highlighted below) - you can choose multiple ratings if you want </p>
-            <table class="chatLog">
-            {% for event in visualization['chat'] if event['action'] == 'message' or event['action'] == 'offer' or event['action'] == 'accept' or event['action'] == 'reject' %}
-                {% if event['action'] == 'message' %}
-                {% set displayed_msg = event['data'] %}
-                {% elif event['action'] == 'offer' %}
-                {% set displayed_msg = 'OFFER ' ~ event['data']['price'] %}
-                {% elif event['action'] == 'accept' %}
-                {% set displayed_msg = 'ACCEPT' %}
-                {% elif event['action'] == 'reject' %}
-                {% set displayed_msg = 'reject' %}
-                {% endif %}
+        <br> <br> <br> <br>
 
-                {% if event['agent'] == agent_idx %}
-                <tr class="me">
-                <td style="padding-left: 5px; padding-right: 5px;"> You: </td> 
-                <td style="padding-left: 5px; padding-right: 5px;"> {{ displayed_msg }} </td> 
-                <td style="padding-left: 5px; padding-right: 5px;"></td>
-                </tr>
-                {% else %}
-                <tr class="partner">
-                <td style="padding-left: 5px; padding-right: 5px;"><b> Partner:</b> </td> 
-                <td style="padding-left: 5px; padding-right: 5px;"><b>{{ displayed_msg }}</b> </td> 
-                <td style="padding-left: 5px; padding-right: 5px;">
-                    <button type="button" class="btn btn-default eval-tag"  id="ok_{{loop.index}}">OK response!</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="ungramatical_{{loop.index}}">NOT grammatical</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="incoherent_{{loop.index}}">Out-of-context</button>
-                    <button type="button" class="btn btn-default eval-tag"  id="contradiction_{{loop.index}}">Contradiction</button>
-                    <button type="button" class="btn btn-default eval-tag" id="persuasive_{{loop.index}}">Persuasive!</button>
-                </td>
-                </tr>
-                {% endif %}
-            {% endfor %}
-            </table>
-        </div>
-        -->
-
-        <br>
-        <br>
-
-         <!--
-         <div class="q">
-
-            <p style="text-align:center;">How <strong>fluent</strong> was your partner? I.e., are the sentences complete and grammatical? </p> <br>
-            <form id="q_f">
-                <p style="float:left;">Not fluent at all</p>
-                <input type="range" id="fluent" min="1" max="5" style="width:50%; margin-left:13%;" >
-                <p style="float:right;">Very fluent</p>
-            </form>
-        </div>
-
-
-
-        <br><br>
-        
-
-        <div class="q">
-            <p style="text-align:center;">How <strong>persuasive</strong> was your partner? Being persuasive means providing <strong>concrete evidence</strong> for each request instead of simply asking for a price.</p> <br>
-            <form id="q_s">
-                <p style="float:left;">Not persuasive</p>
-                <input type="range" id="persuasive" min="1" max="5" style="width:50%; margin-left:13%" >
-                <p style="float:right;">Very persuasive</p>
-            </form>
-        </div>
-
-        <br> <br>
-
-        <div class="q">
-            <p style="text-align:center;">How <strong>fair</strong> was the final offer that you agreed on?</p> <br>
-
-            <form id="q_h">
-                <p style="float:left;">Not fair at all</p>
-                <input type="range" id="fair" min="1" max="5" style="width:50%; margin-left:14%;" >
-                <p style="float:right;">Very fair</p>
-            </form>
-        </div>
-
-        <br> <br>
-
-        <div class="q">
-            <p style="text-align:center;">How <strong>coherent</strong> was your partner? Being coherent means saying things related to the context and not self-contradicting; an incoherent speaker might repeat him/herself, frequently switch topics, and/or ignore what the partner said.</p> <br>
-
-            <form id="q_h">
-                <p style="float:left;">Not coherent at all</p>
-                <input type="range" id="coherent" min="1" max="5" style="width:50%; margin-left:14%;" >
-                <p style="float:right;">Very coherent</p>
-            </form>
-        </div>
-
-        <br> <br>
-        -->
 
         <div class="q">
             <!--<p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>-->
@@ -307,9 +175,9 @@
                 <p style="float:right;">Definitely</p>
             </form>
         </div>
-        
+
         <br> <br>
-        
+
         <div class="q">
         	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
         	<form id="q_comm">
