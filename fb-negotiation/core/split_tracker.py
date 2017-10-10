@@ -14,6 +14,7 @@ class SplitTracker(object):
         split = defaultdict(dict)
         items = []
         curr_agent = -1
+        need_clarify = False
 
         def pop_items(agent, items):
             for item, count in items:
@@ -29,7 +30,8 @@ class SplitTracker(object):
             elif is_entity(token):
                 if token.canonical.type == 'item':
                     item = token.canonical.value
-                    count = self.parse_count(token, tokens[i-1] if i > 0 else None, item_counts[item])
+                    count, clarify = self.parse_count(token, tokens[i-1] if i > 0 else None, item_counts[item])
+                    need_clarify = need_clarify or clarify
                     items.append((item, count))
             if curr_agent != -1 and len(items) > 0:
                 pop_items(curr_agent, items)
@@ -40,9 +42,9 @@ class SplitTracker(object):
             pop_items(curr_agent, items)
 
         if len(split) == 0:
-            return None
+            return None, None
         else:
-            return self.merge_offers(split, item_counts, agent)
+            return self.merge_offers(split, item_counts, agent), need_clarify
 
     def merge_offers(self, split, item_counts, speaking_agent):
         # If a proposal exists, assume non-mentioned item counts to be zero.
@@ -64,22 +66,28 @@ class SplitTracker(object):
                     split[me][item] = count - their_count
                 # Should not happend: both are None
                 else:
-                    print ('WARNINT: trying to merge offers but both counts are none.')
+                    print ('WARNING: trying to merge offers but both counts are none.')
                     split[me][item] = total
                     split[them][item] = 0
         return dict(split)
 
     def parse_count(self, token, prev_token, total):
+        """
+        Returns:
+            count (int), clarify (bool)
+        """
         if prev_token is None:
-            return total
+            return total, True
         elif is_entity(prev_token) and prev_token.canonical.type == 'number':
-            return min(prev_token.canonical.value, total)
+            return min(prev_token.canonical.value, total), False
         elif prev_token in ('a', 'an'):
-            return 1
+            return 1, False
         elif prev_token == 'no':
-            return 0
+            return 0, False
+        elif prev_token in ('the', 'all'):
+            return total, False
         else:
-            return total
+            return min(1, total / 2), True
 
     def unit_test(self, c, d, raw_utterance):
         scenario = {'book':c[0] , 'hat':c[1], 'ball':c[2]}
