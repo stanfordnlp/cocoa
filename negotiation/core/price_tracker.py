@@ -118,20 +118,22 @@ class PriceTracker(object):
             token = tokens[i]
             try:
                 number = float(self.process_string(token))
+                has_dollar = lambda token: token[0] == '$' or token[-1] == '$'
                 # Check context
-                if not (token[0] == '$' or token[-1] == '$') and \
+                if not has_dollar(token) and \
                         not self.is_price(tokens[i-1], tokens[i+1]):
                     number = None
                 # Avoid 'infinity' being recognized as a number
-                if number == float('inf') or number == float('-inf'):
+                elif number == float('inf') or number == float('-inf'):
                     number = None
                 # Check if the price is reasonable
                 elif kb:
-                    if number > 1.5 * list_price:
-                        number = None
-                    # Probably a spec number
-                    if number != list_price and number in kb_numbers:
-                        number = None
+                    if not has_dollar(token):
+                        if number > 1.5 * list_price:
+                            number = None
+                        # Probably a spec number
+                        if number != list_price and number in kb_numbers:
+                            number = None
                     if number is not None and price_clip is not None:
                         scaled_price = PriceScaler._scale_price(kb, number)
                         if abs(scaled_price) > price_clip:

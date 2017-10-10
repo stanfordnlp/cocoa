@@ -341,8 +341,13 @@ if __name__ == '__main__':
         write_pickle(template_extractor.templates, args.output)
         templates = Templates(template_extractor.templates)
 
-    templates.dump(n=10)
+    t = templates.templates
+    df = t[t.response_tag == 'unknown']
+    print df.response.count
+    #print df.response
     import sys; sys.exit()
+
+    templates.dump(n=10)
     templates.build_tfidf()
     print templates.search('<start>', category='bike', role='seller')
 
