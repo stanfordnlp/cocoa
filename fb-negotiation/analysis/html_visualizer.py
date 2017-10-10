@@ -21,31 +21,17 @@ class HTMLVisualizer(BaseHTMLVisualizer):
         html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % uuid]
         # Post (display the seller's (full) KB)
         items = ["book", "hat", "ball"]
+        column_headers = ["Name", "Count", "Value"]
         item_counts = kbs[0].item_counts
-
-        # print(kbs[0].item_counts)
-        # print(kbs[0].item_values)
-        # print(kbs[0]._role)
-
-        html.append("<div>")
-        for item in items:
-            html.append("<div class=\"count-title\">{} Count</div>".format(item.title()) )
-        html.append("<br><div>")
-        for item in items:
-            html.append("<div class=\"count\">{}</div>".format(item_counts[item]) )
-        html.append("</div>")
 
         # Private info
         for idx, kb in enumerate(kbs):
-            # speaker = kb._role
-            # html.append("<div class=\"kb%d\"><table><tr>"
-            #             "<td colspan=\"2\" class=\"agentLabel\">%s Agent</td></tr>" % (idx, speaker.title()))
-
-            html.append("<tr><th colspan=\"2\">Personal Attributes</th></tr>")
-
-            for attr, value in kb.item_values.items():
-                html.append("<tr><td>%s value</td><td>%s</td></tr>" % (attr, value))
-
+            html.append("<div class=\"kb%d\"><table><tr>"
+                        "<td colspan=\"3\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, idx))
+            html.append(('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in column_headers]))))
+            for item in items:
+                row_values = [item.title(), kb.item_counts[item], kb.item_values[item]]
+                html.append(('<tr>%s</tr>' % (''.join(['<td>%s</td>' % x for x in row_values]))))
             html.append("</table></div>")
 
         html.append("</div>")
@@ -95,7 +81,7 @@ class HTMLVisualizer(BaseHTMLVisualizer):
             if event.action == 'message':
                 s = event.data
             elif event.action == 'select':
-                s = 'MARK DEAL AGREED'
+                s = 'DEAL AGREED: {}'.format(event.data)
             elif event.action == 'reject':
                 s = 'NO DEAL'
             elif event.action == 'eval':
@@ -139,12 +125,29 @@ class HTMLVisualizer(BaseHTMLVisualizer):
         return completed, rejected, chat_html
 
     @classmethod
-    def render_response(cls, responses, agent_dict):
-        html_lines = ["<div class=\"survey\">"]
-        html_lines.append('<div class=\"divTitle\">Survey</div>')
-        html_lines.append("<p>Not Yet Implemented</p>")
-        html_lines.append("</div>")
-        return html_lines
+    def _render_response(cls, response, agent_id, agent):
+        html = []
+        html.append('<table class=\"response%d\">' % agent_id)
+        html.append('<tr><td colspan=\"3\" class=\"agentLabel\">Response to agent %d (%s)</td></tr>' % (agent_id, cls.agent_labels[agent]))
+        html.append('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in ('Question', 'Mean', 'Response')])))
+        for question in cls.questions:
+            if question not in response:
+                continue
+            scores = response[question]
+            raw_score = ' / '.join([str(x) for x in scores])
+            question_html = ('<td>%s</td>' % question)
+            mean_html = ('<td style=\"text-align:center\">%s</td>' % np.mean(scores))
+            raw_score_html = ('<td style=\"text-align:center\">%s</td>' % np.mean(scores))
+            column_html = [ x for x in (question_html, mean_html, raw_score_html)]
+            html.append('<tr>%s</tr>' % (''.join(column_html)))
+
+        if 'comments' in response:
+            comment_str = response['comments'][0]
+            if len(comment_str) > 0:
+                html.append('<tr><td>%s</td><td colspan=2>%s</td></tr>' % ('comments', comment_str))
+
+        html.append('</table>')
+        return html
 
     @classmethod
     def visualize(cls, viewer_mode, html_output, chats, responses=None, css_file=None, img_path=None):
@@ -153,4 +156,5 @@ class HTMLVisualizer(BaseHTMLVisualizer):
             cls.write_viewer_data(html_output, chats, responses=responses)
         else:
             # Inline style
-            cls.visualize_transcripts(html_output, chats, css_file=css_file, responses=responses, img_path=img_path)
+            cls.visualize_transcripts(html_output, chats,
+                    css_file=css_file, responses=responses, img_path=img_path)
