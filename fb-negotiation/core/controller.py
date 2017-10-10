@@ -30,6 +30,8 @@ class Controller(BaseController):
         for item, count in self.scenario.kbs[0].item_counts.iteritems():
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
             if int(count) != int(item_proposal):
+                self.outcomes[0]['reward'] = "mismatch"
+                self.outcomes[1]['reward'] = "mismatch"
                 return False
 
         return True
@@ -63,11 +65,9 @@ class Controller(BaseController):
         if not self.quit and self.valid_end_state():
             first_agent_reward = self.calculate_reward(agent=0)
             second_agent_reward = self.calculate_reward(agent=1)
-
-            print("First agent {0} and second agent {1}".format(first_agent_reward, second_agent_reward))
-            print(self.outcomes[0])
-            print(self.outcomes[1])
-
+            # print("First agent {0} and second agent {1}".format(first_agent_reward, second_agent_reward))
+            # print(self.outcomes[0])
+            # print(self.outcomes[1])
             self.outcomes[0]["reward"] = first_agent_reward
             self.outcomes[1]["reward"] = second_agent_reward
 
@@ -89,7 +89,7 @@ class Controller(BaseController):
         if self.quit:
             return True
         elif you_are_still_playing and you_got_points and they_got_points:
-           return True
+            return True
         else:
             return False
 

@@ -147,10 +147,14 @@
         	<h2 style="text-align: center;"><b>Results</b></h2> <br>
         	<p style="text-align: center;"><b>{{ message }}</b></p>
             {% if results %}
-            <p>You recieved {{ results[agent_idx]['book'] }} books, {{ results[agent_idx]['hat'] }} hats and {{ results[agent_idx]['ball'] }} balls for a total of {{ results[agent_idx]['reward'] }} points. </p>
-            <p>Your partner recieved {{ results[1 - agent_idx]['book'] }} books, {{ results[1 - agent_idx]['hat'] }} hats and {{ results[1- agent_idx]['ball'] }} balls for a total of {{ results[1 - agent_idx]['reward'] }} points. </p>
-            <p> Recall these points do not add up because the value of each item for you is <b>different</b> than the value
-                    of each item for your partner.</p>
+                {% if results[agent_idx]['reward'] == 'mismatch' %}
+                <p>Either you or your partner entered in a number of items that did not add up to the total number of items available.  Please try again. </p>
+                {% else %}
+                <p>You recieved {{ results[agent_idx]['book'] }} books, {{ results[agent_idx]['hat'] }} hats and {{ results[agent_idx]['ball'] }} balls for a total of {{ results[agent_idx]['reward'] }} points. </p>
+                <p>Your partner recieved {{ results[1 - agent_idx]['book'] }} books, {{ results[1 - agent_idx]['hat'] }} hats and {{ results[1- agent_idx]['ball'] }} balls for a total of {{ results[1 - agent_idx]['reward'] }} points. </p>
+                <p> Recall these points do not add up because the value of each item for you is <b>different</b> than the value
+                        of each item for your partner.</p>
+                {% endif %}
             {% endif %}
         </div>
 
