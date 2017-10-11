@@ -57,9 +57,18 @@
                     $(this).toggleClass('btn-default btn-primary');
                 });
 
+
                 $(".dropdown-menu>li>a").click(function() {
                     $(this).parents(".dropdown").find('.btn').html($(this).text() + ' <span class="caret"></span>');
-                    $(this).parents(".dropdown").find('.btn').val($(this).data('value'));
+                    $(this).parents(".dropdown").find('.btn').data('selection', $(this).data('selection'));
+
+                    book_select = ($(".book-split").data('selection') > -1)
+                    hat_select = ($(".hat-split").data('selection') > -1)
+                    ball_select = ($(".ball-split").data('selection') > -1)
+
+                    if (book_select && hat_select && ball_select) {
+                        $(".yes-deal").removeAttr('disabled');
+                    }
                 });
 
                 initializeClock('clockdiv', deadline);
@@ -96,9 +105,6 @@
                     });
 
                 }, read_time);  // delay due to reading the description
-
-                setTimeout(function(){ $(".yes-deal").removeAttr('disabled');
-                    }, 7000);  // wait 7 seconds before allowing deal to end
             });
 
             function select() {
@@ -405,13 +411,13 @@
                   </td>
                   <td class="points">{{item.Value}}</td>
                   <td><div class="dropdown">
-                    <button class="btn dropdown-toggle {{item.Name}}-split" type="button" data-toggle="dropdown" value=0 aria-expanded="true">
+                    <button class="btn dropdown-toggle {{item.Name}}-split" type="button" data-toggle="dropdown" data-selection="-1" aria-expanded="true">
                       Please select
                       <span class="caret"></span>
                     </button>
                     <ul class="dropdown-menu">
                       {% for count in range(item.Count + 1) %}
-                          <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{item.Count - count}}</a></li>
+                          <li><a href="#" data-selection={{count}}>You Get {{count}}, They get {{item.Count - count}}</a></li>
                       {% endfor %}
                     </ul>
                   </div>
