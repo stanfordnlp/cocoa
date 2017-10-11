@@ -20,6 +20,12 @@ class Visualizer(BaseVisualizer):
         if surveys:
             self.agents, self.question_scores = self.read_eval(self.surveys, mask)
 
+    def question_type(self, question):
+        if question == 'comments':
+            return 'str'
+        else:
+            return 'num'
+
     def filter(self, deprecated):
         print("tried to filter for #bad_worker_ids, this has been deprecated")
         return deprecated
@@ -54,3 +60,52 @@ class Visualizer(BaseVisualizer):
         html_visualizer = HTMLVisualizer()
         html_visualizer.visualize(viewer_mode, html_output, chats,
             responses=dialogue_responses, css_file=css_file, img_path=img_path)
+
+    def compute_effectiveness(self):
+        print 'compute'
+        chats = defaultdict(list)
+        for raw in self.chats:
+            ex = Example.from_dict(raw, Scenario)
+            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
+                chats['human'].append(ex)
+            elif ex.agents[0] != 'human':
+                chats[ex.agents[0]].append(ex)
+            elif ex.agents[1] != 'human':
+                chats[ex.agents[1]].append(ex)
+
+        results = {}
+        for system, examples in chats.iteritems():
+            results[system] = self._compute_effectiveness(examples, system)
+            print system, results[system]
+
+    def is_complete(self, ex):
+        if ex.outcome is not None and ex.outcome.get('valid_deal') is not None:
+            return True
+        return False
+
+    def _compute_effectiveness(self, examples, system):
+        num_agreed = 0
+        total = 0
+        agreed_points = 0
+        total_points = 0
+        for ex in examples:
+            if not self.is_complete(ex):
+                continue
+            if ex.agents[0] == system:
+                eval_agent = 0
+            else:
+                eval_agent = 1
+            total += 1
+            #print ex.outcome
+            if ex.outcome.get('valid_deal'):
+                num_agreed += 1
+                point = ex.outcome['item_split'][str(eval_agent)]['reward']
+                agreed_points += point
+                total_points += point
+
+        return {'% agreed': num_agreed / float(total),
+                'agreed points': agreed_points / float(num_agreed),
+                'total points': total_points / float(total),
+                'total': total,
+                }
+

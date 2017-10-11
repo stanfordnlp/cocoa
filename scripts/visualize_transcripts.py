@@ -40,6 +40,7 @@ if __name__ == '__main__':
             visualizer.worker_stats()
     elif (args.task == 'fb-neg'):
         visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
+        visualizer.compute_effectiveness()
     elif (args.task == 'mutual'):
         raise NotImplementedError('mutual friends task not implemented')
         visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
