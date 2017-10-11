@@ -108,9 +108,9 @@
             });
 
             function select() {
-                var book_split = parseInt($('.book-split').val());
-                var hat_split = parseInt($('.hat-split').val());
-                var ball_split = parseInt($('.ball-split').val());
+                var book_split = parseInt($('.book-split').data('selection'));
+                var hat_split = parseInt($('.hat-split').data('selection'));
+                var ball_split = parseInt($('.ball-split').data('selection'));
 
                 $.ajax({
                     url: BASE_URL + '/_select/',
