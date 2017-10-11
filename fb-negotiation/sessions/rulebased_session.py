@@ -684,6 +684,8 @@ class BaseRulebasedSession(Session):
                 self.their_proposal = split
                 self.state['their_action'] = 'propose'
                 self.state['need_clarify'] = need_clarify
+                if need_clarify:
+                    self.state['clarified'] = False
                 #print 'parsed split:'
                 #print split
             else:
@@ -710,7 +712,11 @@ class BaseRulebasedSession(Session):
         if self.state['their_action'] == 'reject':
             return self.reject()
 
+        if self.state['selected']:
+            return self.wait()
+
         if self.state['their_action'] == 'select' or self.state['my_action'] == 'agree':
+            self.state['selected'] = True
             return self.select(self.my_proposal[self.agent])
 
         self.state['time'] += 1
@@ -733,7 +739,7 @@ class BaseRulebasedSession(Session):
             #print 'propose'
             return self.propose(self.my_proposal)
 
-        if self.state['need_clarify']:
+        if self.state['need_clarify'] and not self.state['clarified']:
             return self.clarify()
 
         if self.state['their_action'] == 'agree':

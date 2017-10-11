@@ -25,13 +25,3 @@ def filter_incomplete_chats(transcripts):
 
 def get_split(transcript, agent=None):
     return transcript['data']['outcome'][agent]
-
-def get_category(transcript):
-    print("Went to get_category in utils, there are not categories, so remove this line")
-    return transcript['scenario']['category']
-def get_winner(transcript):
-    print("Went to get_winner in utils, there is no winner, so remove this line")
-    return 1
-def get_margin(transcript, agent=None, role=None):
-    print("Went to get_margin in utils, there is no margin, so remove this line")
-    return 5
