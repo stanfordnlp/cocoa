@@ -87,7 +87,7 @@ class SplitTracker(object):
         elif prev_token in ('the', 'all'):
             return total, False
         else:
-            return min(1, total / 2), True
+            return max(1, total / 2), True
 
     def unit_test(self, c, d, raw_utterance):
         scenario = {'book':c[0] , 'hat':c[1], 'ball':c[2]}
