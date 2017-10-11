@@ -406,11 +406,11 @@
                   <td class="points">{{item.Value}}</td>
                   <td><div class="dropdown">
                     <button class="btn dropdown-toggle {{item.Name}}-split" type="button" data-toggle="dropdown" value=0 aria-expanded="true">
-                      You Get 0, They get {{item.Count}}
+                      Please select 
                       <span class="caret"></span>
                     </button>
                     <ul class="dropdown-menu">
-                      {% for count in range(item.Count + 1) %}
+                      {% for count in range(item.Count) %}
                           <li><a href="#" data-value={{count}}>You Get {{count}}, They get {{item.Count - count}}</a></li>
                       {% endfor %}
                     </ul>
