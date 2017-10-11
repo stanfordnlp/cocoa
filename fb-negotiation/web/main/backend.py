@@ -6,7 +6,7 @@ from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
 from cocoa.web.main.states import SurveyState
-from cocoa.analysis.utils import reject_transcript
+from cocoa.analysis.utils import get_total_turns
 
 from utils import Messages
 from db_reader import DatabaseReader
@@ -49,13 +49,20 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
 
 class Backend(BaseBackend):
-    def should_reject_chat(self, userid, agent_idx):
+    def should_reject_chat(self, userid, agent_idx, outcome):
         with self.conn:
             controller = self.controller_map[userid]
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
-            return reject_transcript(ex, agent_idx, min_tokens=40)
+            try:
+                valid = outcome['valid_deal']
+            except (TypeError, KeyError) as e:
+                valid = False
+            num_turns = get_total_turns(ex)
+            if not valid and num_turns < 4:
+                return True
+            return False
 
 
     def get_survey_info(self, userid):
@@ -82,10 +89,23 @@ class Backend(BaseBackend):
         chat_id = controller.get_chat_id()
         outcome = controller.get_outcome()
 
+        def verify_chat(userid, agent_idx, is_partner, outcome):
+            user_name = 'partner' if is_partner else 'user'
+            if self.should_reject_chat(userid, agent_idx, outcome):
+                self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
+                                  "redirecting".format(chat_id, user_name, userid, agent_idx))
+                self.end_chat_and_redirect(cursor, userid,
+                                           message=self.messages.Redirect + " " + self.messages.Waiting)
+            else:
+                msg, _ = self.get_completion_messages(userid)
+                self.logger.debug("Accepted chat with ID {:s} for {:s} {:s} (agent ID {:d}), and redirecting to "
+                                  "survey".format(chat_id, user_name, userid, agent_idx))
+                self.end_chat_and_finish(cursor, userid, message=msg)
 
         if game_over:
-            msg = self.messages.ChatCompleted if game_complete else self.messages.ChatIncomplete
-            self.end_chat_and_finish(cursor, userid, message=msg)
+            if not self.is_user_partner_bot(cursor, userid):
+                verify_chat(partner_id, 1 - agent_idx, True, outcome)
+            verify_chat(userid, agent_idx, False, outcome)
             return True
 
         return False
