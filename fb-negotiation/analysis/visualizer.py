@@ -62,7 +62,6 @@ class Visualizer(BaseVisualizer):
             responses=dialogue_responses, css_file=css_file, img_path=img_path)
 
     def compute_effectiveness(self):
-        print 'compute'
         chats = defaultdict(list)
         for raw in self.chats:
             ex = Example.from_dict(raw, Scenario)
@@ -75,6 +74,8 @@ class Visualizer(BaseVisualizer):
 
         results = {}
         for system, examples in chats.iteritems():
+            if system == 'human':
+                continue
             results[system] = self._compute_effectiveness(examples, system)
             print system, results[system]
 
@@ -88,6 +89,8 @@ class Visualizer(BaseVisualizer):
         total = 0
         agreed_points = 0
         total_points = 0
+        num_mismatch = 0
+        num_nodeal = 0
         for ex in examples:
             if not self.is_complete(ex):
                 continue
@@ -96,16 +99,22 @@ class Visualizer(BaseVisualizer):
             else:
                 eval_agent = 1
             total += 1
-            #print ex.outcome
             if ex.outcome.get('valid_deal'):
                 num_agreed += 1
                 point = ex.outcome['item_split'][str(eval_agent)]['reward']
                 agreed_points += point
                 total_points += point
+            else:
+                if ex.outcome['item_split']['1'] is None or ex.outcome['item_split']['0'] is None:
+                    num_nodeal += 1
+                else:
+                    num_mismatch += 1
 
         return {'% agreed': num_agreed / float(total),
                 'agreed points': agreed_points / float(num_agreed),
                 'total points': total_points / float(total),
                 'total': total,
+                'mismatch': num_mismatch,
+                'no deal': num_nodeal,
                 }
 

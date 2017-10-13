@@ -491,6 +491,10 @@ class Backend(object):
             print("WARNING: Rolled back transaction")
 
     def get_completion_messages(self, userid):
+        """
+        Returns:
+            my_message, partner_message
+        """
         game_over, game_complete = self.is_game_over(userid)
         if game_complete:
             msg = self.messages.ChatCompleted

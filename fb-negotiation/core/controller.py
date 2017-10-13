@@ -12,8 +12,6 @@ class Controller(BaseController):
         elif event.action == 'reject':
             self.quit = True
             self.outcomes[event.agent] = event.data
-        elif event.action == 'quit':
-            self.quit = True
 
     def valid_end_state(self):
         try:
@@ -30,29 +28,11 @@ class Controller(BaseController):
         for item, count in self.scenario.kbs[0].item_counts.iteritems():
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
             if int(count) != int(item_proposal):
-                self.outcomes[0]['reward'] = "mismatch"
-                self.outcomes[1]['reward'] = "mismatch"
+                #self.outcomes[0]['reward'] = "mismatch"
+                #self.outcomes[1]['reward'] = "mismatch"
                 return False
 
         return True
-
-    #def postgame_check(self):
-    #    if self.valid_end_state():
-    #        print("Example game ended successfully with a deal.")
-    #        self.outcomes[0]['deal'] = 'success'
-    #        self.outcomes[1]['deal'] = 'success'
-    #   elif num_turns >= self.max_turns:
-    #       print("No deal was made.")
-    #       # paper says you get no points when there is no agreement
-    #       self.outcomes[0] = {'deal_points': 0, 'item_split': 'no_deal'}
-    #       self.outcomes[1] = {'deal_points': 0, 'item_split': 'no_deal'}
-    #    else:
-    #        # print("Incompatiable proposals were made by the two agents.")
-    #        print("Invalid end state or max turns.")
-    #        self.outcomes[0]['deal'] = 'fail'
-    #        self.outcomes[1]['deal'] = 'fail'
-    #        self.outcomes[0]['points'] = 0
-    #        self.outcomes[1]['points'] = 0
 
     def calculate_reward(self, agent):
         agent_proposal = self.outcomes[agent]
@@ -61,6 +41,11 @@ class Controller(BaseController):
             total_points += agent_proposal[item] * value
         return total_points
 
+    def get_result(self, agent):
+        """Get result for `agent` so that we can display it on the survey page.
+        """
+        return self.get_outcome()
+
     def get_outcome(self):
         if not self.quit and self.valid_end_state():
             first_agent_reward = self.calculate_reward(agent=0)
@@ -68,18 +53,19 @@ class Controller(BaseController):
             # print("First agent {0} and second agent {1}".format(first_agent_reward, second_agent_reward))
             # print(self.outcomes[0])
             # print(self.outcomes[1])
-            self.outcomes[0]["reward"] = first_agent_reward
-            self.outcomes[1]["reward"] = second_agent_reward
+            #self.outcomes[0]["reward"] = first_agent_reward
+            #self.outcomes[1]["reward"] = second_agent_reward
 
             reward = {0: first_agent_reward, 1: second_agent_reward}
             valid_deal = True
         else:
-            reward = 0
+            reward = {0: 0, 1: 0}
             valid_deal = False
         split_0 = self.outcomes[0]
         split_1 = self.outcomes[1]
-        # TODO: use dict as reward
-        return {'reward':reward, 'item_split':{0: split_0, 1: split_1}, 'valid_deal':valid_deal}
+
+        outcome = {'reward':reward, 'item_split':{0: split_0, 1: split_1}, 'valid_deal':valid_deal, 'agreed': (not self.quit)}
+        return outcome
 
     def game_over(self):
         you_are_still_playing = not self.inactive()
@@ -94,7 +80,8 @@ class Controller(BaseController):
             return False
 
     def complete(self):
-        return self.outcomes[0] is not None and self.outcomes[1] is not None and not self.quit
-        #option1 = (self.marked_agree[1] is True) and (self.outcomes[0] is not None)
-        #option2 = (self.marked_agree[0] is True) and (self.outcomes[1] is not None)
-        #return (option1 or option2)
+        """Whether the task was completed successfully, i.e. whether they were able to reach a valid deal.
+        """
+        if not self.quit and self.valid_end_state():
+            return True
+        return False

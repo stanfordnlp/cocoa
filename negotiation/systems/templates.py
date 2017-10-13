@@ -341,6 +341,17 @@ if __name__ == '__main__':
         write_pickle(template_extractor.templates, args.output)
         templates = Templates(template_extractor.templates)
 
+    t = templates.templates
+    response_tags = set(t.response_tag.values)
+    tag_counts = []
+    for tag in response_tags:
+        tag_counts.append((tag, t[t.response_tag == tag].shape[0] / float(t.shape[0])))
+    tag_counts = sorted(tag_counts, key=lambda x: x[1], reverse=True)
+    for x in tag_counts:
+        print x
+
+    import sys; sys.exit()
+
     templates.dump(n=10)
     import sys; sys.exit()
     templates.build_tfidf()

@@ -65,23 +65,6 @@ class Backend(BaseBackend):
             return False
 
 
-    def get_survey_info(self, userid):
-        try:
-            with self.conn:
-                cursor = self.conn.cursor()
-                u = self._get_user_info(cursor, userid, assumed_status=Status.Survey)
-                scenario = self.scenario_db.get(u.scenario_id)
-                controller = self.controller_map[userid]
-                final_results = None if controller.quit else controller.outcomes
-
-                return SurveyState(u.message, u.agent_index, scenario.uuid, scenario.get_kb(u.agent_index),
-                                   scenario.get_kb(1 - u.agent_index),
-                                   scenario.attributes, final_results)
-
-        except sqlite3.IntegrityError:
-            print("WARNING: Rolled back transaction")
-
-
     def check_game_over_and_transition(self, cursor, userid, partner_id):
         agent_idx = self.get_agent_idx(userid)
         game_over, game_complete = self.is_game_over(userid)

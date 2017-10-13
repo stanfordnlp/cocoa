@@ -97,7 +97,8 @@ class BaseRulebasedSession(Session):
         if (not conflict_items) or my_points_by_them >= min(self.config.target, my_points):
             self.my_proposal[self.agent] = copy.deepcopy(self.their_proposal[self.agent])
             self.my_proposal[1-self.agent] = copy.deepcopy(self.their_proposal[1-self.agent])
-            return self.agree()
+            #return self.agree()
+            return self.clarify()
 
         compromised_offer = copy.deepcopy(my_offer)
         conflict_items = sorted(conflict_items, key=lambda k: self.item_values[k])
@@ -254,8 +255,13 @@ class BaseRulebasedSession(Session):
                 return True
         return False
 
+    def is_disagree(self, raw_utterance, tokens):
+        if 'deal' in tokens and self.is_neg(tokens):
+            return True
+        return False
+
     def is_agree(self, raw_utterance, tokens):
-        if re.search(r'ok|okay|deal|fine|yes|good|work|great|perfect', raw_utterance) and not self.is_neg(tokens):
+        if re.search(r'ok|okay|deal|fine|yes|yeah|good|work|great|perfect', raw_utterance) and not self.is_neg(tokens):
             return True
         return False
 
@@ -394,6 +400,7 @@ class BaseRulebasedSession(Session):
         self.state['my_action'] = 'final_call'
         templates = [
                 "sorry no deal. i really need {my_offer}.",
+                "I need {my_offer} or i cannot make the deal",
                 ]
         return self.message(
                 random.choice(templates).format(
@@ -479,7 +486,6 @@ class BaseRulebasedSession(Session):
     def disagree(self):
         self.state['my_action'] = 'disagree'
         s = ["You drive a hard bargain here! I really need {my_offer}",
-            "I need {my_offer} or i cannot make the deal",
             "Sorry, can't take it. i can give you {their_offer}.",
             ]
         return self.message(random.choice(s).format(
@@ -616,10 +622,11 @@ class BaseRulebasedSession(Session):
         s = [
             "so i get {my_offer}?",
             "can i get {my_offer}?",
+            "so i get {my_offer} and you get {their_offer}?",
             ]
         return self.message(random.choice(s).format(
-                my_offer=self.offer_to_string(self.their_proposal[self.agent]),
-                their_offer=self.offer_to_string(self.their_proposal[1-self.agent])
+                my_offer=self.offer_to_string(self.my_proposal[self.agent]),
+                their_offer=self.offer_to_string(self.my_proposal[1-self.agent])
                 )
             )
 
@@ -683,14 +690,16 @@ class BaseRulebasedSession(Session):
             if split:
                 self.their_proposal = split
                 self.state['their_action'] = 'propose'
-                self.state['need_clarify'] = need_clarify
-                if need_clarify:
-                    self.state['clarified'] = False
+                #self.state['need_clarify'] = need_clarify
+                #if need_clarify:
+                #    self.state['clarified'] = False
                 #print 'parsed split:'
                 #print split
             else:
                 if self.is_agree(event.data, tokens):
                     self.state['their_action'] = 'agree'
+                elif self.is_disagree(event.data, tokens):
+                    self.state['their_action'] = 'disagree'
                 elif self.has_item(tokens):
                     self.state['their_action'] = 'item'
                 else:
@@ -743,8 +752,11 @@ class BaseRulebasedSession(Session):
             return self.clarify()
 
         if self.state['their_action'] == 'agree':
-            #print 'agree'
-            return self.agree()
+            if self.state['my_action'] in ('clarify', 'agree'):
+                #print 'agree'
+                return self.agree()
+            else:
+                return self.clarify()
         elif not self.their_proposal:
             return self.propose(self.my_proposal)
         elif self.state['their_action'] in ('propose', 'item'):
@@ -752,6 +764,8 @@ class BaseRulebasedSession(Session):
             return self.negotiate()
         elif self.state['my_action'] == 'disagree':
             return self.final_call()
+        elif self.state['their_action'] == 'disagree':
+            return self.message('no deal then')
         else:
             return self.message('deal?')
 
