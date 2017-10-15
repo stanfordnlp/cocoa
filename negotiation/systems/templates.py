@@ -353,7 +353,6 @@ if __name__ == '__main__':
     import sys; sys.exit()
 
     templates.dump(n=10)
-    import sys; sys.exit()
     templates.build_tfidf()
     print templates.search('<start>', category='bike', role='seller')
 
