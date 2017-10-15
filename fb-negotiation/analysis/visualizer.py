@@ -79,20 +79,27 @@ class Visualizer(BaseVisualizer):
             results[system] = self._compute_effectiveness(examples, system)
             print system, results[system]
 
-    def is_complete(self, ex):
+    # TODO: implement filter that skips unqualified/redirected chats, see should_reject_chat
+    def skip_example(self, ex):
         if ex.outcome is not None and ex.outcome.get('valid_deal') is not None:
+            valid = ex.outcome['valid_deal']
+            num_turns = len([e for e in ex.events if e.action == 'message'])
+            if not valid and num_turns < 4:
+                return True
+            else:
+                return False
+        else:
             return True
-        return False
 
     def _compute_effectiveness(self, examples, system):
         num_agreed = 0
         total = 0
-        agreed_points = 0
-        total_points = 0
+        agreed_points = {'agent': 0, 'partner': 0}
+        total_points = {'agent': 0, 'partner': 0}
         num_mismatch = 0
         num_nodeal = 0
         for ex in examples:
-            if not self.is_complete(ex):
+            if self.skip_example(ex):
                 continue
             if ex.agents[0] == system:
                 eval_agent = 0
@@ -101,18 +108,26 @@ class Visualizer(BaseVisualizer):
             total += 1
             if ex.outcome.get('valid_deal'):
                 num_agreed += 1
-                point = ex.outcome['item_split'][str(eval_agent)]['reward']
-                agreed_points += point
-                total_points += point
+                point = ex.outcome['reward'][str(eval_agent)]
+                partner_point = ex.outcome['reward'][str(1-eval_agent)]
+                agreed_points['agent'] += point
+                agreed_points['partner'] += partner_point
+                total_points['agent'] += point
+                total_points['partner'] += partner_point
             else:
-                if ex.outcome['item_split']['1'] is None or ex.outcome['item_split']['0'] is None:
-                    num_nodeal += 1
-                else:
+                if ex.outcome['agreed']:
                     num_mismatch += 1
+                else:
+                    num_nodeal += 1
+
+        for k in agreed_points:
+            agreed_points[k] /= float(num_agreed)
+        for k in total_points:
+            total_points[k] /= float(total)
 
         return {'% agreed': num_agreed / float(total),
-                'agreed points': agreed_points / float(num_agreed),
-                'total points': total_points / float(total),
+                'agreed points': agreed_points,
+                'total points': total_points,
                 'total': total,
                 'mismatch': num_mismatch,
                 'no deal': num_nodeal,
