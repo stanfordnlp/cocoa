@@ -34,8 +34,22 @@
     padding: 0 5px 0 0;
 }
 .divTitle {
-    padding: 20px 0px 10px 0px; 
+    padding: 20px 0px 10px 0px;
     font-weight: bold;
+    margin-bottom: 10px;
+}
+.count-title {
+    margin: 5px 20px;
+    width: 30px;
+    display: inline;
+    font-weight: bold;
+    text-align: center;
+}
+.count {
+    margin: 5px 20px;
+    padding: 38px;
+    display: inline;
+    text-align: center;
 }
 .kb0 {
     width: 48%;

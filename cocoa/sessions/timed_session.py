@@ -48,8 +48,8 @@ class TimedSessionWrapper(Session):
         self.queued_event.clear()
 
     def send(self):
-        if self.num_utterances >= 2:
-            return None
+        #if self.num_utterances >= 2:
+        #    return None
         if self.received is False and (self.prev_action == 'select' or \
             self.last_message_timestamp + random.uniform(1, self.PATIENCE) > time.time()):
             return None

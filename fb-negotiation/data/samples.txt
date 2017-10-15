@@ -959,19 +959,6 @@
  YOU: great
  THEM: <selection>
 
- YOU: i'd like the books , you can have the rest
- THEM: okay
- YOU: deal
- THEM: great
- YOU: <selection>
-
- YOU: i can give you the hat and a book
- THEM: can i just take all books ?
- YOU: i can give you three books
- THEM: 3 books and a hat then . it`s only fair
- YOU: just take all books i take rest
- THEM: <selection>
-
  THEM: i can give you the hat and a book
  YOU: can i just take all books ?
  THEM: i can give you three books

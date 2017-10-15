@@ -3,20 +3,20 @@ from cocoa.core.schema import Attribute
 from kb import KB
 
 class Scenario(BaseScenario):
-    # Agent ids
-    FIRST = 0
-    SECOND = 1
+    ## Agent ids
+    #FIRST = 0
+    #SECOND = 1
 
-    def __init__(self, uuid, attributes, kbs):
-        super(Scenario, self).__init__(uuid, attributes, kbs)
-        # self.bottom_line = 8
-        # self.post_id = post_id      // bunch of random numbers: 923461346
-        # self.category = category    // phone, housing, bike, furniture, electronics
-        # self.images = images        // link to product image: bike/6123601035_0.jpg
+    #def __init__(self, uuid, attributes, kbs):
+    #    super(Scenario, self).__init__(uuid, attributes, kbs)
+    #    # self.bottom_line = 8
+    #    # self.post_id = post_id      // bunch of random numbers: 923461346
+    #    # self.category = category    // phone, housing, bike, furniture, electronics
+    #    # self.images = images        // link to product image: bike/6123601035_0.jpg
 
-    def to_dict(self):
-        d = super(Scenario, self).to_dict()
-        return d
+    #def to_dict(self):
+    #    d = super(Scenario, self).to_dict()
+    #    return d
 
     @classmethod
     def from_dict(cls, schema, raw):

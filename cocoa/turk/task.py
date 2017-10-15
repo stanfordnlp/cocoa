@@ -19,7 +19,7 @@ def add_turk_task_arguments(parser):
     parser.add_argument('--hit-db', default='hits.json', help='Path to JSON file that saves hits info')
 
 class Task(object):
-    def __init__(self, mtc=None, title=None, description=None, keywords=None, reward=None, max_assignments=1, qualifications=None, duration=60, approval_delay=3, lifetime=30, db_path='hits.json'):
+    def __init__(self, mtc=None, title=None, description=None, keywords=None, reward=None, max_assignments=1, qualifications='default', duration=60, approval_delay=3, lifetime=30, db_path='hits.json'):
         """Initialize a Turk task with basic properties.
 
         Args:
@@ -41,8 +41,10 @@ class Task(object):
         self.keywords = keywords
         self.reward = reward
         self.max_assignments = max_assignments
-        if qualifications is None:
+        if qualifications == 'default':
             qualifications = default_qualifications()
+        else:
+            qualifications = None
         self.qualifications = qualifications
         self.duration = duration * 60
         self.approval_delay = approval_delay * 24 * 60 * 60
@@ -184,10 +186,13 @@ class HTMLEvalTask(EvalTask):
             html_questions = self.create_question_group(question_group)
             html_hit = self.overall_template.format(
                     title=self.title,
-                    instructions=self.instructions,
+                    instructions=self.instructions.format(batch_size=len(question_group)),
                     script=self.script,
                     questions=html_questions,
                     )
+            #with open('/afs/cs.stanford.edu/u/hehe/www/question.html', 'w') as fout:
+            #    fout.write(html_hit)
+            #    import sys; sys.exit()
             html_hit = HTMLQuestion(html_hit, 600)
             hit_questions.append(html_hit)
         return hit_questions

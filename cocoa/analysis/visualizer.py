@@ -179,7 +179,7 @@ class Visualizer(object):
                 for i, (agent, stat, total) in enumerate(results):
                     agent_ratings[agent] = stat[1]
                     summary[question][agent]['score'] = stat[0]
-                    summary[question][agent]['sem'] = sem(stat[1])
+                    summary[question][agent]['sem'] = sem(stat[1]) if len(stat[1]) > 1 else 0
                     summary[question][agent]['total'] = total
                     summary[question][agent]['ttest'] = ''
                 # T-test

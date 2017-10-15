@@ -22,7 +22,7 @@ class HTMLVisualizer(object):
     def add_html_visualizer_arguments(cls, parser):
         parser.add_argument('--html-output', help='Name of directory to write HTML report to')
         parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
-        parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+        parser.add_argument('--css-file', default='../chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
         parser.add_argument('--img-path', help='path to images')
 
     @classmethod
@@ -219,8 +219,8 @@ class HTMLVisualizer(object):
             chats.extend(chat_html)
             chats.append('</div>')
             chats.append("<hr>")
-        #transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
-        transcripts = sorted(transcripts, key=lambda x: x['scenario']['post_id'], reverse=True)
+        transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
+        # transcripts = sorted(transcripts, key=lambda x: x['scenario']['post_id'], reverse=True)
         for (idx, chat) in enumerate(transcripts):
             completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx, img_path=img_path, worker_ids=worker_ids)
             if chat_html is None:

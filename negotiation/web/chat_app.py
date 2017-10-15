@@ -140,6 +140,7 @@ def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     DatabaseReader.dump_chats(cursor, flask_app.config['scenario_db'], transcript_path)
     if flask_app.config['user_params']['end_survey'] == 1:
