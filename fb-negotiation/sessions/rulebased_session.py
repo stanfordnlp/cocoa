@@ -271,12 +271,6 @@ class BaseRulebasedSession(Session):
 
         self.state['time'] += 1
 
-        # Strict turn-taking
-        # TODO: put this in the controller
-        if self.state['num_utterance_sent'] > 0:
-            return self.wait()
-        self.state['num_utterance_sent'] += 1
-
         # Opening utterance
         if self.state['time'] == 1:
             if random.random() < 0.5: # talk a bit by asking a question

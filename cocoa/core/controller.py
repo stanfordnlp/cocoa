@@ -1,14 +1,14 @@
 import json
 from util import generate_uuid
 from dataset import Example
+from event import Event
 from threading import Lock
 
 class Controller(object):
     """
-    Interface of the controller: takes two systems and can run them to generate a dialgoue.
+    Interface of the controller: takes two systems and run them to generate a dialgoue.
     """
-    def __init__(self, scenario, sessions, chat_id=None):
-
+    def __init__(self, scenario, sessions, chat_id=None, allow_cross_talk=False):
         self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
@@ -16,6 +16,8 @@ class Controller(object):
         assert len(self.sessions) == 2
         self.events = []
         self.max_turns = None
+        self.allow_cross_talk = allow_cross_talk
+        self.session_status = {agent: 'received' for agent, _ in enumerate(self.sessions)}
 
     def describe_scenario(self):
         for agent in (0, 1):
@@ -88,10 +90,14 @@ class Controller(object):
                     # fail silently, this means that the session has been reset and the controller is effectively
                     # inactive
                     continue
+                if (not self.allow_cross_talk) and self.session_status[agent] != 'received':
+                    continue
                 event = session.send()
                 if event is None:
                     continue
 
+                if not event.action in Event.decorative_events:
+                    self.session_status[agent] = 'sent'
                 self.event_callback(event)
                 self.events.append(event)
                 if backend is not None:
@@ -100,6 +106,8 @@ class Controller(object):
                 for partner, other_session in enumerate(self.sessions):
                     if agent != partner:
                         other_session.receive(event)
+                        if not event.action in Event.decorative_events:
+                            self.session_status[partner] = 'received'
 
     def inactive(self):
         """
