@@ -133,7 +133,11 @@ class Controller(object):
         return self.chat_id
 
     def game_over(self):
+        """Whether the game/session reaches the terminal state.
+        """
         raise NotImplementedError
 
     def complete(self):
+        """Whether the task was completed successfully.
+        """
         raise NotImplementedError
