@@ -1,5 +1,5 @@
-from cocoa.systems.system import BaseSystem
-from cocoa.sessions.mutualfriends.cmd_session import CmdSession
+from cocoa.systems.system import System as BaseSystem
+from sessions.cmd_session import CmdSession
 
 class CmdSystem(BaseSystem):
     def __init__(self):

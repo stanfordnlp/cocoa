@@ -1,5 +1,5 @@
 from cocoa.systems.rulebased_system import RulebasedSystem as BaseRulebasedSystem
-from mutualfriends.sessions.rulebased_session import RulebasedSession
+from sessions.rulebased_session import RulebasedSession
 
 class RulebasedSystem(BaseRulebasedSystem):
 
@@ -9,5 +9,5 @@ class RulebasedSystem(BaseRulebasedSystem):
         self.consecutive_entity = consecutive_entity
         self.realizer = realizer
 
-    def _new_session(self, agent, kb):
+    def _new_session(self, agent, kb, config):
         return RulebasedSession(agent, kb, self.lexicon, self.realizer, self.consecutive_entity)

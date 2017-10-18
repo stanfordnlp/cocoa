@@ -3,21 +3,25 @@ import editdistance
 import json
 import re
 import random
-
+import os.path
 from collections import defaultdict
 from fuzzywuzzy import fuzz
+
+from cocoa.core.util import read_pickle, write_pickle
+from cocoa.core.entity import Entity, is_entity
 from lexicon_utils import get_prefixes, get_acronyms, get_edits, get_morphological_variants
 
 def add_lexicon_arguments(parser):
     parser.add_argument('--stop-words', type=str, default='data/common_words.txt', help='Path to stop words list')
     parser.add_argument('--learned-lex', default=False, action='store_true', help='if true have entity linking in lexicon use learned system')
     parser.add_argument('--inverse-lexicon', help='Path to inverse lexicon data')
+    parser.add_argument('--lexicon', help='Path to lexicon')
 
 class BaseLexicon(object):
     """
     Base lexicon class defining general purpose functions for any lexicon
     """
-    def __init__(self, schema, learned_lex, stop_words=None):
+    def __init__(self, schema, learned_lex, stop_words=None, lexicon_path=None):
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
@@ -28,8 +32,16 @@ class BaseLexicon(object):
             self.stop_words = set([x.strip() for x in fin.read().split()][:1000])
             self.stop_words.update(['one', '1', 'two', '2', 'three', '3', 'four', '4', 'five', '5', 'six', '6', 'seven', '7', 'eight', '8', 'nine', '9', 'ten', '10'])
         self.load_entities()
-        self.compute_synonyms()
-        print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
+
+        if not lexicon_path or not os.path.exists(lexicon_path):
+            self.compute_synonyms()
+            print 'Created lexicon: %d phrases mapping to %d entities, %f entities per phrase' % (len(self.lexicon), len(self.entities), sum([len(x) for x in self.lexicon.values()])/float(len(self.lexicon)))
+            if lexicon_path is not None:
+                print 'Dump lexicon to {}'.format(lexicon_path)
+                write_pickle(self.lexicon, lexicon_path)
+        else:
+            print 'Load lexicon from {}'.format(lexicon_path)
+            self.lexicon = read_pickle(lexicon_path)
 
 
     def load_entities(self):
@@ -53,8 +65,8 @@ class Lexicon(BaseLexicon):
     """
     Lexicon that only computes per token entity transforms rather than per phrase transforms (except for prefixes/acronyms)
     """
-    def __init__(self, schema, learned_lex=False, entity_ranker=None, scenarios_json=None, stop_words=None):
-        super(Lexicon, self).__init__(schema, learned_lex, stop_words)
+    def __init__(self, schema, learned_lex=False, entity_ranker=None, scenarios_json=None, stop_words=None, lexicon_path=None):
+        super(Lexicon, self).__init__(schema, learned_lex, stop_words, lexicon_path)
         # TODO: Remove hard-coding (use list of common words/phrases/stop words)
         self.common_phrases = set(["went", "to", "and", "of", "my", "the", "names", "any",
                                    "friends", "at", "for", "in", "many", "partner", "all", "we",
@@ -360,6 +372,9 @@ class Lexicon(BaseLexicon):
                 i += 1
 
         linked = self.combine_repeated_entity(linked)
+
+        # Convert to Entity
+        linked = [Entity.from_elements(x[0], x[1][0], x[1][1]) if not isinstance(x, basestring) else x for x in linked]
 
         # For computing per dialogue entities found
         if return_entities:

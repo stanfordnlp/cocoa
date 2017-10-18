@@ -1,6 +1,5 @@
-from cocoa.core.lexicon import Lexicon, add_lexicon_arguments
-from cocoa.core.inverse_lexicon import InverseLexicon
-from heuristic_system import HeuristicSystem, add_heuristic_system_arguments
+from core.lexicon import Lexicon, add_lexicon_arguments
+from core.inverse_lexicon import InverseLexicon, DefaultInverseLexicon
 from rulebased_system import RulebasedSystem
 from neural_system import NeuralSystem, add_neural_system_arguments
 from cmd_system import CmdSystem
@@ -8,14 +7,13 @@ from cmd_system import CmdSystem
 def add_system_arguments(parser):
     add_lexicon_arguments(parser)
     add_neural_system_arguments(parser)
-    add_heuristic_system_arguments(parser)
 
 def get_system(name, args, schema=None):
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words)
+    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words, lexicon_path=args.lexicon)
     if args.inverse_lexicon:
-        realizer = InverseLexicon(schema, args.inverse_lexicon)
+        realizer = InverseLexicon.from_file(args.inverse_lexicon)
     else:
-        realizer = None
+        realizer = DefaultInverseLexicon()
 
     if name == 'rulebased':
         return RulebasedSystem(lexicon, realizer=realizer)

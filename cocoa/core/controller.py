@@ -42,8 +42,7 @@ class Controller(object):
         time = 0
         num_turns = 0
         game_over = False
-        if verbose:
-            self.describe_scenario()
+        self.describe_scenario()
         while not game_over:
             for agent, session in enumerate(self.sessions):
                 event = session.send()

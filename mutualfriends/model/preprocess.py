@@ -5,7 +5,8 @@ Preprocess examples in a dataset and generate data for models.
 import random
 import re
 import numpy as np
-from cocoa.model.vocab import Vocabulary, is_entity
+from cocoa.model.vocab import Vocabulary
+from cocoa.core.entity import is_entity
 from graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
