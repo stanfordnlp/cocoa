@@ -19,8 +19,9 @@ class KB(BaseKB):
         rows = [header_item] + self.items
         widths = [max(len(str(row[attr.name])) for row in rows) for attr in self.attributes]
         print '----------------'
-        for row in rows:
-            print ' ', '  '.join(('%%-%ds' % widths[i]) % (row[attr.name],) for i, attr in enumerate(self.attributes))
+        for i, row in enumerate(rows):
+            id_ = '{:3s}'.format('') if i == 0 else '{:<3d}'.format(i-1)
+            print id_, ' ', '  '.join(('%%-%ds' % widths[i]) % (row[attr.name],) for i, attr in enumerate(self.attributes))
 
     def get_item(self, idx):
         return self.items[idx]
