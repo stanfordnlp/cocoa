@@ -25,7 +25,7 @@ class BaseLexicon(object):
         self.schema = schema
         # if True, lexicon uses learned system
         self.learned_lex = learned_lex
-        self.entities = {}  # Mapping from (canonical) entity to type (assume type is unique)
+        self.entities = set()
         self.word_counts = defaultdict(int)  # Counts of words that show up in entities
         self.lexicon = defaultdict(list)  # Mapping from string -> list of (entity, type)
         with open(stop_words, 'r') as fin:
@@ -54,7 +54,7 @@ class BaseLexicon(object):
         if entity not in self.entities:
             for word in entity.split(' '):
                 self.word_counts[word] += 1
-        self.entities[entity] = type
+        self.entities.add((entity, type))
 
     def lookup(self, phrase):
         return self.lexicon.get(phrase, [])
@@ -127,7 +127,7 @@ class Lexicon(BaseLexicon):
         :return:
         """
         # Keep track of tokens we have seen to handle repeats
-        for entity, type in self.entities.items():
+        for entity, type in self.entities:
             phrases = []
             mod_entity = entity
             for s in [' of ', ' - ', '-']:
@@ -189,7 +189,6 @@ class Lexicon(BaseLexicon):
                 ed = editdistance.eval(span, c[0])
                 # Filter false positives
                 if c[1] not in kb_entity_types:
-                    #print 'false type'
                     continue
 
                 def is_stopwords():
@@ -209,7 +208,6 @@ class Lexicon(BaseLexicon):
                     return False
 
                 if is_stopwords():
-                    #print 'stop words'
                     continue
                 if len(span_tokens) > len(entity_tokens):
                     continue
@@ -218,7 +216,6 @@ class Lexicon(BaseLexicon):
                     if c[0] == span:
                         score = 0
                     else:
-                        #print 'not in kb'
                         continue
                 elif span in entity_tokens:
                     score = 0
@@ -230,7 +227,6 @@ class Lexicon(BaseLexicon):
                 # Prioritize entity in KB even if we are not sure
                 if not known_kb and c[0] not in kb_entities and c[0] != span:
                     score += 3
-                #print 'score:', score
 
                 entity_scores.append(c + (score,))
 
