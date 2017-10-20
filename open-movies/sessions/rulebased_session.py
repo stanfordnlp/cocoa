@@ -9,7 +9,6 @@ from cocoa.core.entity import is_entity
 
 from session import Session
 from core.tokenizer import tokenize
-from core.split_tracker import SplitTracker
 
 class RulebasedSession(object):
     @staticmethod
@@ -25,7 +24,6 @@ class BaseRulebasedSession(Session):
         self.kb = kb
 
         self.lexicon = lexicon
-        # self.tracker = SplitTracker()
         self.my_proposal = None
         self.their_proposal = None
         self.config = default_config if config is None else config

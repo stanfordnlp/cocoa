@@ -22,5 +22,5 @@ def done():
     backend = get_backend()
     backend.done(userid())
 
-    msg = format_message("You and your partner are done talking.", True)
+    msg = format_message("You are done talking.", True)
     return jsonify(message=msg)

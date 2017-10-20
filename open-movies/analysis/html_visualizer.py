@@ -17,23 +17,7 @@ class HTMLVisualizer(BaseHTMLVisualizer):
         uuid = scenario.uuid if uuid is None else uuid
         kbs = kbs or scenario.kbs
         # kbs[0] = rulebaed agent, kbs[1] = human
-        # html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s</div>' % uuid]
-        # Post (display the seller's (full) KB)
-        # items = ["book", "hat", "ball"]
-        # column_headers = ["Name", "Count", "Value"]
-        # item_counts = kbs[0].item_counts
-
-        # Private info
-        # for idx, kb in enumerate(kbs):
-        #     html.append("<div class=\"kb%d\"><table><tr>"
-        #                 "<td colspan=\"3\" class=\"agentLabel\">Agent %d</td></tr>" % (idx, idx))
-        #     html.append(('<tr>%s</tr>' % (''.join(['<th>%s</th>' % x for x in column_headers]))))
-        #     for item in items:
-        #         row_values = [item.title(), kb.item_counts[item], kb.item_values[item]]
-        #         html.append(('<tr>%s</tr>' % (''.join(['<td>%s</td>' % x for x in row_values]))))
-        #     html.append("</table></div>")
-
-        # html.append("</div>")
+        html = ["<div class=\"scenario\">", '<div class=\"divTitle\">Scenario %s %s</div>' % (uuid, kbs[0].topic['Topic'])]
         return html
 
     @classmethod

@@ -56,7 +56,7 @@ class Backend(BaseBackend):
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
             num_tokens = get_total_tokens_per_agent(ex)[agent_idx]
-            if num_tokens < 40:
+            if num_tokens < 30:
                 return True
             return False
 

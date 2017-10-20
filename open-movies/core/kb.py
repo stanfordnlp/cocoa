@@ -12,21 +12,5 @@ class KB(BaseKB):
     def from_dict(cls, attributes, raw):
         return cls(attributes, raw)
 
-    @classmethod
-    def from_ints(cls, attributes, names, ints):
-        """Build KB from integers.
-
-        Args:
-            names (list[str])
-            ints (list[int]): [count1, value1, count2, value2, ...]
-
-        """
-        items = []
-        assert 1. * len(ints) / len(names) == 2
-        for i, name in enumerate(names):
-            item = {'Name': name, 'Count': ints[i*2], 'Value': ints[i*2+1]}
-            items.append(item)
-        return cls(attributes, items)
-
     def dump(self):
         print 'Topic: {}'.format(self.topic)
