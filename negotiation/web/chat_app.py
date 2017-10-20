@@ -82,7 +82,7 @@ def add_website_arguments(parser):
                                                              'output directory.')
 
 
-def add_systems(args, config_dict, schema):
+def add_systems(args, config_dict, schema, debug=False):
     """
     Params:
     config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
@@ -97,7 +97,7 @@ def add_systems(args, config_dict, schema):
     total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
     pairing_probabilities = {}
-    timed = False if params['debug'] else True
+    timed = True if debug else True
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     if 'debug' not in params:
         params['debug'] = False
 
-    systems, pairing_probabilities = add_systems(args, params['models'], schema)
+    systems, pairing_probabilities = add_systems(args, params['models'], schema, params['debug'])
 
     db.add_scenarios(scenario_db, systems, update=args.reuse)
     #add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)

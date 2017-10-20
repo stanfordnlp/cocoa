@@ -6,7 +6,7 @@ from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
 from cocoa.web.main.states import SurveyState
-from cocoa.analysis.utils import get_total_turns
+from cocoa.analysis.utils import get_total_tokens_per_agent
 
 from utils import Messages
 from db_reader import DatabaseReader
@@ -55,12 +55,8 @@ class Backend(BaseBackend):
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
-            try:
-                valid = outcome['valid_deal']
-            except (TypeError, KeyError) as e:
-                valid = False
-            num_turns = get_total_turns(ex)
-            if not valid and num_turns < 4:
+            num_tokens = get_total_tokens_per_agent(ex)[agent_idx]
+            if num_tokens < 40:
                 return True
             return False
 

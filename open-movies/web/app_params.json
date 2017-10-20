@@ -33,7 +33,7 @@
     "icon": "movie-star.png",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "debug": false,
+    "debug": true,
     "models": {
         "rulebased": {
             "active": true,
