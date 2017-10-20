@@ -1,0 +1,149 @@
+body {
+    font-size: 1.6em;
+    margin: 40px 70px;
+    /*background-color: #efcf4c;*/
+}
+h3 {
+    font-weight: bold;
+    margin: 10px 0 20px 0;
+}
+h4.help{
+    padding: 6px 0;
+}
+ul.help{
+    margin-bottom: 25px;
+}
+.clearfix {
+    overflow: auto;
+}
+.modal-body{    font-size: 16px;
+}
+
+div#task-description {
+    font-style: italic;
+}
+
+div#modal_description {
+    color:#001133;
+    font-style: italic;
+}
+
+div#report {
+    color:#ff0000;
+    position: absolute;
+    bottom: 30px;
+    right: 70px;
+}
+div#info_container {
+    float:left;
+    width: 50%;
+    font-family: calibri, sans-serif;
+    color: #001133;
+}
+
+div#chat_container {
+    margin-left: 52%;
+    font-family: calibri, sans-serif;
+    color:#001133;
+}
+
+
+div#icon {
+    padding: 10px 100px 10px 20px;
+    display: inline-block;
+}
+
+div#options {
+    color: ##001133;
+    margin: 10px 2px;
+    padding: 10px 5px;
+    font-size: 18px;
+}
+
+button.btn-default {
+    margin-left: 10px;
+}
+
+textarea#chat {
+    width: 100%;
+    cols: 100;
+    height: 36%;
+    color:#001133;
+    font-size:14px;
+}
+
+input#text {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+div#eval{
+    width: 100%;
+}
+
+
+/*            #instructions > p,li {
+    font-size:15px;
+}
+*/
+#inner {
+    /*border: 1px solid #003305;*/
+    margin: 10px;
+    padding: 0px 5px;
+    font-family: calibri, sans-serif;
+    font-size: 14px;
+}
+#instructionCollapse {
+    float: right;
+}
+
+table {
+    border-collapse: collapse;
+    margin-top: 60px ;
+}
+
+td {
+    font-size: 18px;
+    padding: 3px 0px;
+}
+td.points {
+    text-align: center
+}
+tr {
+    margin-bottom: 5px;
+}
+th {
+    padding: 3px 3px 3px 0;
+}
+#items-table th:first-child {
+    min-width: 240px;
+}
+#items-table th:last-child {
+    text-align: center
+}
+img.item{
+    height: 75px;
+    width: 75px;
+}
+
+#clockdiv{
+    display: inline-block;
+    font-weight: bold;
+    text-align: center;
+    font-size: 18px;
+    padding: 15px 0 15px 0;
+}
+
+
+#clockdiv > div{
+    display: inline-block;
+}
+
+#clockdiv div > span{
+    display: inline-block;
+}
+
+#clockdiv div > .seconds{
+    margin-left:-3px;
+}

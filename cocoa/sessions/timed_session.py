@@ -13,7 +13,7 @@ class TimedSessionWrapper(Session):
     the wrapper will add a delay to the responses sent by the session in order to simulate human typing/action rates.
     """
     CHAR_RATE = 6
-    EPSILON = 1.5
+    EPSILON = 0.1 # 1.5
     SELECTION_DELAY = 1
     REPEATED_SELECTION_DELAY = 10
     PATIENCE = 2
@@ -67,7 +67,7 @@ class TimedSessionWrapper(Session):
             if self.prev_action == 'select':
                 delay += self.REPEATED_SELECTION_DELAY
         # TODO: refactor this
-        elif event.action in ('offer', 'accept', 'reject'):
+        elif event.action in ('offer', 'accept', 'reject', 'done'):
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
         elif event.action == 'join':
             delay = 0.5
