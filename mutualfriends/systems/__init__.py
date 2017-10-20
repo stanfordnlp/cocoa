@@ -8,17 +8,16 @@ def add_system_arguments(parser):
     add_lexicon_arguments(parser)
     add_neural_system_arguments(parser)
 
-def get_system(name, args, schema=None):
-    lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words, lexicon_path=args.lexicon)
-    if args.inverse_lexicon:
-        realizer = InverseLexicon.from_file(args.inverse_lexicon)
-    else:
-        realizer = DefaultInverseLexicon()
+def get_system(name, args, schema=None, timed=False):
+    if name in ('rulebased', 'neural'):
+        lexicon = Lexicon(schema, args.learned_lex, stop_words=args.stop_words, lexicon_path=args.lexicon)
+        if args.inverse_lexicon:
+            realizer = InverseLexicon.from_file(args.inverse_lexicon)
+        else:
+            realizer = DefaultInverseLexicon()
 
     if name == 'rulebased':
-        return RulebasedSystem(lexicon, realizer=realizer)
-    elif name == 'heuristic':
-        return HeuristicSystem(args.joint_facts, args.ask)
+        return RulebasedSystem(lexicon, timed, realizer=realizer)
     elif name == 'neural':
         assert args.model_path
         return NeuralSystem(schema, lexicon, args.model_path, args.fact_check, args.decoding, realizer=realizer)

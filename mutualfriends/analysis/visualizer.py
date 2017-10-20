@@ -1,3 +1,4 @@
+from collections import defaultdict
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 class Visualizer(BaseVisualizer):
@@ -23,6 +24,7 @@ class Visualizer(BaseVisualizer):
         '''
         Only keep scenarios where all 4 agents are evaluated.
         '''
+        return None
         scenario_to_agents = defaultdict(set)
         scenario_to_chats = defaultdict(set)
         for eval_ in raw_evals:

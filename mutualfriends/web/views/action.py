@@ -4,10 +4,11 @@ from web.main.backend import get_backend
 
 action = Blueprint('action', __name__)
 
-@main.route('/_select_option/', methods=['GET'])
+@action.route('/_select_option/', methods=['GET'])
 def select():
     backend = get_backend()
     selection_id = int(request.args.get('selection'))
+    print selection_id
     if selection_id == -1:
         return
     selected_item = backend.select(userid(), selection_id)

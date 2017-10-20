@@ -53,6 +53,7 @@ def check_inbox():
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
             message = format_message("Your partner has left the room.", True)
+        # TODO: refactor task specific actions
         elif event.action == 'select':
             ordered_item = backend.schema.get_ordered_item(event.data)
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),

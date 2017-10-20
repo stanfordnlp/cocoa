@@ -42,7 +42,6 @@ if __name__ == '__main__':
         visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
         visualizer.compute_effectiveness()
     elif (args.task == 'mutual'):
-        raise NotImplementedError('mutual friends task not implemented')
         visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
     else:
         raise ValueError('Please pick a specific task')
