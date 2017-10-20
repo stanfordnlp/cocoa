@@ -2,7 +2,7 @@
     "status_params": {
 	"waiting": {
       "num_seconds": 100
-  },
+    },
 	"chat": {
 	    "num_seconds": 1234
 	},
@@ -33,7 +33,7 @@
     "icon": "movie-star.png",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "debug": false,
+    "debug": true,
     "models": {
         "rulebased": {
             "active": true,

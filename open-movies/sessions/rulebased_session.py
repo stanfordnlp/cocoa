@@ -33,6 +33,7 @@ class BaseRulebasedSession(Session):
         self.state = {
                 'selected': False,
                 'my_action': None,
+                'their_action': None,
                 'num_utterance_sent': 0,
                 'time': 0
                 }
@@ -71,15 +72,12 @@ class BaseRulebasedSession(Session):
         return self.message(s)
 
     def receive(self, event):
-        if event.action in ('done', 'select'):
+        if event.action == 'done':
             self.state['num_utterance_sent'] = 0
-            self.state['their_action'] = event.action
-            self.state['num_utterance_sent'] = 0
+            self.state['their_action'] = 'done'
         elif event.action == 'message':
             self.state['num_utterance_sent'] = 0
             self.state['time'] += 1
-            tokens = tokenize(event.data)
-            # tokens = self.lexicon.link_entity()
 
     def wait(self):
         return None
@@ -89,6 +87,9 @@ class BaseRulebasedSession(Session):
         if self.state['num_utterance_sent'] > 0:
             return self.wait()
         self.state['num_utterance_sent'] += 1
+
+        if self.state['their_action'] == 'done':
+            return self.done()
 
         self.state['time'] += 1
         # Actual dialog
