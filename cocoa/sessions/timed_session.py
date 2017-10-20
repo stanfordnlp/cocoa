@@ -13,7 +13,7 @@ class TimedSessionWrapper(Session):
     the wrapper will add a delay to the responses sent by the session in order to simulate human typing/action rates.
     """
     CHAR_RATE = 6
-    EPSILON = 0.1 # 1.5
+    EPSILON = 1.5
     SELECTION_DELAY = 1
     REPEATED_SELECTION_DELAY = 10
     PATIENCE = 2
@@ -73,6 +73,7 @@ class TimedSessionWrapper(Session):
             delay = 0.5
         else:
             raise ValueError('Unknown event type: %s' % event.action)
+        delay = 0.01
 
         if self.last_message_timestamp + delay > time.time():
             # Add reading time before start typing

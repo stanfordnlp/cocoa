@@ -132,8 +132,8 @@ class Backend(BaseBackend):
                 cursor.execute('''SELECT scenario_id FROM chat WHERE chat_id=?''', (user_info.chat_id,))
                 scenario_id = cursor.fetchone()[0]
                 _update_scenario_db(user_info.chat_id, scenario_id, user_info.partner_type)
-                cursor.execute('INSERT INTO survey VALUES (?, ?,?,?)',
-                                (userid, user_info.chat_id, data['negotiator'], data['comments']))
+                cursor.execute('INSERT INTO survey VALUES (?, ?,?,?,?)',
+                                (userid, user_info.chat_id, data['humanlike'], data['interesting'], data['comments']))
                 _user_finished(userid)
                 self.logger.debug("User {:s} submitted survey for chat {:s}".format(userid, user_info.chat_id))
 
@@ -146,9 +146,11 @@ class Backend(BaseBackend):
                     config = tuple(json.loads(cursor.fetchone()[0]))
                     role, margin = self.get_margin(controller, bot_agent_idx)
                     self.logger.debug("Updating trials for user {}".format(userid))
-                    self.logger.debug("scenario_id={}, role={}, margin={}, humanlike={}".format(scenario_id, role, margin, data['negotiator']))
+                    self.logger.debug("scenario_id={}, role={}, margin={}, humanlike={}, interesting={}".format(
+                            scenario_id, role, margin, data['humanlike'], data['interesting']))
                     self.systems['config-rulebased'].update_trials([
-                        (config, user_info.chat_id, {'scenario_id': scenario_id, 'role': role, 'margin': margin, 'humanlike': data['negotiator']}),
+                        (config, user_info.chat_id, {'scenario_id': scenario_id, 'role': role, 'margin': margin,
+                            'humanlike': data['humanlike'], 'interesting': data['interesting'] }),
                         ])
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")

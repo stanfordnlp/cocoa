@@ -66,16 +66,20 @@
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
         humanlikeVal = $("#humanlike").val();
+        interestingVal = $("#interesting").val();
         comments = $("#comments").val();
 
         //fluentVal = document.getElementById("#myRange").value
         console.log("humanlike: " + humanlikeVal)
+        console.log("interesting: " + interestingVal)
 
-        if (humanlikeVal == null) {
+        if (humanlikeVal == null ||
+            interestingVal == null) {
             return false;
         }
         else{
             questionAnswers["humanlike"] = humanlikeVal;
+            questionAnswers["interesting"] = interestingVal;
             if(comments == null) {
             	comments = "";
             }
@@ -163,12 +167,12 @@
 
         <div class="q">
             <!--<p style="text-align:center;">Was your partner a good <strong>humanlike</strong>?</p> <br>-->
-            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
+            <p style="text-align:center;">Do you think your partner displayed <b>interesting</b> and engaging speech behavior?</p> <br>
 
             <form id="q_i">
                 <p style="float:left;">Not at all</p>
                 <input type="range" id="interesting" min="1" max="5" style="width:50%; margin-left:17%;" >
-                <p style="float:right;">Definitely</p>
+                <p style="float:right;">Very Interesting</p>
             </form>
         </div>
 
@@ -179,9 +183,9 @@
             <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
 
             <form id="q_h">
-                <p style="float:left;">Not at all</p>
+                <p style="float:left;">Not at all Human</p>
                 <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:17%;" >
-                <p style="float:right;">Definitely</p>
+                <p style="float:right;">Definitely Human</p>
             </form>
         </div>
 
