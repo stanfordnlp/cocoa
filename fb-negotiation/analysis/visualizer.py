@@ -91,7 +91,7 @@ class Visualizer(BaseVisualizer):
         else:
             return True
 
-    def _compute_effectiveness(self, examples, system):
+    def compute_effectiveness_for_system(self, examples, system):
         num_agreed = 0
         total = 0
         agreed_points = {'agent': 0, 'partner': 0}

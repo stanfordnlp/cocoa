@@ -30,21 +30,14 @@ if __name__ == '__main__':
     HTMLVisualizer.add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 
-    if (args.task == 'cl-neg'):
-        visualizer = Visualizer(args.dialogue_transcripts,
-                args.survey_transcripts, args.worker_ids)
-        visualizer.compute_effectiveness()
-        if args.hist:
-            visualizer.hist(question_scores, args.outdir, partner=args.partner)
-        if args.worker_ids:
-            visualizer.worker_stats()
-    elif (args.task == 'fb-neg'):
-        visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-        visualizer.compute_effectiveness()
-    elif (args.task == 'mutual'):
-        visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    else:
-        raise ValueError('Please pick a specific task')
+    visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts, args.worker_ids)
+    visualizer.compute_effectiveness()
+
+    if args.hist:
+        visualizer.hist(question_scores, args.outdir, partner=args.partner)
+
+    if args.worker_ids:
+        visualizer.worker_stats()
 
     # TODO: move summary and hist to analyzer
     if args.summary:
