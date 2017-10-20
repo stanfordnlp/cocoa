@@ -8,15 +8,6 @@ class DatabaseReader(BaseDatabaseReader):
     @classmethod
     def get_chat_outcome(cls, cursor, chat_id):
         outcome = super(DatabaseReader, cls).get_chat_outcome(cursor, chat_id)
-        try:
-            if math.isnan(outcome['book']):
-                outcome['book'] = None
-            if math.isnan(outcome['hat']):
-                outcome['hat'] = None
-            if math.isnan(outcome['ball']):
-                outcome['ball'] = None
-        except (ValueError, TypeError, KeyError) as e:
-            pass
         return outcome
 
     @classmethod

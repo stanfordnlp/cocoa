@@ -2,7 +2,7 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title>Deal or No Deal</title>
+    <title>Movie Chat</title>
     <style>
         td {
             padding: 0 15px 0 15px;
@@ -147,24 +147,7 @@
         	<h2 style="text-align: center;"><b>Results</b></h2> <br>
         	<p style="text-align: center;"><b>{{ message }}</b></p>
             {% if results %}
-                {% if results['agreed'] == false %}
-                    <p>Sorry, you were not able to agree on a deal :(</p>
-                {% elif results['valid_deal'] == false %}
-                    <p>Either you or your partner entered in a number of items that did not add up to the total number of items available.  Please try again. </p>
-                {% else %}
-                    <p>You recieved {{ results['item_split'][agent_idx]['book'] }} books,
-                    {{ results['item_split'][agent_idx]['hat'] }} hats
-                    and {{ results['item_split'][agent_idx]['ball'] }} balls
-                    for a total of {{ results['reward'][agent_idx] }} points. </p>
-
-                    <p>Your partner recieved {{ results['item_split'][1 - agent_idx]['book'] }} books,
-                    {{ results['item_split'][1 - agent_idx]['hat'] }} hats
-                    and {{ results['item_split'][1- agent_idx]['ball'] }} balls
-                    for a total of {{ results['reward'][1 - agent_idx] }} points. </p>
-
-                    <p> Recall these points do not add up because the value of each item for you is <b>different</b> than the value
-                            of each item for your partner.</p>
-                {% endif %}
+                <p>There were results.  You are success!</p>
             {% endif %}
         </div>
 
@@ -193,7 +176,7 @@
         <br> <br>
 
         <div class="q">
-        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
+        	<p style="text-align:center;">Please comments on why you rated the agent the way you did.  Do you have any feedback on what would make the agent feel more human-like?</p>
         	<form id="q_comm">
         	<textarea id="comments" cols="100" rows="5"></textarea>
         	</form>

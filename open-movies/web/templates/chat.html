@@ -16,7 +16,6 @@
             var BASE_URL = 'http://' + document.domain + ':' + location.port;
             var selectTime = null, messageStartTime = null;
             var messageTime = 0.0;
-            var num_offer = 0;
             var turn_counter = 0;
             var eval_data = {};
             var utterance_regex = /(You|Partner): (.*)/;
@@ -59,9 +58,6 @@
 
                 // This part executes after the description is shown
                 setTimeout(function(){
-                    // $('#description').modal('hide')
-                    // $('#accept').style.display = 'none';
-                    // $('#reject').style.display = 'none';
                     inboxCheckInterval = setInterval(checkInbox, 1000);
 
                     $('#text').keypress(function(e) {
@@ -72,10 +68,9 @@
                         }
                         if (code == 13) {
                             turn_counter++
-                            if (turn_counter > 5) {
+                            if (turn_counter >= 5) {
                                 $(".yes-deal").removeAttr('disabled');
                             }
-
                             stoppedTyping();
                             text = $('#text').val();
                             $('#text').val('');
@@ -92,30 +87,9 @@
                 }, read_time);  // delay due to reading the description
             });
 
-            function select() {
-                var book_split = parseInt($('.book-split').data('selection'));
-                var hat_split = parseInt($('.hat-split').data('selection'));
-                var ball_split = parseInt($('.ball-split').data('selection'));
-
+            function done() {
                 $.ajax({
-                    url: BASE_URL + '/_select/',
-                    type: "get",
-                    data: {
-                        "uid": "{{ uid }}",
-                        "book-split": book_split,
-                        "hat-split": hat_split,
-                        "ball-split": ball_split,
-                    },
-                    dataType: "json",
-                    success: function(response) {
-                        displayText(response['message']);
-                    }
-
-                });
-            }
-            function reject() {
-                $.ajax({
-                    url: BASE_URL +'/_reject/',
+                    url: BASE_URL +'/_done/',
                     type: "get",
                     data: {
                         "uid": "{{ uid }}"
@@ -252,35 +226,11 @@
                         if(response['received']) {
                             if(response['status']) {
                                 displayStatus(response['message'])
-                            } else if ('message' in response) {
+                            } else if ('message' in response){
                                 $("#text").removeAttr('disabled');
                                 displayText(response['message']);
 
-                                // sendEval();
-                                // eval_utterance = response['message'].match(utterance_regex);
-                                // if (eval_utterance != null && eval_utterance.length > 2) {
-                                //     eval_data['utterance'] = eval_utterance[2];
-                                // } else {
-                                //     eval_data['utterance'] = '';
-                                // }
-                                // eval_data['timestamp'] = response['timestamp'];
-                                // $("#partner_utterance").html(eval_data['utterance']);
                             }
-                            if ('price' in response) {
-                                $("#price").attr("disabled", "disabled")
-                                // $("#side_offers").attr("disabled", "disabled")
-                                $('#price').val(response['price']);
-                                $('#submit').hide();
-                                $('#accept').show();
-                                $('#reject').show();
-                            }
-                            // if ('sides' in response) {
-                            //     if(response['sides'].length == 0) {
-                            //         $('#side_offers').val("<No additional terms>");
-                            //     } else {
-                            //         $('#side_offers').val(response['sides']);
-                            //     }
-                            // }
                         }
                     }
                 });
@@ -376,14 +326,15 @@
         <div id="info_container">
             <h3>Talk about movies with your partner.</h3>
             <div id="task-description">
-            <p>Just chat with your partner about {{kb[0].Name}}. Both of you should each speak five times each before marking a conversation as completed.</p>
+            <p>Chat with your partner about anything movie related, a suggested topic is {{kb[0].Topic}} films. After speaking for <b>at least five turns</b>, please click "Done Talking". Both of you should each speak 5-7 times each before marking a conversation as completed.
+            </p>
             </div>
 
             <textarea readonly id="chat"></textarea>
             <input id="text" placeholder="Please enter here ... "><br><br>
 
             <div id="options">
-            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;select()" style="display:inline-block" id="submit">Done Talking</button>
+            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;done()" style="display:inline-block" id="submit">Done Talking</button>
             </div>
         </div>
 

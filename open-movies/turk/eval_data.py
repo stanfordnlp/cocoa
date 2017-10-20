@@ -27,7 +27,7 @@ class EvalData(BaseEvalData):
                     tokens.append('PRICE')
                 else:
                     raise ValueError
-            elif w in ('<offer>', '<accept>', '<reject>', '<quit>'):
+            elif w in ('<done>', '<quit>'):
                 tokens.append(w[1:-1].upper())
             # Category markers
             elif len(w) > 2 and w[0] == '<' and w[-1] == '>':
