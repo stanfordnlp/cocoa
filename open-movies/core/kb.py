@@ -1,14 +1,12 @@
 from cocoa.core.kb import KB as BaseKB
 
 class KB(BaseKB):
-    def __init__(self, attributes, items):
+    def __init__(self, attributes, topic):
         super(KB, self).__init__(attributes)
-        self.items = items
-        self.item_counts = {item['Name']: item['Count'] for item in items}
-        self.item_values = {item['Name']: item['Value'] for item in items}
+        self.topic = topic
 
     def to_dict(self):
-        return self.items
+        return self.topic
 
     @classmethod
     def from_dict(cls, attributes, raw):
@@ -31,9 +29,4 @@ class KB(BaseKB):
         return cls(attributes, items)
 
     def dump(self):
-        item_counts = ', '.join(['{count} {item}s'.format(count=c, item=n) for n, c in self.item_counts.iteritems()])
-        print 'Items Available: {}'.format(item_counts)
-
-        for item, value in self.item_values.iteritems():
-            print 'How you value {0}: {1} points'.format(item, value)
-        print '----------------'
+        print 'Topic: {}'.format(self.topic)
