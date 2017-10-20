@@ -6,7 +6,7 @@
 #     --agents rulebased cmd \
 #     --verbose --random-seed 8
 
-PYTHONPATH=. python web/chat_app.py --port 1414 \
+PYTHONPATH=. python web/chat_app.py --port 5040 \
     --schema-path data/movie-schema.json \
     --config web/app_params.json --scenarios-path data/toy-scenarios.json \
     --output web/output

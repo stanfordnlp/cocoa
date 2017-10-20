@@ -65,17 +65,17 @@
 
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
-        negotiatorVal = $("#negotiator").val();
+        humanlikeVal = $("#humanlike").val();
         comments = $("#comments").val();
 
         //fluentVal = document.getElementById("#myRange").value
-        console.log("NEGOTIATOR: " + negotiatorVal)
+        console.log("humanlike: " + humanlikeVal)
 
-        if (negotiatorVal == null) {
+        if (humanlikeVal == null) {
             return false;
         }
         else{
-            questionAnswers["negotiator"] = negotiatorVal;
+            questionAnswers["humanlike"] = humanlikeVal;
             if(comments == null) {
             	comments = "";
             }
@@ -161,14 +161,13 @@
 
         <br> <br> <br> <br>
 
-
         <div class="q">
-            <!--<p style="text-align:center;">Was your partner a good <strong>negotiator</strong>?</p> <br>-->
+            <!--<p style="text-align:center;">Was your partner a good <strong>humanlike</strong>?</p> <br>-->
             <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
 
-            <form id="q_h">
+            <form id="q_i">
                 <p style="float:left;">Not at all</p>
-                <input type="range" id="negotiator" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <input type="range" id="interesting" min="1" max="5" style="width:50%; margin-left:17%;" >
                 <p style="float:right;">Definitely</p>
             </form>
         </div>
@@ -176,7 +175,20 @@
         <br> <br>
 
         <div class="q">
-        	<p style="text-align:center;">Please comments on why you rated the agent the way you did.  Do you have any feedback on what would make the agent feel more human-like?</p>
+            <!--<p style="text-align:center;">Was your partner a good <strong>humanlike</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not at all</p>
+                <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <p style="float:right;">Definitely</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
         	<form id="q_comm">
         	<textarea id="comments" cols="100" rows="5"></textarea>
         	</form>

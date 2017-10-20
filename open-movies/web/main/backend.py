@@ -17,7 +17,7 @@ class DatabaseManager(BaseDatabaseManager):
     @classmethod
     def add_survey_table(cls, cursor):
         cursor.execute(
-            '''CREATE TABLE survey (name text, chat_id text, negotiator integer, comments text)''')
+            '''CREATE TABLE survey (name text, chat_id text, humanlike integer, interesting integer, comments text)''')
 
     @classmethod
     def init_database(cls, db_file):
@@ -93,19 +93,6 @@ class Backend(BaseBackend):
 
         return False
 
-
-    # def select(self, userid, proposal):
-    #     try:
-    #         with self.conn:
-    #             cursor = self.conn.cursor()
-    #             u = self._get_user_info_unchecked(cursor, userid)
-    #             self._update_user(cursor, userid, connected_status=1)
-    #             self.send(userid, Event.SelectEvent(u.agent_index,
-    #                                                 proposal,
-    #                                                 str(time.time()) ))
-    #     except sqlite3.IntegrityError:
-    #         print("WARNING: Rolled back transaction")
-    #         return None
 
     def done(self, userid):
         try:
