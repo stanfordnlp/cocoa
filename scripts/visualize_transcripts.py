@@ -32,21 +32,6 @@ if __name__ == '__main__':
 
     visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
     visualizer.compute_effectiveness()
-    #if (args.task == 'cl-neg'):
-    #    visualizer = Visualizer(args.dialogue_transcripts,
-    #            args.survey_transcripts, args.worker_ids)
-    #    visualizer.compute_effectiveness()
-    #elif (args.task == 'fb-neg'):
-    #    visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    #    visualizer.compute_effectiveness()
-    #elif (args.task == 'movies'):
-    #    visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    #    visualizer.compute_effectiveness()
-    #elif (args.task == 'mutual'):
-    #    raise NotImplementedError('mutual friends task not implemented')
-    #    visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    #else:
-    #    raise ValueError('Please pick a specific task')
 
     if args.hist:
         visualizer.hist(question_scores, args.outdir, partner=args.partner)
