@@ -1,10 +1,10 @@
 {
     "values": {
+        "item": ["ball", "hat", "book"]
     },
     "attributes": [
-      {"name": "Role", "value_type": "role", "multivalued": false, "entity": false},
-      {"name": "Item_counts", "value_type": "counts", "multivalued": true, "entity": false},
-      {"name": "Item_values", "value_type": "price", "multivalued": true, "entity": false}
-
+      {"name": "Name", "value_type": "item", "entity": true},
+      {"name": "Count", "value_type": "integer", "entity": true},
+      {"name": "Value", "value_type": "integer", "entity": true}
     ]
 }

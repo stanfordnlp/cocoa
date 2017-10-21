@@ -28,9 +28,9 @@ class KB(BaseKB):
     def to_dict(self):
         return self.facts
 
-    @staticmethod
-    def from_dict(attributes, raw):
-        return KB(attributes, raw)
+    @classmethod
+    def from_dict(cls, attributes, raw):
+        return cls(attributes, raw)
 
     def dump(self):
         personal_info = self.facts['personal']

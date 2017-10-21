@@ -22,7 +22,7 @@ class HTMLVisualizer(object):
     def add_html_visualizer_arguments(cls, parser):
         parser.add_argument('--html-output', help='Name of directory to write HTML report to')
         parser.add_argument('--viewer-mode', action='store_true', help='Output viewer instead of single html')
-        parser.add_argument('--css-file', default='chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
+        parser.add_argument('--css-file', default='../chat_viewer/css/my.css', help='css for tables/scenarios and chat logs')
         parser.add_argument('--img-path', help='path to images')
 
     @classmethod
@@ -94,13 +94,24 @@ class HTMLVisualizer(object):
             except AttributeError:
                 tags = ''
 
+            if event.template is None:
+                response_tag = ''
+                count = ''
+                template = ''
+            else:
+                response_tag = event.template['response_tag'] + '|' + event.template['source']
+                count = np.log(event.template['count'])
+                template = event.template['response']
+
             row = '<tr class=\"agent%d\">\
                     <td class=\"time\">%s</td>\
                     <td class=\"agent\">%s</td>\
                     <td class=\"tags\">%s</td>\
+                    <td class=\"act\">%s</td>\
+                    <td class=\"count\">%s</td>\
+                    <td class=\"template\">%s</td>\
                     <td class=\"message\">%s</td>\
-                   </tr>' % (event.agent, t, a, tags, s)
-
+                   </tr>' % (event.agent, t, a, tags, response_tag, count, template, s)
             chat_html.append(row)
 
         chat_html.extend(['</table>', '</div>'])
@@ -208,8 +219,8 @@ class HTMLVisualizer(object):
             chats.extend(chat_html)
             chats.append('</div>')
             chats.append("<hr>")
-        #transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
-        transcripts = sorted(transcripts, key=lambda x: x['scenario']['post_id'], reverse=True)
+        transcripts = sorted(transcripts, key=lambda x: x['events'][0]['time'], reverse=True)
+        # transcripts = sorted(transcripts, key=lambda x: x['scenario']['post_id'], reverse=True)
         for (idx, chat) in enumerate(transcripts):
             completed, rejected, chat_html = cls.visualize_chat(chat, responses=responses, id_=idx, img_path=img_path, worker_ids=worker_ids)
             if chat_html is None:

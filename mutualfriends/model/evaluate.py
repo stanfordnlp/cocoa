@@ -1,11 +1,13 @@
 from itertools import izip, izip_longest
 import numpy as np
-from preprocess import markers
-from graph import Graph
-from cocoa.model.vocab import is_entity
+
+from cocoa.core.entity import is_entity
 from cocoa.lib import logstats
 from cocoa.model.util import EPS
 from cocoa.model.evaluate import BaseEvaluator
+
+from preprocess import markers
+from graph import Graph
 
 def remove_entities(entity_tokens):
     eoe_inds = [i for i, x in enumerate(entity_tokens) if x == markers.EOE]

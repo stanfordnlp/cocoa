@@ -6,6 +6,18 @@
 <script type='text/javascript' src='https://s3.amazonaws.com/mturk-public/externalHIT_v1.js'></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script> 
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-form-validator/2.3.26/jquery.form-validator.min.js"></script>
+
+<script>
+    function validateForm() {{
+        if ($('div.question:not(:has(:radio:checked))').length) {{
+                alert("At least one question is blank");
+                return false;
+        }}
+        document.form.submit();
+        return true;
+    }}
+</script>
 </head>
 
 <body>
@@ -16,7 +28,7 @@
     <div class="panel-body">{instructions}</div>
   </div>
 
-  <form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit'>
+  <form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit' onsubmit="return validateForm()">
   <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
  
   {questions}

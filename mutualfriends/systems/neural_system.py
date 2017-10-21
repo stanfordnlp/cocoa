@@ -2,16 +2,18 @@ __author__ = 'anushabala'
 
 import os
 import argparse
-import tensorflow as tf
-from cocoa.core.systems.system import System
-from cocoa.core.sessions.neural_session import RNNNeuralSession, GraphNeuralSession
-from cocoa.core.sessions.timed_session import TimedSessionWrapper
-from cocoa.core.util import read_pickle, read_json
-from cocoa.model.encdec import build_model
-from cocoa.model.preprocess import markers, TextIntMap, Preprocessor
 from collections import namedtuple
-from cocoa.model.evaluate import FactEvaluator
+import tensorflow as tf
+
 from cocoa.lib import logstats
+from cocoa.systems.system import System
+from cocoa.sessions.timed_session import TimedSessionWrapper
+from cocoa.core.util import read_pickle, read_json
+
+from sessions.neural_session import RNNNeuralSession, GraphNeuralSession
+from model import build_model
+from model.preprocess import markers, TextIntMap, Preprocessor
+from model.evaluate import FactEvaluator
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')

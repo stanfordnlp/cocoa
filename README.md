@@ -78,8 +78,8 @@ Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/w
 
 To deploy the web server, run
 ```
-cd task;
-PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --scenario-path <path-to-scenarios> --output <output-dir>
+cd <name-of-your-task>;
+PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --scenarios-path <path-to-scenarios> --output <output-dir>
 ```
 
 To collect data from Amazon Mechanical Turk (AMT), workers should be directed to the link ```http://your-url:port/?mturk=1```. Workers will receive a Mturk code at the end of the survey to submit the HIT.

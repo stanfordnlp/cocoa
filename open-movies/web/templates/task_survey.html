@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Movie Chat</title>
+    <style>
+        td {
+            padding: 0 15px 0 15px;
+        }
+
+        #instructions > p,li {
+            font-size:15px;
+        }
+
+        table.sortable th:not(.sorttable_sorted):not(.sorttable_sorted_reverse):not(.sorttable_nosort):after {
+            content: " \25B4\25BE"
+        }
+
+        table.sortable {
+            color:#004d00;
+        }
+
+        table { 
+            border-collapse: collapse; 
+            border: 1px solid black;
+            padding: 30px;
+            margin: 15px auto;
+        }
+
+        td {
+            padding: 30px;
+            margin-left: 20px;
+        }
+
+        form {
+            padding: 10px;
+        }
+
+        #facts {
+            font-size: 18px;
+        }
+
+        .header {
+            padding: 10px 5px 10px 5px;
+            border: 3px solid #000e7f;
+            color: #000e7f;
+        }
+        tr:nth-child(n) { 
+            border: solid thin;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="../static/css/survey.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script> 
+    <script type="text/javascript" src="//code.jquery.com/jquery-1.4.2.min.js"></script>
+    <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+</head>
+
+<script>
+
+    questionAnswers = {};
+
+    // Ensure all questions have a selected response
+    function ensureAllAnswered(){
+        humanlikeVal = $("#humanlike").val();
+        interestingVal = $("#interesting").val();
+        comments = $("#comments").val();
+
+        //fluentVal = document.getElementById("#myRange").value
+        console.log("humanlike: " + humanlikeVal)
+        console.log("interesting: " + interestingVal)
+
+        if (humanlikeVal == null ||
+            interestingVal == null) {
+            return false;
+        }
+        else{
+            questionAnswers["humanlike"] = humanlikeVal;
+            questionAnswers["interesting"] = interestingVal;
+            if(comments == null) {
+            	comments = "";
+            }
+            questionAnswers["comments"] = comments;
+            return true;
+        }
+    }
+
+    $(document).ready(function() {
+    	window.scrollTo(0,0);
+        $.ajax({
+			url: '/_connect/',
+			type: "get",
+			data: {"uid": "{{ uid }}" },
+			dataType: "json"
+		});
+		questionAnswers["scenario_id"] = {{ scenario_id|safe|tojson}};
+        questionAnswers["dialogue_id"] = {{ dialogue_id|safe|tojson}};
+        questionAnswers["agent_id"] = {{ agent_idx|safe|tojson}};
+
+        $('.btn.btn-default.eval-tag').click(function () {
+            $(this).toggleClass('btn-default btn-primary');
+        });
+
+
+        $("#submit").click(function() {
+            allAnswered = ensureAllAnswered()
+            if (allAnswered){
+            	response = {"uid": "{{ uid }}", "response": questionAnswers};
+                console.log(questionAnswers);
+                $.ajax({
+                url: "/_submit_survey/",
+                type: "POST",
+                data: JSON.stringify(response),
+                contentType: "application/json; charset=utf-8",
+                dataType: "json",
+                success: function(data){
+                    //alert("SUCCESS");
+                    console.log(JSON.stringify(data));
+                    disconnect();
+                    window.location.reload(true);
+                },
+                failure: function(){
+                    console.log(":(");
+                }
+                })
+            }else{
+                alert("You have not selected an answer for every question. Please do so before submitting the HIT.");
+            }
+
+        });
+
+        function disconnect() {
+			$.ajax({
+				url: '/_disconnect/',
+				type: "get",
+				data: {"uid": "{{ uid }}" },
+				dataType: "json"
+			});
+		}
+    });
+
+</script>
+
+
+<body >
+    <div class="wrapper" >
+        <div class="header">
+        	<h2 style="text-align: center;"><b>Results</b></h2> <br>
+        	<p style="text-align: center;"><b>{{ message }}</b></p>
+            {% if results %}
+                <p>There were results.  You are success!</p>
+            {% endif %}
+        </div>
+
+        <br>
+        <br>
+
+        <div class="header">
+            <h2><b>Survey Instructions</b></h2> <br>
+            <p>In order to complete this HIT, please answer the following questions about your partner in the dialogue that you just completed.</p>
+        </div>
+
+        <br> <br> <br> <br>
+
+        <div class="q">
+            <!--<p style="text-align:center;">Was your partner a good <strong>humanlike</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner displayed <b>interesting</b> and engaging speech behavior?</p> <br>
+
+            <form id="q_i">
+                <p style="float:left;">Not at all</p>
+                <input type="range" id="interesting" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <p style="float:right;">Very Interesting</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+            <!--<p style="text-align:center;">Was your partner a good <strong>humanlike</strong>?</p> <br>-->
+            <p style="text-align:center;">Do you think your partner demonstrated reasonable <strong>human</strong> behavior?</p> <br>
+
+            <form id="q_h">
+                <p style="float:left;">Not at all Human</p>
+                <input type="range" id="humanlike" min="1" max="5" style="width:50%; margin-left:17%;" >
+                <p style="float:right;">Definitely Human</p>
+            </form>
+        </div>
+
+        <br> <br>
+
+        <div class="q">
+        	<p style="text-align:center;">(optional) Please add any comments/feedback related to the dialogue below. (for e.g., comments on how we can improve this platform, why you made the above ratings, etc.)</p>
+        	<form id="q_comm">
+        	<textarea id="comments" cols="100" rows="5"></textarea>
+        	</form>
+        </div>
+
+        <br>
+
+        <br>
+
+
+        <div class="buttons" style="text-align:center;">
+         <button type="button" id="submit" >Submit HIT!</button>
+        </div>
+
+    </div>
+
+
+</body>
+</html>

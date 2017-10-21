@@ -1,13 +1,15 @@
-__author__ = 'anushabala'
-from session import Session
-from cocoa.model.mutualfriends.graph import Graph, GraphBatch
-from cocoa.model.mutualfriends.preprocess import markers, word_to_num
-from cocoa.model.vocab import is_entity, Vocabulary
-from cocoa.model.mutualfriends.evaluate import pred_to_token
-import numpy as np
 import random
 import re
+import numpy as np
 from itertools import izip
+
+from cocoa.model.vocab import Vocabulary
+from cocoa.core.entity import is_entity
+
+from session import Session
+from model.graph import Graph, GraphBatch
+from model.preprocess import markers, word_to_num
+from model.evaluate import pred_to_token
 
 num_to_word = {v: k for k, v in word_to_num.iteritems()}
 

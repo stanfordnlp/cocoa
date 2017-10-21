@@ -2,12 +2,15 @@ import json
 from collections import defaultdict
 import numpy as np
 from itertools import izip, chain
-from scipy.stats import ttest_ind as ttest
+from scipy.stats import ttest_ind as ttest, sem
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from cocoa.core.util import read_json, write_json
+from cocoa.core.dataset import Example
+
+from core.scenario import Scenario
 from analysis.html_visualizer import HTMLVisualizer
 
 class Visualizer(object):
@@ -164,6 +167,32 @@ class Visualizer(object):
         scores = [x[2] for x in scores]
         return sum([len(x) for x in scores])
 
+    def compute_effectiveness_for_system(self, examples, system):
+        raise NotImplementedError
+
+    def skip_example(self, ex):
+        return False
+
+    def compute_effectiveness(self):
+        chats = defaultdict(list)
+        for raw in self.chats:
+            ex = Example.from_dict(raw, Scenario)
+            if self.skip_example(ex):
+                continue
+            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
+                chats['human'].append(ex)
+            elif ex.agents[0] != 'human':
+                chats[ex.agents[0]].append(ex)
+            elif ex.agents[1] != 'human':
+                chats[ex.agents[1]].append(ex)
+
+        results = {}
+        for system, examples in chats.iteritems():
+            if system == 'human':
+                continue
+            results[system] = self.compute_effectiveness_for_system(examples, system)
+            print system, results[system]
+
     def summarize(self, question_scores=None, summary_stats=('mean',)):
         if not question_scores:
             question_scores = self.question_scores
@@ -179,6 +208,7 @@ class Visualizer(object):
                 for i, (agent, stat, total) in enumerate(results):
                     agent_ratings[agent] = stat[1]
                     summary[question][agent]['score'] = stat[0]
+                    summary[question][agent]['sem'] = sem(stat[1]) if len(stat[1]) > 1 else 0
                     summary[question][agent]['total'] = total
                     summary[question][agent]['ttest'] = ''
                 # T-test
@@ -200,11 +230,14 @@ class Visualizer(object):
             # Print
             for question, agent_stats in summary.iteritems():
                 print '============= %s ===============' % self.question_labels[question]
-                print '{:<12s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', '#score', 'win')
+                print '{:<12s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', 'error', '#score', 'win')
                 print '---------------------------------------'
                 for i, agent in enumerate(agents):
                     stats = agent_stats[agent]
-                    print '{:<12s} {:<10.1f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['total'], stats['ttest'])
+                    try:
+                        print '{:<12s} {:<10.1f} {:<10.2f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], stats['ttest'])
+                    except KeyError:
+                        continue
         return summary
 
     def get_dialogue_responses(self, question_scores):

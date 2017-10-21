@@ -48,8 +48,8 @@ class TimedSessionWrapper(Session):
         self.queued_event.clear()
 
     def send(self):
-        if self.num_utterances >= 2:
-            return None
+        #if self.num_utterances >= 2:
+        #    return None
         if self.received is False and (self.prev_action == 'select' or \
             self.last_message_timestamp + random.uniform(1, self.PATIENCE) > time.time()):
             return None
@@ -67,12 +67,13 @@ class TimedSessionWrapper(Session):
             if self.prev_action == 'select':
                 delay += self.REPEATED_SELECTION_DELAY
         # TODO: refactor this
-        elif event.action in ('offer', 'accept', 'reject'):
+        elif event.action in ('offer', 'accept', 'reject', 'done'):
             delay = self.SELECTION_DELAY + random.uniform(0, self.EPSILON)
         elif event.action == 'join':
             delay = 0.5
         else:
             raise ValueError('Unknown event type: %s' % event.action)
+        delay = 0.01
 
         if self.last_message_timestamp + delay > time.time():
             # Add reading time before start typing

@@ -1,0 +1,41 @@
+<div class="question">
+
+<div class="panel panel-default context">
+  <div class="panel-body">
+      <p><b>Context:</b></p>
+      <p>{context}</p>
+  </div>
+</div>
+
+<p><b>{response}</b></p>
+
+<div class="form-group">
+    <p>Please select all <b>problems</b> presented in the response given the above context.</p>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="grammar">NOT grammatical</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="relatedness">NOT related (off-topic)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="informativeness">NOT informative (common, generic)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="coherence">NOT coherent (illogical nor irrational)</label>
+  </div>
+  <div class="checkbox">
+  <label><input type="checkbox" name="{qid}" value="none">None of the above</label>
+  </div>
+</div>
+
+<div class="form-group">
+  <p>Please rate how appropriate the response is given the conversation above.</p>
+  <label class="radio-inline"><input type="radio" name="{qid},all" value="-2"><i class="em em-persevere"></i>NOT appropriate at all</label>
+  <label class="radio-inline"><input type="radio" name="{qid},all" value="-1"><i class="em em-worried"></i>NOT appropriate</label>
+  <label class="radio-inline"><input type="radio" name="{qid},all" value="0"><i class="em em-neutral_face"></i>Neutral</label>
+  <label class="radio-inline"><input type="radio" name="{qid},all" value="1"><i class="em em-blush"></i>Appropriate</label>
+  <label class="radio-inline"><input type="radio" name="{qid},all" value="2"><i class="em em-smile"></i>Very appropriate</label>
+</div>
+
+</div>
+<hr />

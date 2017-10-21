@@ -9,6 +9,12 @@ def get_turns_per_agent(transcript):
 
     return turns
 
+def get_total_turns(transcript):
+    n = 0
+    for event in transcript["events"]:
+        if event["action"] == "message":
+            n += 1
+    return n
 
 def get_avg_time_taken(transcript):
     events = transcript["events"]

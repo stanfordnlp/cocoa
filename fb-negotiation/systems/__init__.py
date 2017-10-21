@@ -1,15 +1,14 @@
-from core.split_tracker import SplitTracker
+from core.lexicon import Lexicon
 from rulebased_system import RulebasedSystem
 from cmd_system import CmdSystem
 
 def add_system_arguments(parser):
-    # add_price_tracker_arguments(parser)
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
 
 def get_system(name, args, schema=None, timed=False):
-    tracker = SplitTracker()
+    lexicon = Lexicon(schema.values['item'])
     if name == 'rulebased':
-        return RulebasedSystem(tracker, timed)
+        return RulebasedSystem(lexicon, timed)
     elif name == 'cmd':
         return CmdSystem()
     else:

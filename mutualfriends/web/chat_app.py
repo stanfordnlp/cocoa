@@ -20,6 +20,7 @@ from cocoa.web.main.logger import WebLogger
 from core.scenario import Scenario
 from systems import get_system, add_system_arguments
 from main.db_reader import DatabaseReader
+from main.backend import DatabaseManager
 
 __author__ = 'anushabala'
 
@@ -30,16 +31,6 @@ TRANSCRIPTS_DIR = 'transcripts'
 
 from flask import g
 from web.main.backend import Backend
-
-def init_backend(app):
-    g._backend = Backend(app.config["user_params"],
-                         app.config["schema"],
-                         app.config["scenario_db"],
-                         app.config["systems"],
-                         app.config["sessions"],
-                         app.config["controller_map"],
-                         app.config["pairing_probabilities"],
-                         app.config["num_chats_per_scenario"])
 
 ###############
 from flask import Flask, current_app
@@ -57,7 +48,7 @@ def close_connection(exception):
 def create_app(debug=False, templates_dir='templates'):
     """Create an application."""
 
-    app = Flask(__name__, template_folder=templates_dir)
+    app = Flask(__name__, template_folder=os.path.abspath(templates_dir))
     app.debug = debug
     app.config['SECRET_KEY'] = 'gjr39dkjn344_!67#'
     app.config['PROPAGATE_EXCEPTIONS'] = True
@@ -91,59 +82,6 @@ def add_website_arguments(parser):
                                                              'output directory.')
 
 
-def add_survey_table(cursor):
-    cursor.execute(
-        '''CREATE TABLE survey (name text, chat_id text, partner_type text, fluent integer,
-        correct integer, cooperative integer, human_like integer, comments text)''')
-
-
-def init_database(db_file):
-
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
-    c.execute(
-        '''CREATE TABLE active_user (name text unique, status string, status_timestamp integer,
-        connected_status integer, connected_timestamp integer, message text, partner_type text,
-        partner_id text, scenario_id text, agent_index integer, selected_index integer, chat_id text)'''
-    )
-    c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
-
-    c.execute(
-        '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
-    )
-    c.execute(
-        '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
-        start_time text)'''
-    )
-    c.execute(
-        '''CREATE TABLE scenario (scenario_id text, partner_type text, complete string, active string,
-        PRIMARY KEY (scenario_id, partner_type))'''
-    )
-    c.execute(
-        '''CREATE TABLE feedback (name text, comments text)'''
-    )
-
-    add_survey_table(c)
-
-    conn.commit()
-    conn.close()
-
-
-def add_scenarios_to_db(db_file, scenario_db, systems, update=False):
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
-    for scenario in scenario_db.scenarios_list:
-        sid = scenario.uuid
-        for agent_type in systems.keys():
-            if update:
-                c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-            else:
-                c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-
-    conn.commit()
-    conn.close()
-
-
 def add_systems(args, config_dict, schema):
     """
     Params:
@@ -166,7 +104,7 @@ def add_systems(args, config_dict, schema):
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args, timed=timed)
+                model = get_system(name, args, schema=schema, timed=timed)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -202,6 +140,7 @@ def cleanup(flask_app):
     db_path = flask_app.config['user_params']['db']['location']
     transcript_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'transcripts.json')
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     DatabaseReader.dump_chats(cursor, flask_app.config['scenario_db'], transcript_path)
     if flask_app.config['user_params']['end_survey'] == 1:
@@ -215,22 +154,26 @@ def init(output_dir, reuse=False):
     log_file = os.path.join(output_dir, LOG_FILE_NAME)
     error_log_file = os.path.join(output_dir, ERROR_LOG_FILE_NAME)
     transcripts_dir = os.path.join(output_dir, TRANSCRIPTS_DIR)
+    # TODO: don't remove everything
     if not reuse:
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
-        init_database(db_file)
+        db = DatabaseManager.init_database(db_file)
 
         if os.path.exists(transcripts_dir):
             shutil.rmtree(transcripts_dir)
         os.makedirs(transcripts_dir)
+    else:
+        db = DatabaseManager(db_file)
 
-    return db_file, log_file, error_log_file, transcripts_dir
+    return db, log_file, error_log_file, transcripts_dir
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--num-scenarios', type=int)
     add_website_arguments(parser)
     add_scenario_arguments(parser)
     add_system_arguments(parser)
@@ -240,12 +183,12 @@ if __name__ == "__main__":
     with open(params_file) as fin:
         params = json.load(fin)
 
-    db_file, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
+    db, log_file, error_log_file, transcripts_dir = init(args.output, args.reuse)
     error_log_file = open(error_log_file, 'w')
 
     WebLogger.initialize(log_file)
     params['db'] = {}
-    params['db']['location'] = db_file
+    params['db']['location'] = db.db_file
     params['logging'] = {}
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
@@ -278,7 +221,10 @@ if __name__ == "__main__":
         raise ValueError("No schema file found at %s" % schema_path)
 
     schema = Schema(schema_path)
-    scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
+    scenarios = read_json(args.scenarios_path)
+    if args.num_scenarios is not None:
+        scenarios = scenarios[:args.num_scenarios]
+    scenario_db = ScenarioDB.from_dict(schema, scenarios, Scenario)
     app.config['scenario_db'] = scenario_db
 
     if 'models' not in params.keys():
@@ -298,15 +244,17 @@ if __name__ == "__main__":
 
     systems, pairing_probabilities = add_systems(args, params['models'], schema)
 
-    add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
+    db.add_scenarios(scenario_db, systems, update=args.reuse)
+    #add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
     app.config['pairing_probabilities'] = pairing_probabilities
-    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', 1)
+    app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', {k: 1 for k in systems})
+    for k in systems:
+        assert k in app.config['num_chats_per_scenario']
     app.config['schema'] = schema
     app.config['user_params'] = params
-    app.config['sessions'] = defaultdict(None)
     app.config['controller_map'] = defaultdict(None)
     app.config['instructions'] = instructions
     app.config['task_title'] = params['task_title']

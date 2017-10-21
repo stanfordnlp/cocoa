@@ -1,0 +1,123 @@
+<html>
+    <head>
+        <title>{{title}}</title>
+        <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <style>
+    		.modal-body{
+                font-size: 16px;
+            }
+            div#report {
+                color:#ff0000;
+                position: absolute;
+                bottom: 30px;
+                right: 70px;
+            }
+            #content{
+                margin: 40px 50px;
+            }
+        </style>
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var pollInterval;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
+            $(document).ready(function(){
+            	$.ajax({
+            		url: BASE_URL +'/_connect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+          		pollInterval = setInterval(pollServer, 100);
+                window.onbeforeunload = disconnect;
+            });
+
+            function pollServer() {
+            	$.ajax({
+            		url: BASE_URL +'/_check_status_change/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}", "assumed_status": "waiting"},
+            		dataType: "json",
+            		success: function(response) {
+            			if (response['status_change']) {
+            				disconnect();
+            				window.location.reload(true);
+                    	}
+            		}
+            	});
+            }
+
+            function disconnect() {
+            	clearInterval(pollInterval);
+            	$.ajax({
+            		url: BASE_URL + '/_disconnect/',
+            		type: "get",
+            		data: {"uid": "{{ uid }}" },
+            		dataType: "json"
+            	});
+            }
+
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_init_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        disconnect();
+                        window.location.reload(true);
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
+        </script>
+    </head>
+    <body>
+    <div id="content">
+        <div>
+             <div style="float:left; margin: 0px 20px 0px 10px;">
+                <img height="120" width="120" src="{{ url_for('static', filename='img/')}}{{icon}}"/>
+            </div>
+            <div style="float:left">
+                <h2>{{title}}</h2>
+                <h3>{{ waiting_message }}</h3>
+                <h4>Make sure you have read the instructions carefully, as the task will start immediately once you are paired. </h4>
+            </div>
+        </div>
+
+        <div id="report" style="clear: both; margin: 0px 20px 0px 10px; display: block;">
+            <br><br><br><br><p style="text-align: right">Having trouble with this task? Click here to send us a report.</p>
+            <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
+        </div>
+        <div class="modal fade" id="report_box" role="dialog">
+          <div class="modal-dialog">
+
+            <!-- Modal content-->
+            <div class="modal-content">
+              <div class="modal-header">
+                <h4 class="modal-title">Report Issue</h4>
+                <b><p id="modal_instruction"></p></b>
+              </div>
+              <div class="modal-body" id="report-body">
+                <p>Describe your issues in the box below, and then click 'Submit' to submit your feedback to us.<span style="color: #ff0000"><b> Please also include your Mechanical Turk worker ID in the feedback so that we can grant you a bonus if you have significant trouble.</b></span></p>
+                <textarea id="report_feedback"></textarea>
+                <button onclick="report()" style="display: block;">Submit</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+    </div>
+
+    </body>
+</html>

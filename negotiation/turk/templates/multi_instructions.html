@@ -1,0 +1,29 @@
+<p>You will be rating <b>{batch_size}</b> sets of dialogue responses.
+<b>Please read the following instructions carefully.</b>
+</p>
+
+<p>In each question, you are given an excerpt of a conversation (the context)
+happened between a buyer and a seller negotiating the price of an
+item for sale, and two responses following the context.
+Your task is to identify problems presented in the response in the following aspects
+and rate the overall appropriateness of the response.
+</p>
+<ul>
+    <li><b>NOT grammatical:</b> there are grammatical errors, e.g. <i>I cannot give you lower.</i></li>
+    <li><b>NOT related:</b> the response is off-topic, e.g. <i>- How old is the TV? - I just bought a new one.</i></li>
+    <li><b>NOT informative:</b> the response is generic and does not contain much information, e.g. <i>- How old is the TV? - I don't know.</i></li>
+    <li><b>NOT coherent:</b> the response contradicts the context thus is not reasonable, e.g. <i>- I'm sorry. I cannot do that. - That's great! Deal.</i>, or the response itself is illogical, e.g. <i>I have used it and I have not used it.</i></li>
+</ul>
+<p>
+Mentions of prices are replaced by the symbol <b>PRICE</b>;
+you can assume the actual amount is reasonable.
+Symbols such as <b>OFFER, ACCEPT, REJECT, QUIT</b> denote corresponding actions,
+thus they should not affect the grammaticality of the sentence.
+However, given an action, you need to decide if it is reasonable given the context. For example, REJECT after agreeing to a deal (in the context) is not appropriate.
+</p>
+<p>
+<b>NOTE:</b><br>
+We use verification questions to identify abusers.
+In addition, each question is answered by multiple people.
+Outliers (e.g. randomly chosen answers) will <b>get rejected</b>.
+</p>

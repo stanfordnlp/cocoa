@@ -36,7 +36,7 @@ class DatabaseManager(object):
         c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
 
         c.execute(
-            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text)'''
+            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, template text)'''
         )
         c.execute(
             '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
@@ -61,6 +61,7 @@ class Backend(object):
     def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario, messages=Messages):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
+        self.conn.row_factory = sqlite3.Row
 
         self.do_survey = True if "end_survey" in params.keys() and params["end_survey"] == 1 else False
         self.scenario_db = scenario_db
@@ -186,14 +187,14 @@ class Backend(object):
             data = event.data
             if event.action in ('select', 'offer', 'eval'):
                 data = json.dumps(event.data)
-            return chat_id, event.action, event.agent, event.time, data, event.start_time
+            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.template)
 
         try:
             with self.conn:
                 cursor = self.conn.cursor()
                 row = _create_row(chat_id, event)
 
-                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?)''', row)
+                cursor.execute('''INSERT INTO event VALUES (?,?,?,?,?,?,?)''', row)
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
 
@@ -490,6 +491,10 @@ class Backend(object):
             print("WARNING: Rolled back transaction")
 
     def get_completion_messages(self, userid):
+        """
+        Returns:
+            my_message, partner_message
+        """
         game_over, game_complete = self.is_game_over(userid)
         if game_complete:
             msg = self.messages.ChatCompleted
@@ -694,6 +699,7 @@ class Backend(object):
                         return False
 
                 if self.check_game_over_and_transition(cursor, userid, u.partner_id):
+                    self.logger.debug("game_over_and_transition")
                     return False
 
                 return True

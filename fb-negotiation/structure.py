@@ -30,3 +30,26 @@
     YOU: if you get the [basketball], does that mean i get everything else ?
 
 during recieve, try to answer their questions
+
+
+Decoding
+
+g = 2 0 3 1 1 7
+
+2 books available
+Worth 0 points to you
+3 hats available
+Worth 1 point each
+1 ball available
+Worth 7 massive points
+
+
+
+# 1) Build out Scenarios - probably hardcoded
+# 2) Draft schema
+# 3) Figure out the KB for each agent (within the Session)
+# 4) At turn 10, give best offer, if not taken, then quit with value of 0
+
+--Notes--
+For Craigslist, the buyer always speaks first
+The description in the KB for the seller is always exactly twice the length as it is for the buyer, why is that?

@@ -1,0 +1,360 @@
+<html>
+    <head>
+        <title>{{ title }}</title>
+        <!--<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">-->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <link rel="stylesheet" type="text/css" href="../static/css/chat.css">
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.3.6/socket.io.min.js"></script>
+        <script type="text/javascript" charset="utf-8">
+            var validCheckInterval, inboxCheckInterval;
+            var BASE_URL = 'http://' + document.domain + ':' + location.port;
+            var selectTime = null, messageStartTime = null;
+            var messageTime = 0.0;
+            var turn_counter = 0;
+            var eval_data = {};
+            var utterance_regex = /(You|Partner): (.*)/;
+            {% if not debug %}
+                var read_time = 4000; // milliseconds
+            {% else %}
+                var read_time = 1000;  // In peek/debug mode, skip it
+            {% endif %}
+            $(document).ready(function(){
+                // $('#description').modal({backdrop: 'static', keyboard: false});
+                // $('#description').modal('show');
+                $("#instructionCollapse").click();
+                window.onbeforeunload = disconnect;
+
+                // document.getElementById('modal_instruction').innerHTML = "(Please read carefully! This window will automatically collapse and the chat will start after " + read_time/1000 +" seconds).";
+
+                var deadline = new Date(Date.parse(new Date()) + ({{ num_seconds }}) * 1000);
+
+                $.ajax({
+                    url: BASE_URL +'/_connect/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}" },
+                    dataType: "json"
+                });
+
+                $.ajax({
+                    url: BASE_URL + '/_join_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"},
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+                });
+                validCheckInterval = setInterval(pollServer, 3000);
+
+                $('.btn.btn-default.eval-tag').click(function () {
+                    $(this).toggleClass('btn-default btn-primary');
+                });
+
+                // This part executes after the description is shown
+                setTimeout(function(){
+                    inboxCheckInterval = setInterval(checkInbox, 1000);
+
+                    $('#text').keypress(function(e) {
+                        var code = e.keyCode || e.which;
+                        if ($('#text').val().length == 0) {
+                            messageStartTime = Date.now() / 1000.0;
+                            startedTyping();
+                        }
+                        if (code == 13) {
+                            turn_counter++
+                            if (turn_counter >= 5) {
+                                $(".yes-deal").removeAttr('disabled');
+                            }
+                            stoppedTyping();
+                            text = $('#text').val();
+                            $('#text').val('');
+                            var currentTime = Date.now() / 1000.0;
+                            messageTime = currentTime - messageStartTime;
+                            sendMessage(text);
+                            $("#text").attr("disabled", "disabled")
+                            messageStartTime = null;
+                            messageTime = 0.0;
+                        }
+
+                    });
+
+                }, read_time);  // delay due to reading the description
+            });
+
+            function done() {
+                $.ajax({
+                    url: BASE_URL +'/_done/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message'])
+                    }
+                })
+            }
+
+
+            function report() {
+                $.ajax({
+                    url: BASE_URL + '/_init_report/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}"
+                    },
+                    dataType:"json",
+                    success: function(response) {
+                        disconnect();
+                        window.location.reload(true);
+                    }
+                });
+            }
+
+            function showReportModal() {
+                $('#report_box').modal('show');
+            }
+
+            function startedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "started"
+                    }
+                });
+            }
+
+            function stoppedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "stopped"
+                    }
+                });
+            }
+
+            function displayText(message) {
+                $('#chat').val($('#chat').val() + message + '\n');
+                $('#chat').scrollTop($('#chat')[0].scrollHeight);
+            }
+
+            function displayStatus(message) {
+                $('#status').val(message);
+            }
+
+            function clearEvalTags() {
+                $('.btn.btn-primary.eval-tag').toggleClass('btn-primary btn-default');
+            }
+
+            function collectEvalTags() {
+                var data = {};
+                var sum = 0;
+                $('.eval-tag').each(function (i) {
+                    var key = $(this).attr('id');
+                    if ( $(this).hasClass('btn-primary') ) {
+                        data[key] = 1;
+                        sum += 1;
+                    } else {
+                        data[key] = 0;
+                    }
+                });
+                if (sum > 0) {
+                    return data;
+                }
+                return null;
+            }
+
+            function sendEval() {
+                if (!jQuery.isEmptyObject(eval_data)) {
+                    var labels = collectEvalTags();
+                    if ( labels != null ) {
+                        //console.log('send eval:');
+                        var data = {
+                                "uid": "{{ uid }}",
+                                "eval_data": eval_data,
+                                "labels": labels
+                            }
+                        //console.log(JSON.stringify(data))
+                        $.ajax({
+                            url: BASE_URL + '/_send_eval/',
+                            type: "post",
+                            data: JSON.stringify(data),
+                            contentType: "application/json; charset=utf-8",
+                            dataType: "json",
+                            success: function(response) {
+                                //console.log('success');
+                                clearEvalTags();
+                            }
+                        });
+                    }
+                }
+            }
+
+            function sendMessage(message) {
+                $.ajax({
+                    url: BASE_URL + '/_send_message/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "message": message,
+                        "time_taken": messageTime
+                    },
+                    dataType: "json",
+                    success: function(response) {
+                        displayText(response['message']);
+                    }
+                });
+            }
+
+            function checkInbox() {
+                $.ajax({
+                    url: BASE_URL + '/_check_inbox/',
+                    type: "get",
+                    data: { "uid": "{{ uid }}" },
+                    dataType: "json",
+                    success: function(response) {
+                        if(response['received']) {
+                            if(response['status']) {
+                                displayStatus(response['message'])
+                            } else if ('message' in response){
+                                $("#text").removeAttr('disabled');
+                                displayText(response['message']);
+
+                            }
+                        }
+                    }
+                });
+            }
+
+            function pollServer() {
+                $.ajax({
+                    url: BASE_URL + '/_check_chat_valid/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"},
+                    dataType: "json",
+                    success: function(response) {
+                        if(!response['valid']) {
+                            disconnect();
+                            window.location.reload(true);
+                        }
+                    }
+                });
+            }
+
+            function disconnect() {
+                clearInterval(validCheckInterval);
+                clearInterval(inboxCheckInterval);
+                $.ajax({
+                    url: BASE_URL + '/_leave_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"}
+                });
+                $.ajax({
+                    url: BASE_URL + '/_disconnect/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}" }
+                });
+            }
+
+            function skipChat() {
+                disconnect();
+                $.ajax({
+                    url: BASE_URL + '/_skip_chat/',
+                    type: "get",
+                    data: {"uid": "{{ uid }}"}
+                });
+                window.location.reload(true);
+            }
+
+            function getTimeRemaining(endtime) {
+                var t = Date.parse(endtime) - Date.parse(new Date());
+                t = Math.min(t, Date.parse(endtime))
+                var seconds = Math.floor((t / 1000) % 60);
+                var minutes = Math.floor((t / 1000 / 60));
+                return {
+                    'total': t,
+                    'minutes': minutes,
+                    'seconds': seconds
+                };
+            }
+
+            function initializeClock(id, endtime) {
+                var clock = document.getElementById(id);
+                var minutesSpan = clock.querySelector('.minutes');
+                var secondsSpan = clock.querySelector('.seconds');
+
+                function updateClock() {
+                    var t = getTimeRemaining(endtime);
+                    minutesSpan.innerHTML = t.minutes+':';
+                    secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+                    if (t.total/1000 <= {{ quit_after|int }} && {{ quit_enabled }}) {
+                        $("#leave").css("display", "inline-block");
+                    }
+                    if (t.total <= 0) {
+                        clearInterval(validCheckInterval);
+                        clearInterval(timeinterval);
+                        pollServer();
+                    }
+                }
+
+                updateClock();
+                var timeinterval = setInterval(updateClock, 1000);
+            }
+
+        </script>
+    </head>
+
+    <body oncopy="return false" oncut="return false" onpaste="return false">
+    <div class="clearfix">
+        <!-- Modal -->
+        <div class="modal fade" id="description" role="dialog">
+          <div class="modal-dialog">
+
+          </div>
+        </div>
+
+        <div id="info_container">
+            <h3>Talk about movies with your partner.</h3>
+            <div id="task-description">
+            <p>Chat with your partner about anything movie related, a suggested topic is {{kb.Topic}} films. After speaking for <b>at least five turns</b>, please click "Done Talking". Both of you should each speak 5-7 times each before marking a conversation as completed.
+            </p>
+            </div>
+
+            <textarea readonly id="chat"></textarea>
+            <input id="text" placeholder="Please enter here ... "><br><br>
+
+            <div id="options">
+            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;done()" style="display:inline-block" id="submit">Done Talking</button>
+            </div>
+        </div>
+
+
+        <div id="chat_container">
+            <div id="instructions">
+                <button type="button" id="instructionCollapse" class="btn btn-sm btn-info" data-toggle="collapse" data-target="#inner">Show/Hide</button>
+                <div id="inner" class="collapse">
+                    {{ instructions }}
+                </div>
+            </div>
+
+            <div id="report">
+                <p style="text-align:right">Having trouble with this task? Click here to send us a report.</p>
+                <button onclick="report()" style="display: block; float:right;" id="report">Report</button>
+            </div>
+        </div>
+
+
+
+    </div>
+    </body>
+</html>

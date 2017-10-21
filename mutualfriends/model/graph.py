@@ -1,7 +1,8 @@
 from collections import defaultdict
 import numpy as np
 from itertools import izip, islice, chain, repeat
-from cocoa.model.vocab import is_entity, Vocabulary
+from cocoa.model.vocab import Vocabulary
+from cocoa.core.entity import is_entity
 from graph_embedder_config import GraphEmbedderConfig
 
 def add_graph_arguments(parser):

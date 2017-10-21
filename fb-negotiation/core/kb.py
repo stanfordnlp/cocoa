@@ -1,32 +1,39 @@
 from cocoa.core.kb import KB as BaseKB
 
 class KB(BaseKB):
-    def __init__(self, attributes, facts):
+    def __init__(self, attributes, items):
         super(KB, self).__init__(attributes)
-        self.facts = facts
-        # "Attributes" is the schema of attributes
-        # Facts are the instiation of those atrributes for a certain agent
+        self.items = items
+        self.item_counts = {item['Name']: item['Count'] for item in items}
+        self.item_values = {item['Name']: item['Value'] for item in items}
 
     def to_dict(self):
-        return self.facts
+        return self.items
 
-    @staticmethod
-    def from_dict(attributes, raw):
-        return KB(attributes, raw)
+    @classmethod
+    def from_dict(cls, attributes, raw):
+        return cls(attributes, raw)
+
+    @classmethod
+    def from_ints(cls, attributes, names, ints):
+        """Build KB from integers.
+
+        Args:
+            names (list[str])
+            ints (list[int]): [count1, value1, count2, value2, ...]
+
+        """
+        items = []
+        assert 1. * len(ints) / len(names) == 2
+        for i, name in enumerate(names):
+            item = {'Name': name, 'Count': ints[i*2], 'Value': ints[i*2+1]}
+            items.append(item)
+        return cls(attributes, items)
 
     def dump(self):
-        books, hats, balls = self.facts['Item_counts']['book'], self.facts['Item_counts']['hat'], self.facts['Item_counts']['ball']
-        print 'Items Available: {0} books, {1} hats, {2} balls'.format(books, hats, balls)
+        item_counts = ', '.join(['{count} {item}s'.format(count=c, item=n) for n, c in self.item_counts.iteritems()])
+        print 'Items Available: {}'.format(item_counts)
 
-        items = ['book', 'hat', 'ball']
-        for item in items:
-            item_value= self.facts['Item_values'][item]
-            print 'How you value {0}: {1} points'.format(item, item_value)
+        for item, value in self.item_values.iteritems():
+            print 'How you value {0}: {1} points'.format(item, value)
         print '----------------'
-
-        # if self.facts['Strategy'] == 'obsessed':
-        #     print 'Since you only care about one item, you are obsessed.'
-        # elif self.facts['Strategy'] == 'overvalued':
-        #     print 'Since you really only care about two items, those items are overvalued.'
-        # elif self.facts['Strategy'] == 'balanced':
-        #     print 'Since you care about all items, your view is balanced.'
