@@ -3,12 +3,11 @@ from cocoa.core.controller import Controller as BaseController
 class Controller(BaseController):
     def __init__(self, scenario, sessions, chat_id=None):
         super(Controller, self).__init__(scenario, sessions, chat_id)
-        self.done = {0: False, 1: False}
+        self.done = (False, False)
 
     def event_callback(self, event):
         if event.action == 'done':
             self.done[event.agent] = True
-            # self.outcomes[event.agent] = event.data
 
     def get_result(self, agent):
         return self.get_outcome()
