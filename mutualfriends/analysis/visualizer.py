@@ -1,3 +1,4 @@
+from collections import defaultdict
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 class Visualizer(BaseVisualizer):
@@ -19,10 +20,22 @@ class Visualizer(BaseVisualizer):
         else:
             return 'num'
 
+    def compute_effectiveness_for_system(self, examples, system):
+        num_success = 0
+        for ex in examples:
+            if ex.outcome.get('reward') == 1:
+                num_success += 1
+        return {
+                'success': num_success / float(len(examples)),
+                }
+
+
     def filter(self, raw_evals):
         '''
         Only keep scenarios where all 4 agents are evaluated.
         '''
+        # TODO
+        return None
         scenario_to_agents = defaultdict(set)
         scenario_to_chats = defaultdict(set)
         for eval_ in raw_evals:

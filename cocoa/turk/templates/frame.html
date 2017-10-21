@@ -17,12 +17,6 @@
         document.form.submit();
         return true;
     }}
-
-    $.validate({{
-      onError : function($form) {{
-        alert('Validation of form failed!');
-      }}
-    }});
 </script>
 </head>
 
@@ -34,7 +28,7 @@
     <div class="panel-body">{instructions}</div>
   </div>
 
-  <form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit'>
+  <form name='mturk_form' method='post' id='mturk_form' action='https://www.mturk.com/mturk/externalSubmit' onsubmit="return validateForm()">
   <input type='hidden' value='' name='assignmentId' id='assignmentId'/>
  
   {questions}
@@ -44,7 +38,6 @@
     <textarea class="form-control" rows="2" name="comment" id="comment"></textarea>
   </div> 
 
-  <!--<button type='submit' class="btn btn-default" id='submitButton' onclick="validateForm()">Submit</button>-->
   <button type='submit' class="btn btn-default" id='submitButton'>Submit</button>
   </form>
 

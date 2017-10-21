@@ -3,43 +3,41 @@
 	    "waiting": {
 	        "num_seconds": 180
 	    },
-
 	    "chat": {
-	        "num_seconds": 300
+	        "num_seconds": 30
 	    },
-
 	    "finished": {
 	        "num_seconds": 15
 	    },
-
+	    "redirected": {
+	        "num_seconds": -1
+	    },
+	    "incomplete": {
+	        "num_seconds": -1
+	    },
+	    "reporting": {
+	        "num_seconds": -1
+	    },
         "survey": {
 	        "num_seconds": -1
 	    }
     },
 
-    "scenarios_json_file": "/home/hehe/game-dialogue/data/test-scenarios.json",
+    "scenarios_json_file": "data/test-scenarios.json",
+    "idle_timeout_num_seconds": 210,
     "connection_timeout_num_seconds": 3,
-    "templates_dir": "/home/hehe/game-dialogue/src/web/templates",
+    "templates_dir": "web/templates",
+    "images_base": "web/static/images",
     "end_survey": 1,
-    "instructions": "/home/hehe/game-dialogue/data/web/mutual-friends-instructions.html",
+    "instructions": "web/templates/instructions.html",
     "task_title": "Who's Our Mutual Friend?",
     "icon": "handshake.jpg",
+    "num_chats_per_scenario": {"rulebased": 1, "human": 0},
+    "debug": false,
     "models": {
-        "neural_bot": {
-            "active": false,
-            "type": "neural",
-            "path": "/home/hehe/game-dialogue/checkpoints/basic/checkpoint",
-            "decoding": "sample 0.5 select"
-        },
-        "neural_bot2": {
+        "rulebased": {
             "active": true,
-            "type": "neural",
-            "path": "/home/hehe/game-dialogue/checkpoints/basic2/checkpoint",
-            "decoding": "sample 0.5 select"
-        },
-        "rule_bot": {
-            "active": false,
-            "type": "simple"
+            "type": "rulebased"
         }
     }
 }

@@ -8,7 +8,6 @@
 
 <!-- JS for maneuvering text -->
 <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
-<script type="text/javascript" src="http://www.kryogenix.org/code/browser/sorttable/sorttable.js"></script>
 
 <script>
 
@@ -16,24 +15,19 @@
 
     // Ensure all questions have a selected response
     function ensureAllAnswered(){
-        fluentVal = $("#fluent").val();
-        correctVal = $("#correct").val();
         coopVal = $("#cooperative").val();
         humanVal = $("#humanlike").val();
         comments = $("#comments").val();
         //fluentVal = document.getElementById("#myRange").value
-        console.log("FLUENT: " + fluentVal);
-        console.log("HONEST: " + correctVal);
-        console.log("COOPERATIVE: " + coopVal);
-        console.log("HUMAN-LIKE: " + humanVal);
+        //console.log("COOPERATIVE: " + coopVal);
+        //console.log("HUMAN-LIKE: " + humanVal);
 
-        if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null){
+        //if (humanVal == null | correctVal == null | fluentVal == null | coopVal == null){
+        if (humanVal == null | coopVal == null){
             return false;
         }
         else{
             questionAnswers["humanlike"] = humanVal;
-            questionAnswers["correct"] = correctVal;
-            questionAnswers["fluent"] = fluentVal;
             questionAnswers["cooperative"] = coopVal;
             if(comments == null) {
             	comments = "";
@@ -110,6 +104,7 @@
 
          <div class="q">
 
+         <!--
             <p style="text-align:center;">How <strong>fluent</strong> was your partner?</p> <br>
             <form id="q_f">
                 <p style="float:left;">Not very fluent  </p>
@@ -128,6 +123,7 @@
                 <p style="float:right;">Very honest</p>
             </form>
         </div>
+        -->
 
         <br> <br>
 

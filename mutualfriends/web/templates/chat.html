@@ -1,7 +1,7 @@
 <html>
     <head>
     	<title>{{ title }}</title>
-    	<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap.min.css')}}">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 		<style>
 			.clearfix {
 				overflow: auto;
@@ -147,10 +147,36 @@
 				}
 			}
 			
+            function startedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "started"
+                    }
+                });
+            }
+
+            function stoppedTyping() {
+                $.ajax({
+                    url: BASE_URL + '/_typing_event/',
+                    type: "get",
+                    data: {
+                        "uid": "{{ uid }}",
+                        "action": "stopped"
+                    }
+                });
+            }
+
 			function displayText(message) {
 				$('#chat').val($('#chat').val() + message + '\n');
 				$('#chat').scrollTop($('#chat')[0].scrollHeight);
 			}
+
+            function displayStatus(message) {
+                $('#status').val(message);
+            }
 
 			function sendMessage(message) {
 				$.ajax({
@@ -190,7 +216,12 @@
 					dataType: "json",
 					success: function(response) {
 						if(response['received']	) {
-							displayText(response['message']);
+                            if(response['status']) {
+                                displayStatus(response['message'])
+                            } else if ('message' in response) {
+                                $("#text").removeAttr('disabled');
+                                displayText(response['message']);
+                            }
 						}
 					}
 				});
@@ -300,6 +331,7 @@
 	</div>
 
         <textarea readonly id="chat"></textarea><br><br>
+        <!-- <input readonly id="status" style="width:100%;"><br><br> -->
         <input id="text" placeholder="Enter your message here"><br><br>
 
     </div>
@@ -325,14 +357,12 @@
 			</tr>
 			</thead>
 			<tbody>
-				{% set ctr = 1 %}
 				{% for item in kb %}
 				<tr>
-					<td><a href="javascript:void(0)" onclick="makeSelection({{ctr}} - 1)"><b>Select</b></a></td>
+                    <td><a href="javascript:void(0)" onclick="makeSelection({{loop.index}} - 1)"><b>Select</b></a></td>
 					{% for attr in attributes %}
 					<td>{{item[attr]}}</td>
 					{% endfor %}
-					{% set ctr = ctr + 1 %}
 				</tr>
 				{% endfor %}
 			</tbody>

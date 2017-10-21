@@ -4,12 +4,16 @@ Preprocess examples in a dataset and generate data for models.
 
 import random
 import re
+import copy
 import numpy as np
-from cocoa.model.vocab import Vocabulary, is_entity
-from graph import Graph, GraphBatch, inv_rel, item_to_str
 from itertools import chain, izip
 from collections import namedtuple, defaultdict
-import copy
+
+from cocoa.model.vocab import Vocabulary
+from cocoa.core.entity import is_entity
+
+from graph import Graph, GraphBatch, inv_rel, item_to_str
+from core.tokenizer import tokenize
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -19,18 +23,6 @@ def add_preprocess_arguments(parser):
 
 SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO', 'SELECT', 'PAD', 'EOE'])
 markers = SpecialSymbols(EOS='</s>', GO='<go>', SELECT='<select>', PAD='<pad>', EOE='</e>')
-
-def tokenize(utterance):
-    '''
-    'hi there!' => ['hi', 'there', '!']
-    '''
-    utterance = utterance.encode('utf-8').lower()
-    # Remove '-' to match lexicon preprocess
-    for s in (' - ', '-'):
-        utterance = utterance.replace(s, ' ')
-    # Split on punctuation
-    tokens = re.findall(r"[\w']+|[.,!?;&-]", utterance)
-    return tokens
 
 word_to_num = {'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10'}
 def normalize_number(token):

@@ -1,0 +1,9 @@
+{
+    "values": {
+        "genre": ["action", "documentary", "comedy", "drama", "romance"]
+    },
+    "attributes": [
+      {"name": "Role", "value_type": "integer", "entity": true},
+      {"name": "Topic", "value_type": "genre", "entity": true}
+    ]
+}

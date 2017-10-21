@@ -14,7 +14,7 @@ from core.tokenizer import tokenize, detokenize
 from session import Session
 from systems.templates import TemplateExtractor
 
-logging.basicConfig(format='[%(lineno)d %(levelname)s]: %(message)s')
+#logging.basicConfig(format='[%(lineno)d %(levelname)s]: %(message)s')
 
 class RulebasedSession(object):
     @classmethod
@@ -69,11 +69,11 @@ class BaseRulebasedSession(Session):
         self.used_templates = set()
         self.partner_template = '<start>'
 
-        self.logger = logging.getLogger('rulebased_bot')
-        if DEBUG:
-            self.logger.setLevel(logging.DEBUG)
-        else:
-            self.logger.setLevel(logging.WARNING)
+        #self.logger = logging.getLogger('rulebased_bot')
+        #if DEBUG:
+        #    self.logger.setLevel(logging.DEBUG)
+        #else:
+        #    self.logger.setLevel(logging.WARNING)
 
     def shorten_title(self, title):
         """If the title is too long, shorten it using a generic name for filling in the templates.
@@ -284,7 +284,7 @@ class BaseRulebasedSession(Session):
         if self.partner_price and self.compare(self.my_price, self.partner_price) < 0:
             return self.agree(self.partner_price)
 
-        self.logger.debug('compromise')
+        #self.logger.debug('compromise')
         self.state['my_act'] = 'counter-price'
         self.state['curr_price'] = self.my_price
         template = self.choose_template('counter-price', context_tag=self.state['partner_act'])
@@ -395,24 +395,24 @@ class BaseRulebasedSession(Session):
         self.state['time'] += 1
 
         if not self.state['introduced'] and self.partner_price is None:
-            self.logger.debug('intro')
+            #self.logger.debug('intro')
             return self.intro()
 
         if self.kb.role == 'buyer':
             if self.state['num_inquiry'] < 1:
-                self.logger.debug('inquire')
+                #self.logger.debug('inquire')
                 return self.inquire()
 
         # TODO: add inform
 
         # Initial proposal
         if self.state['curr_price'] is None:
-            self.logger.debug('init propose')
+            #self.logger.debug('init propose')
             return self.init_propose(self.my_price)
 
         # TODO: check against agree templates
         if self.state['partner_act'] == 'agree':
-            self.logger.debug('agree')
+            #self.logger.debug('agree')
             if self.state['curr_price'] is not None:
                 return self.offer(self.state['curr_price'])
 
@@ -425,13 +425,13 @@ class BaseRulebasedSession(Session):
         elif self.state['partner_act'] in ('vague-price', 'counter-price', 'init-price'):
             return self.compromise()
         else:
-            self.logger.debug('retrieve')
-            temp = self.templates.search(self.state['partner_template'], category=self.kb.category, role=self.kb.role)
-            self.logger.debug(temp['response'])
+            #self.logger.debug('retrieve')
+            temp = self.templates.search(self.state['partner_template'], category=self.kb.category, role=self.kb.role, context_tag=self.state['partner_act'])
+            #self.logger.debug(temp['response'])
             if '{price}' in temp['response']:
                 return self.compromise()
             elif '<offer>' == temp['response']:
-                if self.deal(self.state['curr_price']):
+                if self.deal(self.state['curr_price']) and self.partner_price:
                     return self.agree(self.state['curr_price'])
                 else:
                     return self.compromise()

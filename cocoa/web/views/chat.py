@@ -53,10 +53,13 @@ def check_inbox():
             message = format_message("Your partner has joined the room.", True)
         elif event.action == 'leave':
             message = format_message("Your partner has left the room.", True)
+        # TODO: refactor task specific actions
         elif event.action == 'select':
             ordered_item = backend.schema.get_ordered_item(event.data)
             message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),
                                      True)
+        elif event.action == 'done':
+            message = format_message("Your partner is done talking.", True)
         elif event.action == 'offer':
             message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
             if 'sides' not in event.data.keys():

@@ -43,8 +43,6 @@ class Task(object):
         self.max_assignments = max_assignments
         if qualifications == 'default':
             qualifications = default_qualifications()
-        else:
-            qualifications = None
         self.qualifications = qualifications
         self.duration = duration * 60
         self.approval_delay = approval_delay * 24 * 60 * 60
@@ -180,13 +178,16 @@ class HTMLEvalTask(EvalTask):
             self.script = ''
         self.title = question_title
 
+    def create_instructions(self, batch_size):
+        return self.instructions.format(batch_size=batch_size)
+
     def create_questions(self, questions):
         hit_questions = []
         for question_group in questions:
             html_questions = self.create_question_group(question_group)
             html_hit = self.overall_template.format(
                     title=self.title,
-                    instructions=self.instructions.format(batch_size=len(question_group)),
+                    instructions=self.create_instructions(len(question_group)),
                     script=self.script,
                     questions=html_questions,
                     )

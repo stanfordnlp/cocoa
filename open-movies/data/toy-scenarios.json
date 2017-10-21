@@ -1,0 +1,102 @@
+[
+  {"attributes": [
+      {
+        "entity": true,
+        "unique": false,
+        "value_type": "genre",
+        "name": "Name",
+        "multivalued": false
+      }
+    ],
+    "uuid": "FB_4NAH8Xsdsjf8tOJP",
+    "kbs": [
+      {
+          "Role": 0,
+          "Topic": "action"
+      },{
+          "Role": 0,
+          "Topic": "action"
+      }
+    ]
+  },
+  {"attributes": [
+      {
+        "entity": true,
+        "unique": false,
+        "value_type": "genre",
+        "name": "Name",
+        "multivalued": false
+      }
+    ],
+    "uuid": "FB_ZD9aO8hfUooxFVed",
+    "kbs": [
+      {
+          "Role": 0,
+          "Topic": "documentary"
+      },{
+          "Role": 0,
+          "Topic": "documentary"
+      }
+    ]
+  },
+  {"attributes": [
+      {
+        "entity": true,
+        "unique": false,
+        "value_type": "genre",
+        "name": "Name",
+        "multivalued": false
+      }
+    ],
+    "uuid": "FB_6X4kWYEwCiTKVfDU",
+    "kbs": [
+      {
+          "Role": 0,
+          "Topic": "drama"
+      },{
+          "Role": 0,
+          "Topic": "drama"
+      }
+    ]
+  },
+  {"attributes": [
+      {
+        "entity": true,
+        "unique": false,
+        "value_type": "genre",
+        "name": "Name",
+        "multivalued": false
+      }
+    ],
+    "uuid": "FB_YNRMa1R6e7wrhUwc",
+    "kbs": [
+      {
+          "Role": 0,
+          "Topic": "comedy"
+      },{
+          "Role": 0,
+          "Topic": "comedy"
+      }
+    ]
+  },
+  {"attributes": [
+      {
+        "entity": true,
+        "unique": false,
+        "value_type": "genre",
+        "name": "Name",
+        "multivalued": false
+      }
+    ],
+    "uuid": "FB_EOnXAfo7Qh3dXtRM",
+    "kbs": [
+      {
+          "Role": 0,
+          "Topic": "romance"
+      },{
+          "Role": 0,
+          "Topic": "romance"
+      }
+    ]
+  }
+]

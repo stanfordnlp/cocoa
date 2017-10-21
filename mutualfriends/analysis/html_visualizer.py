@@ -2,7 +2,8 @@ from cocoa.analysis.html_visualizer import HTMLVisualizer as BaseHTMLVisualizer
 
 class HTMLVisualizer(BaseHTMLVisualizer):
     agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
-    questions = ("fluent", "correct", 'cooperative', "humanlike")
+    #questions = ("fluent", "correct", 'cooperative', "humanlike")
+    questions = ('cooperative', "humanlike")
 
     @classmethod
     def render_scenario(cls, scenario, img_path=None):
