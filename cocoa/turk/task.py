@@ -1,6 +1,7 @@
 import sys
 import os
 from collections import defaultdict
+from itertools import izip
 
 from boto.mturk.question import QuestionContent, Question, QuestionForm, Overview, AnswerSpecification, SelectionAnswer, FormattedContent, FreeTextAnswer, HTMLQuestion
 from boto.mturk.connection import MTurkRequestError
@@ -70,12 +71,20 @@ class Task(object):
         hit = self.mtc.create_hit(hit_type=self.hit_type_id, question=question, lifetime=self.lifetime, max_assignments=self.max_assignments)
         return hit[0].HITId
 
-    def launch_hits(self, questions):
+    def launch_hits(self, questions, question_data):
+        """Launch HITs to AMT.
+
+        Args:
+            questions (list[HTMLQuestion]): (see boto)
+            question_data (list[JSON dict]): to be written to db
+
+        """
+        assert len(questions) == len(question_data)
         decision = raw_input('About to create {} HITs that costs ${}. Continue? [Y/N]'.format(len(questions), self.reward * len(questions) * self.max_assignments))
         if decision == 'Y':
-            for q in questions:
+            for q, q_data in izip(questions, question_data):
                 hit_id = self.create_hit(q)
-                self.db[hit_id] = {}
+                self.db[hit_id] = {'data': q_data}
             self.dump_db()
             print "Your HIT has been created. You can see it at this link:"
             print "https://workersandbox.mturk.com/mturk/preview?groupId={}".format(self.hit_type_id)
@@ -183,6 +192,7 @@ class HTMLEvalTask(EvalTask):
 
     def create_questions(self, questions):
         hit_questions = []
+        question_data = []
         for question_group in questions:
             html_questions = self.create_question_group(question_group)
             html_hit = self.overall_template.format(
@@ -196,7 +206,14 @@ class HTMLEvalTask(EvalTask):
             #    import sys; sys.exit()
             html_hit = HTMLQuestion(html_hit, 600)
             hit_questions.append(html_hit)
-        return hit_questions
+            question_data.append(self.json_question_data(question_group))
+        return hit_questions, question_data
+
+    def json_question_data(self, questions):
+        """JSON dict of questions in a HIT.
+        """
+        data = {qid: {'context': context, 'response': response} for qid, context, response in questions}
+        return data
 
     def create_question_group(self, questions):
         html_questions = []

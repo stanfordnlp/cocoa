@@ -92,7 +92,7 @@ if __name__ == '__main__':
         #references, selected_ids = data.sample_examples(args.num_eval, evaluated=evaluated_qids, systems=['reference'])
         #random.shuffle(questions)
 
-        #task.launch_hits(task.create_questions([questions]))
+        #task.launch_hits(*task.create_questions([questions]))
         #import sys; sys.exit()
 
         num_questions_per_hit = args.num_questions_per_hit - args.num_test_questions
@@ -109,4 +109,4 @@ if __name__ == '__main__':
             #batch.extend(references[j: j+args.num_test_questions])
             #j += args.num_test_questions
             batch_questions.append(batch)
-        task.launch_hits(task.create_questions(batch_questions))
+        task.launch_hits(*task.create_questions(batch_questions))
