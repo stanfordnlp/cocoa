@@ -1,7 +1,9 @@
 import argparse
 import time
+import re
 import numpy as np
 from collections import defaultdict, Counter
+from itertools import ifilter
 
 from cocoa.core.entity import is_entity, CanonicalEntity, Entity
 from cocoa.core.schema import Schema
@@ -21,7 +23,15 @@ class DefaultInverseLexicon(object):
             pass
         else:
             raise TypeError('Unknown entity')
-        return Entity(entity.value, entity)
+
+        s = re.sub(r',|-|&', ' ', entity.value)
+        tokens = [tok for tok in ifilter(lambda x: x.lower() not in ('the', 'of', 'and'), s.split())]
+        if entity.type == 'school':
+            tokens = [tok for tok in ifilter(lambda x: x.lower() not in ('university', 'college', 'state', 'at'), tokens)]
+        elif entity.type == 'company':
+            tokens = [tok for tok in ifilter(lambda x: x.lower() not in ('at', 'company', 'corporation', 'group'), tokens)]
+        surface = ' '.join(tokens[:2])
+        return Entity(surface, entity)
 
 
 class InverseLexicon(DefaultInverseLexicon):
