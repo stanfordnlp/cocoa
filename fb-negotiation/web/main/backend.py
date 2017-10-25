@@ -5,6 +5,7 @@ import time
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
+from cocoa.web.views.utils import format_message
 from cocoa.web.main.states import SurveyState
 from cocoa.analysis.utils import get_total_turns
 
@@ -49,6 +50,16 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
 
 class Backend(BaseBackend):
+    def display_received_event(self, event):
+        if event.action == 'select':
+            message = format_message("Your partner selected items and marked deal as agreed!", True)
+            return {'message': message, 'status': False}
+        elif event.action == 'reject':
+            message = format_message("Your partner declared there was no deal!", True)
+            return {'message': message, 'status': False}
+        else:
+            return super(Backend, self).display_received_event(event)
+
     def should_reject_chat(self, userid, agent_idx, outcome):
         with self.conn:
             controller = self.controller_map[userid]

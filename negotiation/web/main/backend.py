@@ -5,6 +5,7 @@ import time
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status, Messages
+from cocoa.web.views.utils import format_message
 from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
@@ -48,6 +49,19 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
 
 class Backend(BaseBackend):
+    def display_received_event(self, event):
+        if event.action == 'offer':
+            message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
+            return {'message': message, 'status': False, 'price': event.data['price']}
+        elif event.action == 'accept':
+            message = format_message("Congrats, your partner accepted your offer!", True)
+            return {'message': message, 'status': False}
+        elif event.action == 'reject':
+            message = format_message("Sorry, your partner rejected your offer.", True)
+            return {'message': message, 'status': False}
+        else:
+            return super(Backend, self).display_received_event(event)
+
     def should_reject_chat(self, userid, agent_idx):
         with self.conn:
             controller = self.controller_map[userid]

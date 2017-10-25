@@ -46,42 +46,10 @@ def check_inbox():
     uid = userid()
     event = backend.receive(uid)
     if event is not None:
-        message = None
-        if event.action == 'message':
-            message = format_message(u"Partner: {}".format(event.data), False)
-        elif event.action == 'join':
-            message = format_message("Your partner has joined the room.", True)
-        elif event.action == 'leave':
-            message = format_message("Your partner has left the room.", True)
-        # TODO: refactor task specific actions
-        elif event.action == 'select':
-            ordered_item = backend.schema.get_ordered_item(event.data)
-            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])),
-                                     True)
-        elif event.action == 'done':
-            message = format_message("Your partner is done talking.", True)
-        elif event.action == 'offer':
-            message = format_message("Your partner made an offer. View it on the right and accept or reject it.", True)
-            if 'sides' not in event.data.keys():
-                sides = None
-            return jsonify(message=message, received=True, price=event.data['price'], sides=None, timestamp=event.time)
-
-        elif event.action == 'accept':
-            message = format_message("Congrats, your partner accepted your offer!", True)
-            return jsonify(message=message, received=True, timestamp=event.time)
-        elif event.action == 'reject':
-            message = format_message("Sorry, your partner rejected your offer.", True)
-            return jsonify(message=message, received=True, timestamp=event.time)
-        elif event.action == 'typing':
-            if event.data == 'started':
-                message = "Your partner is typing..."
-            else:
-                message = ""
-            return jsonify(message=message, status=True, received=True, timestamp=event.time)
-        elif event.action == 'eval':
-            return jsonify(status=False, received=True, timestamp=event.time)
-        return jsonify(message=message, status=False, received=True, timestamp=event.time)
-    return jsonify(status=False, received=False)
+        data = backend.display_received_event(event)
+        return jsonify(received=True, timestamp=event.time, **data)
+    else:
+        return jsonify(received=False)
 
 
 @chat.route('/_typing_event/', methods=['GET'])

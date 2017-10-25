@@ -5,6 +5,8 @@ import time
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status, Messages
+from cocoa.web.views.utils import format_message
+from cocoa.analysis.utils import reject_transcript
 
 from db_reader import DatabaseReader
 from core.event import Event
@@ -46,6 +48,14 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
 
 class Backend(BaseBackend):
+    def display_received_event(self, event):
+        if event.action == 'select':
+            ordered_item = self.schema.get_ordered_item(event.data)
+            message = format_message("Your partner selected: {}".format(", ".join([v[1] for v in ordered_item])), True)
+            return {'message': message, 'status': False}
+        else:
+            return super(Backend, self).display_received_event(event)
+
     def select(self, userid, idx):
         try:
             with self.conn:
@@ -54,7 +64,6 @@ class Backend(BaseBackend):
                 scenario = self.scenario_db.get(u.scenario_id)
                 kb = scenario.get_kb(u.agent_index)
                 item = kb.items[idx]
-                print 'selected:', item
                 self.send(userid, Event.SelectionEvent(u.agent_index,
                                                        item,
                                                        str(time.time())))
@@ -62,6 +71,43 @@ class Backend(BaseBackend):
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
             return None
+
+    def should_reject_chat(self, userid, agent_idx):
+        with self.conn:
+            controller = self.controller_map[userid]
+            cursor = self.conn.cursor()
+            chat_id = controller.get_chat_id()
+            ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db)
+            if sum([1 if event.agent == agent_idx and event.action == 'select' else 0 for event in ex.events]) > 3:
+                return True
+            return False
+
+    def check_game_over_and_transition(self, cursor, userid, partner_id):
+        agent_idx = self.get_agent_idx(userid)
+        game_over, game_complete = self.is_game_over(userid)
+        controller = self.controller_map[userid]
+        chat_id = controller.get_chat_id()
+
+        def verify_chat(userid, agent_idx, is_partner):
+            user_name = 'partner' if is_partner else 'user'
+            if self.should_reject_chat(userid, agent_idx):
+                self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
+                                  "redirecting".format(chat_id, user_name, userid, agent_idx))
+                self.end_chat_and_redirect(cursor, userid,
+                                           message=self.messages.Redirect + " " + self.messages.Waiting)
+            else:
+                msg, _ = self.get_completion_messages(userid)
+                self.logger.debug("Accepted chat with ID {:s} for {:s} {:s} (agent ID {:d}), and redirecting to "
+                                  "survey".format(chat_id, user_name, userid, agent_idx))
+                self.end_chat_and_finish(cursor, userid, message=msg)
+
+        if game_over:
+            if not self.is_user_partner_bot(cursor, userid):
+                verify_chat(partner_id, 1 - agent_idx, True)
+            verify_chat(userid, agent_idx, False)
+            return True
+
+        return False
 
     def submit_survey(self, userid, data):
         def _user_finished(userid):

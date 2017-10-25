@@ -8,10 +8,11 @@ from collections import defaultdict
 import json
 
 from cocoa.systems.human_system import HumanSystem
+from cocoa.web.views.utils import format_message
+
 from core.controller import Controller
 from states import FinishedState, UserChatState, WaitingState, SurveyState
-from utils import Status, UnexpectedStatusException, ConnectionTimeoutException, \
-    StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
+from utils import Status, UnexpectedStatusException, ConnectionTimeoutException, StatusTimeoutException, NoSuchUserException, Messages, current_timestamp_in_seconds, User
 from db_reader import DatabaseReader
 from logger import WebLogger
 
@@ -73,6 +74,38 @@ class Backend(object):
         self.num_chats_per_scenario = num_chats_per_scenario
         self.logger = WebLogger.get_logger()
         self.messages = messages
+
+    def display_received_event(self, event):
+        """Convert a received event to string to be shown in the chat box.
+
+        See templates/chat.html ajax call /_check_inbox/ and views/chat.py.
+
+        Returns:
+            message (str)
+            status (bool): Whether the message should be displayed in the status bar
+
+        """
+        status = False
+        if event.action == 'message':
+            message = format_message(u"Partner: {}".format(event.data), False)
+        elif event.action == 'join':
+            message = format_message("Your partner has joined the room.", True)
+        elif event.action == 'leave':
+            message = format_message("Your partner has left the room.", True)
+        elif event.action == 'typing':
+            status = True
+            if event.data == 'started':
+                message = "Your partner is typing..."
+            else:
+                message = ""
+        #elif event.action == 'eval':
+        #    message = None
+        else:
+            message = None
+        data = {'status': status}
+        if message is not None:
+            data['message'] = message
+        return data
 
     def _update_user(self, cursor, userid, **kwargs):
         if "status" in kwargs:
