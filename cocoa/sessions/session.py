@@ -54,3 +54,6 @@ class Session(object):
 
     def message(self, text):
         return Event.MessageEvent(self.agent, text, time=self.timestamp())
+
+    def wait(self):
+        return None
