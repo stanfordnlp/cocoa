@@ -2,7 +2,7 @@ from cocoa.core.controller import Controller as BaseController
 
 class Controller(BaseController):
     def __init__(self, scenario, sessions, chat_id=None):
-        super(Controller, self).__init__(scenario, sessions, chat_id)
+        super(Controller, self).__init__(scenario, sessions, chat_id, allow_cross_talk=True)
         self.selections = [None, None]
 
     def event_callback(self, event):

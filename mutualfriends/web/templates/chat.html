@@ -123,6 +123,7 @@
 						var currentTime = Date.now() / 1000.0;
 						messageTime = currentTime - messageStartTime;
 						sendMessage(text);
+                        //$("#text").attr("disabled", "disabled")
 						messageStartTime = null;
 						messageTime = 0.0;
 					}
@@ -219,7 +220,7 @@
                             if(response['status']) {
                                 displayStatus(response['message'])
                             } else if ('message' in response) {
-                                $("#text").removeAttr('disabled');
+                                //$("#text").removeAttr('disabled');
                                 displayText(response['message']);
                             }
 						}

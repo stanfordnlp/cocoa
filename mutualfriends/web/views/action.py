@@ -8,7 +8,6 @@ action = Blueprint('action', __name__)
 def select():
     backend = get_backend()
     selection_id = int(request.args.get('selection'))
-    print selection_id
     if selection_id == -1:
         return
     selected_item = backend.select(userid(), selection_id)
