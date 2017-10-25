@@ -22,11 +22,22 @@ class Visualizer(BaseVisualizer):
 
     def compute_effectiveness_for_system(self, examples, system):
         num_success = 0
+        total = 0
+        chat_ids_with_survey = self.surveys[0][1].keys()
+        n_select = 0
+        n_turns = 0
         for ex in examples:
-            if ex.outcome.get('reward') == 1:
-                num_success += 1
+            # TODO
+            if ex.ex_id in chat_ids_with_survey:
+                n_select += sum([1 if e.action == 'select' else 0 for e in ex.events])
+                n_turns += len(ex.events)
+                total += 1
+                if ex.outcome['reward'] == 1:
+                    num_success += 1
         return {
-                'success': num_success / float(len(examples)),
+                'success per select': num_success / float(n_select),
+                'success per turn': num_success / float(n_turns),
+                'success': num_success / float(total),
                 }
 
 
