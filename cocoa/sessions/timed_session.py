@@ -41,15 +41,17 @@ class TimedSessionWrapper(Session):
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
-        self.last_message_timestamp = time.time()
+        if len(self.queued_event) == 0:
+            self.last_message_timestamp = time.time()
+        self.num_utterances = 0
         self.session.receive(event)
         self.received = True
-        self.num_utterances = 0
-        self.queued_event.clear()
+        #self.queued_event.clear()
 
     def send(self):
-        #if self.num_utterances >= 2:
-        #    return None
+        # TODO: even if cross talk is enabled, we don't want the bot to talk in a row
+        if self.num_utterances >= 1:
+            return None
         if self.received is False and (self.prev_action == 'select' or \
             self.last_message_timestamp + random.uniform(1, self.PATIENCE) > time.time()):
             return None
@@ -73,7 +75,6 @@ class TimedSessionWrapper(Session):
             delay = 0.5
         else:
             raise ValueError('Unknown event type: %s' % event.action)
-        delay = 0.01
 
         if self.last_message_timestamp + delay > time.time():
             # Add reading time before start typing
