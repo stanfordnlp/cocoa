@@ -4,7 +4,7 @@
 	        "num_seconds": 180
 	    },
 	    "chat": {
-	        "num_seconds": 30
+	        "num_seconds": 300
 	    },
 	    "finished": {
 	        "num_seconds": 15

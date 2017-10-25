@@ -2,7 +2,7 @@ import random
 import re
 from collections import defaultdict
 import numpy as np
-from itertools import izip
+from itertools import izip, ifilter
 
 from cocoa.core.sample_utils import sample_candidates
 from cocoa.core.entity import is_entity, CanonicalEntity
@@ -24,7 +24,7 @@ class Fact(object):
             entity (CanonicalEntity)
             count (int): given the constraint (i.e. among `items`), the number of items having `entity`
         """
-        self.constraint = sorted(constraint)
+        self.constraint = constraint
         self.entity = entity
         self.count = count
         self.items = items
@@ -32,12 +32,15 @@ class Fact(object):
     def key(self):
         """Return a key used to identify the fact.
         """
-        return tuple(self.constraint + [self.entity])
+        return tuple(sorted(self.to_constraint()))
 
+    def to_constraint(self):
+        if self.entity:
+            return self.constraint + [self.entity]
+        else:
+            return self.constraint
 
 class RulebasedSession(Session):
-    greetings = ['hi', 'hello', 'hey', 'hiya']
-
     def __init__(self, agent, kb, lexicon, realizer):
         super(RulebasedSession, self).__init__(agent)
         self.agent = agent
@@ -54,9 +57,6 @@ class RulebasedSession(Session):
         self.said_hi = False
         self.matched_item = None
 
-        self.capitalize = random.choice([True, False])
-        self.numerical = random.choice([True, False])
-
         self.hypothesis_set = list(kb.items)
         self.state = {
                 'partner_entities': [],
@@ -66,37 +66,37 @@ class RulebasedSession(Session):
                 'selected': False,
                 'informed_facts': set(),
                 'curr_constraint': None,
+                'selected_items': [],
                 }
 
-    def get_subset(self, constraints):
-        subset = [item for item in self.hypothesis_set if self.satisfy(item, constraints)]
+    def get_subset(self, constraint):
+        subset = [item for item in self.hypothesis_set if self.satisfy(item, constraint)]
         return subset
 
-    def satisfy(self, item, constraints):
-        """Satisfy OR constraints.
-        """
-        if not constraints:
-            return True
-        for constraint in constraints:
-            if self._satisfy(item, constraint):
-                return True
-        return False
-
-    def _satisfy(self, item, constraint):
-        """Satisfy AND constraints.
+    def satisfy(self, item, constraint):
+        """Whether the `item` contains entities in the `constraint`.
         """
         for entity in constraint:
             if item[self.attr_type_to_name[entity.type]].lower() != entity.value:
                 return False
         return True
 
-    def entropy(self, value_counts):
-        h = 0
-        total = len(value_counts)
-        for val, count in value_counts.iteritems():
-            p = float(count) / total
-            h -= p * np.log(p)
-        return h
+    #def entropy(self, value_counts):
+    #    h = 0
+    #    total = len(value_counts)
+    #    for val, count in value_counts.iteritems():
+    #        p = float(count) / total
+    #        h -= p * np.log(p)
+    #    return h
+
+    #def sort_columns(self, items, fixed_attributes):
+    #    columns = [attr_name for attr_name in self.attr_type if not attr_name in fixed_attributes]
+    #    column_entropy = []
+    #    for col in columns:
+    #        value_counts = self.get_value_counts(items, col)
+    #        h = self.entropy(value_counts)
+    #        column_entropy.append((col, h))
+    #    return sorted(column_entropy, key=lambda x: x[1])
 
     def get_value_counts(self, items, col):
         values = [item[col].lower() for item in items]
@@ -105,17 +105,7 @@ class RulebasedSession(Session):
             value_counts[val] += 1
         return value_counts
 
-    def sort_columns(self, items, fixed_attributes):
-        columns = [attr_name for attr_name in self.attr_type if not attr_name in fixed_attributes]
-        print 'columns to select:', columns
-        column_entropy = []
-        for col in columns:
-            value_counts = self.get_value_counts(items, col)
-            h = self.entropy(value_counts)
-            column_entropy.append((col, h))
-        return sorted(column_entropy, key=lambda x: x[1])
-
-    def select_facts_from_column(self, constraint, items, attr_name):
+    def select_facts_from_column(self, constraint, items, attr_name, n=2):
         value_counts = self.get_value_counts(items, attr_name)
         type_ = self.attr_type[attr_name]
         facts = []
@@ -124,27 +114,26 @@ class RulebasedSession(Session):
             fact = Fact(constraint=constraint, entity=entity, items=items, count=count)
             if not fact.key() in self.state['informed_facts']:
                 facts.append(fact)
-        return facts[:2]
+        return facts[:n]
 
     def select_facts(self, constraints, n=2):
         print 'select_facts'
         facts = []
+        optional_facts = []
         for constraint in constraints:
             print 'constraint:', constraint
-            items = self.get_subset([constraint])
-            if not items:
-                facts.append(Fact(constraint=constraint, count=0))
-            elif len(constraint) == len(self.kb.attributes):
-                facts.append(Fact(constraint=constraint, items=items))
+            items = self.get_subset(constraint)
+            if not items or len(constraint) == len(self.kb.attributes):
+                facts.append(Fact(constraint=constraint, count=len(items), items=items))
             else:
                 fixed_attributes = [self.attr_type_to_name[entity.type] for entity in constraint]
                 print 'fixed:', fixed_attributes
-                for attr_name, entropy in self.sort_columns(items, fixed_attributes):
+                #for attr_name, entropy in self.sort_columns(items, fixed_attributes):
+                for attr_name in ifilter(lambda x: not x in fixed_attributes, self.attr_type):
                     col_facts = self.select_facts_from_column(constraint, items, attr_name)
-                    if col_facts:
-                        facts.extend(col_facts)
-                        break
-        return facts[:n]
+                    optional_facts.extend(col_facts)
+        optional_facts.sort(key=lambda fact: fact.count, reverse=True)
+        return facts + optional_facts[:1]
 
     def entities_to_constraints(self, entities):
         """Decide relations between multiple entities heuristically.
@@ -174,9 +163,9 @@ class RulebasedSession(Session):
             combined = False
             for fact in prev_facts:
                 if fact.count > 0:
-                    new_constraint = tuple(set(constraint + fact.constraint + [fact.entity]))
+                    new_constraint = list(set(constraint + fact.to_constraint()))
                     print 'new constraint:', new_constraint
-                    if len(self.get_subset([new_constraint])) > 0:
+                    if len(self.get_subset(new_constraint)) > 0:
                         new_constraints.append(new_constraint)
                         print 'combined'
                         combined = True
@@ -184,6 +173,8 @@ class RulebasedSession(Session):
                 new_constraints.append(constraint)
         return new_constraints
 
+    def realize(self, entity):
+        return self.realizer._realize_entity(entity).surface
 
     def fact_to_str(self, fact, include_count=True, prefix=False, question=False):
         fact_str = []
@@ -192,9 +183,11 @@ class RulebasedSession(Session):
         if fact.count == 0:
             return 'no {}'.format(constraint_str)
         # TODO:
+        if len(fact.constraint) > 1:
+            prefix = True
         entities = [(fact.entity, fact.count)]
         for i, (entity, count) in enumerate(entities):
-            entity_str = self.realizer._realize_entity(entity).surface
+            entity_str = self.realize(entity)
             if prefix:
                 if entity.type == 'name':
                     p = 'named'
@@ -232,18 +225,9 @@ class RulebasedSession(Session):
         else:
             return 'some'
 
-    def naturalize(self, text):
-        tokens = text.split()
-        if self.capitalize:
-            tokens[0] = tokens[0].title()
-            tokens = ['I' if x == 'i' else x for x in tokens]
-        if not self.numerical:
-            tokens = [num_to_word[x] if x in num_to_word else x for x in tokens]
-        return ' '.join(tokens)
-
     def guess(self, facts):
         for fact in facts:
-            if len(fact.constraint) == len(self.kb.attributes):
+            if len(fact.items) > 0 and len(fact.constraint) == len(self.kb.attributes):
                 return random.choice(fact.items)
         return None
 
@@ -260,16 +244,30 @@ class RulebasedSession(Session):
         self.state['informed_facts'].update([fact.key() for fact in facts])
         self.state['my_query'] = facts
         messages = []
-        if random.random() < 0.5 or (ask is False or not fact.entity == 0):
-            for fact in facts:
-                fact_str = self.fact_to_str(fact, prefix=random.choice([False, True]))
-                message = 'i have {}.'.format(fact_str)
-                messages.append(message)
+        def _inform(i, fact):
+            if fact.count == 0 and len(fact.constraint) > 2:
+                return 'nope.'
+            fact_str = self.fact_to_str(fact, prefix=random.choice([False, True]))
+            prefix = 'i have' if i == 0 and fact.count != 0 else ''
+            message = '{prefix} {fact}.'.format(prefix=prefix, fact=fact_str)
+            return message
+        def _ask(i, fact):
+            fact_str = self.fact_to_str(fact, include_count=False, prefix=random.choice([False, True]), question=True)
+            prefix = 'any' if i == 0 else 'or'
+            message = '{prefix} {fact}?'.format(prefix=prefix, fact=fact_str)
+            return message
+        # TODO:
+        facts = sorted(facts, key=lambda x: x.count)
+        if len(facts) == 1 and len(facts[0].constraint) > 1:
+            messages.append('{}?'.format(self.realize(facts[0].entity)))
         else:
-            for fact in facts:
-                fact_str = self.fact_to_str(fact, include_count=False, prefix=random.choice([False, True]), question=True)
-                message = 'do you have any {}?'.format(fact_str)
-                messages.append(message)
+            for i, fact in enumerate(facts):
+                if ask is False or fact.count == 0:
+                    messages.append(_inform(i, fact))
+                elif i > 0 and facts[0].count == 0:
+                    messages.append(_ask(0, fact))
+                else:
+                    messages.append(_inform(i, fact))
         return self.message(' '.join(messages))
 
     def answer(self, constraints):
@@ -277,21 +275,17 @@ class RulebasedSession(Session):
 
     def send(self):
         if self.matched_item:
-            if not self.state['selected']:
-                self.state['selected'] = True
-                return self.select(self.matched_item)
+            if self.matched_item in self.state['selected_items']:
+                return self.wait()
             else:
-                return None
+                return self.select(self.matched_item)
 
-        # Say hi first
-        #if not self.said_hi:
-        #    self.said_hi = True
-        #    text = random.choice(self.greetings)
-        #    return self.message(text)
-
-        if self.state['partner_entities']:
+        if len(self.state['partner_entities']) > 0:
             constraints = self.entities_to_constraints(self.state['partner_entities'])
-            constraints = self.combine_constraints(constraints, self.state['my_query'])
+            partner_facts = [Fact(constraint=c) for c in constraints]
+            self.state['informed_facts'].update([f.key() for f in partner_facts])
+            if self.state['partner_act'] in ('ask', 'inform'):
+                constraints = self.combine_constraints(constraints, self.state['my_query'])
         else:
             constraints = [[]]
 
@@ -299,13 +293,19 @@ class RulebasedSession(Session):
         if self.state['partner_act'] == 'ask' and self.state['partner_entities']:
             return self.answer(constraints)
 
-        # Inform or Ask or Select
-        if len(self.hypothesis_set) > 3:
+        if len(self.hypothesis_set) > 2:
             return self.inform(constraints)
         else:
-            # TODO: Don't repeatedly select one item
-            item = random.choice(self.hypothesis_set)
+            items = [item for item in self.hypothesis_set if not item in self.state['selected_items']]
+            # Something went wrong...Reset.
+            if len(items) == 0:
+                self.hypothesis_set = self.kb.items
+                return self.inform(constraints)
+            item = random.choice(items)
+            self.state['selected_items'].append(item)
             return self.select(item)
+
+        raise Exception('Uncatched case')
 
     def is_question(self, tokens):
         first_word = tokens[0]
@@ -314,16 +314,11 @@ class RulebasedSession(Session):
             return True
         return False
 
-    def is_neg(self, tokens):
-        if len([x for x in tokens if x in ('no', 'none', "don't", 'zero')]) > 0:
-            return True
-        return False
-
-    def exclude(self, constraints):
-        print 'exclude:', constraints
+    def exclude(self, constraint):
+        print 'EXCLUDE:', constraint
         items = []
         for item in self.hypothesis_set:
-            if not self.satisfy(item, constraints):
+            if not self.satisfy(item, constraint):
                 items.append(item)
         if items:
             self.hypothesis_set = items
@@ -331,34 +326,56 @@ class RulebasedSession(Session):
             # Something went wrong... Reset.
             self.hypothesis_set = kb.items
 
+    # TODO: add to prev entities
+    #def select(self, item):
+
+    def parse_entities(self, entity_tokens):
+        neg = False
+        has_neg = False
+        prev_entities = set([e for fact in self.state['my_query'] for e in fact.to_constraint()])
+        exclude_entities = []
+        entities = []
+        neg_words = ('no', "don't", 'not', 'none', 'zero', 'nope', 'nobody')
+        sentence_delimiter = ('.', ',', ';')
+        for i, token in enumerate(entity_tokens):
+            if token in neg_words:
+                neg = True
+                has_neg = True
+            elif token in sentence_delimiter:
+                neg = False
+            elif is_entity(token):
+                entity = token.canonical
+                if neg and (entity in prev_entities or (i > 0 and entity_tokens[i-1] in neg_words)):
+                    exclude_entities.append(entity)
+                elif entity not in entities:
+                    entities.append(entity)
+        if has_neg and not exclude_entities:
+            exclude_constraints = [fact.to_constraint() for fact in self.state['my_query']]
+        else:
+            exclude_constraints = self.entities_to_constraints(exclude_entities)
+        # Agree
+        if not has_neg and not entities and not self.is_question(entity_tokens):
+            entities = prev_entities
+        return entities, exclude_constraints
+
     def receive(self, event):
         if event.action == 'message':
             raw_utterance = event.data
             entity_tokens = self.lexicon.link_entity(tokenize(raw_utterance), kb=self.kb, mentioned_entities=self.mentioned_entities, known_kb=False)
-            print entity_tokens
 
-            entities = [word.canonical for word in entity_tokens if is_entity(word)]
+            entities, exclude_constraints = self.parse_entities(entity_tokens)
             self.mentioned_entities.update([entity.value for entity in entities])
+            for constraint in exclude_constraints:
+                self.exclude(constraint)
 
+            self.state['partner_entities'] = entities
             if self.is_question(entity_tokens):
                 self.state['partner_act'] = 'ask'
             else:
-                self.state['partner_act'] = None
-            print 'received entities:', entities
-            print 'partner act:', self.state['partner_act']
+                self.state['partner_act'] = 'inform'
 
-            if self.is_neg(entity_tokens):
-                if len(entities) == 0:
-                    for fact in self.state['my_query']:
-                        constraint_ = fact.constraint + [fact.entity]
-                        self.exclude([constraint_])
-                elif len(entities) == 1:
-                    constraint_ = [entity]
-                    self.exclude([constraint_])
-                else:
-                    self.state['partner_entities'] = entities
-            else:
-                self.state['partner_entities'] = entities
+            print 'RECEIVE:', self.state['partner_act']
+            print entity_tokens
         elif event.action == 'select':
             for item in self.kb.items:
                 if item == event.data:
