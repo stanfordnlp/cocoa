@@ -8,4 +8,4 @@ class RulebasedSystem(BaseRulebasedSystem):
         self.tracker = tracker
 
     def _new_session(self, agent, kb, config=None):
-        return RulebasedSession.get_session(agent, kb, self.tracker, config)
+        return RulebasedSession(agent, kb, self.tracker, config)
