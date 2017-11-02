@@ -5,100 +5,173 @@ import re
 import operator
 from collections import namedtuple, defaultdict
 
-from cocoa.core.entity import is_entity
+from cocoa.core.entity import is_entity, Entity
 
 from session import Session
 from core.tokenizer import tokenize
 
-class RulebasedSession(object):
-    @staticmethod
-    def get_session(agent, kb, tracker, config=None):
-        return BaseRulebasedSession(agent, kb, tracker, config)
+class RulebasedSession(Session):
+    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could'])
+    greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
 
-Config = namedtuple('Config', ['target', 'bottomline', 'patience'])
-default_config = Config(8, 5, 10)
-
-class BaseRulebasedSession(Session):
-    def __init__(self, agent, kb, lexicon, config):
-        super(BaseRulebasedSession, self).__init__(agent)
+    def __init__(self, agent, kb, lexicon, config, templates):
+        super(RulebasedSession, self).__init__(agent)
         self.kb = kb
-
         self.lexicon = lexicon
-        self.my_proposal = None
-        self.their_proposal = None
-        self.config = default_config if config is None else config
+        self.templates = templates
+        self.known_movies = self.templates.known_movies()
 
         self.state = {
-                'selected': False,
-                'my_action': None,
-                'their_action': None,
-                'num_utterance_sent': 0,
-                'time': 0
+                'my_act': ('<start>', None),
+                'partner_act': ('<start>', None),
+                'curr_movie': None,
+                'movie_informed': defaultdict(list),
                 }
 
-    def propose(self, proposal):
-        self.state['proposed'] = True
-        templates = [
-                "i need {my_offer}, you can have the rest.",
-                "how about i get {my_offer}?",
-                "i would like {my_offer}.",
-                "i'll take {my_offer}",
-                "you get {their_offer}, i take the rest.",
-                ]
-        s = random.choice(templates).format(
-                my_offer=self.offer_to_string(proposal[self.agent]),
-                their_offer=self.offer_to_string(proposal[1-self.agent]))
-        return self.message(s)
+        self.used_templates = set()
 
-    def is_neg(self, tokens):
+    def is_question(self, tokens):
+        if len(tokens) < 1:
+            return False
+        last_word = tokens[-1].lower()
+        first_word = tokens[0].lower()
+        return last_word == '?' or first_word in self.question_words
+
+    def is_greeting(self, tokens):
         for token in tokens:
-            if token in ("nope", "not", "cannot", "n't", "sorry", "no"):
+            if token.lower() in self.greeting_words:
                 return True
         return False
 
-    def intro(self):
-        self.state['my_action'] = 'intro'
-        s = [  "What movies do you like to watch?",
-                "What is your favorite action movie?",
-                "Hi, what is your favorite movie?"
-            ]
-        return self.message(random.choice(s))
+    def is_bye(self, tokens):
+        s = ' '.join(tokens)
+        if 'bye' in tokens or re.search(r'(great|nice|fun) (talking|chatting)', s):
+            return True
+        return False
 
-    def generic_response(self):
-        self.state['my_action'] = 'counting'
-        s = "this is my {} time talking".format(self.state['time']/2)
-        return self.message(s)
-
+    # TODO: factorize parser
+    # TODO: use enumerator for tags
     def receive(self, event):
         if event.action == 'done':
-            self.state['num_utterance_sent'] = 0
-            self.state['their_action'] = 'done'
+            self.state['partner_act'] = ('done', None)
         elif event.action == 'message':
-            self.state['num_utterance_sent'] = 0
-            self.state['time'] += 1
+            tokens = tokenize(event.data, lowercase=False)
+            entity_tokens = self.lexicon.link_entity(tokens)
+            print entity_tokens
+            entities = [token for token in entity_tokens if is_entity(token)]
+            if self.is_greeting(tokens):
+                tag = 'greet'
+            elif self.is_bye(tokens):
+                tag = 'bye'
+            elif self.is_question(tokens):
+                tag = 'ask'
+            elif len(entities) > 0:
+                tag = 'inform'
+            else:
+                tag = 'unknown'
+            self.state['partner_act'] = (tag, entities)
+            print 'RECEIVE'
+            print self.state['partner_act']
+            known_entities = [e for e in entities if e.canonical.type == 'title']
+            unknown_entities = [e for e in entities if e.canonical.type == 'unknown']
+            if known_entities:
+                self.state['curr_movie'] = known_entities[0].canonical.value
+            elif unknown_entities:
+                self.state['curr_movie'] = unknown_entities[0].canonical.value
 
-    def wait(self):
-        return None
+    def choose_template(self, tag, context_tag=None, movie_title=None):
+        print 'choose template: tag={tag}, context_tag={context_tag}, title={title}'.format(tag=tag, context_tag=context_tag, title=movie_title)
+        template = self.templates.search(tag=tag, context_tag=context_tag, movie_title=movie_title, used_templates=self.used_templates)
+        if template is None:
+            return None
+        self.used_templates.add(template['id'])
+        template = template.to_dict()
+        return template
+
+    #def fill_template(self, template):
+    #    if '{title}' in template:
+    #        title = random.choice(self.known_movies)
+    #        return template.format(title=title)
+    #    return template
+
+    def ask(self, context_tag=None):
+        print 'ask', context_tag
+        self.state['my_act'] = ('ask', None)
+        response = self.choose_template(tag='ask', context_tag=context_tag)['template']
+        return self.message(response)
+
+    def start_movie(self):
+        if len(self.state['movie_informed']) > 0:
+            tag = 'start_another_movie'
+        else:
+            tag = 'start_movie'
+        template = self.choose_template(tag=tag)['template']
+        title = random.choice(list(self.known_movies))
+        utterance = template.format(title=title)
+        self.state['curr_movie'] = title
+        self.state['my_act'] = (tag, [Entity.from_elements(surface=title, type='title')])
+        return self.message(utterance)
+
+    def inform(self, title):
+        if len(self.state['movie_informed'][title]) > 0:
+            tag = 'inform-middle'
+        else:
+            tag = 'inform-first'
+        self.state['movie_informed'][title].append(tag)
+        utterance = self.choose_template(tag=tag, movie_title=title)['template']
+        self.state['my_act'] = (tag, None)
+        return self.message(utterance)
+
+    def agree(self):
+        utterance = self.choose_template(tag='agree')['template']
+        self.state['my_act'] = ('agree', None)
+        # Agree means we are closing the current thread
+        self.state['curr_movie'] = None
+        return self.message(utterance)
+
+    def has_unknown_entity(self, entities):
+        for entity in entities:
+            if entity.canonical.type == 'unknown' or \
+                    entity.canonical.value not in self.known_movies:
+                return True
+        return False
+
+    def bye(self):
+        self.state['my_act'] = ('bye', None)
+        utterance = self.choose_template('bye')['template']
+        return self.message(utterance)
 
     def send(self):
-        # Strict turn-taking
-        if self.state['num_utterance_sent'] > 0:
-            return self.wait()
-        self.state['num_utterance_sent'] += 1
+        print 'SEND'
+        partner_act, partner_entities = self.state['partner_act']
 
-        if self.state['their_action'] == 'done':
+        if partner_act == 'done' or self.state['my_act'][0] == 'bye':
             return self.done()
 
-        self.state['time'] += 1
-        # Actual dialog
-        if self.state['time'] < 3:
-            print("Tried to introduce")
-            return self.intro()
-        elif self.state['time'] >= 14:
-            print("Tried to finish")
-            return self.done()
+        if partner_act == 'bye':
+            return self.bye()
+
+        if partner_act in ('<start>', 'greet'):
+            return self.ask(context_tag=partner_act)
+
+        if len(partner_entities) > 0:
+            if self.has_unknown_entity(partner_entities):
+                return self.ask(context_tag='unknown_entity')
+            else:
+                assert self.state['curr_movie'] is not None
+                return self.inform(title=self.state['curr_movie'])
+        elif self.state['curr_movie'] is None:
+            return self.start_movie()
+        # Partern didn't mention entities but there is a curr_movie
         else:
-            print("Tried to talk")
-            return self.generic_response()
+            my_prev_act, _ = self.state['my_act']
+            if partner_act == 'ask' and (not my_prev_act.startswith('start')) and (not my_prev_act.startswith('inform')):
+                return self.start_movie()
+            elif not self.state['curr_movie'] in self.known_movies:
+                return self.agree()
+            elif len(self.state['movie_informed'][self.state['curr_movie']]) > 1:
+                return self.start_movie()
+            else:
+                return self.inform(title=self.state['curr_movie'])
 
         raise Exception('Uncaught case')
