@@ -11,6 +11,8 @@ class Entity(namedtuple('Entity', ['surface', 'canonical'])):
 
     @classmethod
     def from_elements(cls, surface=None, value=None, type=None):
+        if value is None:
+            value = surface
         return super(cls, Entity).__new__(cls, surface, CanonicalEntity(value, type))
 
     def __str__(self):
