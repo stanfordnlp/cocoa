@@ -1,16 +1,12 @@
-**Schema**: `data/craigslist-schema.json`
-
-**Dataset**: on [Codalab](https://codalab.stanford.edu/bundles/0xd37b585db49243adbba3afe3960b42a2/).
-Download the `.json` files and put them in `data`.
+**Schema**: `data/bookhatball-schema.json`
 
 All command below must be run in the task directory, i.e. `fb-negotiation`.
 
 **Split tracker**: maintain belief of their offer in how the 3 items should be split among both agents.
 
-
-Let's use scenarios from the test set to test the bot:
+Let's create some scenarios from the `data/selfplay.txt`:
 ```
-PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/test.json --scenarios data/test-scenarios.json
+PYTHONPATH=. python scripts/create_scenarios.py --schema-path data/bookhatball-schema.json --scenario-ints-file data/selfplay.txt --output data/test-scenarios.json
 ```
 
 To run the rulebased bot against itself,
