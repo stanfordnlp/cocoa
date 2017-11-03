@@ -244,9 +244,6 @@ class BaseRulebasedSession(Session):
         return self.message(s, template=template)
 
     def choose_template(self, response_tag, context_tag=None, sample=False):
-        #if sample:
-        #    template = self.templates.choose(category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, T=self.config.sample_temperature, used_templates=self.used_templates)
-        #else:
         template = self.templates.search(self.partner_template, category=self.kb.category, role=self.kb.role, response_tag=response_tag, context_tag=context_tag, used_templates=self.used_templates, T=self.config.sample_temperature)
         self.used_templates.add(template['id'])
         template = template.to_dict()

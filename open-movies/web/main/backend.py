@@ -5,6 +5,7 @@ import time
 from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
+from cocoa.web.views.utils import format_message
 from cocoa.web.main.states import SurveyState
 from cocoa.analysis.utils import get_total_tokens_per_agent
 

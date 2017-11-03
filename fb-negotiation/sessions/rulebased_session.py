@@ -11,17 +11,12 @@ from session import Session
 from core.tokenizer import tokenize
 from core.split_tracker import SplitTracker
 
-class RulebasedSession(object):
-    @staticmethod
-    def get_session(agent, kb, tracker, config=None):
-        return BaseRulebasedSession(agent, kb, tracker, config)
-
 Config = namedtuple('Config', ['target', 'bottomline', 'patience'])
 default_config = Config(8, 5, 10)
 
-class BaseRulebasedSession(Session):
+class RulebasedSession(Session):
     def __init__(self, agent, kb, lexicon, config):
-        super(BaseRulebasedSession, self).__init__(agent)
+        super(RulebasedSession, self).__init__(agent)
         self.kb = kb
 
         self.lexicon = lexicon
