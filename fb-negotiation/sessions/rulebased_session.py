@@ -39,7 +39,6 @@ class RulebasedSession(Session):
                 'clarified': False,
                 'num_utterance': 0,
                 'last_offer': None,
-                'num_utterance_sent': 0,
                 'time': 0,
                 }
 
@@ -222,11 +221,8 @@ class RulebasedSession(Session):
 
     def receive(self, event):
         if event.action in ('reject', 'select'):
-            self.state['num_utterance_sent'] = 0
             self.state['their_action'] = event.action
-            self.state['num_utterance_sent'] = 0
         elif event.action == 'message':
-            self.state['num_utterance_sent'] = 0
             self.state['time'] += 1
             tokens = self.lexicon.link_entity(tokenize(event.data))
             split, need_clarify = self.tracker.parse_offer(tokens, 1-self.agent, self.item_counts)
