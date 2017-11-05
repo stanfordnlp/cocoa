@@ -43,6 +43,7 @@ class NeuralSession(Session):
             data (dict): {item: count}
 
         """
+        print 'parse choice:', choice
         return {item: int(choice[i].split('=')[1]) for i, item in enumerate(('book', 'hat', 'ball'))}
 
     def receive(self, event):

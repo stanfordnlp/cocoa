@@ -193,7 +193,8 @@ def get_backend():
                          app.config["controller_map"],
                          app.config["num_chats_per_scenario"],
                          Messages,
-                         active_systems=app.config.get('active_systems')
+                         active_system=app.config.get('active_system'),
+                         active_scenario=app.config.get('active_scenario'),
                          )
         backend = g._backend
     return backend

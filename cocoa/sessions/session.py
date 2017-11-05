@@ -9,7 +9,7 @@ class Session(object):
     A session maintains the dialogue state and receive/send dialogue events.
 
     """
-    def __init__(self, agent):
+    def __init__(self, agent, config=None):
         """Construct a session for an agent.
 
         Args:
@@ -17,6 +17,7 @@ class Session(object):
 
         """
         self.agent = agent  # 0 or 1 (which player are we?)
+        self.config = config
 
     def receive(self, event):
         """Parse the received event and update the dialogue state.

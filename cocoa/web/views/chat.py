@@ -151,11 +151,13 @@ def index():
 
         return redirect(url_for('chat.index', uid=generate_userid(prefix), **request.args))
 
-    backend = get_backend()
-
     if request.args.get('bot'):
-        bot_name = request.args.get('bot')
-        app.config['active_systems'] = ('human', bot_name)
+        app.config['active_system'] = request.args.get('bot')
+
+    if request.args.get('s'):
+        app.config['active_scenario'] = int(request.args.get('s'))
+
+    backend = get_backend()
 
     backend.create_user_if_not_exists(userid())
 

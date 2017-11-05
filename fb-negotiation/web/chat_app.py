@@ -68,8 +68,6 @@ def add_website_arguments(parser):
                         help='Host IP address to run app on. Defaults to localhost.')
     parser.add_argument('--config', type=str, default='app_params.json',
                         help='Path to JSON file containing configurations for website')
-    parser.add_argument('--debug', default=False, action='store_true',
-                        help='Go into debug mode for running the server')
     parser.add_argument('--output', type=str,
                         default="web/output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
@@ -168,7 +166,6 @@ if __name__ == "__main__":
     params['logging'] = {}
     params['logging']['app_log'] = log_file
     params['logging']['chat_dir'] = transcripts_dir
-    params['debug'] = args.debug
 
     if 'task_title' not in params.keys():
         raise ValueError("Title of task should be specified in config file with the key 'task_title'")

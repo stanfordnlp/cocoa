@@ -281,21 +281,6 @@
                                 // eval_data['timestamp'] = response['timestamp'];
                                 // $("#partner_utterance").html(eval_data['utterance']);
                             }
-                            if ('price' in response) {
-                                $("#price").attr("disabled", "disabled")
-                                // $("#side_offers").attr("disabled", "disabled")
-                                $('#price').val(response['price']);
-                                $('#submit').hide();
-                                $('#accept').show();
-                                $('#reject').show();
-                            }
-                            // if ('sides' in response) {
-                            //     if(response['sides'].length == 0) {
-                            //         $('#side_offers').val("<No additional terms>");
-                            //     } else {
-                            //         $('#side_offers').val(response['sides']);
-                            //     }
-                            // }
                         }
                     }
                 });
