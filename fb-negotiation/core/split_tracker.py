@@ -15,26 +15,36 @@ class SplitTracker(object):
         items = []
         curr_agent = -1
         need_clarify = False
+        neg_words = ("no", "not", "nothing", "n't", "zero", "dont")
+        sentence_delimiter = ('.', ',', ';')
 
         def pop_items(agent, items):
+            if agent == -1 or len(items) == 0:
+                return
             for item, count in items:
                 split[curr_agent][item] = count
             del items[:]
 
-        # TODO: pop items before switching curr_agent
+        neg = False
         for i, token in enumerate(tokens):
             if token in ('i', 'ill', 'id', 'me'):
+                pop_items(curr_agent, items)
                 curr_agent = agent
             elif token in ('u', 'you'):
+                pop_items(curr_agent, items)
                 curr_agent = 1 - agent
+            elif token in neg_words:
+                neg = True
+            elif token in sentence_delimiter:
+                neg = False
+                curr_agent = -1
             elif is_entity(token):
                 if token.canonical.type == 'item':
                     item = token.canonical.value
-                    count, clarify = self.parse_count(token, tokens[i-1] if i > 0 else None, item_counts[item])
+                    count, clarify = self.parse_count(token, tokens[i-1] if i > 0 else None, item_counts[item], neg)
                     need_clarify = need_clarify or clarify
                     items.append((item, count))
-            if curr_agent != -1 and len(items) > 0:
-                pop_items(curr_agent, items)
+            pop_items(curr_agent, items)
         # Clean up. Assuming it's for the speaking agent if no subject is mentioned.
         if len(items) > 0:
             if curr_agent == -1:
@@ -71,7 +81,7 @@ class SplitTracker(object):
                     split[them][item] = 0
         return dict(split)
 
-    def parse_count(self, token, prev_token, total):
+    def parse_count(self, token, prev_token, total, negative):
         """
         Returns:
             count (int), clarify (bool)
@@ -82,17 +92,21 @@ class SplitTracker(object):
             return min(prev_token.canonical.value, total), False
         elif prev_token in ('a', 'an'):
             return 1, False
+        elif prev_token == 'both':
+            return 2, False
         elif prev_token == 'no':
             return 0, False
         elif prev_token in ('the', 'all'):
             return total, False
+        elif negative:
+            return 0, False
         else:
-            return max(1, total / 2), True
+            return total, True
 
-    def unit_test(self, c, d, raw_utterance):
+    def unit_test(self, c, d, raw_utterance, lexicon):
         scenario = {'book':c[0] , 'hat':c[1], 'ball':c[2]}
         agent = 0
-        split = self.parse_offer(tokenize(raw_utterance), agent, scenario)
+        split, _ = self.parse_offer(lexicon.link_entity(tokenize(raw_utterance)), agent, scenario)
         if not split:
             print 'No offer detected:', raw_utterance
             return False
@@ -120,3 +134,26 @@ class SplitTracker(object):
 
         print("------------------------------")
         return passed
+
+if __name__ == '__main__':
+  import argparse
+  from core.lexicon import Lexicon
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-t', '--train-examples-path', help='Path to training json file')
+  parser.add_argument('--output', help='Path to output model')
+  args = parser.parse_args()
+
+  lexicon = Lexicon(['ball', 'hat', 'book'])
+  tracker = SplitTracker()
+  pass_counter = 0
+  total_counter = 0
+  with open(args.train_examples_path, 'r') as file:
+    for idx, line1 in enumerate(file):
+        scenario = [int(x) for x in line1.rstrip().split(" ")]
+        line2 = next(file)
+        correct = [int(x) for x in line2.rstrip().split(" ")]
+        line3 = next(file)
+        if tracker.unit_test(scenario, correct, line3.rstrip(), lexicon):
+          pass_counter += 1
+        total_counter += 1
+  print("Passed {0} of {1} unit tests.".format(pass_counter, total_counter) )
