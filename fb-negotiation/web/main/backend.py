@@ -191,8 +191,9 @@ def get_backend():
                          app.config["systems"],
                          app.config["sessions"],
                          app.config["controller_map"],
-                         app.config["pairing_probabilities"],
                          app.config["num_chats_per_scenario"],
-                         Messages)
+                         Messages,
+                         active_systems=app.config.get('active_systems')
+                         )
         backend = g._backend
     return backend

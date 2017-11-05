@@ -83,19 +83,18 @@ def add_website_arguments(parser):
 
 def add_systems(args, config_dict, schema):
     """
-    Params:
-    config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
+    Args:
+        config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
         dictionary should contain the bot type (key 'type') and. for bots that use an underlying model for generation,
         the path to the directory containing the parameters, vocab, etc. for the model.
+
     Returns:
-    agents: A dict mapping from the bot name to the System object for that bot.
-    pairing_probabilities: A dict mapping from the bot name to the probability that a user is paired with that
-        bot. Also includes the pairing probability for humans (backend.Partner.Human)
+        systems: A dict mapping from the bot name to the System object for that bot.
+
     """
 
     total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
-    pairing_probabilities = {}
     timed = False if params['debug'] else True
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
@@ -110,29 +109,8 @@ def add_systems(args, config_dict, schema):
                     '{}. Ignoring configuration.'.format(info, sys_name))
                 continue
             systems[sys_name] = model
-            if 'prob' in info.keys():
-                prob = float(info['prob'])
-                pairing_probabilities[sys_name] = prob
-                total_probs += prob
 
-    if total_probs > 1.0:
-        raise ValueError("Probabilities for active bots can't exceed 1.0.")
-    if len(pairing_probabilities.keys()) != 0 and len(pairing_probabilities.keys()) != len(systems.keys()):
-        remaining_prob = (1.0-total_probs)/(len(systems.keys()) - len(pairing_probabilities.keys()))
-    else:
-        remaining_prob = 1.0 / len(systems.keys())
-    inactive_bots = set()
-    for system_name in systems.keys():
-        if system_name not in pairing_probabilities.keys():
-            if remaining_prob == 0.0:
-                inactive_bots.add(system_name)
-            else:
-                pairing_probabilities[system_name] = remaining_prob
-
-    for sys_name in inactive_bots:
-        systems.pop(sys_name, None)
-
-    return systems, pairing_probabilities
+    return systems
 
 
 def cleanup(flask_app):
@@ -238,12 +216,11 @@ if __name__ == "__main__":
     if 'end_survey' not in params.keys() :
         params['end_survey'] = 0
 
-    systems, pairing_probabilities = add_systems(args, params['models'], schema)
+    systems = add_systems(args, params['models'], schema)
     db.add_scenarios(scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
-    app.config['pairing_probabilities'] = pairing_probabilities
     app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', {k: 1 for k in systems})
     for k in systems:
         assert k in app.config['num_chats_per_scenario']

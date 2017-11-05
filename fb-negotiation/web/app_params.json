@@ -1,7 +1,7 @@
 {
     "status_params": {
 	"waiting": {
-      "num_seconds": 180
+      "num_seconds": 210 
   },
 	"chat": {
 	    "num_seconds": 1200
@@ -33,11 +33,15 @@
     "icon": "handshake.jpg",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "debug": false,
+    "debug": true,
     "models": {
         "rulebased": {
             "active": true,
             "type": "rulebased"
+        },
+        "neural": {
+            "active": true,
+            "type": "neural"
         }
     }
 }

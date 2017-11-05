@@ -59,7 +59,7 @@ class DatabaseManager(object):
 
 # TODO: refactor to put database operations in the DBManager
 class Backend(object):
-    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, pairing_probabilities, num_chats_per_scenario, messages=Messages):
+    def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, num_chats_per_scenario, messages=Messages, active_systems=None):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
         self.conn.row_factory = sqlite3.Row
@@ -68,9 +68,9 @@ class Backend(object):
         self.scenario_db = scenario_db
         self.schema = schema
         self.systems = systems
+        self.active_systems = systems.keys() if not active_systems else active_systems
         self.sessions = sessions
         self.controller_map = controller_map
-        self.pairing_probabilities = pairing_probabilities
         self.num_chats_per_scenario = num_chats_per_scenario
         self.logger = WebLogger.get_logger()
         self.messages = messages
@@ -304,7 +304,7 @@ class Backend(object):
 
         def _choose_scenario_and_partner_type(cursor):
             # for each scenario, get number of complete dialogues per agent type
-            all_partners = self.systems.keys()
+            all_partners = self.active_systems
             cursor.execute('''SELECT * FROM scenario''')
             db_scenarios = cursor.fetchall()
             scenario_dialogues = defaultdict(lambda: defaultdict(int))

@@ -148,13 +148,14 @@ def index():
         elif request.args.get('nlp') and int(request.args.get('nlp')) == 1:
             # link for NLP group
             prefix = "NLP_"
-        elif request.args.get('bus') and int(request.args.get('bus')) == 1:
-            # business school link
-            prefix = "BUS_"
 
         return redirect(url_for('chat.index', uid=generate_userid(prefix), **request.args))
 
     backend = get_backend()
+
+    if request.args.get('bot'):
+        bot_name = request.args.get('bot')
+        app.config['active_systems'] = ('human', bot_name)
 
     backend.create_user_if_not_exists(userid())
 

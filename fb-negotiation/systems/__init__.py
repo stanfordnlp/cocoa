@@ -14,6 +14,6 @@ def get_system(name, args, schema=None, timed=False):
     elif name == 'cmd':
         return CmdSystem()
     elif name == 'neural':
-        return NeuralSystem(args.model_file, args.temperature, timed)
+        return NeuralSystem(args.model_file, args.temperature, timed_session=timed, gpu=args.gpu)
     else:
         raise ValueError('Unknown system %s' % name)
