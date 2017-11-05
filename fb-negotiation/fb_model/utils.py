@@ -29,10 +29,15 @@ def save_model(model, file_name):
             torch.save(model, f)
 
 
-def load_model(file_name):
+def load_model(file_name, gpu=True):
     """Reads model from a file."""
     with open(file_name, 'rb') as f:
-        return torch.load(f)
+        if gpu:
+            return torch.load(f)
+        else:
+            model = torch.load(f, map_location=lambda storage, loc: storage)
+            model.set_device_id(None)
+            return model
 
 
 def set_seed(seed):

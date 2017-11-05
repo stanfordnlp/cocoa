@@ -106,6 +106,7 @@ class DialogModel(modules.CudaModule):
 
     def set_device_id(self, device_id):
         self.device_id = device_id
+        self.ctx_encoder.device_id = device_id
         self.special_token_mask = self.to_device(self.special_token_mask)
 
     def zero_hid(self, bsz, nhid=None, copies=None):
