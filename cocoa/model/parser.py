@@ -1,0 +1,57 @@
+class Utterance(object):
+    def __init__(self, raw_text, tokens):
+        self.text = raw_text
+        self.tokens = tokens
+
+class LogicalForm(object):
+    def __init__(self, intent, **kwargs):
+        self.intent = intent
+        for k, v in kwargs.iteritems():
+            setattr(self, k, v)
+
+    def __str__(self):
+        attrs = vars(self)
+        s = ' '.join(['{}={}'.format(k, v) for k, v in attrs.iteritems()])
+        return s
+
+class Parser(object):
+    greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
+
+    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could'])
+
+    @classmethod
+    def is_question(cls, utterance):
+        tokens = utterance.tokens
+        if len(tokens) < 1:
+            return False
+        last_word = tokens[-1]
+        first_word = tokens[0]
+        return last_word == '?' or first_word in cls.question_words
+
+    @classmethod
+    def is_greeting(cls, utterance):
+        for token in utterance.tokens:
+            if token in cls.greeting_words:
+                return True
+        return False
+
+    def __init__(self, agent, kb, lexicon):
+        self.agent = agent
+        self.partner = 1 - agent
+        self.kb = kb
+        self.lexicon = lexicon
+
+    def tag_utterance(self, utterance):
+        """Tag the utterance with basic speech acts.
+        """
+        tags = []
+        if self.is_question(utterance):
+            tags.append('question')
+        if self.is_greeting(utterance):
+            tags.append('greeting')
+        return tags
+
+    def parse(self, event, dialogue_state, update_state=False):
+        """Parse an event to LogicalForm.
+        """
+        raise NotImplementedError
