@@ -8,7 +8,7 @@ from analysis.html_visualizer import HTMLVisualizer
 
 class Visualizer(BaseVisualizer):
     agents = ('human', 'rulebased', 'config-rule')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased', 'neural': 'Neural'}
     #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
     questions = ('negotiator',)
     question_labels = {"negotiator": 'Humanlikeness'}
@@ -76,7 +76,7 @@ class Visualizer(BaseVisualizer):
         for system, examples in chats.iteritems():
             if system == 'human':
                 continue
-            results[system] = self._compute_effectiveness(examples, system)
+            results[system] = self.compute_effectiveness_for_system(examples, system)
             print system, results[system]
 
     # TODO: implement filter that skips unqualified/redirected chats, see should_reject_chat
@@ -84,7 +84,7 @@ class Visualizer(BaseVisualizer):
         if ex.outcome is not None and ex.outcome.get('valid_deal') is not None:
             valid = ex.outcome['valid_deal']
             num_turns = len([e for e in ex.events if e.action == 'message'])
-            if not valid and num_turns < 4:
+            if not valid and num_turns < 6:
                 return True
             else:
                 return False
@@ -121,7 +121,10 @@ class Visualizer(BaseVisualizer):
                     num_nodeal += 1
 
         for k in agreed_points:
-            agreed_points[k] /= float(num_agreed)
+            try:
+                agreed_points[k] /= float(num_agreed)
+            except ZeroDivisionError:
+                agreed_points[k] = 0
         for k in total_points:
             total_points[k] /= float(total)
 

@@ -8,7 +8,7 @@ from cocoa.analysis.utils import reject_transcript
 from cocoa.core.event import Event
 
 class HTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased', 'neural': 'Neural'}
     #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
     questions = ('negotiator',)
 
