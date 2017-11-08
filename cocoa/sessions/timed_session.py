@@ -19,7 +19,6 @@ class TimedSessionWrapper(Session):
     PATIENCE = 2
 
     def __init__(self, session):
-        super(TimedSessionWrapper, self).__init__(session.agent)
         self.session = session
         self.last_message_timestamp = time.time()
         self.queued_event = deque()
@@ -31,12 +30,13 @@ class TimedSessionWrapper(Session):
         self.num_utterances = 0
         self.start_typing = False
 
-    # TODO:
     @property
     def config(self):
-        if hasattr(self.session, 'config'):
-            return self.session.config
-        return None
+        return self.session.config
+
+    @property
+    def agent(self):
+        return self.session.agent
 
     def receive(self, event):
         if event.action in Event.decorative_events:

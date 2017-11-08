@@ -17,6 +17,7 @@ class Session(object):
 
         """
         self.agent = agent  # 0 or 1 (which player are we?)
+        self.partner = 1 - agent
         self.config = config
 
     def receive(self, event):
