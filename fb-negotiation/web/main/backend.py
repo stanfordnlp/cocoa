@@ -71,7 +71,7 @@ class Backend(BaseBackend):
             except (TypeError, KeyError) as e:
                 valid = False
             num_turns = get_total_turns(ex)
-            if not valid and num_turns < 4:
+            if not valid and num_turns < 6:
                 return True
             return False
 
