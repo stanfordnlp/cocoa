@@ -153,6 +153,7 @@ class Parser(BaseParser):
             return False
 
         if update_state:
+            dialogue_state['time'] += 1
             dialogue_state['act'][self.partner] = lf
             if lf.price:
                 dialogue_state['price'][self.partner] = lf.price
