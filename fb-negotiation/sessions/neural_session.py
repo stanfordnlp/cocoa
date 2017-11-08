@@ -43,8 +43,11 @@ class NeuralSession(Session):
             data (dict): {item: count}
 
         """
-        print 'parse choice:', choice
-        return {item: int(choice[i].split('=')[1]) for i, item in enumerate(('book', 'hat', 'ball'))}
+        try:
+            return {item: int(choice[i].split('=')[1]) for i, item in enumerate(('book', 'hat', 'ball'))}
+        except:
+            print 'Cannot parse choice:', choice
+            return {item: 0 for i, item in enumerate(('book', 'hat', 'ball'))}
 
     def receive(self, event):
         if event.action == 'select':
