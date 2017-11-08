@@ -28,8 +28,6 @@ class Controller(BaseController):
         for item, count in self.scenario.kbs[0].item_counts.iteritems():
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
             if int(count) != int(item_proposal):
-                #self.outcomes[0]['reward'] = "mismatch"
-                #self.outcomes[1]['reward'] = "mismatch"
                 return False
 
         return True
