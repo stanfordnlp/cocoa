@@ -86,8 +86,8 @@
                             startedTyping();
                         }
                         if (code == 13) {
-                            turn_counter++
-                            if (turn_counter > 5) {
+                            turn_counter++;
+                            if (turn_counter > 3) {
                                 $(".no-deal").css("display", "inline-block");
                             }
 
@@ -270,16 +270,6 @@
                             } else if ('message' in response) {
                                 $("#text").removeAttr('disabled');
                                 displayText(response['message']);
-
-                                // sendEval();
-                                // eval_utterance = response['message'].match(utterance_regex);
-                                // if (eval_utterance != null && eval_utterance.length > 2) {
-                                //     eval_data['utterance'] = eval_utterance[2];
-                                // } else {
-                                //     eval_data['utterance'] = '';
-                                // }
-                                // eval_data['timestamp'] = response['timestamp'];
-                                // $("#partner_utterance").html(eval_data['utterance']);
                             }
                         }
                     }
