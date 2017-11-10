@@ -1,7 +1,9 @@
 import re
 import numpy as np
 from nltk import ngrams
+from nltk.corpus import stopwords
 from collections import defaultdict
+from itertools import ifilter
 
 from cocoa.core.entity import is_entity
 from cocoa.model.parser import Parser as BaseParser, LogicalForm, Utterance
@@ -9,6 +11,9 @@ from cocoa.model.parser import Parser as BaseParser, LogicalForm, Utterance
 from core.tokenizer import tokenize
 
 class Parser(BaseParser):
+    stopwords = set(stopwords.words('english'))
+    stopwords.update(['may', 'might', 'rent', 'new', 'brand', 'low', 'high', 'now', 'available'])
+
     price_patterns = [
             r'come down',
             r'(highest|lowest)',
@@ -30,6 +35,10 @@ class Parser(BaseParser):
         r'^[\w ]*have a deal[\w ]*$',
         r'^i can do that[.]*$',
     ]
+
+    @classmethod
+    def is_price_token(cls, token):
+        return is_entity(token)
 
     @classmethod
     def is_greeting(cls, utterance):
@@ -78,7 +87,7 @@ class Parser(BaseParser):
             price = float(event.data.get('price'))
         except TypeError:
             price = None
-        return LogicalForm(intent, price=price)
+        return Utterance(logical_form=LogicalForm(intent, price=price))
 
     def tag_utterance(self, utterance):
         """Tag the utterance with basic speech acts.
@@ -88,27 +97,27 @@ class Parser(BaseParser):
             tags.append('vague-price')
         if self.is_agreement(utterance):
             tags.append('agree')
-        if sum([1 if is_entity(token) else 0 for token in utterance.tokens]) > 0:
-            tags.append('price')
+        price_types = list(set([token.canonical.type for token in utterance.tokens if self.is_price_token(token)]))
+        tags.extend(price_types)
+        if price_types:
+            tags.append('has_price')
         return tags
 
-    def parse_proposed_price(self, prices, dialogue_state):
+    def get_proposed_price(self, tokens, dialogue_state):
         """When the partner mentions multiple prices, decide which one they meant.
         """
         partner_prices = []
-        listing_price = self.kb.listing_price
-        curr_price = dialogue_state['curr_price']
-        partner_prev_price = dialogue_state['price'][self.partner]
+        partner_prev_price = dialogue_state.partner_price
         partner_role = 'seller' if self.kb.role == 'buyer' else 'buyer'
         inc = 1. if partner_role == 'seller' else -1.
-        for price in prices:
-            price = price.canonical.value
+        for price in ifilter(lambda x: self.is_price_token(x), tokens):
+            price, type_ = price.canonical.value, price.canonical.type
             # 1) New price doest repeat current price
             # 2) One's latest price is worse than previous ones (compromise)
             # 3) Seller might propose the listing price but the buyer won't
-            if price != curr_price and \
+            if type_ != 'curr_price' and \
                 (partner_prev_price is None or self.compare(price, partner_prev_price, inc) <= 0) and \
-                (partner_role == 'seller' or price != listing_price):
+                (partner_role == 'seller' or type_ != 'listing_price'):
                     partner_prices.append(price)
         # If more than one possible prices, pick the best one
         if partner_prices:
@@ -116,53 +125,86 @@ class Parser(BaseParser):
             return partner_prices[i]
         return None
 
-    def parse_message(self, event, dialogue_state):
-        tokens = self.lexicon.link_entity(tokenize(event.data), kb=self.kb, scale=False)
-        utterance = Utterance(event.data, tokens)
-        prices = [token for token in tokens if is_entity(token)]
-        proposed_price = self.parse_proposed_price(prices, dialogue_state)
+    def _parse_price(self, price_token, dialogue_state):
+        price = price_token.canonical.value
+        if price == dialogue_state.listing_price:
+            type_ = 'listing_price'
+        elif price == dialogue_state.my_price:
+            type_ = 'my_price'
+        elif price == dialogue_state.partner_price:
+            type_ = 'partner_price'
+        else:
+            type_ = 'price'
+        canonical = price_token.canonical._replace(type=type_)
+        price_token = price_token._replace(canonical=canonical)
+        return price_token
+
+    def parse_prices(self, tokens, dialogue_state):
+        tokens = [self._parse_price(token, dialogue_state) if self.is_price_token(token) else token for token in tokens]
+        return tokens
+
+    def _parse_title(self, tokens, dialogue_state):
+        title = dialogue_state.kb.title.lower().split()
+        new_tokens = []
+        for token in tokens:
+            if token in title and not token in self.stopwords:
+                if len(new_tokens) == 0 or new_tokens[-1] != '{title}':
+                    new_tokens.append('{title}')
+            else:
+                new_tokens.append(token)
+        return new_tokens
+
+    def extract_template(self, tokens, dialogue_state):
+        tokens = ['{%s}' % token.canonical.type if self.is_price_token(token) else token for token in tokens]
+        tokens = self._parse_title(tokens, dialogue_state)
+        return tokens
+
+    def classify_intent(self, utterance, dialogue_state):
         tags = self.tag_utterance(utterance)
-        if dialogue_state['time'] == 1 and not 'price' in tags:
+        if dialogue_state.time == 0 and not 'has_price' in tags:
             intent = 'intro'
-        elif 'price' in tags and dialogue_state['curr_price'] is None:
+        elif 'has_price' in tags and dialogue_state.curr_price is None:
             intent = 'init-price'
-        elif (not 'price' in tags) and 'vague-price' in tags:
+        elif (not 'has_price' in tags) and 'vague-price' in tags:
             intent = 'vague-price'
-        elif proposed_price is not None:
+        elif 'price' in tags:
             intent = 'counter-price'
+        elif 'partner_price' in tags:
+            intent = 'insist'
         elif tags == ['question']:
             intent = 'inquiry'
-        elif 'agree' in tags:
+        elif 'agree' in tags or 'my_price' in tags:
             intent = 'agree'
-        elif not tags:
-            my_prev_act = dialogue_state['act'][self.agent]
-            if my_prev_act and my_prev_act.intent == 'inquiry':
-                intent = 'inform'
+        elif not tags and dialogue_state.my_act == 'inquiry':
+            intent = 'inform'
         else:
             intent = 'unknown'
-        return LogicalForm(intent, price=proposed_price)
+        return intent
 
-    def parse(self, event, dialogue_state, update_state=False):
+    def parse_message(self, event, dialogue_state):
+        tokens = self.lexicon.link_entity(tokenize(event.data), kb=self.kb, scale=False)
+        tokens = self.parse_prices(tokens, dialogue_state)
+        utterance = Utterance(raw_text=event.data, tokens=tokens)
+
+        proposed_price = self.get_proposed_price(tokens, dialogue_state)
+        intent = self.classify_intent(utterance, dialogue_state)
+        utterance.lf = LogicalForm(intent, price=proposed_price)
+
+        utterance.template = self.extract_template(utterance.tokens, dialogue_state)
+
+        return utterance
+
+    def parse(self, event, dialogue_state):
         # We are parsing the partner's utterance
         assert event.agent == 1 - self.agent
         if event.action == 'offer':
-            lf = self.parse_offer(event)
+            u = self.parse_offer(event)
         elif event.action == 'message':
-            lf = self.parse_message(event, dialogue_state)
+            u = self.parse_message(event, dialogue_state)
         else:
             return False
 
-        if update_state:
-            dialogue_state['time'] += 1
-            dialogue_state['act'][self.partner] = lf
-            if lf.price:
-                dialogue_state['price'][self.partner] = lf.price
-                dialogue_state['curr_price'] = lf.price
-        # TODO: insist on price (repeat theri prev price)
-        # TODO: agree with price (repeat my priv price)
-        #if lf.intent == 'unknown':
-        #    print event.data
-        return lf
+        return u
 
 def parse_dialogue(example, lexicon, counter):
     kbs = example.scenario.kbs
