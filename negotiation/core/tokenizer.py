@@ -74,7 +74,7 @@ def detokenize(tokens):
     for token in tokens:
         if (token in string.punctuation or "'" in token) and len(new_tokens) > 0:
             new_tokens[-1] += token
-        if token == 'na' and len(new_tokens) > 0 and new_tokens[-1] in ('gon', 'wan'):
+        elif token == 'na' and len(new_tokens) > 0 and new_tokens[-1] in ('gon', 'wan'):
             new_tokens[-1] += token
         else:
             new_tokens.append(token)
