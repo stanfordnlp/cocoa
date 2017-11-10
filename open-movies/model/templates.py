@@ -62,6 +62,7 @@ class Templates(object):
     @classmethod
     def read_rotten_reviews(cls, path):
         titles = []
+        genres = []
         templates = []
         movies = json.load(open(path, "r"))
         for i, row in enumerate(movies):
@@ -147,6 +148,7 @@ class Templates(object):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
+    # /juicier/scr105/scr/derekchen14/movie_data/rotten/all.json
     parser.add_argument('--movie-data', help='Path to movie metadata and reviews')
     parser.add_argument('--templates', help='Path to handcoded templates')
     parser.add_argument('--output', help='Path to save templates')
