@@ -4,6 +4,7 @@ class KB(BaseKB):
     def __init__(self, attributes, facts):
         super(KB, self).__init__(attributes)
         self.facts = facts
+        self._title = self.facts['item']['Title']
         self._category = self.facts['item']['Category']
         self._role = self.facts['personal']['Role']
         self._listing_price = self.facts['item']['Price']
@@ -20,6 +21,10 @@ class KB(BaseKB):
     @property
     def category(self):
         return self._category
+
+    @property
+    def title(self):
+        return self._title
 
     @property
     def role(self):
