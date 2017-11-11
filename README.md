@@ -20,6 +20,8 @@ python setup.py develop
 ## Tasks
 - **MutualFriends**: two agents, each with a private list of friends with multiple attributes (e.g. school, company), try to find their mutual friends through a conversation.
 - **Craigslist Negotiation**: a buyer and a seller negotiate the price of an item for sale on [Craigslist](https://sfbay.craigslist.org/).
+- **Deal or No Deal**: two agents negotiate to split a group of items with different points among them.  The items are books, hats and balls.
+- **Open Movies**: Two agents have a conversation about movies, any discussion within the realm of movies is allowed.
 
 ## Main concepts/classes
 ### Schema and scenarios
@@ -105,7 +107,7 @@ They can be extended in `task/turk`.
 
 We embed HTML in the AMT interface; see `cocoa/turk/templates`.
 
-1. Generate system outpus and write to a JSON file.
+1. Generate system outputs and write to a JSON file.
 ```
 outputs.json
 |--[i]

@@ -1,6 +1,5 @@
 import re
 import time
-import csv
 from fuzzywuzzy import fuzz
 import numpy as np
 from nltk import ngrams, pos_tag, RegexpParser, Tree
@@ -42,6 +41,14 @@ class Lexicon(object):
             reader = csv.DictReader(csvfile, delimiter=',')
             for i, row in enumerate(reader):
                 entities.append(CanonicalEntity(value=row['title'], type='title'))
+        return cls(entities, threshold)
+
+    @classmethod
+    def from_json(cls, path, threshold):
+        entities = []
+        reader = json.load( open(path, 'r') )
+        for i, row in enumerate(reader):
+            entities.append(CanonicalEntity(value=row['title'], type='title'))
         return cls(entities, threshold)
 
     @classmethod
@@ -119,7 +126,13 @@ if __name__ == '__main__':
     if args.lexicon:
         lexicon = Lexicon.from_pickle(args.lexicon)
     else:
-        lexicon = Lexicon.from_csv(args.movie_data, args.threshold)
+        file_type = args.movie_data.split(".")[-1]
+        if args.file_type == "csv":
+            import csv
+            lexicon = Lexicon.from_csv(args.movie_data, args.threshold)
+        elif args.file_type == "json":
+            import json
+            lexicon = Lexicon.from_json(args.movie_data, args.threshold)
         lexicon.save_pickle(args.output)
 
     tokens = 'I just watched the Planet Earth'.split()
