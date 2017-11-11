@@ -2,6 +2,7 @@ import csv
 import random
 import pandas as pd
 import numpy as np
+import json
 
 from cocoa.core.util import generate_uuid, write_pickle, read_pickle
 
@@ -31,7 +32,7 @@ class Templates(object):
         return set(titles)
 
     @classmethod
-    def read_movie_reviews(cls, path):
+    def read_kaggle_reviews(cls, path):
         titles = []
         genres = []
         templates = []
@@ -51,11 +52,33 @@ class Templates(object):
                     'movie_id': id_,
                     'template': x,
                     'tag': 'inform-{}'.format(tag_review(j)),
-                    'source': 'review',
+                    'source': 'kaggle',
                     'context_tag': 'ask'
                     }
                     for j, x in enumerate(utterances) if
                     len(x.split()) < 20])
+        return titles, genres, templates
+
+    @classmethod
+    def read_rotten_reviews(cls, path):
+        titles = []
+        genres = []
+        templates = []
+        movies = json.load(open(path, "r"))
+        for i, row in enumerate(movies):
+            id_ = i
+            titles.append({'movie_id': id_, 'title': row['title']})
+            for tag, utterances in row['templates'].items():
+                templates.extend([{
+                    'id': generate_uuid('T'),
+                    'movie_id': id_,
+                    'template': x,
+                    'tag': 'inform-{}'.format(tag),
+                    'source': row['source'],
+                    'context_tag': 'ask'
+                    }
+                    for x in utterances if len(x.split()) < 28])
+
         return titles, genres, templates
 
     @classmethod
@@ -76,11 +99,15 @@ class Templates(object):
         return templates
 
     @classmethod
-    def from_csv(cls, review_path, handcoded_path):
-        titles, genres, templates = cls.read_movie_reviews(review_path)
+    def from_file(cls, review_path, handcoded_path, source):
+        if source == "rotten":
+            titles, genres, templates = cls.read_rotten_reviews(review_path)
+        elif source == "kaggle":
+            titles, genres, templates = cls.read_kaggle_reviews(review_path)
         handcoded_templates = cls.read_templates(handcoded_path)
         templates.extend(handcoded_templates)
         return cls(titles, genres, templates)
+
 
     def search(self, context_tag=None, movie_title=None, used_templates=None, tag=None):
         loc = self.get_filter(context_tag=context_tag, movie_title=movie_title, used_templates=used_templates, tag=tag)
@@ -121,15 +148,20 @@ class Templates(object):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
+    # /juicier/scr105/scr/derekchen14/movie_data/rotten/all.json
     parser.add_argument('--movie-data', help='Path to movie metadata and reviews')
+    # /juicy/scr61/scr/nlp/hehe/cocoa/open-movie/data/handcoded_templates.csv
     parser.add_argument('--templates', help='Path to handcoded templates')
     parser.add_argument('--output', help='Path to save templates')
+    parser.add_argument('--source', choices=["kaggle", "rotten"], default="rotten",
+        help='kaggle (which is The Movie DB) or rotten (which is Rotten Tomatoes)')
     args = parser.parse_args()
 
-    templates = Templates.from_csv(args.movie_data, args.templates)
+    templates = Templates.from_file(args.movie_data, args.templates, args.source)
     templates.save_pickle(args.output)
 
-    template = templates.search(movie_title='11 Harrowhouse')
+    # template = templates.search(movie_title='11 Harrowhouse')
+    template = templates.search(movie_title='finding dory')
     print template['template']
     import sys; sys.exit()
 

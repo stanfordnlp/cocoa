@@ -10,3 +10,5 @@ boto
 scipy
 pandas
 seaborn
+fuzzywuzzy
+datasketch

@@ -1,19 +1,19 @@
-**Schema**: `data/craigslist-schema.json`
+**Schema**: `data/movie-schema.json`
 
-**Dataset**: on [Codalab](https://codalab.stanford.edu/bundles/0xd37b585db49243adbba3afe3960b42a2/).
-Download the `.json` files and put them in `data`.
+**Dataset**: currently requires access to Stanford NLP servers, please ask for permission
+# /juicier/scr105/scr/derekchen14/movie_data/rotten/all.json
+# /juicy/scr61/scr/nlp/hehe/cocoa/open-movie/data/handcoded_templates.csv
 
 All command below must be run in the task directory, i.e. `open-movies`.
 
-
-Let's use scenarios from the test set to test the bot:
+Let populate the KB to generate the lexicon that finds movies in dialog:
 ```
-PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/test.json --scenarios data/toy-scenarios.json
+PYTHONPATH=. python core/lexicon.py --movie-data data/all.json --output data/lexicon.pkl
 ```
 
 To run the rulebased bot against itself,
 ```
-PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/bookhatball-schema.json \
+PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/movie-schema.json \
 --scenarios-path data/toy-scenarios.json \
 --train-examples-paths data/rulebased-transcripts.json --train-max-examples 1 \
 --test-max-examples 0  --max-turns 20 \
