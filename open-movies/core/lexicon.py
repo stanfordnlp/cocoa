@@ -127,10 +127,10 @@ if __name__ == '__main__':
         lexicon = Lexicon.from_pickle(args.lexicon)
     else:
         file_type = args.movie_data.split(".")[-1]
-        if args.file_type == "csv":
+        if file_type == "csv":
             import csv
             lexicon = Lexicon.from_csv(args.movie_data, args.threshold)
-        elif args.file_type == "json":
+        elif file_type == "json":
             import json
             lexicon = Lexicon.from_json(args.movie_data, args.threshold)
         lexicon.save_pickle(args.output)
