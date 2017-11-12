@@ -43,6 +43,18 @@ class RulebasedSession(Session):
                 return True
         return False
 
+    def is_plot(self, tokens):
+        s = ' '.join(tokens)
+        if re.search(r'(movie|show|story|film|drama) about', s):
+            return True
+        return False
+
+    def is_opinion(self, tokens):
+        s = ' '.join(tokens)
+        if re.search(r'(do|did) you (like|think|enjoy|feel)', s):
+            return True
+        return False
+
     def is_bye(self, tokens):
         s = ' '.join(tokens)
         if 'bye' in tokens or re.search(r'(great|nice|fun) (talking|chatting)', s):
@@ -64,7 +76,12 @@ class RulebasedSession(Session):
             elif self.is_bye(tokens):
                 tag = 'bye'
             elif self.is_question(tokens):
-                tag = 'ask'
+                if self.is_plot(tokens):
+                    tag = 'ask-plot'
+                elif self.is_opinion(tokens):
+                    tag = 'ask-opinion'
+                else:
+                    tag = 'ask'
             elif len(entities) > 0:
                 tag = 'inform'
             else:
@@ -107,18 +124,28 @@ class RulebasedSession(Session):
             tag = 'start_movie'
         template = self.choose_template(tag=tag)['template']
         title = random.choice(list(self.known_movies))
-        utterance = template.format(title=title)
+        utterance = template.format(title=title.title())
         self.state['curr_movie'] = title
         self.state['my_act'] = (tag, [Entity.from_elements(surface=title, type='title')])
         return self.message(utterance)
 
     def inform(self, title):
-        if len(self.state['movie_informed'][title]) > 0:
-            tag = 'inform-middle'
+        # if len(self.state['movie_informed'][title]) > 0:
+        #     tag = 'inform-middle'
+        # else:
+        #     tag = 'inform-first'
+        if partner_act == 'ask-plot':
+            tag = 'inform-plot'
+        elif partner_act == 'ask-opinion'
+            tag = 'inform-opinion'
         else:
-            tag = 'inform-first'
+            tag = 'inform-other'
         self.state['movie_informed'][title].append(tag)
-        utterance = self.choose_template(tag=tag, movie_title=title)['template']
+        utterance = self.choose_template(tag=tag, movie_title=title.title())['template']
+        # TODO: If we couldn't find an utterance with a tag, grab another
+        # template from the same movie.
+        # if utterance is None:
+        #    get other template
         self.state['my_act'] = (tag, None)
         return self.message(utterance)
 
@@ -162,7 +189,7 @@ class RulebasedSession(Session):
                 return self.inform(title=self.state['curr_movie'])
         elif self.state['curr_movie'] is None:
             return self.start_movie()
-        # Partern didn't mention entities but there is a curr_movie
+        # Partner didn't mention entities but there is a curr_movie
         else:
             my_prev_act, _ = self.state['my_act']
             if partner_act == 'ask' and (not my_prev_act.startswith('start')) and (not my_prev_act.startswith('inform')):
