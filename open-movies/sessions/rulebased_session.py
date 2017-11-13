@@ -134,9 +134,9 @@ class RulebasedSession(Session):
         #     tag = 'inform-middle'
         # else:
         #     tag = 'inform-first'
-        if partner_act == 'ask-plot':
+        if self.partner_act == 'ask-plot':
             tag = 'inform-plot'
-        elif partner_act == 'ask-opinion'
+        elif self.partner_act == 'ask-opinion':
             tag = 'inform-opinion'
         else:
             tag = 'inform-other'
