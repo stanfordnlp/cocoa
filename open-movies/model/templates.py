@@ -148,7 +148,7 @@ class Templates(object):
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    # /juicier/scr105/scr/derekchen14/movie_data/rotten/all.json
+    # /juicier/scr105/scr/derekchen14/movie_data/all_merged.json
     parser.add_argument('--movie-data', help='Path to movie metadata and reviews')
     # /juicy/scr61/scr/nlp/hehe/cocoa/open-movie/data/handcoded_templates.csv
     parser.add_argument('--templates', help='Path to handcoded templates')
