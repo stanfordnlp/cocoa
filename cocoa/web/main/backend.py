@@ -59,6 +59,26 @@ class DatabaseManager(object):
 
 # TODO: refactor to put database operations in the DBManager
 class Backend(object):
+    @classmethod
+    def get_backend(cls):
+        from flask import g
+        from flask import current_app as app
+        backend = getattr(g, '_backend', None)
+        if backend is None:
+            g._backend = cls(app.config["user_params"],
+                             app.config["schema"],
+                             app.config["scenario_db"],
+                             app.config["systems"],
+                             app.config["sessions"],
+                             app.config["controller_map"],
+                             app.config["num_chats_per_scenario"],
+                             Messages,
+                             active_system=app.config.get('active_system'),
+                             active_scenario=app.config.get('active_scenario'),
+                             )
+            backend = g._backend
+        return backend
+
     def __init__(self, params, schema, scenario_db, systems, sessions, controller_map, num_chats_per_scenario, messages=Messages, active_system=None, active_scenario=None):
         self.config = params
         self.conn = sqlite3.connect(params["db"]["location"])
