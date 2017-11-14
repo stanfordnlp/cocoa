@@ -13,7 +13,7 @@ def add_lexicon_arguments(parser):
     parser.add_argument('--threshold', type=float, default=0.8, help='LSH distance threshold')
 
 class Lexicon(object):
-    def __init__(self, entities=None, lsh=None, threshold=0.8):
+    def __init__(self, entities=None, threshold=0.8, lsh=None):
         self.entities = entities
         self.lsh = self.build_lsh(threshold) if not lsh else lsh
         self.chunker = self.build_np_chunker()
@@ -49,7 +49,7 @@ class Lexicon(object):
         reader = json.load( open(path, 'r') )
         for i, row in enumerate(reader):
             entities.append(CanonicalEntity(value=row['title'], type='title'))
-        return cls(entities, threshold)
+        return cls(entities=entities, threshold=threshold)
 
     @classmethod
     def minhash(cls, s):
