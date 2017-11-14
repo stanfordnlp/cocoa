@@ -2,7 +2,7 @@ import sqlite3
 import json
 import time
 
-from cocoa.web.main.backend import Backend as BaseBackend, get_backend
+from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status
 from cocoa.web.views.utils import format_message
@@ -12,7 +12,6 @@ from cocoa.analysis.utils import get_total_tokens_per_agent
 from utils import Messages
 from db_reader import DatabaseReader
 from core.event import Event
-# from analysis.analyze_strategy import StrategyAnalyzer
 
 class DatabaseManager(BaseDatabaseManager):
     @classmethod
