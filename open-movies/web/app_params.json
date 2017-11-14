@@ -33,11 +33,11 @@
     "icon": "movie-star.png",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "num_chats_per_scenario": {"human": 50, "human": 50},
+    "num_chats_per_scenario": {"human": 1},
     "debug": false,
     "models": {
         "rulebased": {
-            "active": true,
+            "active": false,
             "type": "rulebased"
         }
     }
