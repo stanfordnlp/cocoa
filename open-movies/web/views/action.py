@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
+
 from cocoa.web.views.utils import userid, format_message
-from cocoa.web.main.backend import Backend
+
+from web.main.backend import Backend
 get_backend = Backend.get_backend
 
 action = Blueprint('action', __name__)
