@@ -2,7 +2,7 @@ import sqlite3
 import json
 import time
 
-from cocoa.web.main.backend import Backend as BaseBackend
+from cocoa.web.main.backend import Backend as BaseBackend, get_backend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status, Messages
 from cocoa.web.views.utils import format_message
@@ -231,23 +231,3 @@ class Backend(BaseBackend):
                         ])
         except sqlite3.IntegrityError:
             print("WARNING: Rolled back transaction")
-
-#######################################
-from flask import g
-from flask import current_app as app
-from utils import Messages
-
-def get_backend():
-    backend = getattr(g, '_backend', None)
-    if backend is None:
-        g._backend = Backend(app.config["user_params"],
-                         app.config["schema"],
-                         app.config["scenario_db"],
-                         app.config["systems"],
-                         app.config["sessions"],
-                         app.config["controller_map"],
-                         app.config["pairing_probabilities"],
-                         app.config["num_chats_per_scenario"],
-                         Messages)
-        backend = g._backend
-    return backend
