@@ -63,6 +63,7 @@ class Backend(object):
     def get_backend(cls):
         from flask import g
         from flask import current_app as app
+        from web.main.utils import Messages
         backend = getattr(g, '_backend', None)
         if backend is None:
             g._backend = cls(app.config["user_params"],

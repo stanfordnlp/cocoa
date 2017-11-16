@@ -9,7 +9,6 @@ from cocoa.web.views.utils import format_message
 from cocoa.web.main.states import SurveyState
 from cocoa.analysis.utils import get_total_tokens_per_agent
 
-from utils import Messages
 from db_reader import DatabaseReader
 from core.event import Event
 
