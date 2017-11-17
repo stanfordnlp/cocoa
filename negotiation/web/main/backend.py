@@ -2,7 +2,7 @@ import sqlite3
 import json
 import time
 
-from cocoa.web.main.backend import Backend as BaseBackend, get_backend
+from cocoa.web.main.backend import Backend as BaseBackend
 from cocoa.web.main.backend import DatabaseManager as BaseDatabaseManager
 from cocoa.web.main.utils import Status, Messages
 from cocoa.web.views.utils import format_message
