@@ -128,6 +128,8 @@ if __name__ == '__main__':
     parser.add_argument('--lexicon', help='Path to pickled lexicon')
     parser.add_argument('--unit-test', default=False, action='store_true',
         help='if set to True, we run the full unit test')
+    parser.add_argument('-n', '--num_examples', default=5, type=int,
+        help='number of random examples to run for unit test')
     args = parser.parse_args()
     # python core/lexicon.py --lexicon data/lexicon.pkl --unit-test
 
