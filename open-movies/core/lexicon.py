@@ -1,6 +1,7 @@
 import re
 import json
 import time
+import random
 from fuzzywuzzy import fuzz
 import numpy as np
 from nltk import ngrams, pos_tag, RegexpParser, Tree
@@ -89,7 +90,7 @@ class Lexicon(object):
             else:
                 yield node[0]
 
-    def link_entity(self, tokens):
+    def link_entity(self, tokens, dry_run=False):
         """Link tokens to entities.
 
         Example:
@@ -105,11 +106,14 @@ class Lexicon(object):
                 chunk, type_ = chunk
                 s = ' '.join(chunk)
                 entity = self.query(s, k=1)
-                if entity:
-                    if fuzz.ratio(s.lower(), entity[0].value.lower()) > 50:
+                # entity[0] = highest ranking predicted movie title
+                if entity and fuzz.ratio(s.lower(), entity[0].value.lower()) > 70:
+                    if dry_run:
+                        entity_tokens.append("title: {}".format(s))
+                    else:
                         entity_tokens.append(Entity(surface=s, canonical=entity[0]))
-                elif type_ == 'entity':
-                    entity_tokens.append(Entity.from_elements(surface=s, value=s, type='unknown'))
+                # elif type_ == 'entity':
+                #     entity_tokens.append(Entity.from_elements(surface=s, value=s, type='unknown'))
                 else:
                     entity_tokens.extend(chunk)
             else:
@@ -125,6 +129,7 @@ if __name__ == '__main__':
     parser.add_argument('--unit-test', default=False, action='store_true',
         help='if set to True, we run the full unit test')
     args = parser.parse_args()
+    # python core/lexicon.py --lexicon data/lexicon.pkl --unit-test
 
     if args.lexicon:
         lexicon = Lexicon.from_pickle(args.lexicon)
@@ -139,9 +144,10 @@ if __name__ == '__main__':
         lexicon.save_pickle(args.output)
 
     if args.unit_test == True:
-        zample = json.load(open("data/input_zample.json", "r"))
-        linked = [lexicon.link_entity(z.split()) for z in zample]
-        json.dump(linked, open("data/output_zample.json", "w"))
+        zample = json.load(open("data/full_zample.json", "r"))
+        for z in random.sample(zample, 5):
+            if z is None: continue
+            print lexicon.link_entity(z.split(), True)
     else:
         tokens = 'I just watched the Planet Earth'.split()
         print lexicon.link_entity(tokens)
