@@ -90,6 +90,20 @@ class Lexicon(object):
             else:
                 yield node[0]
 
+    def lower_first(self, tokens):
+        lowered = []
+        new_sentence = False
+        for idx, token in tokens:
+            if idx == 0:
+                lowered.append( token.lower() )
+            if new_sentence:
+                lowered.append( token.lower() )
+            else:
+                lowered.append(token)
+            if token in [".", "?", "!"]:
+                new_sentence = True
+        return lowered
+
     def link_entity(self, tokens, dry_run=False):
         """Link tokens to entities.
 
@@ -99,7 +113,7 @@ class Lexicon(object):
 
         """
         # Capitalize 'i' so that it's tagged correctly
-        tokens = ['I' if x == 'i' else x for x in tokens]
+        tokens = lower_first(tokens)
         entity_tokens = []
         for chunk in self.chunk(tokens):
             if isinstance(chunk, tuple):
@@ -109,7 +123,7 @@ class Lexicon(object):
                 # entity[0] = highest ranking predicted movie title
                 if entity and fuzz.ratio(s.lower(), entity[0].value.lower()) > 70:
                     if dry_run:
-                        entity_tokens.append("title: {}".format(s))
+                        entity_tokens.append("<TITLE: {}>".format(s))
                     else:
                         entity_tokens.append(Entity(surface=s, canonical=entity[0]))
                 # elif type_ == 'entity':
@@ -118,7 +132,8 @@ class Lexicon(object):
                     entity_tokens.extend(chunk)
             else:
                 entity_tokens.append(chunk)
-        return entity_tokens
+        raised_tokens = ['I' if x == 'i' else x for x in entity_tokens]
+        return raised_tokens
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -128,7 +143,7 @@ if __name__ == '__main__':
     parser.add_argument('--lexicon', help='Path to pickled lexicon')
     parser.add_argument('--unit-test', default=False, action='store_true',
         help='if set to True, we run the full unit test')
-    parser.add_argument('-n', '--num_examples', default=5, type=int,
+    parser.add_argument('-n', '--num_examples', default=10, type=int,
         help='number of random examples to run for unit test')
     args = parser.parse_args()
     # python core/lexicon.py --lexicon data/lexicon.pkl --unit-test
