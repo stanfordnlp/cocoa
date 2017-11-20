@@ -77,7 +77,7 @@ def find_results(tokens, scenario):
     reward_0, reward_1 = (0,0)
     if tokens[1] == '<disagree>':
       deal_validity = False
-    elif tokens[1] == '<no_agreement>':
+    elif tokens[1] in ['<no_agreement>', '<disconnect>']:
       agreement = False
     else:
       print "Something went wrong: {}".format(tokens)
@@ -154,6 +154,7 @@ def extract_examples(in_path, out_path):
         elif token == "</output>":
           stage = 'partner'
       examples.append(example)
+  print "Extracted {} examples from {}".format(len(examples), in_path)
   return process_data(examples)
 
 if __name__ == "__main__":
