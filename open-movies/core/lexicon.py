@@ -1,4 +1,5 @@
 import re
+import json
 import time
 from fuzzywuzzy import fuzz
 import numpy as np
@@ -121,6 +122,8 @@ if __name__ == '__main__':
     add_lexicon_arguments(parser)
     parser.add_argument('--output', help='Path to save the lexicon')
     parser.add_argument('--lexicon', help='Path to pickled lexicon')
+    parser.add_argument('--unit-test', default=False, action='store_true',
+        help='if set to True, we run the full unit test')
     args = parser.parse_args()
 
     if args.lexicon:
@@ -135,5 +138,10 @@ if __name__ == '__main__':
             lexicon = Lexicon.from_json(args.movie_data, args.threshold)
         lexicon.save_pickle(args.output)
 
-    tokens = 'I just watched the Planet Earth'.split()
-    print lexicon.link_entity(tokens)
+    if args.unit_test == True:
+        zample = json.load(open("data/input_zample.json", "r"))
+        linked = [lexicon.link_entity(z.split()) for z in zample]
+        json.dump(linked, open("data/output_zample.json", "w"))
+    else:
+        tokens = 'I just watched the Planet Earth'.split()
+        print lexicon.link_entity(tokens)
