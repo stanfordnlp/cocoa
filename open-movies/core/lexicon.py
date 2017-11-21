@@ -93,10 +93,10 @@ class Lexicon(object):
     def lower_first(self, tokens):
         lowered = []
         new_sentence = False
-        for idx, token in tokens:
+        for idx, token in enumerate(tokens):
             if idx == 0:
                 lowered.append( token.lower() )
-            if new_sentence:
+            elif new_sentence:
                 lowered.append( token.lower() )
             else:
                 lowered.append(token)
@@ -113,7 +113,7 @@ class Lexicon(object):
 
         """
         # Capitalize 'i' so that it's tagged correctly
-        tokens = lower_first(tokens)
+        tokens = self.lower_first(tokens)
         entity_tokens = []
         for chunk in self.chunk(tokens):
             if isinstance(chunk, tuple):
@@ -162,9 +162,10 @@ if __name__ == '__main__':
 
     if args.unit_test == True:
         zample = json.load(open("data/full_zample.json", "r"))
-        for z in random.sample(zample, 5):
+        for z in random.sample(zample, 10):
             if z is None: continue
             print lexicon.link_entity(z.split(), True)
     else:
         tokens = 'I just watched the Planet Earth'.split()
         print lexicon.link_entity(tokens)
+
