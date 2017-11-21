@@ -162,9 +162,12 @@ if __name__ == '__main__':
 
     if args.unit_test == True:
         zample = json.load(open("data/full_zample.json", "r"))
-        for z in random.sample(zample, 10):
-            if z is None: continue
-            print lexicon.link_entity(z.split(), True)
+        nlp = spacy.load('en_core_web_sm')
+        for z in random.sample(zample, 5):
+            print z
+            doc = nlp(z)
+            print list(doc.ents)
+            # print lexicon.link_entity(z.split(), True)
     else:
         tokens = 'I just watched the Planet Earth'.split()
         print lexicon.link_entity(tokens)
