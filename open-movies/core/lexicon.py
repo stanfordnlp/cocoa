@@ -1,5 +1,7 @@
 import re
+import json
 import time
+import random
 from fuzzywuzzy import fuzz
 import numpy as np
 from nltk import ngrams, pos_tag, RegexpParser, Tree
@@ -88,7 +90,21 @@ class Lexicon(object):
             else:
                 yield node[0]
 
-    def link_entity(self, tokens):
+    def lower_first(self, tokens):
+        lowered = []
+        new_sentence = False
+        for idx, token in enumerate(tokens):
+            if idx == 0:
+                lowered.append( token.lower() )
+            elif new_sentence:
+                lowered.append( token.lower() )
+            else:
+                lowered.append(token)
+            if token in [".", "?", "!"]:
+                new_sentence = True
+        return lowered
+
+    def link_entity(self, tokens, dry_run=False):
         """Link tokens to entities.
 
         Example:
@@ -97,23 +113,27 @@ class Lexicon(object):
 
         """
         # Capitalize 'i' so that it's tagged correctly
-        tokens = ['I' if x == 'i' else x for x in tokens]
+        tokens = self.lower_first(tokens)
         entity_tokens = []
         for chunk in self.chunk(tokens):
             if isinstance(chunk, tuple):
                 chunk, type_ = chunk
                 s = ' '.join(chunk)
                 entity = self.query(s, k=1)
-                if entity:
-                    if fuzz.ratio(s.lower(), entity[0].value.lower()) > 50:
+                # entity[0] = highest ranking predicted movie title
+                if entity and fuzz.ratio(s.lower(), entity[0].value.lower()) > 70:
+                    if dry_run:
+                        entity_tokens.append("<TITLE: {}>".format(s))
+                    else:
                         entity_tokens.append(Entity(surface=s, canonical=entity[0]))
-                elif type_ == 'entity':
-                    entity_tokens.append(Entity.from_elements(surface=s, value=s, type='unknown'))
+                # elif type_ == 'entity':
+                #     entity_tokens.append(Entity.from_elements(surface=s, value=s, type='unknown'))
                 else:
                     entity_tokens.extend(chunk)
             else:
                 entity_tokens.append(chunk)
-        return entity_tokens
+        raised_tokens = ['I' if x == 'i' else x for x in entity_tokens]
+        return raised_tokens
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -121,7 +141,12 @@ if __name__ == '__main__':
     add_lexicon_arguments(parser)
     parser.add_argument('--output', help='Path to save the lexicon')
     parser.add_argument('--lexicon', help='Path to pickled lexicon')
+    parser.add_argument('--unit-test', default=False, action='store_true',
+        help='if set to True, we run the full unit test')
+    parser.add_argument('-n', '--num_examples', default=10, type=int,
+        help='number of random examples to run for unit test')
     args = parser.parse_args()
+    # python core/lexicon.py --lexicon data/lexicon.pkl --unit-test
 
     if args.lexicon:
         lexicon = Lexicon.from_pickle(args.lexicon)
@@ -135,5 +160,15 @@ if __name__ == '__main__':
             lexicon = Lexicon.from_json(args.movie_data, args.threshold)
         lexicon.save_pickle(args.output)
 
-    tokens = 'I just watched the Planet Earth'.split()
-    print lexicon.link_entity(tokens)
+    if args.unit_test == True:
+        zample = json.load(open("data/full_zample.json", "r"))
+        nlp = spacy.load('en_core_web_sm')
+        for z in random.sample(zample, 5):
+            print z
+            doc = nlp(z)
+            print list(doc.ents)
+            # print lexicon.link_entity(z.split(), True)
+    else:
+        tokens = 'I just watched the Planet Earth'.split()
+        print lexicon.link_entity(tokens)
+
