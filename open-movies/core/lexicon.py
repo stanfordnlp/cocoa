@@ -228,6 +228,5 @@ if __name__ == '__main__':
             print z
             print lexicon.link_entity(z.encode('utf8'), True)
     else:
-        tokens = 'I just watched the Planet Earth'.split()
-        print lexicon.link_entity(tokens)
+        print lexicon.link_entity('I just watched Planet Earth.', True)
 
