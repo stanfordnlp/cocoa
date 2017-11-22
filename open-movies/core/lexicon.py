@@ -4,7 +4,7 @@ import time
 import random
 from fuzzywuzzy import fuzz
 import numpy as np
-from nltk import ngrams, pos_tag, RegexpParser, Tree
+from nltk import ngrams, pos_tag, RegexpParser, Tree, word_tokenize
 from datasketch import MinHash, MinHashLSH
 
 from cocoa.core.util import generate_uuid, write_pickle, read_pickle
@@ -92,19 +92,81 @@ class Lexicon(object):
 
     def lower_first(self, tokens):
         lowered = []
-        new_sentence = False
+        new_sentence = True
         for idx, token in enumerate(tokens):
-            if idx == 0:
-                lowered.append( token.lower() )
-            elif new_sentence:
+            if new_sentence:
+                try:
+                   a = tokens[idx+1][0]
+                except(IndexError):
+                   continue
+                if tokens[idx+1][0].isupper() or tokens[idx+1] == "I":
+                    lowered.append(token)
+                else:
+                    lowered.append( token.lower() )
+                new_sentence = False
+            elif token in ["I", "I've" "Ive", "I'm", "Im"]:
                 lowered.append( token.lower() )
             else:
                 lowered.append(token)
             if token in [".", "?", "!"]:
-                new_sentence = True
+                if tokens[idx-1] not in ["Dr", "Mrs", "Ms", "Mr"]:
+                    new_sentence = True
+                lowered.append(token)
         return lowered
 
-    def link_entity(self, tokens, dry_run=False):
+    def find_movie_titles(self, lowered, parsed):
+        title_flag = False
+        candidate = []
+        for idx, token in enumerate(lowered):
+            if token in ["of", "the", "a", "an", "in"] and title_flag:
+                if len(lowered) > idx and lowered[idx+1][0].isupper():
+                    token = token.title()
+            if token[0].isupper() or token[0] in ["2", "3", "4", "I"]:
+                # print("one: {}".format(token) )
+                candidate.append(token)
+                if not title_flag:
+                    title_flag = True
+            elif token[0].islower() and title_flag:
+                # print("two: {}".format(token) )
+                title_flag = False
+                c = " ".join(candidate)
+                parsed.append("<TITLE: {}>".format(c))
+                # parsed.append(token)
+                candidate = []
+            # elif token[0].islower():
+                # print("three: {}".format(token) )
+                # parsed.append(token)
+            if (idx+1 == len(lowered)) and title_flag:
+                # print("four: {}".format(token) )
+                c = " ".join(candidate)
+                parsed.append("<TITLE: {}>".format(c))
+        return parsed
+
+    def find_genres(self, tokens, parsed):
+        genres = ['comedy', 'romance', 'action', 'drama', 'sci-fi', 'comedies',
+                'documentary', 'documentaries', 'horror']
+        remaining = []
+        for token in tokens:
+            if token.lower() in genres:
+                parsed.append("<GENRE: {}>".format(token))
+            else:
+                remaining.append(token)
+        return parsed, remaining
+
+    def link_entity(self, line, dry_run=False):
+        parsed = []
+        search_obj = re.search(r"\'[^\']+\'", line)
+        if search_obj is not None:
+            trimmed = search_obj.group()[1:-1]
+            pieces = trimmed.split()
+            if len(pieces) < 5:
+                parsed.append("<TITLE: {}>".format(trimmed))
+        parsed, tokens = self.find_genres(word_tokenize(z), parsed)
+        lowered = self.lower_first(tokens)
+        parsed = self.find_movie_titles(lowered, parsed)
+        return parsed
+
+    def link_entity1(self, tokens, dry_run=False):
         """Link tokens to entities.
 
         Example:
@@ -143,7 +205,7 @@ if __name__ == '__main__':
     parser.add_argument('--lexicon', help='Path to pickled lexicon')
     parser.add_argument('--unit-test', default=False, action='store_true',
         help='if set to True, we run the full unit test')
-    parser.add_argument('-n', '--num_examples', default=10, type=int,
+    parser.add_argument('-n', '--num-examples', default=10, type=int,
         help='number of random examples to run for unit test')
     args = parser.parse_args()
     # python core/lexicon.py --lexicon data/lexicon.pkl --unit-test
@@ -162,13 +224,9 @@ if __name__ == '__main__':
 
     if args.unit_test == True:
         zample = json.load(open("data/full_zample.json", "r"))
-        nlp = spacy.load('en_core_web_sm')
-        for z in random.sample(zample, 5):
+        for z in random.sample(zample, args.num_examples):
             print z
-            doc = nlp(z)
-            print list(doc.ents)
-            # print lexicon.link_entity(z.split(), True)
+            print lexicon.link_entity(z.encode('utf8'), True)
     else:
-        tokens = 'I just watched the Planet Earth'.split()
-        print lexicon.link_entity(tokens)
+        print lexicon.link_entity('I just watched Planet Earth.', True)
 
