@@ -12,10 +12,10 @@ from cocoa.core.entity import CanonicalEntity, Entity
 
 def add_lexicon_arguments(parser):
     parser.add_argument('--movie-data', help='Path to file of movie metadata and reviews')
-    parser.add_argument('--threshold', type=float, default=0.8, help='LSH distance threshold')
+    parser.add_argument('--threshold', type=float, default=0.6, help='LSH distance threshold')
 
 class Lexicon(object):
-    def __init__(self, entities=None, threshold=0.8, lsh=None):
+    def __init__(self, entities=None, threshold=0.6, lsh=None):
         self.entities = entities
         self.lsh = self.build_lsh(threshold) if not lsh else lsh
         self.chunker = self.build_np_chunker()
@@ -99,12 +99,12 @@ class Lexicon(object):
                    a = tokens[idx+1][0]
                 except(IndexError):
                    continue
-                if tokens[idx+1][0].isupper() or tokens[idx+1] == "I":
+                if tokens[idx+1][0].isupper() and tokens[idx+1] != "I":
                     lowered.append(token)
                 else:
                     lowered.append( token.lower() )
                 new_sentence = False
-            elif token in ["I", "I've" "Ive", "I'm", "Im"]:
+            elif token in ["Ive", "I've", "I", "I'm", "Im"]:
                 lowered.append( token.lower() )
             else:
                 lowered.append(token)
@@ -114,88 +114,90 @@ class Lexicon(object):
                 lowered.append(token)
         return lowered
 
-    def find_movie_titles(self, lowered, parsed):
+    def genres_by_keyword(self, tokens):
+        keywords = []
+        genres = ['comedy', 'romance', 'action', 'drama', 'sci-fi', 'comedies', 'documentary', 'documentaries', 'horror']
+        for token in tokens:
+            if token.lower() in genres:
+                keywords.append({"GENRE": token})
+        return keywords
+
+    def titles_by_capitalization(self, tokens):
+        lowered = self.lower_first(tokens)
+        capitals = []
         title_flag = False
         candidate = []
         for idx, token in enumerate(lowered):
-            if token in ["of", "the", "a", "an", "in"] and title_flag:
-                if len(lowered) > idx and lowered[idx+1][0].isupper():
-                    token = token.title()
+            if token in ["of", "the", "a", "an", "in", "and"] and title_flag:
+                if len(lowered) > idx:
+                    if lowered[idx+1][0].isupper() or lowered[idx+1] == 'the':
+                        token = token.title()
             if token[0].isupper() or token[0] in ["2", "3", "4", "I"]:
-                # print("one: {}".format(token) )
                 candidate.append(token)
                 if not title_flag:
                     title_flag = True
+            if title_flag and token[0] == "'":
+                candidate.append(token)
             elif token[0].islower() and title_flag:
-                # print("two: {}".format(token) )
                 title_flag = False
                 c = " ".join(candidate)
-                parsed.append("<TITLE: {}>".format(c))
-                # parsed.append(token)
+                capitals.append({"TITLE": c.title()})
                 candidate = []
-            # elif token[0].islower():
-                # print("three: {}".format(token) )
-                # parsed.append(token)
             if (idx+1 == len(lowered)) and title_flag:
-                # print("four: {}".format(token) )
                 c = " ".join(candidate)
-                parsed.append("<TITLE: {}>".format(c))
-        return parsed
+                capitals.append({"TITLE": c.title()})
+        return capitals
 
-    def find_genres(self, tokens, parsed):
-        genres = ['comedy', 'romance', 'action', 'drama', 'sci-fi', 'comedies',
-                'documentary', 'documentaries', 'horror']
-        remaining = []
-        for token in tokens:
-            if token.lower() in genres:
-                parsed.append("<GENRE: {}>".format(token))
-            else:
-                remaining.append(token)
-        return parsed, remaining
-
-    def link_entity(self, line, dry_run=False):
-        parsed = []
+    def titles_by_quote(self, line):
+        quoted = []
         search_obj = re.search(r"\'[^\']+\'", line)
         if search_obj is not None:
             trimmed = search_obj.group()[1:-1]
             pieces = trimmed.split()
             if len(pieces) < 5:
-                parsed.append("<TITLE: {}>".format(trimmed))
-        parsed, tokens = self.find_genres(word_tokenize(z), parsed)
-        lowered = self.lower_first(tokens)
-        parsed = self.find_movie_titles(lowered, parsed)
-        return parsed
+                quoted.append({"TITLE": trimmed.title()})
+        return quoted
 
-    def link_entity1(self, tokens, dry_run=False):
-        """Link tokens to entities.
+    def titles_by_callout(self, line):
+        callout = []
+        search_obj = re.search(r"(?<=a movie called )(\w*)", line)
+        if search_obj is not None:
+            callout.append({"TITLE": search_obj.group(0).title()})
+        return callout
 
-        Example:
-            ['i', 'work', 'at', 'apple'] =>
-            ['i', 'work', 'at', ('apple', ('apple','company'))]
-
-        """
-        # Capitalize 'i' so that it's tagged correctly
-        tokens = self.lower_first(tokens)
+    def check_for_fuzz(self, parsed, debug=False):
         entity_tokens = []
-        for chunk in self.chunk(tokens):
-            if isinstance(chunk, tuple):
-                chunk, type_ = chunk
-                s = ' '.join(chunk)
-                entity = self.query(s, k=1)
-                # entity[0] = highest ranking predicted movie title
-                if entity and fuzz.ratio(s.lower(), entity[0].value.lower()) > 70:
-                    if dry_run:
-                        entity_tokens.append("<TITLE: {}>".format(s))
-                    else:
-                        entity_tokens.append(Entity(surface=s, canonical=entity[0]))
-                # elif type_ == 'entity':
-                #     entity_tokens.append(Entity.from_elements(surface=s, value=s, type='unknown'))
-                else:
-                    entity_tokens.extend(chunk)
+        for candidate in parsed:
+            key = candidate.keys()[0]
+            if key == "TITLE":
+                s = candidate[key]
+                entities = self.query(s, k=1)
+                if debug:
+                    print("s: {}".format(s) )
+                    print("entity: {}".format(entities) )
+                if len(entities) == 0:
+                    entities = self.query("The "+s, k=1)
+                    if len(entities) == 0: continue
+                if fuzz.ratio(s, entities[0].value.title()) > 80:
+                    entity_tokens.append(Entity(surface=s, canonical=entities[0]))
+                elif len(entities) > 1:
+                    for idx, canon in enumerate(entities):
+                        if fuzz.ratio(s, canon.value.title()) > 70:
+                            entity_tokens.append(Entity(surface=s, canonical=entities[idx]))
+                            break
             else:
-                entity_tokens.append(chunk)
-        raised_tokens = ['I' if x == 'i' else x for x in entity_tokens]
-        return raised_tokens
+                entity_tokens.append(candidate)
+        return entity_tokens
+
+    def link_entity(self, line, debug=False):
+        tokens = word_tokenize(line)
+        parsed = []
+        parsed.extend( self.genres_by_keyword(tokens) )
+        parsed.extend( self.titles_by_quote(line) )
+        parsed.extend( self.titles_by_callout(line) )
+        parsed.extend( self.titles_by_capitalization(tokens) )
+        parsed = self.check_for_fuzz(parsed, debug)
+        return parsed
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -228,5 +230,6 @@ if __name__ == '__main__':
             print z
             print lexicon.link_entity(z.encode('utf8'), True)
     else:
-        print lexicon.link_entity('I just watched Planet Earth.', True)
+        print lexicon.link_entity('have you heard of a movie called titanic?', True)
+        # print lexicon.link_entity('I just watched Planet Earth.', False)
 
