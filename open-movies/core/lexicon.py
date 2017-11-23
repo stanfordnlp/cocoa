@@ -228,7 +228,7 @@ if __name__ == '__main__':
         zample = json.load(open("data/full_zample.json", "r"))
         for z in random.sample(zample, args.num_examples):
             print z
-            print lexicon.link_entity(z.encode('utf8'), True)
+            print lexicon.link_entity(z.encode('utf8'), False)
     else:
         print lexicon.link_entity('have you heard of a movie called titanic?', True)
         # print lexicon.link_entity('I just watched Planet Earth.', False)
