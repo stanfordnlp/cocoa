@@ -44,6 +44,20 @@ class Example(object):
         agents_info = raw.get('agents_info', None)
         return Example(scenario, uuid, events, outcome, ex_id, agents, agents_info=agents_info)
 
+    @classmethod
+    def test_dict(cls, raw):
+        uuid = raw['scenario_uuid']
+        events = Event.gather_eval([Event.from_dict(e) for e in raw['events']])
+        outcome = raw['outcome']
+        ex_id = raw['uuid']
+        if 'agents' in raw:
+            agents = {int(k): v for k, v in raw['agents'].iteritems()}
+        else:
+            agents = None
+        agents_info = raw.get('agents_info', None)
+        return Example(None, uuid, events, outcome, ex_id, agents, agents_info=agents_info)
+
+
     def to_dict(self):
         return {
             'scenario_uuid': self.scenario.uuid,
@@ -107,11 +121,16 @@ def read_examples(paths, max_examples, Scenario):
     return examples
 
 def add_dataset_arguments(parser):
-    parser.add_argument('--train-examples-paths', help='Input training examples', nargs='*', default=[])
-    parser.add_argument('--test-examples-paths', help='Input test examples', nargs='*', default=[])
-    parser.add_argument('--train-max-examples', help='Maximum number of training examples', type=int)
-    parser.add_argument('--test-max-examples', help='Maximum number of test examples', type=int)
-    parser.add_argument('--eval-examples-paths', help='Path to multi-response evaluation files', nargs='*', default=[])
+    parser.add_argument('--train-examples-paths', nargs='*', default=[],
+        help='Input training examples')
+    parser.add_argument('--test-examples-paths', nargs='*', default=[],
+        help='Input test examples')
+    parser.add_argument('--train-max-examples', type=int,
+        help='Maximum number of training examples')
+    parser.add_argument('--test-max-examples', type=int,
+        help='Maximum number of test examples')
+    parser.add_argument('--eval-examples-paths', nargs='*', default=[],
+        help='Path to multi-response evaluation files')
 
 def read_dataset(args, Scenario):
     '''
@@ -121,3 +140,8 @@ def read_dataset(args, Scenario):
     test_examples = read_examples(args.test_examples_paths, args.test_max_examples, Scenario)
     dataset = Dataset(train_examples, test_examples)
     return dataset
+
+if __name__ == "__main__":
+    raw = read_json("fb-negotiation/data/transformed_test.json")
+    for idx, example in enumerate(raw):
+        print Example.test_dict(example)
