@@ -1,3 +1,4 @@
+import numpy as np
 from collections import defaultdict
 
 from cocoa.core.dataset import Example
@@ -74,8 +75,6 @@ class Visualizer(BaseVisualizer):
 
         results = {}
         for system, examples in chats.iteritems():
-            if system == 'human':
-                continue
             results[system] = self.compute_effectiveness_for_system(examples, system)
             print system, results[system]
 
@@ -101,10 +100,12 @@ class Visualizer(BaseVisualizer):
         for ex in examples:
             if self.skip_example(ex):
                 continue
-            if ex.agents[0] == system:
-                eval_agent = 0
+            if system == 'human':
+                # Take human winner
+                rewards = [ex.outcome['reward'][str(agent)] for agent in (0, 1)]
+                eval_agent = np.argmax(rewards)
             else:
-                eval_agent = 1
+                eval_agent = 0 if ex.agents[0] == system else 1
             total += 1
             if ex.outcome.get('valid_deal'):
                 num_agreed += 1
