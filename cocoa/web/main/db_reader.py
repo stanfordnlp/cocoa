@@ -86,8 +86,14 @@ class DatabaseReader(object):
         for row in logged_events:
             # Compatible with older event structure
             agent, action, time, data = [row[k] for k in ('agent', 'action', 'time', 'data')]
-            start_time = row['start_time'] if 'start_time' in row else time
-            template = row['template'] if 'template' in row else None
+            try:
+                start_time = row['start_time']
+            except IndexError:
+                start_time = time
+            try:
+                metadata = json.loads(row['metadata'])
+            except IndexError:
+                metadata = None
 
             if action == 'join' or action == 'leave' or action == 'typing':
                 continue
@@ -98,9 +104,7 @@ class DatabaseReader(object):
             agent_chat[agent] = True
             time = cls.convert_time_format(time)
             start_time = cls.convert_time_format(start_time)
-            if template is not None:
-                template = json.loads(template)
-            event = Event(agent, time, action, data, start_time, template=template)
+            event = Event(agent, time, action, data, start_time, metadata=metadata)
             chat_events.append(event)
 
         return chat_events

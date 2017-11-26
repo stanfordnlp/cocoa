@@ -37,7 +37,7 @@ class DatabaseManager(object):
         c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
 
         c.execute(
-            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, template text)'''
+            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, metadata text)'''
         )
         c.execute(
             '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
@@ -243,7 +243,7 @@ class Backend(object):
             data = event.data
             if event.action in ('select', 'offer', 'eval'):
                 data = json.dumps(event.data)
-            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.template)
+            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.metadata)
 
         try:
             with self.conn:

@@ -13,25 +13,25 @@ class Event(object):
 
     decorative_events = ('join', 'leave', 'typing', 'eval')
 
-    def __init__(self, agent, time, action, data, start_time=None, template=None):
+    def __init__(self, agent, time, action, data, start_time=None, metadata=None):
         self.agent = agent
         self.time = time
         self.action = action
         self.data = data
         self.start_time = start_time
-        self.template = template
+        self.metadata = metadata
 
     @staticmethod
     def from_dict(raw):
-        return Event(raw['agent'], raw['time'], raw['action'], raw['data'], start_time=raw.get('start_time'), template=raw.get('template'))
+        return Event(raw['agent'], raw['time'], raw['action'], raw['data'], start_time=raw.get('start_time'), metadata=raw.get('metadata'))
 
     def to_dict(self):
         return {'agent': self.agent, 'time': self.time, 'action': self.action, 'data': self.data,
-                'start_time': self.start_time, 'template': self.template}
+                'start_time': self.start_time, 'metadata': self.metadata}
 
     @classmethod
-    def MessageEvent(cls, agent, data, time=None, start_time=None, template=None):
-        return cls(agent, time, 'message', data, start_time=start_time, template=template)
+    def MessageEvent(cls, agent, data, time=None, start_time=None, metadata=None):
+        return cls(agent, time, 'message', data, start_time=start_time, metadata=metadata)
 
     @classmethod
     def JoinEvent(cls, agent, userid=None, time=None):
