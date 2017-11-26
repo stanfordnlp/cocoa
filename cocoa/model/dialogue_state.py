@@ -19,6 +19,10 @@ class DialogueState(object):
         return self.utterance[self.partner].lf.intent
 
     @property
+    def partner_utterance(self):
+        return self.utterance[self.partner]
+
+    @property
     def partner_template(self):
         try:
             return self.utterance[self.partner].template
@@ -30,3 +34,4 @@ class DialogueState(object):
         self.utterance[agent] = utterance
         if agent == self.agent:
             self.done.add(utterance.lf.intent)
+

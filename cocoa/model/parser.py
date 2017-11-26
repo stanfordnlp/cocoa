@@ -1,9 +1,16 @@
 class Utterance(object):
-    def __init__(self, raw_text=None, tokens=None, logical_form=None, template=None):
+    def __init__(self, raw_text=None, tokens=None, logical_form=None, template=None, ambiguous_template=False):
         self.text = raw_text
         self.tokens = tokens
         self.lf = logical_form
         self.template = template
+        self.ambiguous_template = ambiguous_template
+
+    def to_dict(self):
+        return {
+                'logical_form': self.lf.to_dict(),
+                'template': self.template,
+                }
 
     def __str__(self):
         s = []
@@ -21,6 +28,11 @@ class LogicalForm(object):
         self.intent = intent
         for k, v in kwargs.iteritems():
             setattr(self, k, v)
+
+    def to_dict(self):
+        attrs = vars(self)
+        attrs['intent'] = self.intent
+        return attrs
 
     def __str__(self):
         attrs = vars(self)

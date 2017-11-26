@@ -37,10 +37,12 @@ class Generator(object):
         return self.templates.id.notnull()
 
     def retrieve(self, context, used_templates=None, topk=20, T=1., **kwargs):
+        loc = self.get_filter(used_templates=used_templates, **kwargs)
+        if loc is None:
+            return None
+
         if isinstance(context, list):
             context = detokenize(context)
-        loc = self.get_filter(used_templates=used_templates, **kwargs)
-
         features = self.vectorizer.transform([context])
         scores = self.tfidf_matrix * features.T
         scores = scores.todense()[loc]
@@ -56,14 +58,13 @@ class Generator(object):
         return self.sample(logp, candidates, T)
 
     def sample(self, scores, templates, T=1.):
-        #print templates
         probs = self.softmax(scores, T=T)
         template_id = np.random.multinomial(1, probs).argmax()
         template = templates.iloc[template_id]
         return template
 
     def softmax(self, scores, T=1.):
-        exp_scores = np.exp((scores - np.max(scores)) / T)
+        exp_scores = np.exp(scores / T)
         return exp_scores / np.sum(exp_scores)
 
 
@@ -93,11 +94,11 @@ class Templates(object):
         write_pickle(self.templates, output)
 
     def score_templates(self):
-        sequences = self.templates.template.values
+        sequences = [s.split() for s in self.templates.template.values]
         vocab = build_vocabulary(1, *sequences)
         counter = count_ngrams(3, vocab, sequences, pad_left=True, pad_right=False)
         model = MLENgramModel(counter)
-        scores = [model.entropy(s.split()) for s in sequences]
+        scores = [-1.*model.entropy(s)*len(s) for s in sequences]
         if not 'logp' in self.templates.columns:
             self.templates.insert(0, 'logp', 0)
         self.templates['logp'] = scores
