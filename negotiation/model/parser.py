@@ -178,6 +178,8 @@ class Parser(BaseParser):
             intent = 'agree'
         elif not tags and dialogue_state.my_act == 'inquiry':
             intent = 'inform'
+        elif tags == ['negative']:
+            intent = 'disagree'
         else:
             intent = 'unknown'
         return intent

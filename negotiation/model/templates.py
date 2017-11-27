@@ -26,6 +26,7 @@ class Templates(object):
         return cls(templates)
 
     def build_tfidf(self):
+        # TODO: context + response?
         documents = self.templates['context'].values
         self.tfidf_matrix = self.vectorizer.fit_transform(documents)
 

@@ -1,3 +1,5 @@
+from cocoa.model.parser import LogicalForm as LF
+
 # NOTE: using the task-specific Session
 from sessions.session import Session
 
@@ -41,3 +43,23 @@ class RulebasedSession(Session):
                 'received': self.state.utterance[self.partner].to_dict()
                 }
         return super(RulebasedSession, self).message(utterance.text, metadata=metadata)
+
+    def template_message(self, intent):
+        template = self.retrieve_response_template(intent)
+        lf = LF(intent)
+        text = template['template']
+        utterance = Utterance(raw_text=text, logical_form=lf, template=template)
+        return self.message(utterance)
+
+    def retrieve_action(self):
+        template = self.retrieve_response_template(None)
+        action = template['tag']
+        return action
+
+    def choose_action(self):
+        action = self.manager.choose_action(state=self.state)
+        if not action:
+            action = self.retrieve_action()
+            if not action in self.manager.available_actions(self.state):
+                action = 'unknown'
+        return action

@@ -44,6 +44,15 @@ class Parser(object):
 
     question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could'])
 
+    neg_words = set(['no', 'not', "n't"])
+
+    @classmethod
+    def is_negative(cls, utterance):
+        for token in utterance.tokens:
+            if token in cls.neg_words:
+                return True
+        return False
+
     @classmethod
     def is_question(cls, utterance):
         tokens = utterance.tokens
@@ -74,6 +83,8 @@ class Parser(object):
             tags.append('question')
         if self.is_greeting(utterance):
             tags.append('greeting')
+        if self.is_negative(utterance):
+            tags.append('negative')
         return tags
 
     def parse(self, event, dialogue_state, update_state=False):

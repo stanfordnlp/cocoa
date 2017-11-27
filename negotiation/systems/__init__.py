@@ -20,11 +20,11 @@ def add_system_arguments(parser):
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
-    templates = Templates.from_pickle(args.templates)
-    generator = Generator(templates)
-    manager = Manager.from_pickle(args.rule_model)
     if name == 'rulebased':
-        return RulebasedSystem(lexicon, timed, generator=generator, manager=manager)
+        templates = Templates.from_pickle(args.templates)
+        generator = Generator(templates)
+        manager = Manager.from_pickle(args.policy)
+        return RulebasedSystem(lexicon, generator, manager, timed)
     #elif name == 'config-rulebased':
     #    configs = read_json(args.rulebased_configs)
     #    return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db, templates=templates)
