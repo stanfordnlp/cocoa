@@ -2,17 +2,17 @@ from cocoa.core.event import Event as BaseEvent
 
 class Event(BaseEvent):
     @staticmethod
-    def OfferEvent(agent, data, time=None):
-        return Event(agent, time, 'offer', data)
+    def OfferEvent(agent, data, time=None, metadata=None):
+        return Event(agent, time, 'offer', data, metadata=metadata)
 
     @staticmethod
-    def QuitEvent(agent, data, time=None):
-        return Event(agent, time, 'quit', data)
+    def QuitEvent(agent, data, time=None, metadata=None):
+        return Event(agent, time, 'quit', data, metadata=metadata)
 
     @staticmethod
-    def AcceptEvent(agent, time=None):
-        return Event(agent, time, 'accept', None)
+    def AcceptEvent(agent, time=None, metadata=None):
+        return Event(agent, time, 'accept', None, metadata=metadata)
 
     @staticmethod
-    def RejectEvent(agent, time=None):
-        return Event(agent, time, 'reject', None)
+    def RejectEvent(agent, time=None, metadata=None):
+        return Event(agent, time, 'reject', None, metadata=metadata)

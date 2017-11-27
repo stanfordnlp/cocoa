@@ -29,7 +29,7 @@ Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_f
 
 default_config = Config(.2, .3, .5, .5)
 
-class CraigslistRulebasedSession(BaseRulebasedSession, Session):
+class CraigslistRulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
         parser = Parser(agent, kb, lexicon)
         state = DialogueState(agent, kb)
@@ -109,10 +109,10 @@ class CraigslistRulebasedSession(BaseRulebasedSession, Session):
     def fill_template(self, template, price=None):
         return template.format(title=self.title, price=(price or ''), listing_price=self.listing_price, partner_price=(self.state.partner_price or ''), my_price=(self.state.my_price or ''))
 
-    def template_message(self, intent):
+    def template_message(self, intent, price=None):
         template = self.retrieve_response_template(intent, category=self.kb.category, role=self.kb.role)
         if '{price}' in template['template']:
-            price = self.state.my_price
+            price = price or self.state.my_price
         else:
             price = None
         lf = LF(intent, price=price)
@@ -145,14 +145,26 @@ class CraigslistRulebasedSession(BaseRulebasedSession, Session):
         return self.template_message('counter-price')
 
     def offer(self, price):
-        #self.state['offered'] = True
-        lf = LF('offer', price=price)
-        self.state.update(self.agent, Utterance(logical_form=lf))
-        return super(BaseRulebasedSession, self).offer({'price': price})
+        utterance = Utterance(logical_form=LF('offer', price=price))
+        self.state.update(self.agent, utterance)
+        metadata = self.metadata(utterance)
+        return super(BaseRulebasedSession, self).offer({'price': price}, metadata=metadata)
+
+    def accept(self):
+        utterance = Utterance(logical_form=LF('accept'))
+        self.state.update(self.agent, utterance)
+        metadata = self.metadata(utterance)
+        return super(BaseRulebasedSession, self).accept(metadata=metadata)
+
+    def reject(self):
+        utterance = Utterance(logical_form=LF('reject'))
+        self.state.update(self.agent, utterance)
+        metadata = self.metadata(utterance)
+        return super(BaseRulebasedSession, self).reject(metadata=metadata)
 
     def agree(self, price):
-        #self.state.my_act = 'agree'
-        return self.offer(price)
+        self.state.my_price = price
+        return self.template_message('agree', price=price)
 
     def deal(self, price):
         if self.bottomline is None:
@@ -210,8 +222,8 @@ class CraigslistRulebasedSession(BaseRulebasedSession, Session):
         return None
 
     def send(self):
-        #if self.has_done('offer'):
-        #    return self.wait()
+        if self.has_done('offer'):
+            return self.wait()
 
         if self.state.partner_act == 'offer':
             if self.no_deal(self.state.partner_price):
@@ -219,8 +231,7 @@ class CraigslistRulebasedSession(BaseRulebasedSession, Session):
             return self.accept()
 
         if self.state.partner_price is not None and self.deal(self.state.partner_price):
-            #return self.agree(self.state.partner_price)
-            return self.template_message('agree')
+            return self.agree(self.state.partner_price)
 
         if self.has_done('final_call'):
             return self.offer(self.bottomline if self.compare(self.bottomline, self.state.partner_price) > 0 else self.state.partner_price)
