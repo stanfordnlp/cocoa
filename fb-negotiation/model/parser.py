@@ -10,13 +10,16 @@ class Parser(BaseParser):
     ME = 0
     YOU = 1
 
-    neg_words = ("no", "not", "nothing", "n't", "zero", "dont", "worthless")
+    neg_words = ("nothing", "zero", "dont", "worthless")
     i_words = ('i', 'ill', 'id', 'me', 'mine', 'my')
     you_words = ('u', 'you', 'yours', 'your')
     sentence_delimiter = ('.', ';', '?')
 
     @classmethod
     def is_negative(cls, utterance):
+        neg = super(Parser, cls).is_negative(utterance)
+        if neg:
+            return True
         for token in utterance.tokens:
             if token in cls.neg_words:
                 return True
