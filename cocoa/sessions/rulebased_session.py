@@ -36,12 +36,18 @@ class RulebasedSession(Session):
         template['source'] = 'rule'
         return template
 
-    def message(self, utterance):
-        self.state.update(self.agent, utterance)
+    def metadata(self, utterance):
+        """Metadata (related dialogue state) when sending `utterance`.
+        """
         metadata = {
                 'sent': utterance.to_dict(),
                 'received': self.state.utterance[self.partner].to_dict()
                 }
+        return metadata
+
+    def message(self, utterance):
+        self.state.update(self.agent, utterance)
+        metadata = self.metadata(utterance)
         return super(RulebasedSession, self).message(utterance.text, metadata=metadata)
 
     def template_message(self, intent):

@@ -178,16 +178,8 @@ class RulebasedSession(BaseRulebasedSession):
     def select(self, split):
         utterance = Utterance(logical_form=LF('select', split=split))
         self.state.update(self.agent, utterance)
-        metadata = {
-                'sent': utterance.to_dict(),
-                'received': self.state.utterance[self.partner].to_dict()
-                }
+        metadata = self.metadata(utterance)
         return super(RulebasedSession, self).select(split, metadata=metadata)
-
-    def retrieve_action(self):
-        template = super(RulebasedSession, self).retrieve_response_template(None)
-        action = template['tag']
-        return action
 
     def send(self):
         if self.state.partner_act == 'reject':
