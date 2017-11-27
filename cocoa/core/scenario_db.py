@@ -31,11 +31,11 @@ class ScenarioDB(object):
     '''
     def __init__(self, scenarios_list):
         self.scenarios_list = scenarios_list  # Keep things in order
-        self.size = len(scenarios_list)
         self.scenarios_map = {}  # Map from uuid to scenario
         self.selected_scenarios = set()
         for scenario in scenarios_list:
             self.scenarios_map[scenario.uuid] = scenario
+        self.size = len(self.scenarios_map)
 
     def get(self, uuid):
         return self.scenarios_map[uuid]
