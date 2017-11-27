@@ -206,6 +206,8 @@ class Parser(BaseParser):
             u = self.parse_offer(event)
         elif event.action == 'message':
             u = self.parse_message(event, dialogue_state)
+        elif event.action in ('reject', 'accept', 'quit'):
+            u = self.parse_action(event)
         else:
             return False
 
