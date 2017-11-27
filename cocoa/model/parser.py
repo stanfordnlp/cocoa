@@ -91,3 +91,8 @@ class Parser(object):
         """Parse an event to LogicalForm.
         """
         raise NotImplementedError
+
+    def parse_action(self, event):
+        intent = event.action
+        return Utterance(logical_form=LF(intent), template=['<{}>'.format(intent)])
+
