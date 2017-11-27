@@ -184,10 +184,6 @@ class Parser(BaseParser):
                 return True
         return False
 
-    def parse_action(self, event):
-        intent = event.action
-        return Utterance(logical_form=LF(intent), template=['<{}>'.format(intent)])
-
     def extract_template(self, tokens, dialogue_state):
         template = []
         for token in tokens:
