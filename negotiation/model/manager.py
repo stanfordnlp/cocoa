@@ -3,7 +3,8 @@ from cocoa.model.manager import Manager as BaseManager
 class Manager(BaseManager):
     def available_actions(self, state):
         actions = super(Manager, self).available_actions(state)
-        masked_actions = []
+        # These actions should be decided by the bot's strategy
+        masked_actions = ['reject', 'accept', 'quit']
         if state.num_inquiry > 1:
             masked_actions.append('inquiry')
             if state.curr_price is None:
@@ -15,7 +16,7 @@ class Manager(BaseManager):
 
     def choose_action(self, state, context=None):
         action = super(Manager, self).choose_action(state, context)
-        if action == 'offer' and self.partner_act == 'unknown':
+        if action == 'offer' and state.partner_act == 'unknown':
             return 'agree'
         return action
 
