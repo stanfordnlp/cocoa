@@ -56,6 +56,22 @@ class DatabaseManager(object):
 
         return cls(db_file)
 
+    def add_scenarios(self, scenario_db, systems, update=False):
+        """Add used scenarios to DB so that we don't collect data on duplicated scenarios.
+        """
+        conn = sqlite3.connect(self.db_file)
+        c = conn.cursor()
+        for sid, scenario in scenario_db.scenarios_map.iteritems():
+            for agent_type in systems.keys():
+                if update:
+                    c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+                else:
+                    c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+
+        conn.commit()
+        conn.close()
+
+
 
 # TODO: refactor to put database operations in the DBManager
 class Backend(object):
@@ -409,8 +425,6 @@ class Backend(object):
                     ))
                     return True
                 else:
-                    # TODO: bot is always buyer
-                    my_index = 1
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)

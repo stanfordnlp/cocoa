@@ -32,21 +32,6 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
         return cls(db_file)
 
-    def add_scenarios(self, scenario_db, systems, update=False):
-        """Add used scenarios to DB so that we don't collect data on duplicated scenarios.
-        """
-        conn = sqlite3.connect(self.db_file)
-        c = conn.cursor()
-        for scenario in scenario_db.scenarios_list:
-            sid = scenario.uuid
-            for agent_type in systems.keys():
-                if update:
-                    c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-                else:
-                    c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-
-        conn.commit()
-        conn.close()
 
 class Backend(BaseBackend):
     def display_received_event(self, event):
@@ -93,7 +78,7 @@ class Backend(BaseBackend):
         controller = self.controller_map[userid]
         chat_id = controller.get_chat_id()
 
-        def verify_chat(userid, agent_idx, is_partner):
+        def verify_chat(userid, agent_idx, is_partner, min_tokens=40):
             user_name = 'partner' if is_partner else 'user'
             if self.should_reject_chat(userid, agent_idx):
                 self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
@@ -108,8 +93,11 @@ class Backend(BaseBackend):
 
         if game_over:
             if not self.is_user_partner_bot(cursor, userid):
-                verify_chat(partner_id, 1 - agent_idx, True)
-            verify_chat(userid, agent_idx, False)
+                min_tokens = 40
+                verify_chat(partner_id, 1 - agent_idx, True, min_tokens=min_tokens)
+            else:
+                min_tokens = 30
+            verify_chat(userid, agent_idx, False, min_tokens=min_tokens)
             return True
 
         return False
