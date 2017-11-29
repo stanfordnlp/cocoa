@@ -1,4 +1,4 @@
-from parser import LogicalForm as LF
+from parser import LogicalForm as LF, Utterance
 
 class DialogueState(object):
     def __init__(self, agent, kb):
@@ -6,18 +6,32 @@ class DialogueState(object):
         self.partner = 1 - agent
         self.kb = kb
         self.time = 0
-        self.act = [LF('<start>'), LF('<start>')]
+        init_utterance = Utterance(logical_form=LF('<start>'), template=['<start>'])
+        self.utterance = [init_utterance, init_utterance]
         self.done = set()
 
     @property
     def my_act(self):
-        return self.act[self.agent].intent if self.act[self.agent] else None
+        return self.utterance[self.agent].lf.intent
 
     @property
     def partner_act(self):
-        return self.act[self.partner].intent if self.act[self.partner] else None
+        return self.utterance[self.partner].lf.intent
+
+    @property
+    def partner_utterance(self):
+        return self.utterance[self.partner]
+
+    @property
+    def partner_template(self):
+        try:
+            return self.utterance[self.partner].template
+        except:
+            return None
 
     def update(self, agent, utterance):
         self.time += 1
-        self.act[agent] = utterance.lf
-        self.done.add(utterance.lf.intent)
+        self.utterance[agent] = utterance
+        if agent == self.agent:
+            self.done.add(utterance.lf.intent)
+

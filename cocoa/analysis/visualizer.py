@@ -83,6 +83,16 @@ class Visualizer(object):
                     question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
         print dialogue_setting_counts
 
+    def dialogues_with_survey(self):
+        if not self.question_scores:
+            return []
+        ids = []
+        for question, agent_chats in self.question_scores.iteritems():
+            for agent, chats in agent_chats.iteritems():
+                dialogue_ids = [x[0] for x in chats]
+                ids.extend(dialogue_ids)
+        return set(ids)
+
     def question_type(self, question):
         '''
         Type of a survey question, e.g. string or numerical.
@@ -173,11 +183,12 @@ class Visualizer(object):
     def skip_example(self, ex):
         return False
 
-    def compute_effectiveness(self):
+    def compute_effectiveness(self, with_survey=True):
         chats = defaultdict(list)
+        dialogues_with_survey = self.dialogues_with_survey()
         for raw in self.chats:
             ex = Example.from_dict(raw, Scenario)
-            if self.skip_example(ex):
+            if self.skip_example(ex) or (with_survey and not ex.ex_id in dialogues_with_survey):
                 continue
             if ex.agents[0] == 'human' and ex.agents[1] == 'human':
                 chats['human'].append(ex)
@@ -202,6 +213,8 @@ class Visualizer(object):
             for question, agent_scores in question_scores.iteritems():
                 if self.question_type(question) == 'str' or question not in self.questions:
                     continue
+                for agent, scores in agent_scores.iteritems():
+                    print agent, np.histogram([x[2] for x in scores], bins=5)[0]
                 results = [(agent, self.summarize_scores(scores, summary_stat), self.get_total(scores)) for agent, scores in agent_scores.iteritems()]
                 results = sorted(results, key=lambda x: x[1][0], reverse=True)
                 agent_ratings = {}

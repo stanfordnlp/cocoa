@@ -6,7 +6,7 @@ from collections import defaultdict
 from itertools import ifilter
 
 from cocoa.core.entity import is_entity
-from cocoa.model.parser import Parser as BaseParser, LogicalForm, Utterance
+from cocoa.model.parser import Parser as BaseParser, LogicalForm as LF, Utterance
 
 from core.tokenizer import tokenize
 
@@ -87,9 +87,9 @@ class Parser(BaseParser):
             price = float(event.data.get('price'))
         except TypeError:
             price = None
-        return Utterance(logical_form=LogicalForm(intent, price=price))
+        return Utterance(logical_form=LF(intent, price=price), template=['<offer>'])
 
-    def tag_utterance(self, utterance):
+    def tag_utterance(self, utterance, tokens_with_parsed_price):
         """Tag the utterance with basic speech acts.
         """
         tags = super(Parser, self).tag_utterance(utterance)
@@ -97,7 +97,7 @@ class Parser(BaseParser):
             tags.append('vague-price')
         if self.is_agreement(utterance):
             tags.append('agree')
-        price_types = list(set([token.canonical.type for token in utterance.tokens if self.is_price_token(token)]))
+        price_types = list(set([token.canonical.type for token in tokens_with_parsed_price if self.is_price_token(token)]))
         tags.extend(price_types)
         if price_types:
             tags.append('has_price')
@@ -155,19 +155,20 @@ class Parser(BaseParser):
         return new_tokens
 
     def extract_template(self, tokens, dialogue_state):
+        tokens = self.parse_prices(tokens, dialogue_state)
         tokens = ['{%s}' % token.canonical.type if self.is_price_token(token) else token for token in tokens]
         tokens = self._parse_title(tokens, dialogue_state)
         return tokens
 
-    def classify_intent(self, utterance, dialogue_state):
-        tags = self.tag_utterance(utterance)
+    def classify_intent(self, utterance, tokens_with_parsed_price, dialogue_state):
+        tags = self.tag_utterance(utterance, tokens_with_parsed_price)
         if dialogue_state.time == 0 and not 'has_price' in tags:
             intent = 'intro'
         elif 'has_price' in tags and dialogue_state.curr_price is None:
             intent = 'init-price'
         elif (not 'has_price' in tags) and 'vague-price' in tags:
             intent = 'vague-price'
-        elif 'price' in tags:
+        elif 'price' in tags or 'listing_price' in tags:
             intent = 'counter-price'
         elif 'partner_price' in tags:
             intent = 'insist'
@@ -177,20 +178,24 @@ class Parser(BaseParser):
             intent = 'agree'
         elif not tags and dialogue_state.my_act == 'inquiry':
             intent = 'inform'
+        elif tags == ['negative']:
+            intent = 'disagree'
         else:
             intent = 'unknown'
         return intent
 
     def parse_message(self, event, dialogue_state):
         tokens = self.lexicon.link_entity(tokenize(event.data), kb=self.kb, scale=False)
-        tokens = self.parse_prices(tokens, dialogue_state)
+        template = self.extract_template(tokens, dialogue_state)
         utterance = Utterance(raw_text=event.data, tokens=tokens)
 
-        proposed_price = self.get_proposed_price(tokens, dialogue_state)
-        intent = self.classify_intent(utterance, dialogue_state)
-        utterance.lf = LogicalForm(intent, price=proposed_price)
+        tokens_with_parsed_price = self.parse_prices(tokens, dialogue_state)
+        intent = self.classify_intent(utterance, tokens_with_parsed_price, dialogue_state)
 
-        utterance.template = self.extract_template(utterance.tokens, dialogue_state)
+        proposed_price = self.get_proposed_price(tokens_with_parsed_price, dialogue_state)
+        utterance.lf = LF(intent, price=proposed_price)
+
+        utterance.template = template
 
         return utterance
 
@@ -201,6 +206,8 @@ class Parser(BaseParser):
             u = self.parse_offer(event)
         elif event.action == 'message':
             u = self.parse_message(event, dialogue_state)
+        elif event.action in ('reject', 'accept', 'quit'):
+            u = self.parse_action(event)
         else:
             return False
 

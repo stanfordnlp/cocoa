@@ -19,7 +19,9 @@ class RulebasedSession(Session):
         self.kb = kb
         self.lexicon = lexicon
         self.templates = templates
-        self.known_movies = self.templates.known_movies()
+        self.known_movies = self.templates.known_popular_movies()
+        #print len(self.known_movies)
+        #print self.known_movies
 
         self.state = {
                 'my_act': ('<start>', None),
@@ -29,6 +31,10 @@ class RulebasedSession(Session):
                 }
 
         self.used_templates = set()
+
+    @property
+    def partner_act(self):
+        return self.state['partner_act'][0]
 
     def is_question(self, tokens):
         if len(tokens) < 1:
@@ -46,6 +52,8 @@ class RulebasedSession(Session):
     def is_plot(self, tokens):
         s = ' '.join(tokens)
         if re.search(r'(movie|show|story|film|drama) about', s):
+            return True
+        if re.search(r'about ?', s):
             return True
         return False
 

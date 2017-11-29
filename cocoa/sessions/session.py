@@ -54,8 +54,8 @@ class Session(object):
     def timestamp():
         return str(time.time())
 
-    def message(self, text):
-        return Event.MessageEvent(self.agent, text, time=self.timestamp())
+    def message(self, text, metadata=None):
+        return Event.MessageEvent(self.agent, text, time=self.timestamp(), metadata=metadata)
 
     def wait(self):
         return None

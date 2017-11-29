@@ -37,7 +37,7 @@ class DatabaseManager(object):
         c.execute('''CREATE TABLE mturk_task (name text, mturk_code text, chat_id text)''')
 
         c.execute(
-            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, template text)'''
+            '''CREATE TABLE event (chat_id text, action text, agent integer, time text, data text, start_time text, metadata text)'''
         )
         c.execute(
             '''CREATE TABLE chat (chat_id text, scenario_id text, outcome text, agent_ids text, agent_types text,
@@ -55,6 +55,22 @@ class DatabaseManager(object):
         conn.close()
 
         return cls(db_file)
+
+    def add_scenarios(self, scenario_db, systems, update=False):
+        """Add used scenarios to DB so that we don't collect data on duplicated scenarios.
+        """
+        conn = sqlite3.connect(self.db_file)
+        c = conn.cursor()
+        for sid, scenario in scenario_db.scenarios_map.iteritems():
+            for agent_type in systems.keys():
+                if update:
+                    c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+                else:
+                    c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
+
+        conn.commit()
+        conn.close()
+
 
 
 # TODO: refactor to put database operations in the DBManager
@@ -243,7 +259,7 @@ class Backend(object):
             data = event.data
             if event.action in ('select', 'offer', 'eval'):
                 data = json.dumps(event.data)
-            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.template)
+            return chat_id, event.action, event.agent, event.time, data, event.start_time, json.dumps(event.metadata)
 
         try:
             with self.conn:
@@ -409,8 +425,6 @@ class Backend(object):
                     ))
                     return True
                 else:
-                    # TODO: bot is always buyer
-                    my_index = 1
                     _update_used_scenarios(scenario_id, partner_type, chat_id)
                     if my_index == 0:
                         self.add_chat_to_db(chat_id, scenario_id, userid, 0, HumanSystem.name(), partner_type)

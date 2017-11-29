@@ -5,7 +5,7 @@ def tokenize(utterance, lowercase=True):
     '''
     'hi there!' => ['hi', 'there', '!']
     '''
-    utterance = utterance.encode('utf-8')
+    #utterance = utterance.encode('utf-8')
     if lowercase:
         utterance = utterance.lower()
     # NLTK would not tokenize "xx..", so normalize dots to "...".

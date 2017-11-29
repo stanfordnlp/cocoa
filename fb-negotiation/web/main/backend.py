@@ -33,22 +33,6 @@ class DatabaseManager(BaseDatabaseManager):
         conn.close()
         return cls(db_file)
 
-    def add_scenarios(self, scenario_db, systems, update=False):
-        """Add used scenarios to DB so that we don't collect data on duplicated scenarios.
-        """
-        conn = sqlite3.connect(self.db_file)
-        c = conn.cursor()
-        for scenario in scenario_db.scenarios_list:
-            sid = scenario.uuid
-            for agent_type in systems.keys():
-                if update:
-                    c.execute('''INSERT OR IGNORE INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-                else:
-                    c.execute('''INSERT INTO scenario VALUES (?,?, "[]", "[]")''', (sid, agent_type))
-
-        conn.commit()
-        conn.close()
-
 class Backend(BaseBackend):
     def display_received_event(self, event):
         if event.action == 'select':

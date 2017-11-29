@@ -31,6 +31,15 @@ class Templates(object):
         titles = df.loc[df.movie_id.isin(movie_ids)]['title'].values
         return set(titles)
 
+    def known_popular_movies(self):
+        #known = self.known_movies()
+        df = self.tables['templates']
+        sources = set(('bestof2016', 'bestof2017', 'classics', 'manual'))
+        movie_ids = set(df.loc[df.source.isin(sources)]['movie_id'].values)
+        df = self.tables['titles']
+        popular = df.loc[df.movie_id.isin(movie_ids)]['title'].values
+        return popular
+
     @classmethod
     def read_kaggle_reviews(cls, path):
         titles = []
