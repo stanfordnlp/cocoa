@@ -276,40 +276,6 @@ class DialogueBatcher(object):
 
         return batch
 
-    # def create_batch_old(self):
-    #     self._normalize_dialogue()
-    #     turn_batches = self._create_turn_batches()  # (batch_size, num_turns)
-    #     price_batches = self._create_price_batches()  # (batch_size, num_turns, price_feat_size)
-    #     candidate_batches = self._create_candidate_batches()  # (batch_size, num_candidate, seq_len)
-
-    #     enc, dec, tgt = Dialogue.ENC, Dialogue.DEC, Dialogue.TARGET
-
-    #     # Add agents and kbs
-    #     agents = self._get_agent_batch_at(1)  # Decoding agent
-    #     kbs = self._get_kb_batch()
-
-    #     pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-    #     context_batch = self.create_context_batch(pad)
-
-    #     # NOTE: when creating dialogue turns (see add_utterance), we have set the first utterance to be from the encoding agent
-    #     encode_turn_ids = range(0, self.num_turns-1, 2)
-    #     batch_seq = [self._create_one_batch(
-    #         turn_batches[enc][:i+1], turn_batches[dec][i+1], turn_batches[tgt][i+1],
-    #         price_batches[i], price_batches[i+1],
-    #         self._get_token_turns_at(i), self._get_token_turns_at(i+1),
-    #         self._get_token_candidates_at(i+1), candidate_batches[i+1] if candidate_batches else None,
-    #         agents, kbs,
-    #         context_batch, Dialogue.num_context)
-    #         for i in encode_turn_ids]
-
-    #     # bath_seq: A sequence of batches should be processed in turn as the state of each batch is
-    #     # passed on to the next batch
-    #     batch = {
-    #              'batch_seq': batch_seq,
-    #             }
-
-    #     return batch
-
 class DialogueBatcherWrapper(object):
     def __init__(self, batcher):
         self.batcher = batcher
