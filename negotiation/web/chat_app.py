@@ -97,7 +97,7 @@ def add_systems(args, config_dict, schema, debug=False):
     total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
     pairing_probabilities = {}
-    timed = True if debug else True
+    timed = False if debug else True
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
@@ -242,10 +242,9 @@ if __name__ == "__main__":
     if 'debug' not in params:
         params['debug'] = False
 
-    systems, pairing_probabilities = add_systems(args, params['models'], schema, params['debug'])
+    systems, pairing_probabilities = add_systems(args, params['models'], schema, debug=params['debug'])
 
     db.add_scenarios(scenario_db, systems, update=args.reuse)
-    #add_scenarios_to_db(db_file, scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
