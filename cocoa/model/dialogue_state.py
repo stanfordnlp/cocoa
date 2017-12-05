@@ -30,6 +30,8 @@ class DialogueState(object):
             return None
 
     def update(self, agent, utterance):
+        if not utterance:
+            return
         self.time += 1
         self.utterance[agent] = utterance
         if agent == self.agent:

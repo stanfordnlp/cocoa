@@ -25,9 +25,12 @@ class DialogueState(State):
 
     def update(self, agent, utterance):
         super(DialogueState, self).update(agent, utterance)
+        if not utterance:
+            return
         lf = utterance.lf
         if hasattr(lf, 'price') and lf.price is not None:
             self.price[agent] = lf.price
             self.curr_price = lf.price
+            print 'curr price:', self.curr_price
         if agent == self.agent and lf.intent == 'inquiry':
             self.num_inquiry += 1
