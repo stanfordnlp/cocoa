@@ -6,17 +6,16 @@ from rulebased_system import RulebasedSystem, add_rulebased_arguments
 from model.generator import Templates, Generator
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from ranker_system import IRRankerSystem, NeuralRankerSystem
-#from neural_system import NeuralSystem, add_neural_system_arguments
+from neural_system import NeuralSystem, add_neural_system_arguments
 from cmd_system import CmdSystem
 from model.manager import Manager
 
 def add_system_arguments(parser):
-    #add_neural_system_arguments(parser)
+    add_neural_system_arguments(parser)
     add_retriever_arguments(parser)
     add_rulebased_arguments(parser)
     add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
-    parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
 
 def get_system(name, args, schema=None, timed=False):
     lexicon = PriceTracker(args.price_tracker_model)
@@ -45,8 +44,8 @@ def get_system(name, args, schema=None, timed=False):
             return NeuralRankerSystem(schema, lexicon, retriever, args.model_path, args.mappings)
         else:
             raise ValueError
-    #elif name == 'neural':
-    #    assert args.model_path
-    #    return NeuralSystem(schema, lexicon, args.model_path, args.decoding)
+    elif name == 'neural':
+        assert args.model_path
+        return NeuralSystem(schema, lexicon, args.model_path, args.mappings, args.decoding)
     else:
         raise ValueError('Unknown system %s' % name)

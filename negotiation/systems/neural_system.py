@@ -1,29 +1,33 @@
 import os
 import argparse
-import tensorflow as tf
-from cocoa.core.systems.system import System
-from cocoa.core.sessions.negotiation.neural_session import RNNNeuralSession
-from cocoa.core.sessions.timed_session import TimedSessionWrapper
-from cocoa.core.util import read_pickle, read_json
-from cocoa.model.negotiation import build_model
-from cocoa.model.negotiation.preprocess import markers, TextIntMap, Preprocessor
 from collections import namedtuple
+import tensorflow as tf
+
+from cocoa.systems.system import System
+from cocoa.sessions.timed_session import TimedSessionWrapper
+from cocoa.core.util import read_pickle, read_json
 from cocoa.lib import logstats
+
+from model import build_model
+from model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
+from model.batcher import DialogueBatcherFactory
+from sessions.neural_session import GeneratorNeuralSession
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
+    parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
+    parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
 
 class NeuralSystem(System):
     """
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, price_tracker, model_path, decoding, timed_session=False, consecutive_entity=True, realizer=None):
+    def __init__(self, schema, price_tracker, model_path, mappings_path, decoding, timed_session=False, realizer=None):
         super(NeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
         self.timed_session = timed_session
-        self.consecutive_entity = consecutive_entity
 
         # Load arguments
         args_path = os.path.join(model_path, 'config.json')
@@ -31,16 +35,17 @@ class NeuralSystem(System):
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
         config['decoding'] = decoding
+        config['pretrained_wordvec'] = None
         args = argparse.Namespace(**config)
 
-        mappings_path = os.path.join(model_path, 'vocab.pkl')
-        mappings = read_pickle(mappings_path)
+        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
+        mappings = read_pickle(vocab_path)
         vocab = mappings['vocab']
 
         # TODO: different models have the same key now
         args.dropout = 0
         logstats.add_args('model_args', args)
-        model = build_model(schema, mappings, args)
+        model = build_model(schema, mappings, None, args)
 
         # Tensorflow config
         if args.gpu == 0:
@@ -61,12 +66,27 @@ class NeuralSystem(System):
         saver = tf.train.Saver()
         saver.restore(tf_session, ckpt.model_checkpoint_path)
 
+        # Model config tells data generator which batcher to use
+        model_config = {}
+        if args.retrieve or args.model in ('ir', 'selector'):
+            model_config['retrieve'] = True
+        if args.predict_price:
+            model_config['price'] = True
+
         self.model_name = args.model
         preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
 
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'consecutive_entity', 'realizer'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, consecutive_entity=self.consecutive_entity, realizer=realizer)
+        #TODO: class variable is not a good way to do this
+        Dialogue.mappings = mappings
+        Dialogue.textint_map = textint_map
+        Dialogue.preprocessor = preprocessor
+        Dialogue.num_context = args.num_context
+
+        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'dialogue_batcher'])
+        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, dialogue_batcher=dialogue_batcher)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:
@@ -78,7 +98,7 @@ class NeuralSystem(System):
 
     def new_session(self, agent, kb):
         if self.model_name == 'encdec':
-            session = RNNNeuralSession(agent , kb, self.env)
+            session = GeneratorNeuralSession(agent , kb, self.env)
         if self.timed_session:
             session = TimedSessionWrapper(agent, session)
 	return session

@@ -52,6 +52,8 @@ def get_data_generator(args, model_args, mappings, schema):
         else:
             add_ground_truth = False
         print 'Ground truth response {} be added to the candidate set.'.format('will' if add_ground_truth else 'will not')
+    else:
+        add_ground_truth = False
 
     # TODO: hacky
     if args.model == 'lm':
