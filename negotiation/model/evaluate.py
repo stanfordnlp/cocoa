@@ -243,7 +243,7 @@ class EncDecEvaluator(Evaluator):
         preds = output_dict['preds']
         prices = output_dict['prices']
 
-        num_sents = np.sum(batch['targets'] == self.stop_symbol, axis=1)
+        num_sents = np.sum(batch['decoder_args']['targets'] == self.stop_symbol, axis=1)
         pred_tokens, pred_entities = self.pred_to_token(preds, self.stop_symbol, self.remove_symbols, self.data.textint_map, num_sents=num_sents, prices=prices)
 
         return {'pred_tokens': pred_tokens}
