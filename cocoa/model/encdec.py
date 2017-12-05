@@ -83,7 +83,8 @@ class Sampler(object):
             return preds
 
     def softmax(self, logits, t=1):
-        exp_x = np.exp(logits / t)
+        #exp_x = np.exp(logits / t)
+        exp_x = np.exp((logits - np.max(logits)) / t)
         return exp_x / np.sum(exp_x, axis=2, keepdims=True)
 
 class BasicEncoder(object):
