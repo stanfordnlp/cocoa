@@ -259,7 +259,9 @@ class AttentionRNNEmbedder(RNNEmbedder):
             else:
                 memory_len = [None] * len(memory)
             attention_mechanisms = [LuongAttention(attention_size, m, l, scale=True) for m, l in izip(memory, memory_len)]
+            attention_sizes = [attention_size for _ in attention_mechanisms]
+            cell = AttentionWrapper(cell, attention_mechanisms, attention_layer_size=attention_sizes)
             # attention_size: project size of multiple context
-            cell = MultiAttentionWrapper(cell, attention_mechanisms, attention_size, attention_layer_size=attention_size)
+            #cell = MultiAttentionWrapper(cell, attention_mechanisms, attention_size, attention_layer_size=attention_size)
         return cell
 
