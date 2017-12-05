@@ -94,5 +94,5 @@ class Parser(object):
 
     def parse_action(self, event):
         intent = event.action
-        return Utterance(logical_form=LF(intent), template=['<{}>'.format(intent)])
+        return Utterance(logical_form=LogicalForm(intent), template=['<{}>'.format(intent)])
 
