@@ -47,13 +47,13 @@ class Backend(BaseBackend):
         else:
             return super(Backend, self).display_received_event(event)
 
-    def should_reject_chat(self, userid, agent_idx):
+    def should_reject_chat(self, userid, agent_idx, min_tokens):
         with self.conn:
             controller = self.controller_map[userid]
             cursor = self.conn.cursor()
             chat_id = controller.get_chat_id()
             ex = DatabaseReader.get_chat_example(cursor, chat_id, self.scenario_db).to_dict()
-            return reject_transcript(ex, agent_idx, min_tokens=40)
+            return reject_transcript(ex, agent_idx, min_tokens=min_tokens)
 
     def get_margin(self, controller, agent_idx):
         with self.conn:
@@ -80,7 +80,7 @@ class Backend(BaseBackend):
 
         def verify_chat(userid, agent_idx, is_partner, min_tokens=40):
             user_name = 'partner' if is_partner else 'user'
-            if self.should_reject_chat(userid, agent_idx):
+            if self.should_reject_chat(userid, agent_idx, min_tokens):
                 self.logger.debug("Rejecting chat with ID {:s} for {:s} {:s} (agent ID {:d}), and "
                                   "redirecting".format(chat_id, user_name, userid, agent_idx))
                 self.end_chat_and_redirect(cursor, userid,
