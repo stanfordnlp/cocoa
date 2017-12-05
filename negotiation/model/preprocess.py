@@ -146,11 +146,13 @@ class Dialogue(object):
         self.uuid = uuid
         self.agent = agent
         self.kb = kb
-        self.role = kb.facts['personal']['Role']
+        self.role = kb.role
         partner_role = 'buyer' if self.role == 'seller' else 'seller'
         self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
         # KB context
-        self.category = kb.facts['item']['Category']
+        # TODO: context_to_int will change category, title, description to integers
+        self.category_str = kb.category
+        self.category = kb.category
         self.title = tokenize(re.sub(r'[^\w0-9]', ' ', kb.facts['item']['Title']))
         self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
         # token_turns: tokens and entitys (output of entitylink)
@@ -218,7 +220,7 @@ class Dialogue(object):
 
     @classmethod
     def original_price(cls, kb, utterance):
-        s = [cls._original_price(kb, x) if is_entity(x) else x for x in utterance]
+        s = [PriceScaler.unscale_price(kb, x) if is_entity(x) else x for x in utterance]
         return s
 
     def _insert_markers(self, agent, utterance, new_turn):
@@ -227,7 +229,7 @@ class Dialogue(object):
 
         # Insert GO
         if new_turn:
-            cat_symbol = category_to_marker[self.category]
+            cat_symbol = category_to_marker[self.category_str]
             utterance.insert(0, cat_symbol)
 
             role = self.agent_to_role[agent]
