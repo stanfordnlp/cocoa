@@ -32,7 +32,7 @@ class LM(object):
         feed_dict = self.decoder.get_feed_dict(feed_dict=feed_dict, **kwargs)
         return feed_dict
 
-    def generate(self, sess, batch, init_state, max_len, textint_map=None):
+    def generate(self, sess, batch, init_state, max_len=100, textint_map=None):
         decoder_args = {'prefix': batch['encoder_args']['inputs'],
                 'inputs': batch['decoder_args']['inputs'][:, [0]],
                 'init_state': init_state,
@@ -126,7 +126,7 @@ class BasicEncoderDecoder(object):
         '''
         return np.argmax(logits, axis=2)
 
-    def generate(self, sess, batch, encoder_init_state, max_len, textint_map=None, true_inputs=None):
+    def generate(self, sess, batch, encoder_init_state, max_len=100, textint_map=None, true_inputs=None):
         batch_size = batch['encoder_args']['inputs'].shape[0]
 
         # Encode true prefix
@@ -213,7 +213,7 @@ class CandidateSelector(BasicEncoderDecoder):
         best_candidates = np.argmax(scores, axis=1)
         return best_candidates, candidate_ranks
 
-    def generate(self, sess, batch, init_state, textint_map=None):
+    def generate(self, sess, batch, init_state, max_len=None, textint_map=None):
         encoder_args = batch['encoder_args']
         encoder_args['init_state'] = init_state
         decoder_args = batch['decoder_args']
@@ -224,7 +224,10 @@ class CandidateSelector(BasicEncoderDecoder):
         best_candidates, candidate_ranks = self.select(sess, kwargs)
         batch_candidates = batch['token_candidates']
         responses = [candidates[id_] if id_ < len(candidates) else [] for candidates, id_ in izip(batch_candidates, best_candidates)]
-        return candidate_ranks, responses
+        return {
+                'candidate_ranks': candidate_ranks,
+                'responses': responses,
+                }
 
 
 class ContextEncoder(BasicEncoder):
@@ -607,6 +610,7 @@ class PriceDecoder(object):
 class ClassifyDecoder(DecoderWrapper):
     def __init__(self, decoder):
         self.decoder = decoder
+        self.prompt_len = decoder.prompt_len
         self.pad = self.decoder.pad
         self.feedable_vars = {}
 

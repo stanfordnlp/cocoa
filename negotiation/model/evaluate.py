@@ -296,10 +296,10 @@ class SelectorEvaluator(Evaluator):
 
     def _generate_response(self, batch, model_vars, textint_map):
         sess = model_vars['sess']
-        candidate_ranks, responses = self.model.generate(sess, batch, None)
+        output_dict = self.model.generate(sess, batch, None)
         return {
-                'candidate_ranks': candidate_ranks,
-                'pred_tokens': responses,
+                'candidate_ranks': output_dict['candidate_ranks'],
+                'pred_tokens': output_dict['responses'],
                 }
 
     def generate_response(self, sess, dialogue_batch, summary_map):

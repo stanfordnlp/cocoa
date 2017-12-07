@@ -297,6 +297,9 @@ class DialogueBatcherWrapper(object):
     def list_to_text(self, tokens):
         return self.batcher.list_to_text(tokens)
 
+    def _get_turn_batch_at(self, dialogues, STAGE, i):
+        return self.batcher._get_turn_batch_at(dialogues, STAGE, i)
+
 class PriceWrapper(DialogueBatcherWrapper):
     '''
     Add prices in the input. Used for PricePredictor.

@@ -67,12 +67,8 @@ class NeuralSession(Session):
         if tokens is None:
             return None
 
-        self.dialogue.add_utterance(self.agent, tokens)
-        print tokens
+        self.dialogue.add_utterance(self.agent, list(tokens))
         tokens = self.map_prices(tokens)
-
-        # Remove 'prompts', e.g. <go>
-        tokens = tokens[2:]
 
         if len(tokens) > 1:
             if tokens[0] == markers.OFFER:
@@ -86,6 +82,7 @@ class NeuralSession(Session):
                 return self.reject()
 
         s = self.attach_punct(' '.join(tokens))
+        print 'send:', s
         return self.message(s)
 
 class GeneratorNeuralSession(NeuralSession):
@@ -135,6 +132,12 @@ class GeneratorNeuralSession(NeuralSession):
                 }
         return decoder_args
 
+    def output_to_tokens(self, output_dict):
+        entity_tokens = self._pred_to_token(output_dict['preds'])[0]
+        # Remove 'prompts', e.g. <go>
+        entity_tokens = entity_tokens[2:]
+        return entity_tokens
+
     def generate(self):
         sess = self.env.tf_session
 
@@ -143,11 +146,12 @@ class GeneratorNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        output_dict = self.model.generate(sess, batch, encoder_init_state, self.max_len, textint_map=self.env.textint_map)
-        entity_tokens = self._pred_to_token(output_dict['preds'])[0]
+        output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
+        entity_tokens = self.output_to_tokens(output_dict)
 
         if not self._is_valid(entity_tokens):
             return None
+        print 'generate:', entity_tokens
         return entity_tokens
 
     def _is_valid(self, tokens):
@@ -161,4 +165,27 @@ class GeneratorNeuralSession(NeuralSession):
         entity_tokens, _ = EncDecEvaluator.pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
         return entity_tokens
 
-class SelectorNeuralSession(NeuralSession):
+class SelectorNeuralSession(GeneratorNeuralSession):
+    def _create_batch(self):
+        # Add candidates
+        candidates = self.env.retriever.search(self.kb.role, self.kb.category, self.kb.title, self.dialogue.token_turns)
+        token_candidates = [c['response'] for c in candidates]
+        int_candidates = [self.env.textint_map.text_to_int(c, 'decoding') for c in token_candidates]
+        self.dialogue.candidates = [int_candidates]
+        candidates = self.batcher._get_candidate_batch_at([self.dialogue], 0)
+
+        batch = super(SelectorNeuralSession, self)._create_batch()
+        batch['decoder_args']['candidates'] = candidates
+        batch['token_candidates'] = [token_candidates]
+
+        return batch
+
+    def output_to_tokens(self, output_dict):
+        entity_tokens = []
+        for token in output_dict['responses'][0]:
+            if token == markers.EOS:
+                break
+            entity_tokens.append(token)
+        # Remove 'prompts', e.g. <go>
+        entity_tokens = entity_tokens[2:]
+        return entity_tokens

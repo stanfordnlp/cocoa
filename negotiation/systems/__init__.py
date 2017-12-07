@@ -12,7 +12,7 @@ from model.manager import Manager
 
 def add_system_arguments(parser):
     add_neural_system_arguments(parser)
-    add_retriever_arguments(parser)
+    #add_retriever_arguments(parser)
     add_rulebased_arguments(parser)
     add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
@@ -44,8 +44,8 @@ def get_system(name, args, schema=None, timed=False):
             return NeuralRankerSystem(schema, lexicon, retriever, args.model_path, args.mappings)
         else:
             raise ValueError
-    elif name == 'neural':
+    elif name in ('neural-gen', 'neural-sel'):
         assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path, args.mappings, args.decoding)
+        return NeuralSystem(schema, lexicon, args.model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len)
     else:
         raise ValueError('Unknown system %s' % name)
