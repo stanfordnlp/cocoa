@@ -27,7 +27,7 @@ class Lexicon(object):
         self.actresses = people['actresses']
         self.genres = ['comedy', 'comedies', 'romance', 'action',
             'drama', 'sci-fi', 'documentary', 'documentaries',
-            'horror', 'animation', 'scifi', 'fantasy']
+            'horror', 'animation', 'scifi', 'fantasy', 'romantic']
 
     def save_pickle(self, path):
         print 'Dump lexicon to {}'.format(path)
@@ -72,7 +72,7 @@ class Lexicon(object):
 
     def build_lsh(self, threshold=0.5):
         start = time.time()
-        print 'Buidling LSH...'
+        print 'Building LSH...'
         lsh = MinHashLSH(threshold=threshold, num_perm=128)
         with lsh.insertion_session() as session:
             for i, entity in enumerate(self.entities):
@@ -310,7 +310,7 @@ class Lexicon(object):
     def unit_test(self):
         examples = ["Have you see the new Zootopia movie yet ?",
             "Have you heard of a movie called titanic?",
-            "I just watched 'enemy of the state' with emma watson .",
+            "I just watched 'beauty and the beast' with emma watson .",
             "Well, I prefer comedies like Caddyshack . What about you ?",
             "My favorite actor is Tom Hanks, he was great in Toy Story as the sheriff ."
             ]
