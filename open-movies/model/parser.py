@@ -1,11 +1,11 @@
 import re
 import copy
 import numpy as np
+import json
 
 from cocoa.core.entity import is_entity
 from cocoa.model.parser import Parser as BaseParser, LogicalForm as LF, Utterance
-
-from core.tokenizer import tokenize
+from nltk import sent_tokenize, word_tokenize
 
 class Parser(BaseParser):
     sentence_delimiter = ('.', ';', '?')
@@ -127,6 +127,8 @@ class Parser(BaseParser):
         return intent
 
     def parse_message(self, raw_utterance):
+        intent = "sandwich"
+        '''
         entities = self.lexicon.link_entity(tokenize(raw_utterance))
         utterance = Utterance(raw_text=raw_utterance, tokens=entities)
         intent = self.classify_intent(utterance)
@@ -135,28 +137,28 @@ class Parser(BaseParser):
         utterance.lf = lf
         utterance.template = self.extract_template(tokens, dialogue_state)
         utterance.ambiguous_template = ambiguous_proposal
-        return utterance
+        '''
+        return intent
 
-    def test(self, raw_utterances, lexicon):
-        for idx, line in enumerate(raw_utterances):
-            proposal, _ = self.parse_message(line)
-            print line
-            print 
+    def unit_test(self, examples):
+        for exp in examples:
+            x, y = exp[0], exp[1]
+            intent = self.parse_message(x)
+            print("Message: {}".format(x) )
+            print("Predicted Label: {}".format(intent) )
+            print("Actual Label: {}".format(y) )
             print("------------------------------")
-            if idx > 100: break
-        return passed
 
 if __name__ == '__main__':
     import argparse
-    from core.lexicon import Lexicon
     from core.kb import KB
+    from core.lexicon import Lexicon
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--train-examples-path', help='Path to training json file')
+    parser.add_argument('-l', '--lexicon', help='Path to pickled lexicon')
+    parser.add_argument('-e', '--examples-path', help='Path to training json file')
     args = parser.parse_args()
+    # PYTHONPATH=. python model/parser.py -l data/lexicon.pkl --examples-path data/parser_unit.json
 
-    lexicon = Lexicon('movie')
+    lexicon = Lexicon.from_pickle(args.lexicon)
     movie_parser = Parser(0, None, lexicon)
-    with open(args.train_examples_path, 'r') as file:
-        content = file.readlines()
-        trimmed = [x.strip() for x in content if np.random.random() < 0.3]
-        movie_parser.test(trimmed, lexicon)
+    movie_parser.unit_test(json.load(open(args.examples_path, "r")))

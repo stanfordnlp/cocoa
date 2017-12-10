@@ -1,7 +1,5 @@
 from cocoa.model.manager import Manager as BaseManager
 
-movies
-
 class Manager(BaseManager):
     def available_actions(self, state):
         actions = super(Manager, self).available_actions(state)
@@ -23,3 +21,20 @@ class Manager(BaseManager):
                 return 'propose'
             return 'select'
         return action
+
+###  ================  RESPONSE POLICY  ================= ###
+#       Input State                 Output Action           #
+#       -----------                 -------------           #
+#         greet           -->           greet               #
+#      inquire-plot       -->         movie-plot            #
+#    inquire-opinion      -->        movie-opinion          #
+#     inquire-movie       -->         movie-other           #
+#     inquire-title       -->        favorite-title         #
+#     inquire-genre       -->        favorite-genre         #
+#     inquire-actor       -->        favorite-actor         #
+#    inquire-unknown      -->           generic             #
+#    favorite-actor       --> favorite-actor, tellmore-actor#
+#     favorite-genre      --> favorite-genre, tellmore-genre#
+#     favorite-title      -->  movie-opinion, tellmore-title#
+#         unknown         -->       inquire, generic        #
+### ===================================================== ###
