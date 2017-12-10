@@ -18,5 +18,19 @@ class Entity(namedtuple('Entity', ['surface', 'canonical'])):
     def __str__(self):
         return '[%s|%s]' % (str(self.surface), str(self.canonical.value))
 
+class MovieEntity(namedtuple('MovieEntity', ['surface', 'canonical', 'start'])):
+    __slots__ = ()
+
+    @classmethod
+    def from_elements(cls, surface=None, value=None, type=None, start=None):
+        if value is None:
+            value = surface
+        if start is None:
+            start = 0
+        return super(cls, MovieEntity).__new__(cls, surface, CanonicalEntity(value, type), start)
+
+    def __str__(self):
+        return '[%s|%s]' % (str(self.surface), str(self.canonical.value))
+
 def is_entity(x):
-    return isinstance(x, Entity) or isinstance(x, CanonicalEntity)
+    return isinstance(x, Entity) or isinstance(x, CanonicalEntity) or isinstance(x, MovieEntity)

@@ -5,6 +5,7 @@ class Utterance(object):
         self.lf = logical_form
         self.template = template
         self.ambiguous_template = ambiguous_template
+        self.length = len(tokens)
 
     def to_dict(self):
         return {
