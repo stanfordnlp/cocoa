@@ -28,13 +28,18 @@ class Manager(BaseManager):
 #         greet           -->           greet               #
 #      inquire-plot       -->         movie-plot            #
 #    inquire-opinion      -->        movie-opinion          #
-#     inquire-movie       -->         movie-other           #
 #     inquire-title       -->        favorite-title         #
 #     inquire-genre       -->        favorite-genre         #
 #     inquire-actor       -->        favorite-actor         #
-#    inquire-unknown      -->           generic             #
-#    favorite-actor       --> favorite-actor, tellmore-actor#
+#         inquire         -->           generic             #
+#     favorite-actor      --> favorite-actor, tellmore-actor#
 #     favorite-genre      --> favorite-genre, tellmore-genre#
 #     favorite-title      -->  movie-opinion, tellmore-title#
 #         unknown         -->       inquire, generic        #
 ### ===================================================== ###
+
+'''
+Greet = hello, hi, howdy
+Inquire = questions
+
+'''
