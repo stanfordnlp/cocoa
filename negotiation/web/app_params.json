@@ -34,12 +34,16 @@
     "icon": "handshake.jpg",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "num_chats_per_scenario": {"rulebased": 1, "human": 0},
+    "num_chats_per_scenario": {"neural-gen": 1, "rulebased": 1, "human": 1},
     "debug": false,
     "models": {
         "rulebased": {
             "active": true,
             "type": "rulebased"
+        },
+        "neural-gen": {
+            "active": true,
+            "type": "neural-gen"
         }
     }
 }
