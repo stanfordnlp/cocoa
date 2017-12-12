@@ -33,7 +33,8 @@
     "icon": "handshake.jpg",
     "end_survey": 1,
     "skip_chat_enabled": false,
-    "debug": true,
+    "debug": false,
+    "num_chats_per_scenario": {"rulebased": 1, "neural": 1, "human": 1},
     "models": {
         "rulebased": {
             "active": true,
