@@ -6,6 +6,7 @@ import numpy as np
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
 
+from core.event import Event
 from session import Session
 from model.preprocess import markers, Dialogue
 from model.evaluate import EncDecEvaluator
@@ -33,6 +34,8 @@ class NeuralSession(Session):
                 pass
 
     def receive(self, event):
+        if event.action in Event.decorative_events:
+            return
         # Parse utterance
         utterance = self.env.preprocessor.process_event(event, self.kb)
         # Empty message
@@ -70,12 +73,12 @@ class NeuralSession(Session):
         self.dialogue.add_utterance(self.agent, list(tokens))
         tokens = self.map_prices(tokens)
 
-        if len(tokens) > 1:
+        if len(tokens) > 0:
             if tokens[0] == markers.OFFER:
                 try:
-                    return self.offer(float(tokens[1]))
+                    return self.offer({'price': float(tokens[1])})
                 except ValueError:
-                    pass
+                    return None
             elif tokens[0] == markers.ACCEPT:
                 return self.accept()
             elif tokens[0] == markers.REJECT:
@@ -134,8 +137,6 @@ class GeneratorNeuralSession(NeuralSession):
 
     def output_to_tokens(self, output_dict):
         entity_tokens = self._pred_to_token(output_dict['preds'])[0]
-        # Remove 'prompts', e.g. <go>
-        entity_tokens = entity_tokens[2:]
         return entity_tokens
 
     def generate(self):
@@ -149,9 +150,9 @@ class GeneratorNeuralSession(NeuralSession):
         output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
         entity_tokens = self.output_to_tokens(output_dict)
 
+        print 'generate:', entity_tokens
         if not self._is_valid(entity_tokens):
             return None
-        print 'generate:', entity_tokens
         return entity_tokens
 
     def _is_valid(self, tokens):
