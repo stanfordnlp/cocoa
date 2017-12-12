@@ -98,13 +98,15 @@ def add_systems(args, config_dict, schema, debug=False):
     systems = {HumanSystem.name(): HumanSystem()}
     pairing_probabilities = {}
     timed = False if debug else True
+    print 'timed:', timed
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args, timed=timed)
+                # TODO: model related arguments should be in config_dict (read from params.json), instead of in command line args, currently we are assuming there is only one model that needs `checkpoint`
+                model = get_system(name, args, schema=schema, timed=timed, model_path=args.checkpoint)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
@@ -116,6 +118,7 @@ def add_systems(args, config_dict, schema, debug=False):
                 pairing_probabilities[sys_name] = prob
                 total_probs += prob
 
+    # TODO: clean up pairing probabilities (obsolete)
     if total_probs > 1.0:
         raise ValueError("Probabilities for active bots can't exceed 1.0.")
     if len(pairing_probabilities.keys()) != 0 and len(pairing_probabilities.keys()) != len(systems.keys()):
@@ -242,6 +245,7 @@ if __name__ == "__main__":
     if 'debug' not in params:
         params['debug'] = False
 
+    print 'debug:', params['debug']
     systems, pairing_probabilities = add_systems(args, params['models'], schema, debug=params['debug'])
 
     db.add_scenarios(scenario_db, systems, update=args.reuse)

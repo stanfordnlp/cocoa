@@ -112,5 +112,5 @@ class NeuralSystem(System):
         else:
             raise ValueError('Unknown model name')
         if self.timed_session:
-            session = TimedSessionWrapper(agent, session)
+            session = TimedSessionWrapper(session)
 	return session

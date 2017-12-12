@@ -17,7 +17,7 @@ def add_system_arguments(parser):
     add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
 
-def get_system(name, args, schema=None, timed=False):
+def get_system(name, args, schema=None, timed=False, model_path=None):
     lexicon = PriceTracker(args.price_tracker_model)
     if name == 'rulebased':
         templates = Templates.from_pickle(args.templates)
@@ -41,11 +41,11 @@ def get_system(name, args, schema=None, timed=False):
         elif name == 'ranker-ir2':
             return IRRankerSystem(schema, lexicon, retriever2)
         elif name == 'ranker-neural':
-            return NeuralRankerSystem(schema, lexicon, retriever, args.model_path, args.mappings)
+            return NeuralRankerSystem(schema, lexicon, retriever, model_path, args.mappings)
         else:
             raise ValueError
     elif name in ('neural-gen', 'neural-sel'):
-        assert args.model_path
-        return NeuralSystem(schema, lexicon, args.model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len)
+        assert model_path
+        return NeuralSystem(schema, lexicon, model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len, timed_session=timed)
     else:
         raise ValueError('Unknown system %s' % name)
