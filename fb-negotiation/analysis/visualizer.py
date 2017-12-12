@@ -127,9 +127,12 @@ class Visualizer(BaseVisualizer):
             except ZeroDivisionError:
                 agreed_points[k] = 0
         for k in total_points:
-            total_points[k] /= float(total)
+            try:
+                total_points[k] /= float(total)
+            except ZeroDivisionError:
+                total_points[k] = 0
 
-        return {'% agreed': num_agreed / float(total),
+        return {'% agreed': num_agreed / float(total) if total > 0 else 0,
                 'agreed points': agreed_points,
                 'total points': total_points,
                 'total': total,
