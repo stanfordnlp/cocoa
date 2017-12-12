@@ -4,7 +4,7 @@ class Manager(BaseManager):
     def available_actions(self, state):
         actions = super(Manager, self).available_actions(state)
         # These actions should be decided by the bot's strategy
-        masked_actions = ['reject', 'accept', 'quit']
+        masked_actions = ['reject', 'accept', 'quit', 'agree']
         if state.num_inquiry > 1:
             masked_actions.append('inquiry')
             if state.curr_price is None:
