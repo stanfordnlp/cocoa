@@ -27,7 +27,7 @@ class RulebasedSession(object):
 
 Config = namedtuple('Config', ['overshoot', 'bottomline_fraction', 'compromise_fraction', 'good_deal_threshold'])
 
-default_config = Config(.2, .3, .5, .5)
+default_config = Config(.2, .5, .5, .7)
 
 class CraigslistRulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
@@ -110,6 +110,7 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
         return template.format(title=self.title, price=(price or ''), listing_price=self.listing_price, partner_price=(self.state.partner_price or ''), my_price=(self.state.my_price or ''))
 
     def template_message(self, intent, price=None):
+        print 'template:', intent, price
         template = self.retrieve_response_template(intent, category=self.kb.category, role=self.kb.role)
         if '{price}' in template['template']:
             price = price or self.state.my_price
@@ -244,6 +245,10 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
             return self.compromise()
         elif action == 'offer':
             return self.offer(self.state.curr_price)
+        # TODO: agree price
+        elif action == 'agree':
+            print 'agree on:', self.state.curr_price
+            return self.agree(self.state.curr_price)
         else:
             return self.template_message(action)
 
