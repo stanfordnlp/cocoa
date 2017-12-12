@@ -4,7 +4,7 @@ from cocoa.analysis.html_visualizer import HTMLVisualizer as BaseHTMLVisualizer
 from cocoa.analysis.utils import reject_transcript
 
 class HTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased', 'neural-gen': 'Neural'}
     #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
     questions = ('negotiator',)
 
