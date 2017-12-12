@@ -90,7 +90,7 @@ class Parser(BaseParser):
             pop_items(curr_agent, items)
 
         if not proposal[self.ME] and not proposal[self.YOU]:
-            return None, None
+            return None, None, None
 
         #print 'explict proposal:', proposal
         proposal_type = self.proposal_to_str(proposal, item_counts)
@@ -104,7 +104,6 @@ class Parser(BaseParser):
 
         # Merge proposal
         proposal = self.merge_proposal(proposal, item_counts, self.ME)
-
         # proposal: inferred proposal for both agents (after merge)
         # proposal_type: proposal mentioned in the utterance (before merge)
         return proposal, proposal_type, uncertain
@@ -250,7 +249,7 @@ class Parser(BaseParser):
 
     def test(self, c, d, raw_utterance, lexicon):
         scenario = {'book':c[0] , 'hat':c[1], 'ball':c[2]}
-        proposal, _ = self.parse_proposal(lexicon.link_entity(tokenize(raw_utterance)), scenario)
+        proposal, _, _ = self.parse_proposal(lexicon.link_entity(tokenize(raw_utterance)), scenario)
         if not proposal:
             print 'No offer detected:', raw_utterance
             return False
@@ -290,10 +289,10 @@ if __name__ == '__main__':
     total_counter = 0
     with open(args.train_examples_path, 'r') as file:
         for idx, line1 in enumerate(file):
-            scenario = [int(x) for x in line1.rstrip().proposal(" ")]
+            scenario = [int(x) for x in line1.rstrip().split(" ")]
             parser = Parser(0, None, lexicon)
             line2 = next(file)
-            correct = [int(x) for x in line2.rstrip().proposal(" ")]
+            correct = [int(x) for x in line2.rstrip().split(" ")]
             line3 = next(file)
             if parser.test(scenario, correct, line3.rstrip(), lexicon):
               pass_counter += 1

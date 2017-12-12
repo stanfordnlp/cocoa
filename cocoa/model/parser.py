@@ -5,6 +5,7 @@ class Utterance(object):
         self.lf = logical_form
         self.template = template
         self.ambiguous_template = ambiguous_template
+        self.length = len(tokens) # first and last name counts as only one token
 
     def to_dict(self):
         return {
@@ -46,6 +47,12 @@ class Parser(object):
 
     neg_words = set(['no', 'not', "n't"])
 
+    def __init__(self, agent, kb, lexicon):
+        self.agent = agent
+        self.partner = 1 - agent
+        self.kb = kb
+        self.lexicon = lexicon
+
     @classmethod
     def is_negative(cls, utterance):
         for token in utterance.tokens:
@@ -68,12 +75,6 @@ class Parser(object):
             if token in cls.greeting_words:
                 return True
         return False
-
-    def __init__(self, agent, kb, lexicon):
-        self.agent = agent
-        self.partner = 1 - agent
-        self.kb = kb
-        self.lexicon = lexicon
 
     def tag_utterance(self, utterance):
         """Tag the utterance with basic speech acts.

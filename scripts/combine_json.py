@@ -4,7 +4,7 @@ Combine different batches of data (transcripts.json and surveys.json).
 
 import argparse
 import os
-from src.core.util import read_json, write_json
+from cocoa.core.util import read_json, write_json
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--paths', nargs='+', help='Paths to transcripts directories')
@@ -25,6 +25,7 @@ for d in args.paths:
     surveys = read_json(survey_file)
     for i, s in enumerate(surveys):
         all_surveys[i].update(s)
+    print "Combined data from {}".format(d)
 
 if not os.path.isdir(args.output):
     os.makedirs(args.output)

@@ -33,7 +33,7 @@ class Manager(object):
         best_action = max(freqdist, key=lambda x: x[1])[0]
         print 'context:', context
         #print 'dist:', freqdist
-        print 'availabel actions:', actions
+        print 'available actions:', actions
         print 'action:', best_action
         return best_action
 
