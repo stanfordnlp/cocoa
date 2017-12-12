@@ -103,6 +103,8 @@ class Backend(object):
 
         self.do_survey = True if "end_survey" in params.keys() and params["end_survey"] == 1 else False
         self.scenario_db = scenario_db
+        # TODO: hack for seller/buyer
+        self.scenario_int_id = {s.uuid: i for i, s in enumerate(scenario_db.scenarios_list)}
         self.schema = schema
         self.systems = systems
         # Preselected partner type and scenario from URL
@@ -394,9 +396,11 @@ class Backend(object):
                 cursor = self.conn.cursor()
                 others = _get_other_waiting_users(cursor, userid)
 
-                my_index = np.random.choice([0, 1])
                 scenario, partner_type = _choose_scenario_and_partner_type(cursor)
                 scenario_id = scenario.uuid
+                #my_index = np.random.choice([0, 1])
+                # TODO: hack for buyer/seller
+                my_index = 0 if self.scenario_int_id[scenario_id] % 2 == 0 else 1
                 chat_id = self._generate_chat_id()
                 if partner_type == HumanSystem.name():
                     if len(others) == 0:
