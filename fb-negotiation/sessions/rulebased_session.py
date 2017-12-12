@@ -15,7 +15,7 @@ from model.parser import Parser, Utterance
 from model.dialogue_state import DialogueState
 
 Config = namedtuple('Config', ['target', 'bottomline'])
-default_config = Config(8, 5)
+default_config = Config(8, 4)
 
 class RulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
@@ -65,7 +65,8 @@ class RulebasedSession(BaseRulebasedSession):
     def compromise(self, my_offer):
         compromised_offer = copy.deepcopy(my_offer)
         partner_item_values = self.partner_item_weights
-        item_scores = [(item, self.item_values[item] / (partner_item_values[item] if partner_item_values[item] != 0 else 0.5))
+        #item_scores = [(item, self.item_values[item] / (partner_item_values[item] if partner_item_values[item] != 0 else 0.5))
+        item_scores = [(item, self.item_values[item] - partner_item_values[item])
                 for item, count in my_offer.iteritems()
                 if count > 0]
         item_scores = sorted(item_scores, key=lambda x: x[1])
