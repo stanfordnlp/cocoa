@@ -198,8 +198,8 @@ if __name__ == "__main__":
     schema = Schema(schema_path)
     scenarios = read_json(args.scenarios_path)
     if args.num_scenarios is not None:
-        #scenarios = scenarios[:args.num_scenarios]
-        scenarios = random.sample(scenarios, args.num_scenarios)
+        scenarios = scenarios[:args.num_scenarios]
+        #scenarios = random.sample(scenarios, args.num_scenarios)
     scenario_db = ScenarioDB.from_dict(schema, scenarios, Scenario)
     app.config['scenario_db'] = scenario_db
 
