@@ -11,6 +11,7 @@ from model.preprocess import Preprocessor
 from model.parser import Parser
 from model.dialogue_state import DialogueState
 from model.generator import Templates, Generator
+from collections import defaultdict
 
 def parse_example(example, lexicon, templates):
     """Parse example and collect templates.
@@ -46,16 +47,16 @@ if __name__ == '__main__':
     parser.add_argument('--transcripts', nargs='*', help='JSON transcripts to extract templates')
     parser.add_argument('--price-tracker-model')
     parser.add_argument('--max-examples', default=-1, type=int)
-    parser.add_argument('--templates', help='Path to load templates')
-    parser.add_argument('--templates-output', help='Path to save templates')
-    parser.add_argument('--model', help='Path to load model')
-    parser.add_argument('--model-output', help='Path to save the dialogue manager model')
+    # parser.add_argument('--templates', help='Path to load templates')
+    # parser.add_argument('--templates-output', help='Path to save templates')
+    # parser.add_argument('--model', help='Path to load model')
+    # parser.add_argument('--model-output', help='Path to save the dialogue manager model')
     args = parser.parse_args()
 
     price_tracker = PriceTracker(args.price_tracker_model)
     examples = read_examples(args.transcripts, args.max_examples, Scenario)
     parsed_dialogues = []
-    templates = Templates()
+    # templates = Templates()
 
     for example in examples:
         if Preprocessor.skip_example(example):
@@ -63,6 +64,7 @@ if __name__ == '__main__':
         utterances = parse_example(example, price_tracker, templates)
         parsed_dialogues.append(utterances)
 
+    '''
     #for d in parsed_dialogues[:2]:
     #    for u in d:
     #        print u
@@ -85,3 +87,14 @@ if __name__ == '__main__':
     action = manager.choose_action(None, context=('<start>', '<start>'))
     print action
     print generator.retrieve('<start>', context_tag='<start>', tag=action, category='car', role='seller').template
+    '''
+
+    sequences = defaultdict(int)
+    for d in parsed_dialogues:
+        for u in d:
+            sequences[u.lf.intent] += 1
+
+    total = sum(sequences.values())
+    for k, v in sequences.items():
+        ratio = float(v) / total
+        print("{0} intent occured {1} times which is {2}%".format(k, v, ratio) )
