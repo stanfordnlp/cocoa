@@ -94,7 +94,12 @@ if __name__ == '__main__':
         for u in d:
             sequences[u.lf.intent] += 1
 
+    counter = 0
+    marker = total / 10.0
     total = sum(sequences.values())
     for k, v in sequences.items():
+        counter += 1
+        if counter % marker == 0:
+            print counter / float(total)
         ratio = 100 * (float(v) / total)
         print("{0} intent occured {1} times which is {2:.2f}%".format(k, v, ratio) )
