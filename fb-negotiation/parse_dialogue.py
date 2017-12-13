@@ -86,5 +86,5 @@ if __name__ == '__main__':
 
     total = sum(sequences.values())
     for k, v in sequences.items():
-        ratio = float(v) / total
-        print("{0} intent occured {1} times which is {2}%".format(k, v, ratio) )
+        ratio = 100 * (float(v) / total)
+        print("{0} intent occured {1} times which is {2:.2f}%".format(k, v, ratio) )

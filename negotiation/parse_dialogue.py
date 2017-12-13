@@ -56,7 +56,7 @@ if __name__ == '__main__':
     price_tracker = PriceTracker(args.price_tracker_model)
     examples = read_examples(args.transcripts, args.max_examples, Scenario)
     parsed_dialogues = []
-    # templates = Templates()
+    templates = Templates()
 
     for example in examples:
         if Preprocessor.skip_example(example):
@@ -96,5 +96,5 @@ if __name__ == '__main__':
 
     total = sum(sequences.values())
     for k, v in sequences.items():
-        ratio = float(v) / total
-        print("{0} intent occured {1} times which is {2}%".format(k, v, ratio) )
+        ratio = 100 * (float(v) / total)
+        print("{0} intent occured {1} times which is {2:.2f}%".format(k, v, ratio) )
