@@ -5,7 +5,8 @@ class Utterance(object):
         self.lf = logical_form
         self.template = template
         self.ambiguous_template = ambiguous_template
-        self.length = len(tokens) # first and last name counts as only one token
+        if tokens:
+          self.length = len(tokens) # first and last name counts as only one token
 
     def to_dict(self):
         return {
@@ -95,5 +96,5 @@ class Parser(object):
 
     def parse_action(self, event):
         intent = event.action
-        return Utterance(logical_form=LF(intent), template=['<{}>'.format(intent)])
+        return Utterance(logical_form=LogicalForm(intent), template=['<{}>'.format(intent)])
 
