@@ -2,8 +2,8 @@ from collections import defaultdict
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 class Visualizer(BaseVisualizer):
-    agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet'}
+    agents = ('human', 'rulebased', 'static-neural', 'dynamic-neural', 'neural')
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'neural': 'Neural'}
     questions = ("fluent", "correct", 'cooperative', "humanlike")
     question_labels = {"fluent": 'Fluency', "correct": 'Correctness', 'cooperative': 'Cooperation', "humanlike": 'Human-likeness'}
     colors = ("#33a02c", "#b2df8a", "#1f78b4", "#a6cee3")

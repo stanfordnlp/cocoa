@@ -1,4 +1,5 @@
 import re
+from cocoa.core.tokenizer import detokenize
 
 def tokenize(utterance):
     '''

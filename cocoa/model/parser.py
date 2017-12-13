@@ -5,7 +5,7 @@ class Utterance(object):
         self.lf = logical_form
         self.template = template
         self.ambiguous_template = ambiguous_template
-        self.length = len(tokens) # first and last name counts as only one token
+        #self.length = len(tokens) # first and last name counts as only one token
 
     def to_dict(self):
         return {
@@ -43,7 +43,7 @@ class LogicalForm(object):
 class Parser(object):
     greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
 
-    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could'])
+    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could', 'any'])
 
     neg_words = set(['no', 'not', "n't"])
 

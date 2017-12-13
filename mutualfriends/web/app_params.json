@@ -32,7 +32,7 @@
     "instructions": "web/templates/instructions.html",
     "task_title": "Who's Our Mutual Friend?",
     "icon": "handshake.jpg",
-    "num_chats_per_scenario": {"rulebased": 1, "human": 0},
+    "num_chats_per_scenario": {"rulebased": 1, "human": 1},
     "debug": false,
     "models": {
         "rulebased": {
