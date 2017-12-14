@@ -1,5 +1,5 @@
 from core.tokenizer import tokenize
-
+from collections import defaultdict
 
 def get_turns_per_agent(transcript):
     turns = {0: 0, 1: 0}
@@ -59,3 +59,14 @@ def reject_transcript(transcript, agent_idx=None, min_tokens=40):
     if total_tokens[0] < min_tokens or total_tokens[1] < min_tokens:
         return True
     return False
+
+def intent_breakdown(parsed_dialogues):
+    sequences = defaultdict(int)
+    for d in parsed_dialogues:
+        for u in d:
+            sequences[u.lf.intent] += 1
+
+    total = sum(sequences.values())
+    for k, v in sequences.items():
+        ratio = 100 * (float(v) / total)
+        print("{0} intent occured {1} times which is {2:.2f}%".format(k, v, ratio) )
