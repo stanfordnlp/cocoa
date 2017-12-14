@@ -77,7 +77,7 @@ def sample_intents(dialogues, desired_intent, size=10):
     for d in dialogues:
         for u in d:
             if (u.lf.intent == desired_intent) and random.random() < 0.3:
-                print u.raw_text
+                print u.text
                 counter += 1
             if counter > size:
                 return counter
