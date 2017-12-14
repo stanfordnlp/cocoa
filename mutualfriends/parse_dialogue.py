@@ -64,8 +64,11 @@ if __name__ == '__main__':
         utterances = parse_example(example, lexicon, templates)
         parsed_dialogues.append(utterances)
 
-    intent_breakdown(parsed_dialogues)
+    sample_intents(parsed_dialogues, "unknown")
+
     '''
+    intent_breakdown(parsed_dialogues)
+
     templates.finalize()
     templates.save(args.templates_output)
     templates.dump(n=10)

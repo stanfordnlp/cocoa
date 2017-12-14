@@ -1,5 +1,6 @@
 from core.tokenizer import tokenize
 from collections import defaultdict
+import random
 
 def get_turns_per_agent(transcript):
     turns = {0: 0, 1: 0}
@@ -70,3 +71,13 @@ def intent_breakdown(parsed_dialogues):
     for k, v in sequences.items():
         ratio = 100 * (float(v) / total)
         print("{0} intent occured {1} times which is {2:.2f}%".format(k, v, ratio) )
+
+def sample_intents(dialogues, desired_intent, size=10):
+    counter = 0
+    for d in dialogues:
+        for u in d:
+            if (u.lf.intent == desired_intent) and random.random() < 0.3:
+                print u.raw_text
+                counter += 1
+            if counter > size:
+                return counter
