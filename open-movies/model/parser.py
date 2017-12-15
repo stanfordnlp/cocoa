@@ -31,9 +31,7 @@ class LogicalForm(BaseLF):
         return attrs
 
 class Parser(BaseParser):
-    def __init__(self, lexicon):
-        self.lexicon = lexicon
-        self.question_words = set(['what', 'when', 'where', 'why', 'which', 'who',
+    question_words = set(['what', 'when', 'where', 'why', 'which', 'who',
             'whose', 'how', 'do', 'did', 'have'])
 
     def is_greeting(self, utterance, score=0):
@@ -48,7 +46,7 @@ class Parser(BaseParser):
             return score
         for idx, token in enumerate(utterance.tokens):
             if is_entity(token): continue
-            if token.lower() in self.question_words:
+            if token.lower() in question_words:
                 score += 0.5
                 if idx == 0:
                     score += 0.5
@@ -243,6 +241,6 @@ if __name__ == '__main__':
     # PYTHONPATH=. python model/parser.py -l data/lexicon.pkl --examples-path data/parser_unit.json --verbose
 
     lexicon = Lexicon.from_pickle(args.lexicon)
-    movie_parser = Parser(lexicon)
+    movie_parser = Parser(0, {}, lexicon)
     examples = json.load(open(args.examples_path, "r"))
     movie_parser.unit_test(examples, args.verbose)

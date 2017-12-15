@@ -3,13 +3,14 @@ import copy
 
 from cocoa.core.dataset import read_examples
 from cocoa.model.manager import Manager
+from cocoa.analysis.utils import intent_breakdown
 
 from core.event import Event
 from core.scenario import Scenario
 from core.lexicon import Lexicon
 from model.parser import Parser
 from model.dialogue_state import DialogueState
-from model.generator import Templates, Generator
+# from model.generator import Templates, Generator
 
 def parse_example(example, lexicon, templates):
     """Parse example and collect templates.
@@ -40,49 +41,26 @@ def parse_example(example, lexicon, templates):
             states[writing_agent].update(writing_agent, sent_utterance)
     return parsed_utterances
 
-# python parse_dialogue.py --templates-output data/turt_templates.pkl \
-#   --transcripts /juicier/scr105/scr/derekchen14/movie_data/combined/transcripts.json \
-#   --model-output model/manager.pkl
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
-    parser.add_argument('--transcripts', nargs='*', \
-        help='Path to JSON transcripts to extract templates')
-    parser.add_argument('--templates-output',
-        help='Path to save templates')
-    parser.add_argument('--model-output', \
-        help='Path to save the dialogue manager model')
+    parser.add_argument('-l', '--lexicon', help='Path to pickled lexicon')
+    parser.add_argument('--transcripts', nargs='*', help='JSON transcripts to extract templates')
     parser.add_argument('--max-examples', default=-1, type=int)
-    # if model and templates already exist
-    # parser.add_argument('--templates', help='Path to load pre-exisiting templates')
-    # parser.add_argument('--model', help='Path to load pre-exisiting model')
+    # parser.add_argument('--templates', help='Path to load templates')
+    # parser.add_argument('--templates-output', help='Path to save templates')
+    # parser.add_argument('--model', help='Path to load model')
+    # parser.add_argument('--model-output', help='Path to save the dialogue manager model')
     args = parser.parse_args()
 
-    examples = read_examples(args.transcripts, args.max_examples, Scenario)
+    examples = read_examples(args.transcripts, args.max_examples)
     parsed_dialogues = []
-    templates = Templates()
+    # templates = Templates()
 
-    lexicon = Lexicon(['ball', 'hat', 'book'])
+    lexicon = Lexicon.from_pickle(args.lexicon)
+    movie_parser = Parser(0, {}, lexicon)
     for example in examples:
-        utterances = parse_example(example, lexicon, templates)
+        utterance = movie_parser.parse_message(example.data)
         parsed_dialogues.append(utterances)
 
-    templates.finalize()
-    templates.save(args.templates_output)
-    templates.dump(n=10)
+    intent_breakdown(parsed_dialogues)
 
-    #for d in parsed_dialogues[:2]:
-    #    for u in d:
-    #        print u
-
-    # Train n-gram model
-    sequences = []
-    for d in parsed_dialogues:
-        sequences.append([u.lf.intent for u in d])
-    manager = Manager.from_train(sequences)
-    manager.save(args.model_output)
-
-    generator = Generator(templates)
-    action = manager.choose_action(None, context=('<start>', '<start>'))
-    print action
-    print generator.retrieve('<start>', context_tag='<start>', tag=action).template
