@@ -31,22 +31,24 @@ class LogicalForm(BaseLF):
         return attrs
 
 class Parser(BaseParser):
-    question_words = set(['what', 'when', 'where', 'why', 'which', 'who',
+    def __init__(self, agent, kb, lexicon):
+        BaseParser.__init__(self, agent, kb, lexicon)
+        self.question_words = set(['what', 'when', 'where', 'why', 'which', 'who',
             'whose', 'how', 'do', 'did', 'have'])
 
     def is_greeting(self, utterance, score=0):
         if super(Parser, self).is_greeting(utterance):
             score += 2
-        if utterance.length < 7:
+        if len(utterance.tokens) < 7:
             score += 0.5
         return score
 
     def is_question(self, utterance, score=0):
-        if utterance.length < 1:
+        if len(utterance.tokens) < 1:
             return score
         for idx, token in enumerate(utterance.tokens):
             if is_entity(token): continue
-            if token.lower() in question_words:
+            if token.lower() in self.question_words:
                 score += 0.5
                 if idx == 0:
                     score += 0.5
@@ -177,8 +179,8 @@ class Parser(BaseParser):
         elif (intent == "favorite") and (topic is None) and (intent_sum > 1):
             topic = "title"
 
-        print("intent scores: {0} is {1}".format(intent_scores, intent) )
-        print("topic scores: {0} is {1}".format(topic_scores, topic) )
+        # print("intent scores: {0} is {1}".format(intent_scores, intent) )
+        # print("topic scores: {0} is {1}".format(topic_scores, topic) )
 
         if LogicalForm.is_valid_label(intent, topic):
             return LogicalForm(intent, topic)
