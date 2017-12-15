@@ -4,7 +4,7 @@ import copy
 from cocoa.core.dataset import read_examples
 from cocoa.model.manager import Manager
 from cocoa.core.schema import Schema
-from cocoa.analysis.utils import intent_breakdown
+from cocoa.analysis.utils import *
 
 from core.event import Event
 from core.scenario import Scenario
@@ -60,11 +60,14 @@ if __name__ == '__main__':
     parsed_dialogues = []
     templates = Templates()
 
-    for example in examples:
+    # print("Number of examples: {}".format(len(examples)) )
+    for idx, example in enumerate(examples):
         utterances = parse_example(example, lexicon, templates)
         parsed_dialogues.append(utterances)
+        if idx > 100:
+            break
 
-    sample_intents(parsed_dialogues, "unknown")
+    sample_intents(parsed_dialogues, "unknown", 30)
 
     '''
     intent_breakdown(parsed_dialogues)
