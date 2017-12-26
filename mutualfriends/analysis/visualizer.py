@@ -1,4 +1,5 @@
 from collections import defaultdict
+from cocoa.analysis.utils import safe_div
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
 
 class Visualizer(BaseVisualizer):
@@ -34,11 +35,18 @@ class Visualizer(BaseVisualizer):
                 total += 1
                 if ex.outcome['reward'] == 1:
                     num_success += 1
-        return {
-                'success per select': num_success / float(n_select),
-                'success per turn': num_success / float(n_turns),
-                'success': num_success / float(total),
+
+        result = {
+                'success per select': safe_div(num_success, float(n_select)),
+                'success per turn': safe_div(num_success, float(n_turns)),
+                'success': safe_div(num_success, float(total)),
                 }
+
+        print system.upper()
+        for k, v in result.iteritems():
+            print '{:<15s} {:.2f}'.format(k, v)
+
+        return result
 
 
     def filter(self, raw_evals):

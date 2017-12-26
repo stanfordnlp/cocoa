@@ -81,3 +81,6 @@ def sample_intents(dialogues, desired_intent, size=10):
                 counter += 1
             if counter > size:
                 return counter
+
+def safe_div(numerator, denominator):
+    return numerator / (denominator + 1e-5)
