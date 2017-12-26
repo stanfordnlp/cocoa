@@ -42,18 +42,22 @@ class RulebasedSession(BaseRulebasedSession):
     def get_same_row_entities(self, entities):
         """Return entities in the same row as `entities`.
         """
+        print 'get same row:', entities
         rows = set(range(len(self.kb.items)))
         for entity in entities:
             rows = rows.intersection(set(self.entity_coords[entity]))
         row_entities = []
         for row in rows:
             ents = []
+            if self.item_weights[row] < 0:
+                continue
             item = self.kb.items[row]
             for col, attr in enumerate(self.kb.attributes):
                 entity = CanonicalEntity(value=item[attr.name].lower(), type=attr.value_type)
                 if not entity in entities:
                     ents.append(entity)
-            row_entities.append(ents)
+            if ents:
+                row_entities.append(ents)
         return row_entities
 
     def count_entity(self):
@@ -86,10 +90,19 @@ class RulebasedSession(BaseRulebasedSession):
             if entity in self.entity_weights:
                 self.entity_weights[entity] += delta
 
+    def _item_has_entities(self, item, entities):
+        values = [v.lower() for v in item.values()]
+        for entity in entities:
+            if not entity.value.lower() in values:
+                return False
+        return True
+
     def update_item_weights(self, entities, delta):
+        groups = self.group_entities(entities)
         for i, item in enumerate(self.kb.items):
-            values = [v.lower() for v in item.values()]
-            self.item_weights[i] += delta * len([entity for entity in entities if entity.value.lower() in values])
+            for group in groups:
+                if self._item_has_entities(item, group):
+                    self.item_weights[i] += delta
 
     def _get_entity_types(self, template):
         types = []
@@ -181,14 +194,16 @@ class RulebasedSession(BaseRulebasedSession):
             for group in groups:
                 row_entities = self.get_same_row_entities(group)
                 if row_entities:
-                    return group[:2] + row_entities[0][:2]
+                    return group[:2] + random.choice(row_entities)[:2]
 
-        entities = [(e, w - (10. if e in self.state.recent_mentioned_entities else 0.))
+        entity_weights = [(e, w - (10. if e in self.state.recent_mentioned_entities else 0.))
                 for e, w in self.entity_weights.iteritems()]
-        entities = sorted(entities, key=lambda x: x[1], reverse=True)
-        entity = entities[0][0]
-        row_entities = self.get_same_row_entities([entity])
-        return [entity] + row_entities[0][:1]
+        entities = [x[0] for x in sorted(entity_weights, key=lambda x: x[1], reverse=True)]
+        for entity in entities:
+            row_entities = self.get_same_row_entities([entity])
+            if row_entities:
+                return [entity] + random.choice(row_entities)[:1]
+        return [random.choice(entities)]
 
     def select(self):
         if self.state.matched_item:
@@ -216,8 +231,8 @@ class RulebasedSession(BaseRulebasedSession):
     def receive(self, event):
         super(RulebasedSession, self).receive(event)
         if self.state.partner_exclude_entities:
-            self.update_item_weights(self.state.partner_exclude_entities, -1.)
-            self.update_entity_weights(self.state.partner_exclude_entities, -10.)
+            self.update_item_weights(self.state.partner_exclude_entities, -10.)
+            self.update_entity_weights(self.state.partner_exclude_entities, -1.)
         if self.state.partner_entities:
             groups = self.group_entities(self.state.partner_entities)
             for group in groups:
