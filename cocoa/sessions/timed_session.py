@@ -46,7 +46,7 @@ class TimedSessionWrapper(Session):
         self.num_utterances = 0
         self.session.receive(event)
         self.received = True
-        #self.queued_event.clear()
+        self.queued_event.clear()
 
     def send(self):
         # TODO: even if cross talk is enabled, we don't want the bot to talk in a row
