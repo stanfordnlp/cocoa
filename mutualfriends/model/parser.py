@@ -29,6 +29,8 @@ class Parser(BaseParser):
             return 'inform'
         elif self.is_negative(utterance):
             return 'negative'
+        elif self.is_greeting(utterance):
+            return 'greet'
         else:
             return 'unknown'
 
@@ -67,15 +69,12 @@ class Parser(BaseParser):
             intent = 'negative'
 
         signature = ''
-        if entities and exclude_entities:
+        if self.is_negative(utterance) and intent == 'inform':
             utterance.ambiguous_template = True
         elif entities:
             signature = self.signature(entities)
         elif exclude_entities:
             signature = self.signature(exclude_entities)
-
-        if self.is_negative(utterance) and not exclude_entities:
-            utterance.ambiguous_template = True
 
         if intent == 'negative' and not exclude_entities:
             exclude_entities = dialogue_state.my_entities

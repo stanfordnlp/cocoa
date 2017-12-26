@@ -4,7 +4,7 @@ import copy
 from cocoa.core.dataset import read_examples
 from cocoa.model.manager import Manager
 from cocoa.core.schema import Schema
-from cocoa.analysis.utils import *
+from cocoa.analysis.utils import sample_intents, intent_breakdown
 
 from core.event import Event
 from core.scenario import Scenario
@@ -46,10 +46,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--transcripts', nargs='*', help='JSON transcripts to extract templates')
     parser.add_argument('--max-examples', default=-1, type=int)
-    # parser.add_argument('--templates', help='Path to load templates')
-    # parser.add_argument('--templates-output', help='Path to save templates')
-    # parser.add_argument('--model', help='Path to load model')
-    # parser.add_argument('--model-output', help='Path to save the dialogue manager model')
+    parser.add_argument('--templates', help='Path to load templates')
+    parser.add_argument('--templates-output', help='Path to save templates')
+    parser.add_argument('--model', help='Path to load model')
+    parser.add_argument('--model-output', help='Path to save the dialogue manager model')
     parser.add_argument('--schema-path', help='Path to schema')
     add_lexicon_arguments(parser)
     args = parser.parse_args()
@@ -60,17 +60,12 @@ if __name__ == '__main__':
     parsed_dialogues = []
     templates = Templates()
 
-    # print("Number of examples: {}".format(len(examples)) )
     for idx, example in enumerate(examples):
         utterances = parse_example(example, lexicon, templates)
         parsed_dialogues.append(utterances)
-        if idx > 100:
-            break
 
-    sample_intents(parsed_dialogues, "unknown", 30)
-
-    '''
-    intent_breakdown(parsed_dialogues)
+    #sample_intents(parsed_dialogues, "unknown", 30)
+    #intent_breakdown(parsed_dialogues)
 
     templates.finalize()
     templates.save(args.templates_output)
@@ -91,4 +86,3 @@ if __name__ == '__main__':
     action = manager.choose_action(None, context=('<start>', '<start>'))
     print action
     print generator.retrieve('<start>', context_tag='<start>', tag=action).template
-    '''

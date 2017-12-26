@@ -17,7 +17,7 @@ class RulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager, realizer=None):
         parser = Parser(agent, kb, lexicon)
         state = DialogueState(agent, kb)
-        super(RulebasedSession, self).__init__(agent, kb, parser, generator, manager, state, sample_temperature=5.)
+        super(RulebasedSession, self).__init__(agent, kb, parser, generator, manager, state, sample_temperature=2.)
 
         self.kb = kb
         self.attr_type = {attr.name: attr.value_type for attr in kb.attributes}
@@ -30,9 +30,8 @@ class RulebasedSession(BaseRulebasedSession):
         self.realizer = realizer
 
     def get_entity_coords(self):
-        '''
-        Return a dict of {entity: [row]}
-        '''
+        """Return a dict of {entity: [row]}
+        """
         entity_coords = defaultdict(list)
         for row, item in enumerate(self.kb.items):
             for col, attr in enumerate(self.kb.attributes):
@@ -40,16 +39,21 @@ class RulebasedSession(BaseRulebasedSession):
                 entity_coords[entity].append(row)
         return entity_coords
 
-    def get_row_entities(self, entities):
-        row_entities = set()
+    def get_same_row_entities(self, entities):
+        """Return entities in the same row as `entities`.
+        """
+        rows = set(range(len(self.kb.items)))
         for entity in entities:
-            rows = self.entity_coords[entity]
-            for row, item in enumerate(self.kb.items):
-                for col, attr in enumerate(self.kb.attributes):
-                    if row in rows:
-                        e = CanonicalEntity(item[attr.name].lower(), attr.value_type)
-                        if e not in entities:
-                            row_entities.add(e)
+            rows = rows.intersection(set(self.entity_coords[entity]))
+        row_entities = []
+        for row in rows:
+            ents = []
+            item = self.kb.items[row]
+            for col, attr in enumerate(self.kb.attributes):
+                entity = CanonicalEntity(value=item[attr.name].lower(), type=attr.value_type)
+                if not entity in entities:
+                    ents.append(entity)
+            row_entities.append(ents)
         return row_entities
 
     def count_entity(self):
@@ -104,10 +108,6 @@ class RulebasedSession(BaseRulebasedSession):
 
     def template_message(self, intent):
         template = self.retrieve_response_template(intent)
-        #entity_types = self._get_entity_types(template['template'])
-        #entities = self.fill_entities(entity_types)
-        #lf = LF(intent, entities=entities)
-        #text = self.fill_template(template, entities)
         lf = LF(intent)
         text = template['template']
         utterance = Utterance(raw_text=text, logical_form=lf, template=template)
@@ -160,40 +160,35 @@ class RulebasedSession(BaseRulebasedSession):
         utterance = Utterance(raw_text=text, logical_form=lf, template=template)
         return self.message(utterance)
 
-    #def get_min_subset(self, entities):
-    #    subset = None
-    #    prefix = []
-    #    for e in entities:
-    #        if not subset:
-    #            subset = self.get_row_entities([e])
-    #        else:
-    #            new_subset = subset.intersection(self.get_row_entities([e]))
-    #            if len(new_subset) == 0:
-    #                return subset, prefix
-    #        prefix.append(e)
-    #    return subset, prefix
+    def group_entities(self, entities):
+        """Group entities that are likely to be on the same row.
+        """
+        groups = []
+        for entity in entities:
+            if not groups:
+                groups.append([entity])
+            else:
+                types = [e.type for e in groups[-1]]
+                if entity.type not in types:
+                    groups[-1].append(entity)
+                else:
+                    groups.append([entity])
+        return groups
 
     def choose_entities(self):
         if self.state.partner_entities:
-            #subset, prefix = self.get_min_subset(self.state.partner_entities)
-            #print 'prefix:', prefix
-            #print 'subset:', subset
-            #if subset:
-            partner_entity = random.choice(self.state.partner_entities)
-            row_entities = self.get_row_entities([partner_entity])
-            if not row_entities:
-                return [partner_entity]
-            entities = [partner_entity] + [random.choice(list(row_entities))]
-            #entities = random.choice(prefix) + random.choice(list(subset))
-            #print 'correct:', entities
-            return entities
+            groups = self.group_entities(self.state.partner_entities)
+            for group in groups:
+                row_entities = self.get_same_row_entities(group)
+                if row_entities:
+                    return group[:2] + row_entities[0][:2]
 
         entities = [(e, w - (10. if e in self.state.recent_mentioned_entities else 0.))
                 for e, w in self.entity_weights.iteritems()]
         entities = sorted(entities, key=lambda x: x[1], reverse=True)
-        entities = [x[0] for x in entities]
-        entities = entities[:1]
-        return entities
+        entity = entities[0][0]
+        row_entities = self.get_same_row_entities([entity])
+        return [entity] + row_entities[0][:1]
 
     def select(self):
         if self.state.matched_item:
@@ -224,6 +219,8 @@ class RulebasedSession(BaseRulebasedSession):
             self.update_item_weights(self.state.partner_exclude_entities, -1.)
             self.update_entity_weights(self.state.partner_exclude_entities, -10.)
         if self.state.partner_entities:
-            row_entities = self.get_row_entities(self.state.partner_entities)
-            print 'update weights:', [str(x) for x in row_entities]
-            self.update_entity_weights(row_entities, 1.)
+            groups = self.group_entities(self.state.partner_entities)
+            for group in groups:
+                row_entities = self.get_same_row_entities(group)
+                for entities in row_entities:
+                    self.update_entity_weights(entities, 1.)
