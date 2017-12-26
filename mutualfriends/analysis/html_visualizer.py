@@ -1,7 +1,7 @@
 from cocoa.analysis.html_visualizer import HTMLVisualizer as BaseHTMLVisualizer
 
 class HTMLVisualizer(BaseHTMLVisualizer):
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'static-neural': 'StanoNet', 'dynamic-neural': 'DynoNet', 'rule_bot': 'Rule-based', 'neural': 'Neural'}
     #questions = ("fluent", "correct", 'cooperative', "humanlike")
     questions = ('cooperative', "humanlike")
 
@@ -32,3 +32,11 @@ class HTMLVisualizer(BaseHTMLVisualizer):
 
         html.append("</div>")
         return html
+
+    @classmethod
+    def render_event(cls, event):
+        if event.action == 'select':
+            s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
+        else:
+            s = super(HTMLVisualizer, cls).render_event(event)
+        return s

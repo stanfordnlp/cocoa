@@ -1,4 +1,5 @@
 import os
+import json
 
 from cocoa.analysis.html_visualizer import HTMLVisualizer as BaseHTMLVisualizer
 from cocoa.analysis.utils import reject_transcript
@@ -39,6 +40,20 @@ class HTMLVisualizer(BaseHTMLVisualizer):
 
         html.append("</div>")
         return html
+
+    @classmethod
+    def render_event(cls, event):
+        if event.action == 'offer':
+            s = 'OFFER %s' % json.dumps(event.data)
+        elif event.action == 'quit':
+            s = 'QUIT'
+        elif event.action == 'accept':
+            s = 'ACCEPT OFFER'
+        elif event.action == 'reject':
+            s = 'REJECT OFFER'
+        else:
+            s = super(HTMLVisualizer, cls).render_event(event)
+        return s
 
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
