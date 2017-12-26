@@ -62,21 +62,21 @@ class Visualizer(BaseVisualizer):
         html_visualizer.visualize(viewer_mode, html_output, chats,
             responses=dialogue_responses, css_file=css_file, img_path=img_path)
 
-    def compute_effectiveness(self):
-        chats = defaultdict(list)
-        for raw in self.chats:
-            ex = Example.from_dict(raw, Scenario)
-            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
-                chats['human'].append(ex)
-            elif ex.agents[0] != 'human':
-                chats[ex.agents[0]].append(ex)
-            elif ex.agents[1] != 'human':
-                chats[ex.agents[1]].append(ex)
+    #def compute_effectiveness(self):
+    #    chats = defaultdict(list)
+    #    for raw in self.chats:
+    #        ex = Example.from_dict(raw, Scenario)
+    #        if ex.agents[0] == 'human' and ex.agents[1] == 'human':
+    #            chats['human'].append(ex)
+    #        elif ex.agents[0] != 'human':
+    #            chats[ex.agents[0]].append(ex)
+    #        elif ex.agents[1] != 'human':
+    #            chats[ex.agents[1]].append(ex)
 
-        results = {}
-        for system, examples in chats.iteritems():
-            results[system] = self.compute_effectiveness_for_system(examples, system)
-            print system, results[system]
+    #    results = {}
+    #    for system, examples in chats.iteritems():
+    #        results[system] = self.compute_effectiveness_for_system(examples, system)
+    #        print system, results[system]
 
     # TODO: implement filter that skips unqualified/redirected chats, see should_reject_chat
     def skip_example(self, ex):
@@ -90,6 +90,7 @@ class Visualizer(BaseVisualizer):
         else:
             return True
 
+
     def compute_effectiveness_for_system(self, examples, system):
         num_agreed = 0
         total = 0
@@ -98,8 +99,8 @@ class Visualizer(BaseVisualizer):
         num_mismatch = 0
         num_nodeal = 0
         for ex in examples:
-            if self.skip_example(ex):
-                continue
+            #if self.skip_example(ex):
+            #    continue
             if system == 'human':
                 # Take human winner
                 rewards = [ex.outcome['reward'][str(agent)] for agent in (0, 1)]
@@ -132,11 +133,21 @@ class Visualizer(BaseVisualizer):
             except ZeroDivisionError:
                 total_points[k] = 0
 
-        return {'% agreed': num_agreed / float(total) if total > 0 else 0,
+        result = {'% agreed': num_agreed / float(total) if total > 0 else 0,
                 'agreed points': agreed_points,
                 'total points': total_points,
                 'total': total,
                 'mismatch': num_mismatch,
                 'no deal': num_nodeal,
                 }
+
+        print system.upper()
+        for k, v in result.iteritems():
+            if k == 'agreed points' or k == 'total points':
+                points = 'partner={:.2f} agent={:.2f}'.format(v['partner'], v['agent'])
+                print '{:<15s} {}'.format(k, points)
+            else:
+                print '{:<15s} {:.2f}'.format(k, v)
+
+        return result
 

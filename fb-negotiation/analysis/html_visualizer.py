@@ -50,79 +50,14 @@ class HTMLVisualizer(BaseHTMLVisualizer):
         outfile.close()
 
     @classmethod
-    def render_chat(cls, chat, agent=None, partner_type='human', workers_ids=None):
-        events = Event.gather_eval([Event.from_dict(e) for e in chat["events"]])
-
-        if len(events) == 0:
-            return False, False, None
-
-        chat_html= ['<div class=\"chatLog\">',
-                '<div class=\"divTitle\"> Chat Log: %s </div>' % (chat['uuid']),
-                '<table class=\"chat\">']
-
-        # Used for visualizing chat during debugging
-        agent_str = {0: '', 1: ''}
-        if agent is not None:
-            agent_str[agent] = 'Agent %d (you)' % agent
-            agent_str[1 - agent] = 'Agent %d (%s)' % (1 - agent, partner_type)
-        elif 'agents' in chat and chat['agents']:
-            for agent in (0, 1):
-                agent_str[agent] = 'Agent %d (%s)' % (agent, cls.agent_labels[chat['agents'][str(agent)]])
+    def render_event(cls, event):
+        if event.action == 'select':
+            s = 'DEAL AGREED: {}'.format(event.data)
+        elif event.action == 'reject':
+            s = 'NO DEAL'
         else:
-            for agent in (0, 1):
-                agent_str[agent] = 'Agent %d (%s)' % (agent, 'unknown')
-
-        for event in events:
-            if not event.time:
-                t = None
-            else:
-                t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
-            a = agent_str[event.agent]
-            if event.action == 'message':
-                s = event.data
-            elif event.action == 'select':
-                s = 'DEAL AGREED: {}'.format(event.data)
-            elif event.action == 'reject':
-                s = 'NO DEAL'
-            elif event.action == 'eval':
-                s = 'EVAL {utterance} || {tags}'.format(utterance=event.data['utterance'], tags=' '.join([k for k, v in event.data['labels'].iteritems() if v == 1]))
-            else:
-                continue
-
-            try:
-                tags = ', '.join(event.tags)
-            except AttributeError:
-                tags = ''
-
-            if event.metadata is None:
-                response_tag = ''
-                template = ''
-            else:
-                sent_data = event.metadata['sent']
-                response_tag = sent_data['logical_form']['intent']
-                template = sent_data['template']
-                if isinstance(template, dict):
-                    template = template['template']
-
-            row = '<tr class=\"agent%d\">\
-                    <td class=\"time\">%s</td>\
-                    <td class=\"agent\">%s</td>\
-                    <td class=\"tags\">%s</td>\
-                    <td class=\"act\">%s</td>\
-                    <td class=\"template\">%s</td>\
-                    <td class=\"message\">%s</td>\
-                   </tr>' % (event.agent, t, a, tags, response_tag, template, s)
-            chat_html.append(row)
-
-        chat_html.extend(['</table>', '</div>'])
-        completed = False if chat["outcome"] is None or chat["outcome"]["reward"] == 0 else True
-
-        # Show config and results
-        if chat.get('agents_info') is not None:
-            chat_html.append('<p>Bot config: {}</p>'.format(str(chat['agents_info']['config'])))
-        rejected = reject_transcript(chat, 0) and reject_transcript(chat, 1)
-
-        return completed, rejected, chat_html
+            s = super(HTMLVisualizer, cls).render_event(event)
+        return s
 
     @classmethod
     def _render_response(cls, response, agent_id, agent):

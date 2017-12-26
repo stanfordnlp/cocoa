@@ -183,6 +183,29 @@ class Visualizer(object):
     def skip_example(self, ex):
         return False
 
+    def analyze_speech_acts(self, examples, system):
+        received_intents = defaultdict(int)
+        sent_intents = defaultdict(int)
+        for ex in examples:
+            if self.skip_example(ex):
+                continue
+            if system == 'rulebased':
+                for event in ex.events:
+                    if event.metadata:
+                        received_intent = event.metadata['received']['logical_form']['intent']
+                        sent_intent = event.metadata['sent']['logical_form']['intent']
+                        #if received_intent != '<start>':
+                        received_intents[received_intent] += 1
+                        #if sent_intent != '<start>':
+                        sent_intents[sent_intent] += 1
+        received_total = float(sum(received_intents.values()))
+        sent_total = float(sum(sent_intents.values()))
+        received_intents = {k: v / received_total for k, v in received_intents.iteritems()}
+        sent_intents = {k: v / sent_total for k, v in sent_intents.iteritems()}
+        for k, v in received_intents.iteritems():
+            print '{:10s} {:.4f} {:.4f}'.format(k, v, sent_intents.get(k, 0))
+        return received_intents, sent_intents
+
     def compute_effectiveness(self, with_survey=True):
         chats = defaultdict(list)
         dialogues_with_survey = self.dialogues_with_survey()
@@ -197,12 +220,15 @@ class Visualizer(object):
             elif ex.agents[1] != 'human':
                 chats[ex.agents[1]].append(ex)
 
+        # TODO: factor
+        self.analyze_speech_acts(chats['rulebased'], 'rulebased')
+
         results = {}
         for system, examples in chats.iteritems():
-            if system == 'human':
-                continue
+            #if system == 'human':
+            #    continue
             results[system] = self.compute_effectiveness_for_system(examples, system)
-            print system, results[system]
+        return results
 
     def summarize(self, question_scores=None, summary_stats=('mean',)):
         if not question_scores:

@@ -32,9 +32,12 @@ class HTMLVisualizer(object):
 
     @classmethod
     def render_event(cls, event):
+        s = None
         if event.action == 'message':
-            return event.data
-        return None
+            s = event.data
+        elif event.action == 'eval':
+            s = 'EVAL {utterance} || {tags}'.format(utterance=event.data['utterance'], tags=' '.join([k for k, v in event.data['labels'].iteritems() if v == 1]))
+        return s
 
     @classmethod
     def render_chat(cls, chat, agent=None, partner_type='human', worker_ids=None):
@@ -71,22 +74,8 @@ class HTMLVisualizer(object):
             else:
                 t = datetime.datetime.fromtimestamp(float(event.time)).strftime('%Y-%m-%d %H:%M:%S')
             a = agent_str[event.agent]
-            # TODO: factor render_event
-            if event.action == 'message':
-                s = event.data
-            elif event.action == 'select':
-                s = 'SELECT (' + ' || '.join(event.data.values()) + ')'
-            elif event.action == 'offer':
-                s = 'OFFER %s' % json.dumps(event.data)
-            elif event.action == 'quit':
-                s = 'QUIT'
-            elif event.action == 'accept':
-                s = 'ACCEPT OFFER'
-            elif event.action == 'reject':
-                s = 'REJECT OFFER'
-            elif event.action == 'eval':
-                s = 'EVAL {utterance} || {tags}'.format(utterance=event.data['utterance'], tags=' '.join([k for k, v in event.data['labels'].iteritems() if v == 1]))
-            else:
+            s = cls.render_event(event)
+            if s is None:
                 continue
 
             try:
@@ -97,12 +86,26 @@ class HTMLVisualizer(object):
             if event.metadata is None:
                 response_tag = ''
                 template = ''
+                received_row = None
             else:
                 sent_data = event.metadata['sent']
                 response_tag = sent_data['logical_form']['intent']
                 template = sent_data['template']
                 if isinstance(template, dict):
                     template = template['template']
+
+                # Received event
+                received_data = event.metadata['received']
+                partner_tag = received_data['logical_form']['intent']
+                partner_template = ' '.join(received_data['template'])
+                received_row = '<tr class=\"agent%d\">\
+                        <td class=\"time\">%s</td>\
+                        <td class=\"agent\">%s</td>\
+                        <td class=\"tags\">%s</td>\
+                        <td class=\"act\">%s</td>\
+                        <td class=\"template\">%s</td>\
+                        <td class=\"message\">%s</td>\
+                       </tr>' % (event.agent, '', '', '', partner_tag, partner_template, '')
 
             row = '<tr class=\"agent%d\">\
                     <td class=\"time\">%s</td>\
@@ -112,6 +115,8 @@ class HTMLVisualizer(object):
                     <td class=\"template\">%s</td>\
                     <td class=\"message\">%s</td>\
                    </tr>' % (event.agent, t, a, tags, response_tag, template, s)
+            if received_row:
+                chat_html.append(received_row)
             chat_html.append(row)
 
         chat_html.extend(['</table>', '</div>'])
