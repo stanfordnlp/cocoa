@@ -48,6 +48,15 @@ class Parser(BaseParser):
                 template.append(token)
         return template
 
+    def default_template(self, entities):
+        type_count = defaultdict(int)
+        template = []
+        for entity in entities:
+            type_ = entity.type
+            template.append('{{{0}[{1}]}}'.format(type_, type_count[type_]))
+            type_count[type_] += 1
+        return {'tempalte': ', '.join(template)}
+
     def signature(self, entities):
         return '|'.join(sorted([e.type for e in entities]))
 

@@ -168,6 +168,8 @@ class RulebasedSession(BaseRulebasedSession):
             intent = 'negative'
         signature = self.parser.signature(entities)
         template = self.retrieve_response_template(intent, signature=signature)
+        if template is None:
+            template = self.parser.default_template(entities)
         text = self.fill_template(template, entities)
         lf = LF(intent, entities=entities)
         utterance = Utterance(raw_text=text, logical_form=lf, template=template)
