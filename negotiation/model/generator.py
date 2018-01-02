@@ -1,5 +1,3 @@
-from sklearn.feature_extraction.text import TfidfVectorizer
-
 from cocoa.model.generator import Templates as BaseTemplates, Generator as BaseGenerator
 
 from core.tokenizer import detokenize

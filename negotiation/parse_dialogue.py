@@ -82,7 +82,7 @@ if __name__ == '__main__':
     # templates.dump(n=10)
     # intent_breakdown(parsed_dialogues)
 
-    # TODO: test model and generator
+    # Test model and generator
     generator = Generator(templates)
     action = manager.choose_action(None, context=('<start>', '<start>'))
     print action

@@ -11,7 +11,6 @@ from cocoa.model.parser import LogicalForm as LF
 from cocoa.sessions.rulebased_session import RulebasedSession as BaseRulebasedSession
 
 from core.tokenizer import tokenize, detokenize
-from session import Session
 from model.parser import Parser, Utterance
 from model.dialogue_state import DialogueState
 
@@ -219,9 +218,6 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
         """
         raise NotImplementedError
 
-    def wait(self):
-        return None
-
     def send(self):
         if self.has_done('offer'):
             return self.wait()
@@ -245,9 +241,7 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
             return self.compromise()
         elif action == 'offer':
             return self.offer(self.state.curr_price)
-        # TODO: agree price
         elif action == 'agree':
-            print 'agree on:', self.state.curr_price
             return self.agree(self.state.curr_price)
         else:
             return self.template_message(action)
