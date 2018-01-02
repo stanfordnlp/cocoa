@@ -42,7 +42,7 @@ class LogicalForm(object):
 class Parser(object):
     greeting_words = set(['hi', 'hello', 'hey', 'hiya', 'howdy'])
 
-    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'does', 'are', 'is', 'would', 'will', 'can', 'could', 'any'])
+    question_words = set(['what', 'when', 'where', 'why', 'which', 'who', 'whose', 'how', 'do', 'did', 'does', 'are', 'is', 'would', 'will', 'can', 'could', 'any'])
 
     neg_words = set(['no', 'not', "n't"])
 
