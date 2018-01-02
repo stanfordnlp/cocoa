@@ -27,7 +27,8 @@ for d in args.paths:
         all_surveys[i].update(s)
     print "Combined data from {}".format(d)
 
-if not os.path.isdir(args.output):
-    os.makedirs(args.output)
-write_json(all_chats, os.path.join(args.output, 'transcripts.json'))
-write_json(all_surveys, os.path.join(args.output, 'surveys.json'))
+output_dir = args.output + '/transcripts'
+if not os.path.isdir(output_dir):
+    os.makedirs(output_dir)
+write_json(all_chats, os.path.join(output_dir, 'transcripts.json'))
+write_json(all_surveys, os.path.join(output_dir, 'surveys.json'))
