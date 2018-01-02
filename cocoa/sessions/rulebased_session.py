@@ -1,4 +1,4 @@
-from cocoa.model.parser import LogicalForm as LF
+from cocoa.model.parser import LogicalForm as LF, Utterance
 
 # NOTE: using the task-specific Session
 from sessions.session import Session
