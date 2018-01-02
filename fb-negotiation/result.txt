@@ -1,0 +1,16 @@
+make dump outdir=2017-12-07-test2
+
+defaultdict(<type 'int'>, {(u'human', u'rulebased'): 183, (u'human', u'neural'): 194, (u'human', u'human'): 136})
+human {'% agreed': 0.8759124087591241, 'agreed points': {'partner': 6.266666666666667, 'agent': 8.766666666666667}, 'mismatch': 8, 'total points': {'partner': 5.489051094890511, 'agent': 7.678832116788321}, 'no deal': 9, 'total': 137}
+rulebased {'% agreed': 0.8852459016393442, 'agreed points': {'partner': 7.444444444444445, 'agent': 7.382716049382716}, 'mismatch': 13, 'total points': {'partner': 6.590163934426229, 'agent': 6.53551912568306}, 'no deal': 8, 'total': 183}
+neural {'% agreed': 0.7164948453608248, 'agreed points': {'partner': 7.489208633093525, 'agent': 7.798561151079137}, 'mismatch': 26, 'total points': {'partner': 5.365979381443299, 'agent': 5.587628865979381}, 'no deal': 29, 'total': 194}
+=========== mean ===========
+rulebased [16 21 23 53 70]
+human [  5  14  30  69 153]
+neural [35 29 24 40 66]
+============= Humanlikeness ===============
+agent        avg_score  error      #score     win
+---------------------------------------
+Rule-based   3.8        0.10       183        n
+Human        4.3        0.06       271        rn
+Neural       3.4        0.11       194

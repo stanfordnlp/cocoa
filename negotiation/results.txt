@@ -1,0 +1,15 @@
+make dump outdir=2017-12-08-test
+
+ct(<type 'int'>, {(u'human', u'neural-gen'): 272, (u'human', u'rulebased'): 252, (u'human', u'human'): 168})
+neural-gen {'success rate': 0.7316176470588235, 'average margin': -0.13129977119911687}
+rulebased {'success rate': 0.7341269841269841, 'average margin': 0.37129803906567777}
+=========== mean ===========
+neural-gen [72 46 30 73 51]
+rulebased [44 37  9 78 84]
+human [  4  10  22  71 170]
+============= Humanlikeness ===============
+agent        avg_score  error      #score     win
+---------------------------------------
+Neural       2.9        0.09       272
+Rule-based   3.5        0.09       252        n
+Human        4.4        0.05       277        nr

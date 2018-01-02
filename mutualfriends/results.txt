@@ -1,0 +1,41 @@
+2017-12-26-neural
+2017-12-26-rulebased
+2017-12-26-test
+defaultdict(<type 'int'>, {(u'human', u'rulebased'): 209, (u'dynamic-neural', u'human'): 162, (u'human', u'human'): 236})
+<start>    0.1599 0.0000
+inquire    0.1767 0.0000
+unknown    0.0505 0.0000
+negative   0.1415 0.0000
+greet      0.1171 0.1599
+inform     0.3542 0.8401
+DYNAMIC-NEURAL
+success per select 0.27
+success per turn 0.05
+success         0.89
+RULEBASED
+success per select 0.36
+success per turn 0.05
+success         0.81
+HUMAN
+success per select 0.42
+success per turn 0.07
+success         0.93
+=========== mean ===========
+dynamic-neural [20 22 14 53 53]
+rulebased [33 40 19 52 65]
+human [  8  15  25 121 298]
+dynamic-neural [15 19 15 45 68]
+rulebased [23 27 16 62 81]
+human [ 15  22  18 139 273]
+============= Cooperation ===============
+agent        avg_score  error      #score     win
+---------------------------------------
+DynoNet      3.6        0.11       162
+Rule-based   3.4        0.10       209
+Human        4.5        0.04       467        dr
+============= Human-likeness ===============
+agent        avg_score  error      #score     win
+---------------------------------------
+DynoNet      3.8        0.11       162
+Rule-based   3.7        0.10       209
+Human        4.4        0.05       467        dr
