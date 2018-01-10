@@ -13,8 +13,8 @@ class Manager(BaseManager):
         action = super(Manager, self).choose_action(state, context)
         if state.partner_act == 'done':
             return 'done'
-        if state.partner_act == 'ask-you':
-            return 'inform-entity'
-        if state.partner_act == 'ask-movie':
+        if state.partner_act in ('ask-plot', 'ask'):
+            return 'inform'
+        if state.partner_act == 'unknown' and state.curr_title is not None:
             return 'inform'
         return action

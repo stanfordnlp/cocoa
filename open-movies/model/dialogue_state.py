@@ -15,10 +15,14 @@ class DialogueState(State):
         #    self.curr_title = None
         #    print 'update curr_title', self.curr_title
         lf = utterance.lf
-        if hasattr(lf, 'entities') and lf.entities is not None:
-            for entity in lf.entities:
-                if entity.canonical.type == 'title':
-                    self.curr_title = entity.canonical.value
-                    self.mentioned_titles.add(self.curr_title)
-            #print 'update curr_title', self.curr_title
+        if hasattr(lf, 'titles') and lf.titles:
+            curr_title = None
+            for title in lf.titles:
+                if not title.canonical.value in self.mentioned_titles:
+                    curr_title = title
+                    break
+            if not curr_title:
+                curr_title = lf.titles[0]
+            self.curr_title = curr_title.canonical.value
+            self.mentioned_titles.add(self.curr_title)
 

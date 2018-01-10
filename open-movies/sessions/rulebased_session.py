@@ -20,14 +20,16 @@ class RulebasedSession(BaseRulebasedSession):
         state = DialogueState(agent, kb)
         super(RulebasedSession, self).__init__(agent, kb, parser, generator, manager, state, sample_temperature=5.)
         self.title_scores = self.score_titles()
-        #for k, v in self.title_scores.iteritems():
-        #    print k, v
+        for k, v in self.title_scores.iteritems():
+            print k, v
 
     def score_titles(self):
         titles = set([x for x in self.generator.iter_titles()])
         context_title_counts = defaultdict(int)
         for title in self.generator.iter_context_titles():
             context_title_counts[title] += 1
+        #print titles
+        #print context_title_counts
         title_scores = {t: c for t, c in context_title_counts.iteritems() if t in titles}
         return title_scores
 
@@ -54,13 +56,13 @@ class RulebasedSession(BaseRulebasedSession):
             title = random.choice(titles)[0]
         return title
 
-    def inform_entity(self):
-        intent = 'inform-entity'
+    def inform_title(self):
+        intent = 'inform-new-title'
         title = self.choose_title()
         print 'chosen title:', title
         template = self.retrieve_response_template(intent, title=title)
-        entities = [Entity.from_elements(surface=title, value=title, type='title')]
-        lf = LF(intent, entities=entities)
+        titles = [Entity.from_elements(surface=title, value=title, type='title')]
+        lf = LF(intent, titles=titles)
         text = template['template']
         utterance = Utterance(raw_text=text, logical_form=lf, template=template)
         return self.message(utterance)
@@ -81,10 +83,10 @@ class RulebasedSession(BaseRulebasedSession):
         action = self.manager.choose_action(state=self.state)
         if not action:
             action = self.retrieve_action()
-        if action == 'inform':
+        if action in ('inform', 'inform-curr-title'):
             return self.inform()
-        elif action == 'inform-entity':
-            return self.inform_entity()
+        elif action == 'inform-new-title':
+            return self.inform_title()
         elif action == 'done':
             return self.done()
         else:

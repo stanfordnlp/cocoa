@@ -133,8 +133,8 @@ class Parser(BaseParser):
     #    else:
     #        return LogicalForm("unknown")
 
-    def known_entities(self, tokens):
-        entities = [x for x in tokens if is_entity(x) and x.canonical.type != 'unknown']
+    def get_entities(self, tokens, type_=None):
+        entities = [x for x in tokens if is_entity(x) and (type_ is None or x.canonical.type == type_)]
         return entities
 
     def extract_template(self, tokens, dialogue_state):
@@ -151,8 +151,14 @@ class Parser(BaseParser):
         return 'ask'
 
     def classify_intent(self, utterance, dialogue_state):
-        if len(self.known_entities(utterance.tokens)) > 0:
-            intent = 'inform-entity'
+        titles = [x.canonical.value for x in self.get_entities(utterance.tokens, 'title')]
+        if titles:
+            if dialogue_state.curr_title in titles:
+                intent = 'inform-curr-title'
+            else:
+                intent = 'inform-new-title'
+        elif self.get_entities(utterance.tokens, 'person'):
+            intent = 'inform-person'
         elif dialogue_state.time == 0:
             intent = 'intro'
         elif self.is_question(utterance):
@@ -161,7 +167,7 @@ class Parser(BaseParser):
             intent = 'greet'
         elif self.is_bye(utterance):
             intent = 'bye'
-        elif dialogue_state.curr_title:
+        elif dialogue_state.partner_act.startswith('ask'):
             intent = 'inform'
         else:
             intent = 'unknown'
@@ -190,11 +196,11 @@ class Parser(BaseParser):
         return u
 
     def parse_message(self, event, dialogue_state):
-        tokens = self.lexicon.link_entity(tokenize(event.data, lowercase=False))
+        tokens = self.lexicon.link_entity(event.data)
         tokens = [x.lower() if not is_entity(x) else x for x in tokens]
         utterance = Utterance(raw_text=event.data, tokens=tokens)
         intent = self.classify_intent(utterance, dialogue_state)
         template = self.extract_template(tokens, dialogue_state)
-        utterance.lf = LF(intent, entities=self.known_entities(tokens))
+        utterance.lf = LF(intent, titles=self.get_entities(tokens, 'title'))
         utterance.template = template
         return utterance

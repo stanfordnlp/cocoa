@@ -18,7 +18,7 @@ class Generator(BaseGenerator):
         return ifilter(lambda x: x != UNK, self.templates.title.values)
 
     def iter_context_titles(self):
-        d = self.templates.loc[self.templates.context_tag == 'ask-movie']
+        d = self.templates.loc[self.templates.context_tag == 'ask-plot']
         return ifilter(lambda x: x != UNK, d.context_title.values)
 
     def get_filter(self, used_templates=None, title=None, context_title=None, context_tag=None, tag=None, **kwargs):
@@ -48,11 +48,8 @@ class Templates(BaseTemplates):
         if not utterance.template or self.ambiguous_template(utterance.template):
             return
         title = UNK
-        if utterance.lf.intent != 'done':
-            for e in utterance.lf.entities:
-                if e.canonical.type == 'title':
-                    title = e.canonical.value
-                    break
+        if utterance.lf.intent != 'done' and utterance.lf.titles:
+            title = utterance.lf.titles[0].canonical.value
         context_title = dialogue_state.curr_title or UNK
         row = {
                 'title': title,
@@ -75,7 +72,7 @@ class Templates(BaseTemplates):
             title = row['title']
             for type_, sentences in row['templates'].iteritems():
                 if type_ == 'plot':
-                    context_tag = 'ask-movie'
+                    context_tag = 'ask-plot'
                 else:
                     context_tag = UNK
                 tag = 'inform'

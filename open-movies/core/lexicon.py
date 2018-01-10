@@ -6,6 +6,8 @@ import numpy as np
 from nltk import ngrams, pos_tag, RegexpParser, Tree
 from datasketch import MinHash, MinHashLSH
 from itertools import ifilter
+import nltk
+from nltk.corpus import stopwords as nltk_stopwords
 
 from cocoa.core.util import generate_uuid, write_pickle, read_pickle
 from cocoa.core.entity import CanonicalEntity, Entity
@@ -15,7 +17,8 @@ def add_lexicon_arguments(parser):
 
 class Lexicon(object):
     # Titles that are confusing...
-    stopwords = ['yes', 'hello', 'i', 'good morning', 'love', 'men', 'no', 'the day', 'i wish', 'lol', 'the first time', 'the dog', 'the lady']
+    stopwords = set(nltk_stopwords.words('english') +
+            ['it', 'yes', 'hello', 'i', 'good morning', 'love', 'men', 'no', 'the day', 'i wish', 'lol', 'the first time', 'the dog', 'the lady'])
     nlp = spacy.load('en')
 
     def __init__(self, entities=None, threshold=0.8, lsh=None):
@@ -85,12 +88,11 @@ class Lexicon(object):
         entities = []
         for np in doc.noun_chunks:
             s = np.text
-            print s
             candidates = self.query(s, k=1)
             if candidates:
                 sorted_candidates = sorted(candidates, key=lambda x: fuzz.ratio(s.lower(), x.value.lower()), reverse=True)
                 for candidate in ifilter(lambda e: e.value.lower() not in self.stopwords, sorted_candidates):
-                    if fuzz.ratio(s.lower(), candidate.value.lower()) > 70:
+                    if fuzz.ratio(s.lower(), candidate.value.lower()) > 80:
                         entity = Entity(surface=s, canonical=candidate)
                         entities.append((entity, np.start, np.end))
                         # Take the best matched candidate
@@ -103,12 +105,13 @@ class Lexicon(object):
             return False
 
         for ent in doc.ents:
-            if ent.label_ == 'PERSON':
-                entity = Entity.from_elements(surface=ent.text, value=ent.text, type='person')
-                entities.append((entity, ent.start, ent.end))
-            elif ent.label_ == 'WORK_OF_ART' and not overlap(ent, entities):
-                entity = Entity.from_elements(surface=ent.text, value=ent.text, type='title')
-                entities.append((entity, ent.start, ent.end))
+            if not overlap(ent, entities):
+                if ent.label_ == 'PERSON':
+                    entity = Entity.from_elements(surface=ent.text, value=ent.text, type='person')
+                    entities.append((entity, ent.start, ent.end))
+                elif ent.label_ == 'WORK_OF_ART':
+                    entity = Entity.from_elements(surface=ent.text, value=ent.text, type='title')
+                    entities.append((entity, ent.start, ent.end))
 
         tokens = [tok.text for tok in doc]
         if not entities:
@@ -149,6 +152,8 @@ if __name__ == '__main__':
 
     from core.tokenizer import tokenize
     sents = [
+            '''i did like the mad max remake though. mad max 1 was n't that great, but mad max 2 > the remake > mad max 1 > > > > > thunderdome''',
+            '''I just saw Dunkirk.''',
             '''I dont either. I also like the monty python ones''',
             '''I love that one. I also really like The Last Castle. I guess we both like prison movies!''',
             '''I haven't seen much new, but am going on Sunday to see Bad Mom's Christmas. The first one was funny. Hoping the sequel is good as well!''',
@@ -157,3 +162,4 @@ if __name__ == '__main__':
             ]
     for s in sents:
         print lexicon.link_entity(s)
+        break
