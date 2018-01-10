@@ -1,11 +1,9 @@
 import argparse
-import copy
-import sys
+from collections import defaultdict
 
 from cocoa.core.dataset import read_examples
 from cocoa.model.manager import Manager
-from cocoa.analysis.utils import intent_breakdown
-from collections import defaultdict
+from cocoa.model.dialogue_parser import parse_example
 
 from core.event import Event
 from core.scenario import Scenario
@@ -13,35 +11,6 @@ from core.lexicon import Lexicon
 from model.parser import Parser
 from model.dialogue_state import DialogueState
 from model.generator import Templates, Generator
-
-def parse_example(example, lexicon, templates):
-    """Parse example and collect templates.
-    """
-    kbs = example.scenario.kbs
-    parsers = [Parser(agent, kbs[agent], lexicon) for agent in (0, 1)]
-    states = [DialogueState(agent, kbs[agent]) for agent in (0, 1)]
-    # Add init utterance <start>
-    parsed_utterances = [states[0].utterance[0], states[1].utterance[1]]
-    for event in example.events:
-        writing_agent = event.agent  # Speaking agent
-        reading_agent = 1 - writing_agent
-        #print event.agent
-
-        received_utterance = parsers[reading_agent].parse(event, states[reading_agent])
-        if received_utterance:
-            sent_utterance = copy.deepcopy(received_utterance)
-            if sent_utterance.tokens:
-                sent_utterance.template = parsers[writing_agent].extract_template(sent_utterance.tokens, states[writing_agent])
-
-            templates.add_template(sent_utterance, states[writing_agent])
-            parsed_utterances.append(received_utterance)
-            #print 'sent:', ' '.join(sent_utterance.template)
-            #print 'received:', ' '.join(received_utterance.template)
-
-            # Update states
-            states[reading_agent].update(writing_agent, received_utterance)
-            states[writing_agent].update(writing_agent, sent_utterance)
-    return parsed_utterances
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -60,6 +29,7 @@ if __name__ == '__main__':
     templates = Templates()
 
     lexicon = Lexicon.from_pickle(args.lexicon)
+
     for example in examples:
         utterances = parse_example(example, lexicon, templates)
         parsed_dialogues.append(utterances)
