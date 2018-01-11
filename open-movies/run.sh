@@ -10,7 +10,7 @@ PYTHONPATH=. python web/chat_app.py --port 5040 \
     --schema-path data/movie-schema.json --lexicon data/lexicon.pkl \
     --config web/app_params.json --scenarios-path data/toy-scenarios.json \
     --output web/output --templates data/templates.pkl \
-    --num-scenarios 100
+    --num-scenarios 100 --policy data/model.pkl
 
 # PYTHONPATH=. python core/lexicon.py --movie-data data/all_merged.json \
 #     --output data/lexicon.pkl
