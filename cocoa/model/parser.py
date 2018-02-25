@@ -1,10 +1,11 @@
 class Utterance(object):
-    def __init__(self, raw_text=None, tokens=None, logical_form=None, template=None, ambiguous_template=False):
+    def __init__(self, raw_text=None, tokens=None, logical_form=None, template=None, ambiguous_template=False, agent=None):
         self.text = raw_text
         self.tokens = tokens
         self.lf = logical_form
         self.template = template
         self.ambiguous_template = ambiguous_template
+        self.agent = agent
 
     def to_dict(self):
         return {

@@ -33,4 +33,4 @@ if __name__ == '__main__':
 
     analyzer.example_stats(examples)
     analyzer.parser_stats(parsed_dialogues)
-    analyzer.manager_stats(manager)
+    #analyzer.manager_stats(manager)

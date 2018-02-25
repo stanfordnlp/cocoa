@@ -152,11 +152,15 @@ def index():
 
         return redirect(url_for('chat.index', uid=generate_userid(prefix), **request.args))
 
-    if request.args.get('bot'):
-        app.config['active_system'] = request.args.get('bot')
+    #if request.args.get('bot'):
+    #    app.config['active_system'] = request.args.get('bot')
+    #else:
+    #    app.config['active_system'] = None
 
-    if request.args.get('s'):
-        app.config['active_scenario'] = int(request.args.get('s'))
+    #if request.args.get('s'):
+    #    app.config['active_scenario'] = int(request.args.get('s'))
+    #else:
+    #    app.config['active_scenario'] = None
 
     backend = get_backend()
 

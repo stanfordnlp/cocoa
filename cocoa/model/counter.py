@@ -129,12 +129,9 @@ class NgramCounter(object):
             raise EmptyVocabularyError("Cannot start counting ngrams until "
                                        "vocabulary contains more than one item.")
 
-        for sent in training_text:
+        for i, sent in enumerate(training_text):
             checked_sent = (self.check_against_vocab(word) for word in sent)
             sent_start = True
-            #print [x for x in checked_sent]
-            #print [x for x in self.to_ngrams(checked_sent)]
-            #import sys; sys.exit()
             for ngram in self.to_ngrams(checked_sent):
                 context, word = tuple(ngram[:-1]), ngram[-1]
 

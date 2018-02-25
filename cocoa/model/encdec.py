@@ -313,20 +313,9 @@ class BasicDecoder(BasicEncoder):
         for i in xrange(max_len):
             #print '==========%d==========' % i
             logits, final_state = sess.run((self.output_dict['logits'], self.output_dict['final_state']), feed_dict=feed_dict)
-            # logits might have length > 1 if inputs has > 1 words. (batch_size, seq_len, vocab_size)
+            # NOTE: logits might have length > 1 if inputs has > 1 words; take the last one. (batch_size, seq_len, vocab_size)
             logits = logits[:, -1:, :]
-            # TODO: hacky: insert <category> at the beginning
-            #step_preds = self.sampler.sample(logits, prefix=np.concatenate([inputs[:, [1]], preds[:, :i]], axis=1))
-            #if i < 3:
-            #    prefix = None
-            #else:
-            #    prefix = np.concatenate([inputs[:, [1]], preds[:, :i]], axis=1)
             step_preds = self.sampler.sample(logits)
-            #top_words = np.argsort(p[0][0])[::-1]
-            #if i == 0:
-            #    for j in xrange(10):
-            #        id_ = top_words[j]
-            #        print id_, p[0][0][id_], kwargs['textint_map'].vocab.to_word(id_)
             preds[:, [i]] = step_preds
             if step_preds[0][0] == stop_symbol:
                 break

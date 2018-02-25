@@ -101,7 +101,7 @@ def add_systems(args, config_dict, schema):
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args, schema=schema, timed=timed)
+                model = get_system(name, args, schema=schema, timed=timed, model_path=args.checkpoint)
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '

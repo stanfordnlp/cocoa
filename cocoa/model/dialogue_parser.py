@@ -23,6 +23,7 @@ def parse_example(example, lexicon, templates=None):
 
             if templates is not None:
                 templates.add_template(sent_utterance, states[writing_agent])
+            received_utterance.agent = example.agents[writing_agent]
             parsed_utterances.append(received_utterance)
 
             # Update states

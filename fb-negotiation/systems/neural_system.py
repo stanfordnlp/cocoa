@@ -8,7 +8,7 @@ from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
 def add_neural_system_arguments(parser):
-    parser.add_argument('--model-file', type=str,
+    parser.add_argument('--checkpoint', type=str,
         help='model file')
     parser.add_argument('--temperature', type=float, default=1.0,
         help='temperature')

@@ -10,7 +10,7 @@ def add_system_arguments(parser):
     add_neural_system_arguments(parser)
     add_rulebased_arguments(parser)
 
-def get_system(name, args, schema=None, timed=False):
+def get_system(name, args, schema=None, timed=False, model_path=None):
     lexicon = Lexicon(schema.values['item'])
     if name == 'rulebased':
         templates = Templates.from_pickle(args.templates)
@@ -20,6 +20,6 @@ def get_system(name, args, schema=None, timed=False):
     elif name == 'cmd':
         return CmdSystem()
     elif name == 'neural':
-        return NeuralSystem(args.model_file, args.temperature, timed_session=timed, gpu=args.gpu)
+        return NeuralSystem(model_path, args.temperature, timed_session=timed, gpu=args.gpu)
     else:
         raise ValueError('Unknown system %s' % name)

@@ -1,4 +1,5 @@
 from itertools import izip
+import numpy as np
 from tensorflow.python.util import nest
 from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
 import tensorflow as tf
@@ -99,3 +100,10 @@ def resettable_metric(metric, scope_name, **metric_args):
                     scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
         reset_op = tf.variables_initializer(v)
     return metric_op, update_op, reset_op
+
+def entropy(p, normalized=True):
+    p = np.array(p, dtype=np.float32)
+    if not normalized:
+        p /= np.sum(p)
+    ent = -1. * np.sum(p * np.log(p))
+    return ent

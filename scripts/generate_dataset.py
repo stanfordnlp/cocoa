@@ -19,7 +19,6 @@ from systems import add_system_arguments, get_system
 parser = argparse.ArgumentParser()
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use', nargs='*')
-#parser.add_argument('--model-path', help='Path to model (used for neural agents)')
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
@@ -42,7 +41,11 @@ if args.test_max_examples is None:
 
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
-agents = [get_system(name, args, schema, model_path=args.checkpoint) for name in args.agents]
+if hasattr(args, 'checkpoint'):
+    model_path = args.checkpoint
+else:
+    model_path = None
+agents = [get_system(name, args, schema, model_path=model_path) for name in args.agents]
 num_examples = args.scenario_offset
 
 summary_map = {}
@@ -51,7 +54,7 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     examples = []
     num_failed = 0
     scenarios = scenario_db.scenarios_list
-    #scenarios = [scenario_db.scenarios_map['FB_6MP9cu4nyxVqVSzR']]
+    #scenarios = [scenario_db.scenarios_map['S_8COuPdjZZkYgrzhb']]
     random.shuffle(scenarios)
     for i in range(max_examples):
         scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]

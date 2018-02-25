@@ -1,6 +1,7 @@
 from cocoa.core.util import read_pickle, write_pickle
 from cocoa.model.counter import build_vocabulary, count_ngrams
 from cocoa.model.ngram import MLENgramModel
+from cocoa.model.util import entropy
 
 class Manager(object):
     def __init__(self, model, actions):
@@ -20,6 +21,20 @@ class Manager(object):
     def available_actions(self, state):
         actions = [a for a in self.actions if a != 'unknown']
         return actions
+
+    def most_likely_action(self, context, freqdist):
+        best_action = max(freqdist, key=lambda x: x[1])[0]
+        return best_action
+
+    def min_entropy_action(self, context, freqdist):
+        ent = []
+        for a, _ in freqdist:
+            c = (context[-1], a)
+            f = self.model.freqdist(c)
+            e = entropy([x[1] for x in f], normalized=False)
+            ent.append((a, e))
+        best_action = min(ent, key=lambda x: x[1])[0]
+        return best_action
 
     def choose_action(self, state, context=None):
         if not context:

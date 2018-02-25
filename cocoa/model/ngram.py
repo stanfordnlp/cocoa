@@ -8,6 +8,7 @@ from __future__ import unicode_literals, division
 from math import log
 
 from nltk import compat
+from util import safe_div
 
 
 NEG_INF = float("-inf")
@@ -72,7 +73,7 @@ class BaseNgramModel(object):
             return NEG_INF
         return log(score, 2)
 
-    def entropy(self, text):
+    def entropy(self, text, average=True):
         """
         Calculate the approximate cross-entropy of the n-gram model for a
         given evaluation text.
@@ -90,8 +91,11 @@ class BaseNgramModel(object):
             H += self.logscore(word, context)
             processed_ngrams += 1
         if processed_ngrams == 0:
-            return 0.
-        return - (H / processed_ngrams)
+            H = 0.
+        if average:
+            return -1. * safe_div(H, processed_ngrams)
+        else:
+            return -1. * H, processed_ngrams
 
     def perplexity(self, text):
         """

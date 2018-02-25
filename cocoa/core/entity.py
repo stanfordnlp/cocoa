@@ -19,4 +19,4 @@ class Entity(namedtuple('Entity', ['surface', 'canonical'])):
         return '[%s|%s]' % (str(self.surface), str(self.canonical.value))
 
 def is_entity(x):
-    return isinstance(x, Entity) or isinstance(x, CanonicalEntity) or isinstance(x, MovieEntity)
+    return isinstance(x, Entity) or isinstance(x, CanonicalEntity)

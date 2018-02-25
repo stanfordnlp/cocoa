@@ -60,6 +60,7 @@ class RulebasedSession(Session):
     def retrieve_action(self):
         template = self.retrieve_response_template(None)
         action = template['tag']
+        print 'retrieved action:', action
         return action
 
     def choose_action(self):
