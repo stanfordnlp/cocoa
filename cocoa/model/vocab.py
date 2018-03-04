@@ -17,6 +17,9 @@ class Vocabulary(object):
             self.add_word(self.UNK, special=True)
         self.finished = False
 
+    def __len__(self):
+        return self.size
+
     def add_words(self, words, special=False):
         for w in words:
             self.add_word(w, special)
