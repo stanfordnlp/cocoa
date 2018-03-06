@@ -36,9 +36,10 @@ class DialogueBatcher(object):
         #for i in xrange(Dialogue.num_stages):
         for i in xrange(3):
             try:
-                turn_batches.append([pad_list_to_array(
-                    [d.turns[i][j] for d in self.dialogues], self.int_markers.PAD, np.int32)
-                    for j in xrange(self.num_turns)])
+                for j in xrange(self.num_turns):
+                    one_turn = [d.turns[i][j] for d in self.dialogues]
+                    turn_batch = pad_list_to_array(one_turn, self.int_markers.PAD, np.int32)
+                    turn_batches.append([turn_batch])
             except IndexError:
                 print 'num_turns:', self.num_turns
                 for dialogue in self.dialogues:
@@ -99,13 +100,16 @@ class DialogueBatcher(object):
 
     def _mask_slots(self, targets):
         '''
-        targets: target sequence (interger)
+        targets: target sequence (integer)
         return: mask (set to 1) words between <slot> and </slot> (including </slot> but not <slot>)
         '''
         mask = np.zeros_like(targets)
         for i, target in enumerate(targets):
             delimiters = np.where((target == self.int_markers.START_SLOT) | (target == self.int_markers.END_SLOT))[0]
             assert len(delimiters) % 2 == 0
+            # delimiters: a list of tuples
+            # where length of tuples is # of examples
+            # and each tuple is start and stop position
             for j in xrange(0, delimiters.shape[0], 2):
                 start, end = delimiters[j], delimiters[j+1]
                 # Include </slot> but not <slot>
@@ -145,7 +149,9 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
+    def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
+            target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
+            num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 

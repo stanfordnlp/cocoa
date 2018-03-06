@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import argparse
 import torch
+from tqdm import tqdm as progress_bar
 
 from cocoa.io.utils import read_pickle
 
@@ -31,7 +32,7 @@ def get_vocabs(vocab_path):
 def get_embeddings(file_):
     embs = dict()
     with open(file_, 'r') as f:
-        for l in f:
+        for l in progress_bar(f):
             l_split = l.strip().split()
             embs[l_split[0]] = [float(em) for em in l_split[1:]]
     print("Got {} embeddings from {}".format(len(embs), file_))

@@ -26,7 +26,7 @@ from neural.loss import make_loss
 #from model.learner import add_learner_arguments, get_learner
 #from model.evaluate import get_evaluator
 
-def build_model(model_opt, opt, checkpoint=None)
+def build_model(model_opt, opt, checkpoint=None):
     print 'Building model...'
     model = model_builder.make_base_model(model_opt, mappings,
                                                   use_gpu(opt), checkpoint=checkpoint)
@@ -159,19 +159,20 @@ if __name__ == '__main__':
     for name, m in mappings.iteritems():
         logstats.add('mappings', name, 'size', m.size)
 
-    #train_data = data_generator.generator('train')
-    #num_batches = train_data.next()
-    #for i, batch_dialogue in enumerate(train_data):
-    #    for batch in batch_dialogue['batch_seq']:
-    #        data_generator.dialogue_batcher.print_batch(batch, i, data_generator.textint_map)
-    #        import sys; sys.exit()
+    # Preview a batch of data
+    train_data = data_generator.generator('train')
+    num_batches = train_data.next()
+    for i, batch_dialogue in enumerate(train_data):
+       for batch in batch_dialogue['batch_seq']:
+           data_generator.dialogue_batcher.print_batch(batch, i, data_generator.textint_map)
+           import sys; sys.exit()
 
     logstats.add_args('model_args', model_args)
 
     # Build the model
     model = build_model(model_args, args, ckpt)
     tally_parameters(model)
-    create_path(args.save_model)
+    create_path(args.model_path)
 
     # Build optimizer.
     optim = build_optim(model, ckpt)

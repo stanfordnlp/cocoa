@@ -65,19 +65,20 @@ def add_trainer_arguments(parser):
                        reproducibility.""")
     group.add_argument('--label-smoothing', type=float, default=0.0,
                        help="""Label smoothing value epsilon.
-                       Probabilities of all non-true labels
-                       will be smoothed by epsilon / (vocab_size - 1).
-                       Set to zero to turn off label smoothing.
-                       For more detailed information, see:
+                       Probabilities of all non-true labels will be smoothed
+                       by epsilon / (vocab_size - 1). Set to zero to turn off
+                       label smoothing. For more detailed information, see:
                        https://arxiv.org/abs/1512.00567""")
 
     # Logging
     group.add_argument('--report-every', type=int, default=50,
                        help="Print stats at this interval.")
-    group.add_argument('--checkpoint', default='model',
+    group.add_argument('--model-filename', default='model',
                        help="""Model filename (the model will be saved as
-                       <checkpoint>_epochN_PPL.pt where PPL is the
-                       validation perplexity""")
+                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
+                       the perplexity and E is the epoch""")
+    group.add_argument('--model-path', default='data/checkpoints',
+                       help="""Which file the model checkpoints will be saved""")
 
 class Statistics(object):
     """
@@ -227,7 +228,7 @@ class Trainer(object):
 
             # 5. Drop a checkpoint if needed.
             if epoch >= opt.start_checkpoint_at:
-                self.drop_checkpoint(model_opt, epoch, valid_stats)
+                self.drop_checkpoint(opt, epoch, valid_stats)
 
 
     def train_epoch(self, train_iter, epoch, report_func=None):
@@ -259,7 +260,10 @@ class Trainer(object):
             for batch in batch_dialogue['batch_seq']:
                 #cur_dataset = train_iter.get_cur_dataset()
                 #self.train_loss.cur_dataset = cur_dataset
+                # remove "make features"?
                 # TODO: batch is a dict, needs to redo the interface with the model
+                # they use a batch object and you call "batch.target", but ours is more raw
+                # so we need to update the interface
                 true_batchs.append(batch)
                 accum += 1
                 if self.norm_method == "tokens":
@@ -362,7 +366,7 @@ class Trainer(object):
         }
         torch.save(checkpoint,
                    '%s_acc_%.2f_ppl_%.2f_e%d.pt'
-                   % (opt.save_model, valid_stats.accuracy(),
+                   % (opt.model_filename, valid_stats.accuracy(),
                       valid_stats.ppl(), epoch))
 
     def _gradient_accumulation(self, true_batchs, total_stats,
