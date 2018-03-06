@@ -160,12 +160,12 @@ if __name__ == '__main__':
         logstats.add('mappings', name, 'size', m.size)
 
     # Preview a batch of data
-    train_data = data_generator.generator('train')
-    num_batches = train_data.next()
-    for i, batch_dialogue in enumerate(train_data):
-       for batch in batch_dialogue['batch_seq']:
-           data_generator.dialogue_batcher.print_batch(batch, i, data_generator.textint_map)
-           import sys; sys.exit()
+    # train_data = data_generator.generator('train')
+    # num_batches = train_data.next()
+    # for i, batch_dialogue in enumerate(train_data):
+    #    for batch in batch_dialogue['batch_seq']:
+    #        data_generator.dialogue_batcher.print_batch(batch, i, data_generator.textint_map)
+    #        import sys; sys.exit()
 
     logstats.add_args('model_args', model_args)
 
