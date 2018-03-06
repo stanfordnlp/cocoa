@@ -34,7 +34,8 @@ def build_model(model_opt, opt, checkpoint=None):
     if len(opt.gpuid) > 1:
         print('Multi gpu training: ', opt.gpuid)
         model = nn.DataParallel(model, device_ids=opt.gpuid, dim=1)
-    print(model)
+    if opt.verbose:
+        print(model)
 
     return model
 
@@ -67,12 +68,11 @@ def build_optim(opt, model, checkpoint):
 
     return optim
 
-def build_trainer(opt, model, optim):
-    train_loss = make_loss(opt, vocab, model)
-    valid_loss = make_loss(opt, vocab, model)
+def build_trainer(opt, model, mappings, optim):
+    train_loss = make_loss(opt, mappings, model)
+    valid_loss = make_loss(opt, mappings, model)
     trainer = Trainer(model, train_loss, valid_loss, optim)
     return trainer
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -89,7 +89,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     random.seed(args.random_seed)
-    print args.stats_file
+    if args.verbose:
+        print("Stats file loaded from {}".format(args.stats_file))
     create_path(args.stats_file)
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
@@ -104,7 +105,8 @@ if __name__ == '__main__':
         mappings = None
         args.ignore_cache = True
     else:
-        print 'Load vocab from', vocab_path
+        if args.verbose:
+            print 'Load vocab from', vocab_path
         mappings = read_pickle(vocab_path)
         for k, v in mappings.iteritems():
             print k, v.size
@@ -141,8 +143,9 @@ if __name__ == '__main__':
     config_path = os.path.join(args.model_path, 'config.json')
     write_json(vars(args), config_path)
 
-    # Build optimizer.
+    # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
+    trainer = build_trainer(args, model, mappings, optim)
 
-    trainer = build_trainer(args, model, optim)
+    # Perform actual training
     trainer.train(args, model, data_generator)

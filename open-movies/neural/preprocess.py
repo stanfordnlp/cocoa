@@ -325,7 +325,10 @@ class DataGenerator(object):
     # TODO: hack
     trie = None
 
-    def __init__(self, train_examples, dev_examples, test_examples, preprocessor, schema, mappings=None, retriever=None, cache='.cache', ignore_cache=False, candidates_path=[], num_context=1, batch_size=1, trie_path=None, model_config={}, add_ground_truth=True):
+    def __init__(self, train_examples, dev_examples, test_examples, preprocessor,
+            args, schema, mappings=None, retriever=None, cache='.cache',
+            ignore_cache=False, candidates_path=[], num_context=1, batch_size=1,
+            trie_path=None, model_config={}, add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -362,7 +365,11 @@ class DataGenerator(object):
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers)
-        self.batches = {k: self.create_batches(k, dialogues, batch_size, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
+
+        self.batches = {}
+        for k, dialogues in self.dialogues.iteritems():
+            _batches = self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth)
+            self.batches[k] = _batches
 
         self.trie = None
         # NOTE: Trie should be built after batches are created
@@ -441,7 +448,7 @@ class DataGenerator(object):
                     rewritten.append(new_cand)
         return rewritten
 
-    def create_batches(self, name, dialogues, batch_size, add_ground_truth=True):
+    def create_batches(self, name, dialogues, batch_size, verbose, add_ground_truth=True):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
@@ -471,8 +478,9 @@ class DataGenerator(object):
         else:
             start_time = time.time()
             dialogue_batches = read_pickle(cache_file)
-            print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
-            print '[%d s]' % (time.time() - start_time)
+            if args.verbose:
+            # print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
+            # print '[%d s]' % (time.time() - start_time)
         return dialogue_batches
 
     def generator(self, name, shuffle=True):

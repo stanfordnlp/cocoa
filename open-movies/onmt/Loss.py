@@ -28,15 +28,14 @@ class LossComputeBase(nn.Module):
         generator (:obj:`nn.Module`) :
              module that maps the output of the decoder to a
              distribution over the target vocabulary.
-        tgt_vocab (:obj:`Vocab`) :
-             torchtext vocab object representing the target output
+        vocab_size (:int:`vocab_size`) : number of words in the vocabulary
         normalzation (str): normalize by "sents" or "tokens"
     """
-    def __init__(self, generator, tgt_vocab):
+    def __init__(self, generator, vocab_size, padding_idx):
         super(LossComputeBase, self).__init__()
         self.generator = generator
-        self.tgt_vocab = tgt_vocab
-        self.padding_idx = tgt_vocab.stoi[onmt.io.PAD_WORD]
+        self.vocab_size = vocab_size
+        self.padding_idx = padding_idx
 
     def _make_shard_state(self, batch, output, range_, attns=None):
         """
@@ -155,9 +154,9 @@ class NMTLossCompute(LossComputeBase):
     """
     Standard NMT Loss Computation.
     """
-    def __init__(self, generator, tgt_vocab, normalization="sents",
+    def __init__(self, generator, vocab_size, padding_idx, normalization="sents",
                  label_smoothing=0.0):
-        super(NMTLossCompute, self).__init__(generator, tgt_vocab)
+        super(NMTLossCompute, self).__init__(generator, vocab_size, padding_idx)
         assert (label_smoothing >= 0.0 and label_smoothing <= 1.0)
 
         if label_smoothing > 0:
@@ -168,12 +167,12 @@ class NMTLossCompute(LossComputeBase):
             # is equivalent to NLLLoss or CrossEntropyLoss.
             # All non-true labels are uniformly set to low-confidence.
             self.criterion = nn.KLDivLoss(size_average=False)
-            one_hot = torch.randn(1, len(tgt_vocab))
-            one_hot.fill_(label_smoothing / (len(tgt_vocab) - 2))
+            one_hot = torch.randn(1, vocab_size)
+            one_hot.fill_(label_smoothing / (vocab_size - 2))
             one_hot[0][self.padding_idx] = 0
             self.register_buffer('one_hot', one_hot)
         else:
-            weight = torch.ones(len(tgt_vocab))
+            weight = torch.ones(vocab_size)
             weight[self.padding_idx] = 0
             self.criterion = nn.NLLLoss(weight, size_average=False)
         self.confidence = 1.0 - label_smoothing
