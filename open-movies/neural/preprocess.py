@@ -478,9 +478,9 @@ class DataGenerator(object):
         else:
             start_time = time.time()
             dialogue_batches = read_pickle(cache_file)
-            if args.verbose:
-            # print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
-            # print '[%d s]' % (time.time() - start_time)
+            if verbose:
+                print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
+                print '[%d s]' % (time.time() - start_time)
         return dialogue_batches
 
     def generator(self, name, shuffle=True):

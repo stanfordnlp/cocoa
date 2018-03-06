@@ -187,7 +187,7 @@ class Trainer(object):
         # Set model in training mode.
         self.model.train()
 
-    def train(opt, model, data):
+    def learn(self, opt, model, data):
         """Train model.
         Args:
             opt(namespace)
