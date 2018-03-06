@@ -45,24 +45,20 @@ def add_trainer_arguments(parser):
                        help='Maximum batch size for training')
     group.add_argument('--epochs', type=int, default=13,
                        help='Number of training epochs')
-    group.add_argument('--optim', default='sgd',
-                       choices=['sgd', 'adagrad', 'adadelta', 'adam'],
-                       help="""Optimization method.""")
+    group.add_argument('--optim', default='sgd', help="""Optimization method.""",
+                       choices=['sgd', 'adagrad', 'adadelta', 'adam'])
     group.add_argument('--max-grad-norm', type=float, default=5,
                        help="""If the norm of the gradient vector exceeds this,
-                       renormalize it to have the norm equal to
-                       max_grad_norm""")
+                       renormalize it to have the norm equal to max_grad_norm""")
     group.add_argument('--dropout', type=float, default=0.3,
                        help="Dropout probability; applied in LSTM stacks.")
     group.add_argument('--learning-rate', type=float, default=1.0,
-                       help="""Starting learning rate.
-                       Recommended settings: sgd = 1, adagrad = 0.1,
-                       adadelta = 1, adam = 0.001""")
+                       help="""Starting learning rate. Recommended settings:
+                       sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
     group.add_argument('-gpuid', default=[], nargs='+', type=int,
                        help="Use CUDA on the listed devices.")
     group.add_argument('-seed', type=int, default=-1,
-                       help="""Random seed used for the experiments
-                       reproducibility.""")
+                       help="""Random seed used for the experiments reproducibility.""")
     group.add_argument('--label-smoothing', type=float, default=0.0,
                        help="""Label smoothing value epsilon.
                        Probabilities of all non-true labels will be smoothed

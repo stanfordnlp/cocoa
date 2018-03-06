@@ -93,43 +93,8 @@ if __name__ == '__main__':
     create_path(args.stats_file)
     logstats.init(args.stats_file)
     logstats.add_args('config', args)
-
-    # Save or load models
-    #if args.init_from:
-    if False:
-        start = time.time()
-        print 'Load model (config, vocab, checkpoint) from', args.init_from
-        config_path = os.path.join(args.init_from, 'config.json')
-        saved_config = read_json(config_path)
-
-        # NOTE: args below can be overwritten
-        # TODO: separate temperature from decoding arg
-        saved_config['decoding'] = args.decoding
-        saved_config['temperature'] = args.temperature
-        saved_config['batch_size'] = args.batch_size
-        saved_config['pretrained_wordvec'] = args.pretrained_wordvec
-        saved_config['ranker'] = args.ranker
-
-        model_args = argparse.Namespace(**saved_config)
-
-        # Checkpoint
-        if args.test and args.best:
-            ckpt = tf.train.get_checkpoint_state(args.init_from+'-best')
-        else:
-            ckpt = tf.train.get_checkpoint_state(args.init_from)
-        assert ckpt, 'No checkpoint found'
-        assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
-
-        print 'Done [%fs]' % (time.time() - start)
-
-    else:
-        # Save config
-        if not os.path.isdir(args.model_path):
-            os.makedirs(args.model_path)
-        config_path = os.path.join(args.model_path, 'config.json')
-        write_json(vars(args), config_path)
-        model_args = args
-        ckpt = None
+    model_args = args
+    ckpt = None
 
     # Load vocab
     # TODO: put this in DataGenerator
@@ -173,9 +138,11 @@ if __name__ == '__main__':
     model = build_model(model_args, args, ckpt)
     tally_parameters(model)
     create_path(args.model_path)
+    config_path = os.path.join(args.model_path, 'config.json')
+    write_json(vars(args), config_path)
 
     # Build optimizer.
-    optim = build_optim(model, ckpt)
+    optim = build_optim(args, model, ckpt)
 
     trainer = build_trainer(args, model, optim)
     trainer.train(args, model, data_generator)
