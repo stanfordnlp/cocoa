@@ -124,9 +124,9 @@ if __name__ == '__main__':
 
     else:
         # Save config
-        if not os.path.isdir(args.checkpoint):
-            os.makedirs(args.checkpoint)
-        config_path = os.path.join(args.checkpoint, 'config.json')
+        if not os.path.isdir(args.model_path):
+            os.makedirs(args.model_path)
+        config_path = os.path.join(args.model_path, 'config.json')
         write_json(vars(args), config_path)
         model_args = args
         ckpt = None
