@@ -20,7 +20,7 @@ from neural.trainer import add_trainer_arguments, Trainer
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator
 from neural import model_builder
-from neural.loss import make_loss
+from neural.logging import make_loss
 
 #from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
 #from model.learner import add_learner_arguments, get_learner
@@ -148,4 +148,4 @@ if __name__ == '__main__':
     trainer = build_trainer(args, model, mappings, optim)
 
     # Perform actual training
-    trainer.train(args, model, data_generator)
+    trainer.learn(args, model, data_generator)

@@ -12,6 +12,7 @@ users of this library) for the strategy things we do.
 """
 import time
 import sys
+import pdb # set_trace
 import math
 import torch
 import torch.nn as nn
@@ -20,7 +21,7 @@ import onmt
 import onmt.io
 import onmt.modules
 
-from loss import make_loss
+from logging import Statistics, make_loss, report_func
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -43,7 +44,7 @@ def add_trainer_arguments(parser):
     # Optimization
     group.add_argument('--batch-size', type=int, default=64,
                        help='Maximum batch size for training')
-    group.add_argument('--epochs', type=int, default=13,
+    group.add_argument('--epochs', type=int, default=14,
                        help='Number of training epochs')
     group.add_argument('--optim', default='sgd', help="""Optimization method.""",
                        choices=['sgd', 'adagrad', 'adadelta', 'adam'])
@@ -75,73 +76,6 @@ def add_trainer_arguments(parser):
                        the perplexity and E is the epoch""")
     group.add_argument('--model-path', default='data/checkpoints',
                        help="""Which file the model checkpoints will be saved""")
-
-class Statistics(object):
-    """
-    Accumulator for loss statistics.
-    Currently calculates:
-
-    * accuracy
-    * perplexity
-    * elapsed time
-    """
-    def __init__(self, loss=0, n_words=0, n_correct=0):
-        self.loss = loss
-        self.n_words = n_words
-        self.n_correct = n_correct
-        self.n_src_words = 0
-        self.start_time = time.time()
-
-    def update(self, stat):
-        self.loss += stat.loss
-        self.n_words += stat.n_words
-        self.n_correct += stat.n_correct
-
-    def accuracy(self):
-        return 100 * (self.n_correct / self.n_words)
-
-    def ppl(self):
-        return math.exp(min(self.loss / self.n_words, 100))
-
-    def elapsed_time(self):
-        return time.time() - self.start_time
-
-    def output(self, epoch, batch, n_batches, start):
-        """Write out statistics to stdout.
-
-        Args:
-           epoch (int): current epoch
-           batch (int): current batch
-           n_batch (int): total batches
-           start (int): start time of epoch.
-        """
-        t = self.elapsed_time()
-        print(("Epoch %2d, %5d/%5d; acc: %6.2f; ppl: %6.2f; " +
-               "%3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed") %
-              (epoch, batch,  n_batches,
-               self.accuracy(),
-               self.ppl(),
-               self.n_src_words / (t + 1e-5),
-               self.n_words / (t + 1e-5),
-               time.time() - start))
-        sys.stdout.flush()
-
-    def log(self, prefix, experiment, lr):
-        t = self.elapsed_time()
-        experiment.add_scalar_value(prefix + "_ppl", self.ppl())
-        experiment.add_scalar_value(prefix + "_accuracy", self.accuracy())
-        experiment.add_scalar_value(prefix + "_tgtper",  self.n_words / t)
-        experiment.add_scalar_value(prefix + "_lr", lr)
-
-    def log_tensorboard(self, prefix, writer, lr, epoch):
-        t = self.elapsed_time()
-        values = {
-            "ppl": self.ppl(),
-            "accuracy": self.accuracy(),
-            "tgtper": self.n_words / t,
-            "lr": lr,
-        }
-        writer.add_scalars(prefix, values, epoch)
 
 
 class Trainer(object):
@@ -181,8 +115,7 @@ class Trainer(object):
         assert(grad_accum_count > 0)
         if grad_accum_count > 1:
             assert(self.trunc_size == 0), \
-                """To enable accumulated gradients,
-                   you must disable target sequence truncating."""
+                """To enable accumulated gradients, you must disable target sequence truncating."""
 
         # Set model in training mode.
         self.model.train()
@@ -198,16 +131,16 @@ class Trainer(object):
         print(' * number of epochs: %d' % opt.epochs)
         print(' * batch size: %d' % opt.batch_size)
 
-        for epoch in range(opt.start_epoch, opt.epochs + 1):
+        for epoch in range(opt.epochs):
             print('')
 
             # 1. Train for one epoch on the training set.
-            train_iter = self.data.generator('train', opt.batch_size)
+            train_iter = data.generator('train', opt.batch_size)
             train_stats = self.train_epoch(train_iter, epoch, report_func)
             print('Train perplexity: %g' % train_stats.ppl())
 
             # 2. Validate on the validation set.
-            valid_iter = self.data.generator('dev', opt.batch_size)
+            valid_iter = data.generator('dev', opt.batch_size)
             valid_stats = self.validate(valid_iter)
             print('Validation perplexity: %g' % valid_stats.ppl())
 
@@ -253,6 +186,10 @@ class Trainer(object):
             num_batches = -1
 
         for batch_dialogue in train_iter:
+
+            pdb.set_trace()
+            sys.exit()
+
             for batch in batch_dialogue['batch_seq']:
                 #cur_dataset = train_iter.get_cur_dataset()
                 #self.train_loss.cur_dataset = cur_dataset
@@ -274,10 +211,9 @@ class Trainer(object):
                             report_stats, normalization)
 
                     if report_func is not None:
-                        report_stats = report_func(
-                                epoch, idx, num_batches,
-                                total_stats.start_time, self.optim.lr,
-                                report_stats)
+                        print("Using the reporting function.")
+                        report_stats = report_func(epoch, idx, num_batches,
+                            total_stats.start_time, self.optim.lr, report_stats)
 
                     true_batchs = []
                     accum = 0
@@ -285,8 +221,7 @@ class Trainer(object):
                     idx += 1
 
         if len(true_batchs) > 0:
-            self._gradient_accumulation(
-                    true_batchs, total_stats,
+            self._gradient_accumulation(true_batchs, total_stats,
                     report_stats, normalization)
             true_batchs = []
 
