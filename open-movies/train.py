@@ -29,7 +29,7 @@ from neural.logging import make_loss
 def build_model(model_opt, opt, checkpoint=None):
     print 'Building model...'
     model = model_builder.make_base_model(model_opt, mappings,
-                                                  use_gpu(opt), checkpoint=checkpoint)
+                                    use_gpu(opt), checkpoint=checkpoint)
 
     if len(opt.gpuid) > 1:
         print('Multi gpu training: ', opt.gpuid)
@@ -68,10 +68,11 @@ def build_optim(opt, model, checkpoint):
 
     return optim
 
-def build_trainer(opt, model, mappings, optim):
-    train_loss = make_loss(opt, mappings, model)
-    valid_loss = make_loss(opt, mappings, model)
-    trainer = Trainer(model, train_loss, valid_loss, optim)
+def build_trainer(opt, model, vocab, optim):
+    pad_id = vocab.word_to_ind["<pad>"]
+    train_loss = make_loss(opt, vocab.size, pad_id, model)
+    valid_loss = make_loss(opt, vocab.size, pad_id, model)
+    trainer = Trainer(model, train_loss, valid_loss, optim, pad_id, opt.batch_size)
     return trainer
 
 if __name__ == '__main__':

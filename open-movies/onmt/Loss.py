@@ -15,10 +15,8 @@ import onmt.io
 
 class LossComputeBase(nn.Module):
     """
-    Class for managing efficient loss computation. Handles
-    sharding next step predictions and accumulating mutiple
-    loss computations
-
+    Class for managing efficient loss computation. Handles sharding
+    next step predictions and accumulating multiple loss computations
 
     Users can implement their own loss computation strategy by making
     subclass of this one.  Users need to implement the _compute_loss()
@@ -30,6 +28,7 @@ class LossComputeBase(nn.Module):
              distribution over the target vocabulary.
         vocab_size (:int:`vocab_size`) : number of words in the vocabulary
         normalzation (str): normalize by "sents" or "tokens"
+        padding_idx (int): index of the special pad token
     """
     def __init__(self, generator, vocab_size, padding_idx):
         super(LossComputeBase, self).__init__()
@@ -56,7 +55,6 @@ class LossComputeBase(nn.Module):
         Compute the loss. Subclass must define this method.
 
         Args:
-
             batch: the current batch.
             output: the predict output from the model.
             target: the validate target to compare output with.
@@ -84,9 +82,8 @@ class LossComputeBase(nn.Module):
 
         return batch_stats
 
-    def sharded_compute_loss(self, batch, output, attns,
-                             cur_trunc, trunc_size, shard_size,
-                             normalization):
+    def sharded_compute_loss(self, batch, output, attns, cur_trunc, trunc_size,
+                shard_size, normalization):
         """Compute the forward loss and backpropagate.  Computation is done
         with shards and optionally truncation for memory efficiency.
 
@@ -216,7 +213,6 @@ def filter_shard_state(state):
                 v = Variable(v.data, requires_grad=True, volatile=False)
             yield k, v
 
-
 def shards(state, shard_size, eval=False):
     """
     Args:
@@ -236,8 +232,7 @@ def shards(state, shard_size, eval=False):
     if eval:
         yield state
     else:
-        # non_none: the subdict of the state dictionary where the values
-        # are not None.
+        # the subdict of the state dictionary where the values are not None
         non_none = dict(filter_shard_state(state))
 
         # Now, the iteration:
@@ -262,3 +257,38 @@ def shards(state, shard_size, eval=False):
                      if isinstance(v, Variable) and v.grad is not None)
         inputs, grads = zip(*variables)
         torch.autograd.backward(inputs, grads)
+
+class SimpleLossCompute(nn.Module):
+    """
+    Simpler Loss Computation class - does not perform Truncated BPTT,
+        assumes we always normalize per sentence (rather than per word),
+        removes label_smoothing, confidence-scores and sharding
+    """
+    def __init__(self, generator, vocab_size, padding_idx):
+        super(SimpleLossCompute, self).__init__()
+        self.generator = generator
+        weight = torch.ones(vocab_size)
+        weight[padding_idx] = 0
+        self.criterion = nn.NLLLoss(weight)
+        # self.criterion = nn.NLLLoss(weight, size_average=False)
+
+    def simple_compute_loss(self, targets, outputs):
+        print("outputs: {}".format(outputs.size()) )
+        print("targets: {}".format(targets.size()) )
+        loss = self.criterion(outputs, targets)
+        # loss.div(batch.size).backward()       # we don't need to divide by
+        loss.backward()       # batch size since we set size_average to True
+
+        return loss[0]
+
+    def compute_accuracy(self, loss, targets, outputs, padding_idx):
+        num_target_words, num_correct_words = 0,0
+        for i, training_example in enumerate(targets):
+            for j, correct_word in enumerate(training_example):
+                if correct_word != padding_idx:
+                    num_target_words += 1
+                    predicted_word = outputs[i][j]
+                    if predicted_word == correct_word:
+                        num_correct_words += 1
+
+        return onmt.Statistics(loss, num_target_words, num_correct_words)

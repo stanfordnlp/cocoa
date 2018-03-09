@@ -91,31 +91,28 @@ class Trainer(object):
                training loss computation
             optim(:obj:`onmt.Optim.Optim`):
                the optimizer responsible for update
-            trunc_size(int): length of truncated back propagation through time
             shard_size(int): compute loss in shards of this size for efficiency
             data_type(string): type of the source input: [text|img|audio]
             norm_method(string): normalization methods: [sents|tokens]
             grad_accum_count(int): accumulate gradients this many times.
     """
 
-    def __init__(self, model, train_loss, valid_loss, optim,
-                 trunc_size=0, shard_size=32, data_type='text',
-                 norm_method="sents", grad_accum_count=1):
+    def __init__(self, model, train_loss, valid_loss, optim, pad_id
+                 shard_size=32, data_type='text', norm_method="sents",
+                 grad_accum_count=1):
         # Basic attributes.
         self.model = model
+        self.pad_id = pad_id
         self.train_loss = train_loss
         self.valid_loss = valid_loss
         self.optim = optim
-        self.trunc_size = trunc_size
-        self.shard_size = shard_size
+        print("shard size is 64: {}".format(shard_size) )
+        self.shard_size = shard_size  # same as batch size, so no sharding occurs
         self.data_type = data_type
-        self.norm_method = norm_method
+        self.norm_method = norm_method # by sentences vs. by tokens
         self.grad_accum_count = grad_accum_count
 
         assert(grad_accum_count > 0)
-        if grad_accum_count > 1:
-            assert(self.trunc_size == 0), \
-                """To enable accumulated gradients, you must disable target sequence truncating."""
 
         # Set model in training mode.
         self.model.train()
@@ -170,26 +167,41 @@ class Trainer(object):
         Returns:
             stats (:obj:`onmt.Statistics`): epoch loss statistics
         """
+        # Set model back to training mode.
+        self.model.train()
+
         total_stats = Statistics()
         report_stats = Statistics()
-        idx = 0
+        batch_idx = 0
         true_batchs = []
         accum = 0
         normalization = 0
-        try:
-            add_on = 0
-            if len(train_iter) % self.grad_accum_count > 0:
-                add_on += 1
-            num_batches = len(train_iter) / self.grad_accum_count + add_on
-        except NotImplementedError:
+        # try:
+        #     add_on = 0
+        #     if len(train_iter) % self.grad_accum_count > 0:
+        #         add_on += 1
+        #     num_batches = len(train_iter) / self.grad_accum_count + add_on
+        # except NotImplementedError:
             # Dynamic batching
-            num_batches = -1
+            # num_batches = -1
 
+        '''
+        batch_dialogue is a dictionary with a key 'batch_seq'
+        It's value is a list of dialogue-batches, in our case 5 batches
+        Each batch of data has keys:
+            'size': batch size, which is our case is 64
+            'decoder_tokens': 64 lists of tokens
+            'decoder_args': a dictionary with keys [inputs, targets, context]
+                inputs and targets are len 64 arrays, that hold integer indexes
+                of the words (as opposed to the text tokens)
+            'agents': length 64 list referring to the speaker, either 0 or 1
+            'uuids': length 64 list hold uuids for each example
+            'encoder_tokens': same as decoder tokens, except for encoder
+            'encoder_args': a dictionary with keys [inputs, context]
+            'kbs': len 64 list of KB objects, the KB for open-movies simply holds
+                a suggested topic and is non-critical, so it can be safely ignored
+        '''
         for batch_dialogue in train_iter:
-
-            pdb.set_trace()
-            sys.exit()
-
             for batch in batch_dialogue['batch_seq']:
                 #cur_dataset = train_iter.get_cur_dataset()
                 #self.train_loss.cur_dataset = cur_dataset
@@ -200,29 +212,33 @@ class Trainer(object):
                 true_batchs.append(batch)
                 accum += 1
                 if self.norm_method == "tokens":
-                    normalization += batch.tgt[1:].data.view(-1) \
-                        .ne(self.train_loss.padding_idx).sum()
+                    batch_indices = batch['decoder_args']['targets'].flatten()
+                    non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
+                    normalization += non_PAD_tokens
+                    self.non_pad_count = non_PAD_tokens
                 else:
-                    normalization += batch.batch_size
+                    normalization += batch['size']
+
+                pdb.set_trace()
 
                 if accum == self.grad_accum_count:
-                    self._gradient_accumulation(
-                            true_batchs, total_stats,
-                            report_stats, normalization)
+                    self._gradient_accumulation(true_batchs, total_stats, report_stats)
 
                     if report_func is not None:
                         print("Using the reporting function.")
-                        report_stats = report_func(epoch, idx, num_batches,
+                        report_stats = report_func(epoch, batch_idx, num_batches,
                             total_stats.start_time, self.optim.lr, report_stats)
 
                     true_batchs = []
                     accum = 0
                     normalization = 0
-                    idx += 1
+                    batch_idx += 1
 
+        # Accumulate gradients one last time if there are any leftover batches
+        # Should not run for us since we plan to accumulate gradients at every
+        # batch, so true_batches should always equal candidate batches
         if len(true_batchs) > 0:
-            self._gradient_accumulation(true_batchs, total_stats,
-                    report_stats, normalization)
+            self._gradient_accumulation(true_batchs, total_stats, report_stats)
             true_batchs = []
 
         return total_stats
@@ -239,29 +255,16 @@ class Trainer(object):
         stats = Statistics()
 
         for batch in valid_iter:
-            cur_dataset = valid_iter.get_cur_dataset()
-            self.valid_loss.cur_dataset = cur_dataset
+            encoder_inputs = batch['encoder_args']['inputs']
+            decoder_inputs = batch['decoder_args']['inputs']
+            decoder_targets = batch['decoder_args']['targets']
 
-            src = onmt.io.make_features(batch, 'src', self.data_type)
-            if self.data_type == 'text':
-                _, src_lengths = batch.src
-            else:
-                src_lengths = None
-
-            tgt = onmt.io.make_features(batch, 'tgt')
-
-            # F-prop through the model.
-            outputs, attns, _ = self.model(src, tgt, src_lengths)
-
-            # Compute loss.
-            batch_stats = self.valid_loss.monolithic_compute_loss(
-                    batch, outputs, attns)
-
-            # Update statistics.
+            src_lengths = [sum([1 for x in source if x != self.pad]) for source in encoder_inputs]
+            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, src_lengths)
+            val_loss = self.valid_loss.simple_compute_loss(targets, outputs)
+            batch_stats = self.valid_loss.compute_stats(val_loss,
+                                        targets, outputs, self.pad_id)
             stats.update(batch_stats)
-
-        # Set model back to training mode.
-        self.model.train()
 
         return stats
 
@@ -300,53 +303,36 @@ class Trainer(object):
                    % (opt.model_filename, valid_stats.accuracy(),
                       valid_stats.ppl(), epoch))
 
-    def _gradient_accumulation(self, true_batchs, total_stats,
-                               report_stats, normalization):
-        if self.grad_accum_count > 1:
-            self.model.zero_grad()
-
+    def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
+        # if self.grad_accum_count > 1:
+        #     self.model.zero_grad()
         for batch in true_batchs:
-            target_size = batch.tgt.size(0)
-            # Truncated BPTT
-            if self.trunc_size:
-                trunc_size = self.trunc_size
-            else:
-                trunc_size = target_size
-
             dec_state = None
-            src = onmt.io.make_features(batch, 'src', self.data_type)
+            encoder_inputs = batch['encoder_args']['inputs']
+            decoder_inputs = batch['decoder_args']['inputs']
+            decoder_targets = batch['decoder_args']['targets']
+            # onmt.io.make_features(batch, 'tgt')
+            # src = onmt.io.make_features(batch, 'src', self.data_type)
             if self.data_type == 'text':
-                _, src_lengths = batch.src
-                report_stats.n_src_words += src_lengths.sum()
+                src_lengths = [sum([1 for x in source if x != self.pad]) for source in encoder_inputs]
+                report_stats.n_src_words += sum(src_lengths)
             else:
                 src_lengths = None
-
-            tgt_outer = onmt.io.make_features(batch, 'tgt')
-
-            for j in range(0, target_size-1, trunc_size):
-                # 1. Create truncated target.
-                tgt = tgt_outer[j: j + trunc_size]
-
-                # 2. F-prop all but generator.
-                if self.grad_accum_count == 1:
-                    self.model.zero_grad()
-                outputs, attns, dec_state = \
-                    self.model(src, tgt, src_lengths, dec_state)
-
-                # 3. Compute loss in shards for memory efficiency.
-                batch_stats = self.train_loss.sharded_compute_loss(
-                        batch, outputs, attns, j,
-                        trunc_size, self.shard_size, normalization)
-
-                # 4. Update the parameters and statistics.
-                if self.grad_accum_count == 1:
-                    self.optim.step()
-                total_stats.update(batch_stats)
-                report_stats.update(batch_stats)
-
-                # If truncated, don't backprop fully.
-                if dec_state is not None:
-                    dec_state.detach()
-
-        if self.grad_accum_count > 1:
+            # target_size = batch['size']
+            # for j in range(target_size):
+            # 2. Forward-prop all but generator.
+            # if self.grad_accum_count == 1:
+            self.model.zero_grad()
+            outputs, attns, dec_state = \
+                self.model(encoder_inputs, decoder_inputs, src_lengths, dec_state)
+            # 3. Compute loss
+            loss_score = self.train_loss.simple_compute_loss(targets, outputs)
+            batch_stats = self.train_loss.compute_accuracy(train_loss,
+                                            targets, outputs, self.pad_id)
+            # 4. Update the parameters and statistics.
+            # if self.grad_accum_count == 1:
             self.optim.step()
+            total_stats.update(batch_stats)
+            report_stats.update(batch_stats)
+        # if self.grad_accum_count > 1:
+        #     self.optim.step()
