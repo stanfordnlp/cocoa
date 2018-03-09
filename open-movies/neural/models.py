@@ -49,7 +49,8 @@ class EncoderBase(nn.Module):
           E-->G
     """
     def _check_args(self, input, lengths=None, hidden=None):
-        s_len, n_batch = input.size()
+        pdb.set_trace()
+        s_len, n_batch, n_feats = input.size()
         if lengths is not None:
             n_batch_ = len(lengths)  # we store in list rather than a Variable
             aeq(n_batch, n_batch_)
@@ -139,10 +140,13 @@ class RNNEncoder(EncoderBase):
 
         emb = self.embeddings(src)
         s_len, batch, emb_dim = emb.size()
+
         packed_emb = emb
         if lengths is not None and not self.no_pack_padded_seq:
             # Lengths data is a list of length batch_size, in decreasing order
             packed_emb = pack(emb, lengths)
+        pdb.set_trace()
+
 
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
 
@@ -300,14 +304,16 @@ class RNNDecoderBase(nn.Module):
                 * attns: distribution over src at each tgt
                         `[tgt_len x batch x src_len]`.
         """
+        # decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank,
+        #                   init_decoder_hidden, memory_lengths=lengths)
         # Check
         assert isinstance(state, RNNDecoderState)
-        tgt_len, tgt_batch, _ = tgt.size()
+        tgt_len, tgt_batch = tgt.size()
+        # memory bank is (source_len, batch_size, hidden_size)
         _, memory_batch, _ = memory_bank.size()
         aeq(tgt_batch, memory_batch)
-        # END
 
-        # Run the forward pass of the RNN.
+        # Run the forward pass of the RNN, "state" is the decoder hidden state
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
             tgt, memory_bank, state, memory_lengths=memory_lengths)
 
@@ -363,7 +369,7 @@ class StdRNNDecoder(RNNDecoderBase):
         Must be overriden by all subclasses.
         Args:
             tgt (LongTensor): a sequence of input tokens tensors
-                                 [len x batch x nfeats].
+                                 [len x batch ].  # we remove n_feats
             memory_bank (FloatTensor): output(tensor sequence) from the encoder
                         RNN of size (src_len x batch x hidden_size).
             state (FloatTensor): hidden state from the encoder RNN for
@@ -391,8 +397,8 @@ class StdRNNDecoder(RNNDecoderBase):
             rnn_output, decoder_final = self.rnn(emb, state.hidden)
 
         # Check
-        tgt_len, tgt_batch, _ = tgt.size()
-        output_len, output_batch, _ = rnn_output.size()
+        tgt_len, tgt_batch = tgt.size()
+        output_len, output_batch = rnn_output.size()
         aeq(tgt_len, output_len)
         aeq(tgt_batch, output_batch)
         # END
