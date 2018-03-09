@@ -11,7 +11,7 @@ from torch.autograd import Variable
 
 import onmt
 import onmt.io
-
+import pdb # set_trace
 
 class LossComputeBase(nn.Module):
     """

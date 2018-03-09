@@ -6,6 +6,7 @@ import argparse
 import random
 import os
 import time
+import pdb
 from itertools import chain
 import torch.nn as nn
 
@@ -69,6 +70,7 @@ def build_optim(opt, model, checkpoint):
     return optim
 
 def build_trainer(opt, model, vocab, optim):
+    pdb.set_trace()
     pad_id = vocab.word_to_ind["<pad>"]
     train_loss = make_loss(opt, vocab.size, pad_id, model)
     valid_loss = make_loss(opt, vocab.size, pad_id, model)
