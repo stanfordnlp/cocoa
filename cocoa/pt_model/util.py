@@ -3,46 +3,8 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-
 EPS = 1e-12
 use_cuda = torch.cuda.is_available()
-
-def safe_div(numerator, denominator):
-    return numerator / (denominator + EPS)
-
-def embedding_lookup(embeddings, indices, zero_ind=None):
-    '''
-    Same as tf.nn.embedding_lookup except that it returns a zero vector if the
-    lookup index is zero_ind (default -1).
-    '''
-    if zero_ind is None:
-        return tf.nn.embedding_lookup(embeddings, indices)
-    else:
-        mask = tf.equal(indices, zero_ind)
-        # Set zero_ind to 0 as it may be out of range of embeddings shape
-        indices = tf.where(mask, tf.zeros_like(indices), indices)
-        result = tf.nn.embedding_lookup(embeddings, indices)
-        result = tf.where(mask, tf.zeros_like(result), result)
-        return result
-
-def batch_embedding_lookup(embeddings, indices, zero_ind=None):
-    '''
-    Look up from a batch of embedding matrices.
-    embeddings: (batch_size, num_words, embedding_size)
-    indices: (batch_size, num_inds)
-    '''
-    # Use static shape when possible
-    batch_size, num_words, embed_size = embeddings.get_shape().as_list()
-    shape = tf.shape(embeddings)
-    batch_size = batch_size or shape[0]
-    num_words = num_words or shape[1]
-    embed_size = embed_size or shape[2]
-
-    offset = tf.reshape(tf.range(batch_size) * num_words, [batch_size, 1])
-    flat_embeddings = tf.reshape(embeddings, [-1, embed_size])
-    flat_indices = tf.reshape(indices + offset, [-1])
-    embeds = tf.reshape(embedding_lookup(flat_embeddings, flat_indices, zero_ind), [batch_size, -1, embed_size])
-    return embeds
 
 def basic_variable(data, dtype="long"):
     if dtype == "long":
@@ -60,6 +22,33 @@ def smart_variable(data, dtype="tensor"):
         result = data
 
     return result.cuda() if use_cuda else result
+
+def aeq(*args):
+    """
+    Assert all arguments have the same value
+    """
+    arguments = (arg for arg in args)
+    first = next(arguments)
+    assert all(arg == first for arg in arguments), \
+        "Not all arguments have the same value: " + str(args)
+
+def sequence_mask(lengths, max_len=None):
+    """
+    Creates a boolean mask from sequence lengths.
+    """
+    batch_size = lengths.numel()
+    max_len = max_len or lengths.max()
+    return (torch.arange(0, max_len)
+            .type_as(lengths)
+            .repeat(batch_size, 1)
+            .lt(lengths.unsqueeze(1)))
+
+def use_gpu(opt):
+    return (hasattr(opt, 'gpuid') and len(opt.gpuid) > 0) or \
+        (hasattr(opt, 'gpu') and opt.gpu > -1)
+
+def safe_div(numerator, denominator):
+    return numerator / (denominator + EPS)
 
 def transpose_first_two_dims(batch_input):
     rank = len(batch_input.size)

@@ -9,7 +9,7 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
 import pdb
 import onmt
-from onmt.Utils import aeq
+from cocoa.pt_model.util import aeq
 
 
 def rnn_factory(rnn_type, **kwargs):

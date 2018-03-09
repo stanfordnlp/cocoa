@@ -9,12 +9,11 @@ import onmt
 import onmt.io
 import onmt.Models
 import onmt.modules
-from onmt.Models import NMTModel, MeanEncoder, RNNEncoder, \
-                        StdRNNDecoder, InputFeedRNNDecoder
-from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, \
-                         TransformerEncoder, TransformerDecoder, \
-                         CNNEncoder, CNNDecoder, AudioEncoder
-from onmt.Utils import use_gpu
+from models import NMTModel, MeanEncoder, RNNEncoder, StdRNNDecoder
+from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, TransformerEncoder, \
+              TransformerDecoder, CNNEncoder, CNNDecoder, AudioEncoder
+
+from cocoa.pt_model.util import use_gpu
 
 from preprocess import markers
 

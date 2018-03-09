@@ -323,8 +323,6 @@ class Trainer(object):
             # if self.grad_accum_count == 1:
             self.model.zero_grad()
 
-            pdb.set_trace()
-
             outputs, attns, dec_state = \
                 self.model(encoder_inputs, decoder_inputs, src_lengths, dec_state)
             # 3. Compute loss
