@@ -97,7 +97,7 @@ class Trainer(object):
             grad_accum_count(int): accumulate gradients this many times.
     """
 
-    def __init__(self, model, train_loss, valid_loss, optim, pad_id
+    def __init__(self, model, train_loss, valid_loss, optim, pad_id,
                  shard_size=32, data_type='text', norm_method="sents",
                  grad_accum_count=1):
         # Basic attributes.

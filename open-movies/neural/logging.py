@@ -1,4 +1,5 @@
 import onmt
+import time
 from onmt.Utils import use_gpu
 
 def make_loss(opt, vocab_size, padding_idx, model):
