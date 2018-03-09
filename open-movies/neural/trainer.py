@@ -21,6 +21,7 @@ import onmt
 import onmt.io
 import onmt.modules
 
+from cocoa.pt_model.util import smart_variable, basic_variable
 from logging import Statistics, make_loss, report_func
 
 def add_trainer_arguments(parser):
@@ -305,9 +306,9 @@ class Trainer(object):
         #     self.model.zero_grad()
         for batch in true_batchs:
             dec_state = None
-            encoder_inputs = batch['encoder_args']['inputs']
-            decoder_inputs = batch['decoder_args']['inputs']
-            decoder_targets = batch['decoder_args']['targets']
+            encoder_inputs = smart_variable(batch['encoder_args']['inputs'], "list")
+            decoder_inputs = smart_variable(batch['decoder_args']['inputs'], "list")
+            decoder_targets = smart_variable(batch['decoder_args']['targets'], "list")
             # onmt.io.make_features(batch, 'tgt')
             # src = onmt.io.make_features(batch, 'src', self.data_type)
             if self.data_type == 'text':
