@@ -106,7 +106,6 @@ class Trainer(object):
         self.train_loss = train_loss
         self.valid_loss = valid_loss
         self.optim = optim
-        print("shard size is 64: {}".format(shard_size) )
         self.shard_size = shard_size  # same as batch size, so no sharding occurs
         self.data_type = data_type
         self.norm_method = norm_method # by sentences vs. by tokens
@@ -219,8 +218,6 @@ class Trainer(object):
                 else:
                     normalization += batch['size']
 
-                pdb.set_trace()
-
                 if accum == self.grad_accum_count:
                     self._gradient_accumulation(true_batchs, total_stats, report_stats)
 
@@ -259,7 +256,7 @@ class Trainer(object):
             decoder_inputs = batch['decoder_args']['inputs']
             decoder_targets = batch['decoder_args']['targets']
 
-            src_lengths = [sum([1 for x in source if x != self.pad]) for source in encoder_inputs]
+            src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
             outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, src_lengths)
             val_loss = self.valid_loss.simple_compute_loss(targets, outputs)
             batch_stats = self.valid_loss.compute_stats(val_loss,
@@ -314,7 +311,7 @@ class Trainer(object):
             # onmt.io.make_features(batch, 'tgt')
             # src = onmt.io.make_features(batch, 'src', self.data_type)
             if self.data_type == 'text':
-                src_lengths = [sum([1 for x in source if x != self.pad]) for source in encoder_inputs]
+                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
                 report_stats.n_src_words += sum(src_lengths)
             else:
                 src_lengths = None

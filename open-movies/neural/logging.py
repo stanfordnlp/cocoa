@@ -3,8 +3,7 @@ import time
 from onmt.Utils import use_gpu
 
 def make_loss(opt, vocab_size, padding_idx, model):
-    loss = onmt.Loss.SimpleLossCompute(model.generator, vocab_size, padding_idx,
-            label_smoothing=opt.label_smoothing)
+    loss = onmt.Loss.SimpleLossCompute(model.generator, vocab_size, padding_idx)
     if use_gpu(opt):
         loss.cuda()
     return loss

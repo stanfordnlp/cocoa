@@ -70,7 +70,6 @@ def build_optim(opt, model, checkpoint):
     return optim
 
 def build_trainer(opt, model, vocab, optim):
-    pdb.set_trace()
     pad_id = vocab.word_to_ind["<pad>"]
     train_loss = make_loss(opt, vocab.size, pad_id, model)
     valid_loss = make_loss(opt, vocab.size, pad_id, model)
@@ -148,7 +147,7 @@ if __name__ == '__main__':
 
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
-    trainer = build_trainer(args, model, mappings, optim)
+    trainer = build_trainer(args, model, mappings['vocab'], optim)
 
     # Perform actual training
     trainer.learn(args, model, data_generator)
