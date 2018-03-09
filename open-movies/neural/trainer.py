@@ -306,16 +306,17 @@ class Trainer(object):
         #     self.model.zero_grad()
         for batch in true_batchs:
             dec_state = None
-            encoder_inputs = smart_variable(batch['encoder_args']['inputs'], "list")
-            decoder_inputs = smart_variable(batch['decoder_args']['inputs'], "list")
-            decoder_targets = smart_variable(batch['decoder_args']['targets'], "list")
-            # onmt.io.make_features(batch, 'tgt')
             # src = onmt.io.make_features(batch, 'src', self.data_type)
+            # onmt.io.make_features(batch, 'tgt')
             if self.data_type == 'text':
-                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
+                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in batch['encoder_args']['inputs']]
                 report_stats.n_src_words += sum(src_lengths)
             else:
                 src_lengths = None
+
+            encoder_inputs = self.prepare_data(batch['encoder_args']['inputs'])
+            decoder_inputs = smart_variable(batch['decoder_args']['inputs'], "list")
+            decoder_targets = smart_variable(batch['decoder_args']['targets'], "list")
             # target_size = batch['size']
             # for j in range(target_size):
             # 2. Forward-prop all but generator.
@@ -337,3 +338,9 @@ class Trainer(object):
             report_stats.update(batch_stats)
         # if self.grad_accum_count > 1:
         #     self.optim.step()
+
+    # TODO: Move to pre-processing step
+    def prepare_data(self, data):
+        result = smart_variable(data, "list")
+        result = result.transpose(0,1)  # change into (seq_len, batch_size)
+        return result.unsqueeze(2)    # add an num_feats dimension
