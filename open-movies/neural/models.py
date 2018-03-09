@@ -52,7 +52,7 @@ class EncoderBase(nn.Module):
         pdb.set_trace()
         s_len, n_batch, n_feats = input.size()
         if lengths is not None:
-            n_batch_, = lengths.size()
+            n_batch_ = len(lengths)  # we store in list rather than a Variable
             aeq(n_batch, n_batch_)
 
     def forward(self, src, lengths=None, encoder_state=None):
@@ -143,9 +143,10 @@ class RNNEncoder(EncoderBase):
 
         packed_emb = emb
         if lengths is not None and not self.no_pack_padded_seq:
-            # Lengths data is wrapped inside a Variable.
-            lengths = lengths.view(-1).tolist()
+            # Lengths data is a list of length batch_size, in decreasing order
             packed_emb = pack(emb, lengths)
+        pdb.set_trace()
+
 
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
 
@@ -565,25 +566,24 @@ class NMTModel(nn.Module):
         Possible initialized with a beginning decoder state.
 
         Args:
-            src (:obj:`Tensor`):
-                a source sequence passed to encoder.
+            src (:obj:`Tensor`): a source sequence passed to encoder.
                 typically for inputs this will be a padded :obj:`LongTensor`
-                of size `[len x batch x features]`. however, may be an
+                of size `[source_len x batch x features]`. however, may be an
                 image or other generic input depending on encoder.
             tgt (:obj:`LongTensor`):
-                 a target sequence of size `[tgt_len x batch]`.
+                 a target sequence of size `[target_len x batch]`.
             lengths(:obj:`LongTensor`): the src lengths, pre-padding `[batch]`.
             dec_state (:obj:`DecoderState`, optional): initial decoder state
         Returns:
             (:obj:`FloatTensor`, `dict`, :obj:`onmt.Models.DecoderState`):
 
-                 * decoder output `[tgt_len x batch x hidden]`
+                 * decoder output `[target_len x batch x hidden]`
                  * dictionary attention dists of `[tgt_len x batch x src_len]`
                  * final decoder state
         """
-        tgt = tgt[:-1]  # exclude last target from inputs
-        print ("comes here right?")
-        pdb.set_trace()
+        # tgt = tgt[:-1]  originally, this exclude last target (a <EOS> token)
+        # from decoder inputs, but our preprocessing already handles this and
+        # even prepends a <SOS> token
         enc_final, memory_bank = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
 

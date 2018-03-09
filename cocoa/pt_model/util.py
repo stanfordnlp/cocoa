@@ -23,7 +23,7 @@ def smart_variable(data, dtype="tensor"):
 
     return result.cuda() if use_cuda else result
 
-def aeq(*args):
+def aeq(*args): # are equal?
     """
     Assert all arguments have the same value
     """

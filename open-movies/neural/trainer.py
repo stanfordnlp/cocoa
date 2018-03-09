@@ -306,17 +306,20 @@ class Trainer(object):
         #     self.model.zero_grad()
         for batch in true_batchs:
             dec_state = None
+            encoder_inputs = batch['encoder_args']['inputs']
             # src = onmt.io.make_features(batch, 'src', self.data_type)
             # onmt.io.make_features(batch, 'tgt')
             if self.data_type == 'text':
-                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in batch['encoder_args']['inputs']]
+                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
                 report_stats.n_src_words += sum(src_lengths)
             else:
                 src_lengths = None
 
-            encoder_inputs = self.prepare_data(batch['encoder_args']['inputs'])
-            decoder_inputs = smart_variable(batch['decoder_args']['inputs'], "list")
-            decoder_targets = smart_variable(batch['decoder_args']['targets'], "list")
+            sorted_encoder = self.sort_by_length(encoder_inputs, src_lengths)
+            encoder_inputs = self.prepare_data(sorted_encoder, True)
+
+            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
+            decoder_targets = self.prepare_data(batch['decoder_args']['targets'])
             # target_size = batch['size']
             # for j in range(target_size):
             # 2. Forward-prop all but generator.
@@ -338,7 +341,12 @@ class Trainer(object):
         #     self.optim.step()
 
     # TODO: Move to pre-processing step
-    def prepare_data(self, data):
+    def sort_by_length(self, data, lengths):
+        return [d for d,l in sorted(zip(data,lengths), key=lambda x,y: y, reverse=True)]
+
+    def prepare_data(self, data, add_feat_dim=False):
         result = smart_variable(data, "list")
         result = result.transpose(0,1)  # change into (seq_len, batch_size)
-        return result.unsqueeze(2)    # add an num_feats dimension
+        if add_feat_dim:
+            result = result.unsqueeze(2)    # add an num_feats dimension
+        return result
