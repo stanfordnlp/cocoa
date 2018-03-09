@@ -302,8 +302,6 @@ class Trainer(object):
                       valid_stats.ppl(), epoch))
 
     def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
-        # if self.grad_accum_count > 1:
-        #     self.model.zero_grad()
         for batch in true_batchs:
             dec_state = None
             encoder_inputs = batch['encoder_args']['inputs']
@@ -315,8 +313,8 @@ class Trainer(object):
             else:
                 src_lengths = None
 
-            sorted_encoder = self.sort_by_length(encoder_inputs, src_lengths)
-            encoder_inputs = self.prepare_data(sorted_encoder, True)
+            sorted_inputs, sorted_lengths = self.sort_by_length(encoder_inputs, src_lengths)
+            encoder_inputs = self.prepare_data(sorted_inputs)
 
             decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
             decoder_targets = self.prepare_data(batch['decoder_args']['targets'])
@@ -327,7 +325,7 @@ class Trainer(object):
             self.model.zero_grad()
 
             outputs, attns, dec_state = \
-                self.model(encoder_inputs, decoder_inputs, src_lengths, dec_state)
+                self.model(encoder_inputs, decoder_inputs, sorted_lengths, dec_state)
             # 3. Compute loss
             loss_score = self.train_loss.simple_compute_loss(targets, outputs)
             batch_stats = self.train_loss.compute_accuracy(train_loss,
@@ -337,16 +335,15 @@ class Trainer(object):
             self.optim.step()
             total_stats.update(batch_stats)
             report_stats.update(batch_stats)
-        # if self.grad_accum_count > 1:
-        #     self.optim.step()
 
     # TODO: Move to pre-processing step
     def sort_by_length(self, data, lengths):
-        return [d for d,l in sorted(zip(data,lengths), key=lambda x,y: y, reverse=True)]
+        sorted_inputs = [d.tolist() for d,l in 
+			          sorted(zip(data,lengths), key=lambda(x,y): y, reverse=True)]
+        sorted_lengths = sorted(lengths, reverse=True)
+        return sorted_inputs, sorted_lengths
 
-    def prepare_data(self, data, add_feat_dim=False):
+    def prepare_data(self, data):
         result = smart_variable(data, "list")
         result = result.transpose(0,1)  # change into (seq_len, batch_size)
-        if add_feat_dim:
-            result = result.unsqueeze(2)    # add an num_feats dimension
         return result

@@ -49,8 +49,7 @@ class EncoderBase(nn.Module):
           E-->G
     """
     def _check_args(self, input, lengths=None, hidden=None):
-        pdb.set_trace()
-        s_len, n_batch, n_feats = input.size()
+        s_len, n_batch = input.size()
         if lengths is not None:
             n_batch_ = len(lengths)  # we store in list rather than a Variable
             aeq(n_batch, n_batch_)
@@ -140,13 +139,10 @@ class RNNEncoder(EncoderBase):
 
         emb = self.embeddings(src)
         s_len, batch, emb_dim = emb.size()
-
         packed_emb = emb
         if lengths is not None and not self.no_pack_padded_seq:
             # Lengths data is a list of length batch_size, in decreasing order
             packed_emb = pack(emb, lengths)
-        pdb.set_trace()
-
 
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
 
