@@ -148,6 +148,5 @@ if __name__ == '__main__':
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
     trainer = build_trainer(args, model, mappings['vocab'], optim)
-
     # Perform actual training
-    trainer.learn(args, model, data_generator)
+    trainer.learn(args, data_generator)

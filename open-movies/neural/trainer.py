@@ -116,7 +116,7 @@ class Trainer(object):
         # Set model in training mode.
         self.model.train()
 
-    def learn(self, opt, model, data):
+    def learn(self, opt, data):
         """Train model.
         Args:
             opt(namespace)
@@ -320,6 +320,9 @@ class Trainer(object):
             # 2. Forward-prop all but generator.
             # if self.grad_accum_count == 1:
             self.model.zero_grad()
+
+            pdb.set_trace()
+
             outputs, attns, dec_state = \
                 self.model(encoder_inputs, decoder_inputs, src_lengths, dec_state)
             # 3. Compute loss

@@ -7,6 +7,7 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
+import pdb
 import onmt
 from onmt.Utils import aeq
 
@@ -48,6 +49,7 @@ class EncoderBase(nn.Module):
           E-->G
     """
     def _check_args(self, input, lengths=None, hidden=None):
+        pdb.set_trace()
         s_len, n_batch, n_feats = input.size()
         if lengths is not None:
             n_batch_, = lengths.size()
@@ -580,15 +582,14 @@ class NMTModel(nn.Module):
                  * final decoder state
         """
         tgt = tgt[:-1]  # exclude last target from inputs
-
+        print ("comes here right?")
+        pdb.set_trace()
         enc_final, memory_bank = self.encoder(src, lengths)
-        enc_state = \
-            self.decoder.init_decoder_state(src, memory_bank, enc_final)
-        decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank,
-                         enc_state if dec_state is None
-                         else dec_state,
-                         memory_lengths=lengths)
+        enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
+
+        init_decoder_hidden = enc_state if dec_state is None else dec_state
+        decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank,
+                          init_decoder_hidden, memory_lengths=lengths)
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None
