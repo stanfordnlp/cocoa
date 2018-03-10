@@ -192,37 +192,8 @@ class RNNEncoder(EncoderBase):
 
 class RNNDecoderBase(nn.Module):
     """
-    Base recurrent attention-based decoder class.
-    Specifies the interface used by different decoder types
-    and required by :obj:`onmt.Models.NMTModel`.
-
-
-    .. mermaid::
-
-       graph BT
-          A[Input]
-          subgraph RNN
-             C[Pos 1]
-             D[Pos 2]
-             E[Pos N]
-          end
-          G[Decoder State]
-          H[Decoder State]
-          I[Outputs]
-          F[Memory_Bank]
-          A--emb-->C
-          A--emb-->D
-          A--emb-->E
-          H-->C
-          C-- attn --- F
-          D-- attn --- F
-          E-- attn --- F
-          C-->I
-          D-->I
-          E-->I
-          E-->G
-          F---I
-
+    Base recurrent attention-based decoder class. Specifies the interface used
+    by different decoder types and required by :obj:`onmt.Models.NMTModel`.
     Args:
        rnn_type (:obj:`str`):
           style of recurrent unit to use, one of [RNN, LSTM, GRU, SRU]
@@ -321,8 +292,10 @@ class RNNDecoderBase(nn.Module):
         for k in attns:
             attns[k] = torch.stack(attns[k])
 
-        joined_hidden = torch.cat((current_hidden, attns), dim=2).squeeze(0)
-        cocoa_outputs = F.log_softmax(self.out(joined_hidden), dim=1)
+        # Run a softmax over the output to predict words (and prepare for NLLLoss)
+        # TODO: COnsider removing the log and using CrossEntropyLoss method
+        pdb.set_trace()
+        cocoa_outputs = F.log_softmax(decoder_outputs, dim=1)
 
         return cocoa_outputs, state, attns
 
