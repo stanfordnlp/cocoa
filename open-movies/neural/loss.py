@@ -1,5 +1,6 @@
 import torch
 import pdb
+import numpy as np
 import torch.nn as nn
 from torch.autograd import Variable
 
@@ -29,13 +30,14 @@ class SimpleLossCompute(nn.Module):
 
     def compute_accuracy(self, loss, targets, outputs, padding_idx):
         num_target_words, num_correct_words = 0,0
-        for i, training_example in enumerate(targets):
-            for j, correct_word in enumerate(training_example):
-                pdb.set_trace()
+        numpy_targets = targets.data.numpy()
+        numpy_outputs = outputs.data.numpy()
 
+        for i, training_example in enumerate(numpy_targets):
+            for j, correct_word in enumerate(training_example):
                 if correct_word != padding_idx:
                     num_target_words += 1
-                    predicted_word = outputs[i][j]
+                    predicted_word = np.argmax(numpy_outputs[i][j])
                     if predicted_word == correct_word:
                         num_correct_words += 1
 
