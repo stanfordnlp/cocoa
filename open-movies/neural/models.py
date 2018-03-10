@@ -394,7 +394,7 @@ class StdRNNDecoder(RNNDecoderBase):
 
         # Check
         tgt_len, tgt_batch = tgt.size()
-        output_len, output_batch = rnn_output.size()
+        output_len, output_batch, embed_size = rnn_output.size()
         aeq(tgt_len, output_len)
         aeq(tgt_batch, output_batch)
         # END

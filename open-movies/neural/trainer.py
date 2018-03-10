@@ -317,7 +317,7 @@ class Trainer(object):
             encoder_inputs = self.prepare_data(sorted_inputs)
 
             decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
-            decoder_targets = self.prepare_data(batch['decoder_args']['targets'])
+            targets = self.prepare_data(batch['decoder_args']['targets'])
             # target_size = batch['size']
             # for j in range(target_size):
             # 2. Forward-prop all but generator.
