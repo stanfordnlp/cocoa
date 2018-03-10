@@ -1,9 +1,10 @@
-import onmt
 import time
-from onmt.Utils import use_gpu
+
+from loss import SimpleLossCompute
+from cocoa.pt_model.util import use_gpu
 
 def make_loss(opt, vocab_size, padding_idx, model):
-    loss = onmt.Loss.SimpleLossCompute(model.generator, vocab_size, padding_idx)
+    loss = SimpleLossCompute(model.generator, vocab_size, padding_idx)
     if use_gpu(opt):
         loss.cuda()
     return loss
@@ -28,7 +29,7 @@ def report_func(epoch, batch, num_batches, start_time, lr, report_stats):
             report_stats.log("progress", experiment, lr)
         if opt.tensorboard:
             report_stats.log_tensorboard("progress", writer, lr, epoch)
-        report_stats = onmt.Statistics()
+        report_stats = Statistics()
 
     return report_stats
 

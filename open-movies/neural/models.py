@@ -257,7 +257,6 @@ class RNNDecoderBase(nn.Module):
                                    hidden_size=hidden_size,
                                    num_layers=num_layers,
                                    dropout=dropout)
-        self.out = nn.Linear(self.hidden_size, vocab_size)
         # Set up the context gate.
         self.context_gate = None
         if context_gate is not None:
@@ -268,10 +267,8 @@ class RNNDecoderBase(nn.Module):
 
         # Set up the standard attention.
         self._coverage = coverage_attn
-        self.attn = GlobalAttention(
-            hidden_size, coverage=coverage_attn,
-            attn_type=attn_type
-        )
+        self.attn = GlobalAttention(hidden_size, vocab_size=vocab_size,
+            coverage=coverage_attn, attn_type=attn_type)
 
         # Set up a separated copy attention layer, if needed.
         self._copy = False
@@ -300,8 +297,6 @@ class RNNDecoderBase(nn.Module):
                 * attns: distribution over src at each tgt
                         `[tgt_len x batch x src_len]`.
         """
-        # decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank,
-        #                   init_decoder_hidden, memory_lengths=lengths)
         # Check
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
@@ -320,16 +315,11 @@ class RNNDecoderBase(nn.Module):
             coverage = attns["coverage"][-1].unsqueeze(0)
         state.update_state(decoder_final, final_output.unsqueeze(0), coverage)
 
-        # decoder_outputs:  (30, 64, 500)
         # Concatenates sequence of tensors along a new dimension.
+        # NOTE: not sure is\f this changes anything in our case ...
         decoder_outputs = torch.stack(decoder_outputs)
         for k in attns:
-            print("attns: {}".format(attns[k].size()) )
             attns[k] = torch.stack(attns[k])
-            print("attns after: {}".format(attns[k].size()) )
-
-        print("deco after: {}".format(decoder_outputs.size()) )
-        pdb.set_trace()
 
         joined_hidden = torch.cat((current_hidden, attns), dim=2).squeeze(0)
         cocoa_outputs = F.log_softmax(self.out(joined_hidden), dim=1)
