@@ -9,7 +9,8 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
 import pdb
 import onmt
-from cocoa.pt_model.util import aeq
+from attention import GlobalAttention
+from cocoa.pt_model.util import aeq, smart_variable
 
 
 def rnn_factory(rnn_type, **kwargs):
@@ -49,8 +50,7 @@ class EncoderBase(nn.Module):
           E-->G
     """
     def _check_args(self, input, lengths=None, hidden=None):
-        pdb.set_trace()
-        s_len, n_batch, n_feats = input.size()
+        s_len, n_batch = input.size()  # n_feats has been removed
         if lengths is not None:
             n_batch_ = len(lengths)  # we store in list rather than a Variable
             aeq(n_batch, n_batch_)
@@ -145,8 +145,6 @@ class RNNEncoder(EncoderBase):
         if lengths is not None and not self.no_pack_padded_seq:
             # Lengths data is a list of length batch_size, in decreasing order
             packed_emb = pack(emb, lengths)
-        pdb.set_trace()
-
 
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
 
@@ -270,7 +268,7 @@ class RNNDecoderBase(nn.Module):
 
         # Set up the standard attention.
         self._coverage = coverage_attn
-        self.attn = onmt.modules.GlobalAttention(
+        self.attn = GlobalAttention(
             hidden_size, coverage=coverage_attn,
             attn_type=attn_type
         )
@@ -278,9 +276,7 @@ class RNNDecoderBase(nn.Module):
         # Set up a separated copy attention layer, if needed.
         self._copy = False
         if copy_attn and not reuse_copy_attn:
-            self.copy_attn = onmt.modules.GlobalAttention(
-                hidden_size, attn_type=attn_type
-            )
+            self.copy_attn = GlobalAttention(hidden_size, attn_type=attn_type)
         if copy_attn:
             self._copy = True
         self._reuse_copy_attn = reuse_copy_attn

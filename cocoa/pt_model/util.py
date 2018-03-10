@@ -36,12 +36,18 @@ def sequence_mask(lengths, max_len=None):
     """
     Creates a boolean mask from sequence lengths.
     """
+    print("comes to mine, just to check")
+    # batch_size = lengths.numel()
+    # max_len = max_len or lengths.max()
+    # "lengths" is a list not a Variable
+
     batch_size = lengths.numel()
     max_len = max_len or lengths.max()
     return (torch.arange(0, max_len)
             .type_as(lengths)
             .repeat(batch_size, 1)
-            .lt(lengths.unsqueeze(1)))
+            .lt(lengths.unsqueeze(1)
+                ))
 
 def use_gpu(opt):
     return (hasattr(opt, 'gpuid') and len(opt.gpuid) > 0) or \
