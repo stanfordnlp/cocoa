@@ -237,7 +237,7 @@ class RNNDecoderBase(nn.Module):
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
     """
     def __init__(self, rnn_type, bidirectional_encoder, num_layers,
-                 hidden_size, attn_type="general",
+                 hidden_size, vocab_size, attn_type="general",
                  coverage_attn=False, context_gate=None,
                  copy_attn=False, dropout=0.0, embeddings=None,
                  reuse_copy_attn=False):
@@ -249,8 +249,6 @@ class RNNDecoderBase(nn.Module):
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.embeddings = embeddings
-        print("emb: {}".format(embeddings.size()) )
-        self.vocab_size = embeddings.size()[0]
         self.dropout = nn.Dropout(dropout)
 
         # Build the RNN.
@@ -259,7 +257,8 @@ class RNNDecoderBase(nn.Module):
                                    hidden_size=hidden_size,
                                    num_layers=num_layers,
                                    dropout=dropout)
-        self.out = nn.Linear(self.hidden_size, self.vocab_size)
+        print("vocab: {}".format(vocab_size.size()) )
+        self.out = nn.Linear(self.hidden_size, vocab_size)
         # Set up the context gate.
         self.context_gate = None
         if context_gate is not None:

@@ -27,7 +27,7 @@ from neural.logging import make_loss
 #from model.learner import add_learner_arguments, get_learner
 #from model.evaluate import get_evaluator
 
-def build_model(model_opt, opt, checkpoint=None):
+def build_model(model_opt, opt, mappings, checkpoint=None):
     print 'Building model...'
     model = model_builder.make_base_model(model_opt, mappings,
                                     use_gpu(opt), checkpoint=checkpoint)
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     logstats.add_args('model_args', model_args)
 
     # Build the model
-    model = build_model(model_args, args, ckpt)
+    model = build_model(model_args, args, mappings, ckpt)
     tally_parameters(model)
     create_path(args.model_path)
     config_path = os.path.join(args.model_path, 'config.json')
