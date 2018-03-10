@@ -141,6 +141,7 @@ def make_decoder(opt, embeddings):
                                    dropout=opt.dropout,
                                    embeddings=embeddings)
     else:
+        print("pretty sure we use the standard decoder")
         return StdRNNDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,

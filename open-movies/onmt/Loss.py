@@ -272,10 +272,29 @@ class SimpleLossCompute(nn.Module):
         self.criterion = nn.NLLLoss(weight)
         # self.criterion = nn.NLLLoss(weight, size_average=False)
 
+'''
+output = 5 x 4 x 8 x 8
+      = batch_size x classes x height x width
+      = batch_size x classes x hidden_dim
+      = classes
+target = 5 x 8 x 8
+      = batch_size x height x width
+      = batch_size x hidden_dim
+      = 1
+
+      seq_len, batch_size, classes
+      seq_len, batch_size
+    outputs.size()) )    30, 64, 500
+    targets.size()) )    30, 64
+'''
+
     def simple_compute_loss(self, targets, outputs):
-        print("outputs: {}".format(outputs.size()) )
-        print("targets: {}".format(targets.size()) )
-        loss = self.criterion(outputs, targets)
+        loss = 0
+        for idx, target in enumerate(targets):
+            output = outputs[idx]
+            print("target: just 64 = {}".format(target.size()) )
+            print("output: should be 64, 500 = {}".format(output.size()) )
+            loss += self.criterion(output, target)
         # loss.div(batch.size).backward()       # we don't need to divide by
         loss.backward()       # batch size since we set size_average to True
 

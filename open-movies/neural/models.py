@@ -249,6 +249,8 @@ class RNNDecoderBase(nn.Module):
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.embeddings = embeddings
+        print("emb: {}".format(embeddings.size()) )
+        self.vocab_size = embeddings.size()[0]
         self.dropout = nn.Dropout(dropout)
 
         # Build the RNN.
@@ -257,7 +259,7 @@ class RNNDecoderBase(nn.Module):
                                    hidden_size=hidden_size,
                                    num_layers=num_layers,
                                    dropout=dropout)
-
+        self.out = nn.Linear(self.hidden_size, self.vocab_size)
         # Set up the context gate.
         self.context_gate = None
         if context_gate is not None:
@@ -320,12 +322,21 @@ class RNNDecoderBase(nn.Module):
             coverage = attns["coverage"][-1].unsqueeze(0)
         state.update_state(decoder_final, final_output.unsqueeze(0), coverage)
 
+        print("deco: {}".format(decoder_outputs.size()) )
+        print("attns: {}".format(attns.size()) )
         # Concatenates sequence of tensors along a new dimension.
         decoder_outputs = torch.stack(decoder_outputs)
         for k in attns:
             attns[k] = torch.stack(attns[k])
 
-        return decoder_outputs, state, attns
+        print("deco after: {}".format(decoder_outputs.size()) )
+        print("attns after: {}".format(attns.size()) )
+        pdb.set_trace()
+
+        joined_hidden = torch.cat((current_hidden, attns), dim=2).squeeze(0)
+        cocoa_outputs = F.log_softmax(self.out(joined_hidden), dim=1)
+
+        return cocoa_outputs, state, attns
 
     def init_decoder_state(self, src, memory_bank, encoder_final):
         def _fix_enc_hidden(h):
@@ -394,7 +405,63 @@ class StdRNNDecoder(RNNDecoderBase):
 
         # Check
         tgt_len, tgt_batch = tgt.size()
-        output_len, output_batch, embed_size = rnn_output.size()
+        output_len, output_batch = rnn_output.size()
+        aeq(tgt_len, output_len)
+        aeq(tgt_batch, output_batch)
+        # END
+
+        # Calculate the attention.
+        decoder_outputs, p_attn = self.attn(
+            rnn_output.transpose(0, 1).contiguous(),
+            memory_bank.transpose(0, 1),
+            memory_lengths=memory_lengths
+        )
+        attns["std"] = p_attn
+
+        # Calculate the context gate.
+        if self.context_gate is not None:
+            decoder_outputs = self.context_gate(
+                emb.view(-1, emb.size(2)),
+                rnn_output.view(-1, rnn_output.size(2)),
+                decoder_outputs.view(-1, decoder_outputs.size(2))
+            )
+            decoder_outputs = \
+                decoder_outputs.view(tgt_len, tgt_batch, self.hidden_size)
+
+        decoder_outputs = self.dropout(decoder_outputs)
+        return decoder_final, decoder_outputs, attns
+
+    def _build_rnn(self, rnn_type, **kwargs):
+        rnn, _ = rnn_factory(rnn_type, **kwargs)
+        return rnn
+
+    @property
+    def _input_size(self):
+        """
+        Private helper returning the number of expected features.
+        """
+        return self.embeddings.embedding_size
+
+class RNNDecoderPredictor(RNNDecoderBase):
+    """
+    Exactly same as the standard RNN decoder (StdRNNDecoder), but also includes
+    the linear output layer (projecting data from hidden size to vocab size)
+    and performs log softmax operation ( to be compatible with NLLLoss)
+    """
+    def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths=None):
+        # Initialize local and return variables.
+        attns = {}
+        emb = self.embeddings(tgt)
+
+        # Run the forward pass of the RNN.
+        if isinstance(self.rnn, nn.GRU):
+            rnn_output, decoder_final = self.rnn(emb, state.hidden[0])
+        else:
+            rnn_output, decoder_final = self.rnn(emb, state.hidden)
+
+        # Check
+        tgt_len, tgt_batch = tgt.size()
+        output_len, output_batch, hidden_size = rnn_output.size()
         aeq(tgt_len, output_len)
         aeq(tgt_batch, output_batch)
         # END
