@@ -164,7 +164,7 @@ class GlobalAttention(nn.Module):
 
         # concatenate
         concat_c = torch.cat([c, input], 2).view(batch*targetL, dim*2)
-        attn_h = self.linear_out(concat_c).view(batch, targetL, dim)
+        attn_h = self.linear_out(concat_c).view(batch, targetL, self.vocab_dim)
         if self.attn_type in ["general", "dot"]:
             attn_h = self.tanh(attn_h)
 
@@ -175,7 +175,7 @@ class GlobalAttention(nn.Module):
             # Check output sizes
             batch_, dim_ = attn_h.size()
             aeq(batch, batch_)
-            aeq(dim, dim_)
+            aeq(self.vocab_dim, dim_)
             batch_, sourceL_ = align_vectors.size()
             aeq(batch, batch_)
             aeq(sourceL, sourceL_)
@@ -187,7 +187,7 @@ class GlobalAttention(nn.Module):
             targetL_, batch_, dim_ = attn_h.size()
             aeq(targetL, targetL_)
             aeq(batch, batch_)
-            aeq(dim, dim_)
+            aeq(self.vocab_dim, dim_)
             targetL_, batch_, sourceL_ = align_vectors.size()
             aeq(targetL, targetL_)
             aeq(batch, batch_)

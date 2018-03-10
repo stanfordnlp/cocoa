@@ -293,10 +293,8 @@ class RNNDecoderBase(nn.Module):
             attns[k] = torch.stack(attns[k])
 
         # Run a softmax over the output to predict words (and prepare for NLLLoss)
-        # TODO: COnsider removing the log and using CrossEntropyLoss method
-        pdb.set_trace()
-        cocoa_outputs = F.log_softmax(decoder_outputs, dim=1)
-
+        # TODO: Consider removing the log and using CrossEntropyLoss method
+        cocoa_outputs = F.log_softmax(decoder_outputs, dim=2)
         return cocoa_outputs, state, attns
 
     def init_decoder_state(self, src, memory_bank, encoder_final):

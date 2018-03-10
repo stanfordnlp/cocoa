@@ -1,4 +1,5 @@
 import torch
+import pdb
 import torch.nn as nn
 from torch.autograd import Variable
 
@@ -20,8 +21,6 @@ class SimpleLossCompute(nn.Module):
         loss = 0
         for idx, target in enumerate(targets):
             output = outputs[idx]
-            print("target: just 64 = {}".format(target.size()) )
-            print("output: should be 64, 500 = {}".format(output.size()) )
             loss += self.criterion(output, target)
         # loss.div(batch.size).backward()       # we don't need to divide by
         loss.backward()       # batch size since we set size_average to True
@@ -32,6 +31,8 @@ class SimpleLossCompute(nn.Module):
         num_target_words, num_correct_words = 0,0
         for i, training_example in enumerate(targets):
             for j, correct_word in enumerate(training_example):
+                pdb.set_trace()
+
                 if correct_word != padding_idx:
                     num_target_words += 1
                     predicted_word = outputs[i][j]

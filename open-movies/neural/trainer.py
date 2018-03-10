@@ -328,7 +328,7 @@ class Trainer(object):
                 self.model(encoder_inputs, decoder_inputs, sorted_lengths, dec_state)
             # 3. Compute loss
             loss_score = self.train_loss.simple_compute_loss(targets, outputs)
-            batch_stats = self.train_loss.compute_accuracy(train_loss,
+            batch_stats = self.train_loss.compute_accuracy(loss_score,
                                             targets, outputs, self.pad_id)
             # 4. Update the parameters and statistics.
             # if self.grad_accum_count == 1:
