@@ -22,7 +22,7 @@ import onmt.io
 import onmt.modules
 
 from cocoa.pt_model.util import smart_variable, basic_variable
-from loss import Statistics, make_loss, report_func
+from loss import Statistics, report_func
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -45,6 +45,8 @@ def add_trainer_arguments(parser):
     # Optimization
     group.add_argument('--batch-size', type=int, default=64,
                        help='Maximum batch size for training')
+    # group.add_argument('--batches_per_epoch', type=int, default=10,
+    #                    help='Data comes from a generator, which is unlimited, so we need to set some artificial limit.')
     group.add_argument('--epochs', type=int, default=14,
                        help='Number of training epochs')
     group.add_argument('--optim', default='sgd', help="""Optimization method.""",
@@ -69,8 +71,8 @@ def add_trainer_arguments(parser):
                        https://arxiv.org/abs/1512.00567""")
 
     # Logging
-    group.add_argument('--report-every', type=int, default=50,
-                       help="Print stats at this interval.")
+    group.add_argument('--report-every', type=int, default=5, choices=[1,10],
+                       help="Print stats at this many batch intervals")
     group.add_argument('--model-filename', default='model',
                        help="""Model filename (the model will be saved as
                        <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
@@ -133,7 +135,7 @@ class Trainer(object):
 
             # 1. Train for one epoch on the training set.
             train_iter = data.generator('train', opt.batch_size)
-            train_stats = self.train_epoch(train_iter, epoch, report_func)
+            train_stats = self.train_epoch(train_iter, opt, epoch, report_func)
             print('Train perplexity: %g' % train_stats.ppl())
 
             # 2. Validate on the validation set.
@@ -157,7 +159,7 @@ class Trainer(object):
                 self.drop_checkpoint(opt, epoch, valid_stats)
 
 
-    def train_epoch(self, train_iter, epoch, report_func=None):
+    def train_epoch(self, train_iter, opt, epoch, report_func=None):
         """ Train next epoch.
         Args:
             train_iter: training data iterator
@@ -172,9 +174,9 @@ class Trainer(object):
 
         total_stats = Statistics()
         report_stats = Statistics()
-        batch_idx = 0
         true_batchs = []
         accum = 0
+        batch_idx = 0
         normalization = 0
         # try:
         #     add_on = 0
@@ -182,8 +184,8 @@ class Trainer(object):
         #         add_on += 1
         #     num_batches = len(train_iter) / self.grad_accum_count + add_on
         # except NotImplementedError:
-            # Dynamic batching
-            # num_batches = -1
+        #     # Dynamic batching
+        #     num_batches = -1
 
         '''
         batch_dialogue is a dictionary with a key 'batch_seq'
@@ -201,36 +203,30 @@ class Trainer(object):
             'kbs': len 64 list of KB objects, the KB for open-movies simply holds
                 a suggested topic and is non-critical, so it can be safely ignored
         '''
-        for batch_dialogue in train_iter:
-            for batch in batch_dialogue['batch_seq']:
-                #cur_dataset = train_iter.get_cur_dataset()
-                #self.train_loss.cur_dataset = cur_dataset
-                # remove "make features"?
-                # TODO: batch is a dict, needs to redo the interface with the model
-                # they use a batch object and you call "batch.target", but ours is more raw
-                # so we need to update the interface
-                true_batchs.append(batch)
-                accum += 1
-                if self.norm_method == "tokens":
-                    batch_indices = batch['decoder_args']['targets'].flatten()
-                    non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
-                    normalization += non_PAD_tokens
-                    self.non_pad_count = non_PAD_tokens
-                else:
-                    normalization += batch['size']
+        # for batch_idx in range(opt.batches_per_epoch):
+        epoch_data = train_iter.next()
+        num_batches = len(epoch_data['batch_seq'])   # number of batches per epoch, given from the dataset
+        for batch_idx, batch in enumerate(epoch_data['batch_seq']):
+            true_batchs.append(batch)
+            accum += 1
+            if self.norm_method == "tokens":
+                batch_indices = batch['decoder_args']['targets'].flatten()
+                non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
+                normalization += non_PAD_tokens
+                self.non_pad_count = non_PAD_tokens
+            else:
+                normalization += batch['size']
 
-                if accum == self.grad_accum_count:
-                    self._gradient_accumulation(true_batchs, total_stats, report_stats)
+            if accum == self.grad_accum_count:
+                self._gradient_accumulation(true_batchs, total_stats, report_stats)
 
-                    if report_func is not None:
-                        print("Using the reporting function.")
-                        report_stats = report_func(epoch, batch_idx, num_batches,
-                            total_stats.start_time, self.optim.lr, report_stats)
+                if report_func is not None:
+                    report_stats = report_func(opt, epoch, batch_idx, num_batches,
+                        total_stats.start_time, report_stats)
 
-                    true_batchs = []
-                    accum = 0
-                    normalization = 0
-                    batch_idx += 1
+                true_batchs = []
+                accum = 0
+                normalization = 0
 
         # Accumulate gradients one last time if there are any leftover batches
         # Should not run for us since we plan to accumulate gradients at every
@@ -309,6 +305,12 @@ class Trainer(object):
             # onmt.io.make_features(batch, 'tgt')
             if self.data_type == 'text':
                 src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
+                for sl in src_lengths:
+                    if sl == 1:
+                        print(batch['encoder_tokens'])
+                        pdb.set_trace()
+                        sys.exit()
+                print(src_lengths)
                 report_stats.n_src_words += sum(src_lengths)
             else:
                 src_lengths = None

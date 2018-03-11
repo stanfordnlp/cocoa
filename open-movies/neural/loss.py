@@ -3,6 +3,8 @@ import torch
 import pdb
 import numpy as np
 import torch.nn as nn
+import math
+import sys
 
 from cocoa.pt_model.util import use_gpu
 from torch.autograd import Variable
@@ -53,7 +55,7 @@ def make_loss(opt, vocab_size, padding_idx, model):
         loss.cuda()
     return loss
 
-def report_func(epoch, batch, num_batches, start_time, lr, report_stats):
+def report_func(opt, epoch, batch, num_batches, start_time, report_stats):
     """
     This is the user-defined batch-level traing progress
     report function.
@@ -67,12 +69,9 @@ def report_func(epoch, batch, num_batches, start_time, lr, report_stats):
     Returns:
         report_stats(Statistics): updated Statistics instance.
     """
-    if batch % opt.report_every == -1 % opt.report_every:
+    if (batch % opt.report_every) == (-1 % opt.report_every):
         report_stats.output(epoch, batch + 1, num_batches, start_time)
-        if opt.exp_host:
-            report_stats.log("progress", experiment, lr)
-        if opt.tensorboard:
-            report_stats.log_tensorboard("progress", writer, lr, epoch)
+        # reset the Statistics
         report_stats = Statistics()
 
     return report_stats
@@ -102,7 +101,12 @@ class Statistics(object):
         return 100 * (self.n_correct / self.n_words)
 
     def ppl(self):
-        return math.exp(min(self.loss / self.n_words, 100))
+        if isinstance(self.loss, Variable):
+            loss = self.loss.data.numpy()[0]
+        entropy = min(loss / float(self.n_words), 100)
+
+        perplexity = math.exp(entropy)
+        return perplexity
 
     def elapsed_time(self):
         return time.time() - self.start_time

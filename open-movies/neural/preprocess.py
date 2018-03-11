@@ -6,6 +6,8 @@ import random
 import re
 import time
 import os
+import pdb
+import sys
 import numpy as np
 from itertools import izip, izip_longest
 from collections import namedtuple, defaultdict
@@ -306,19 +308,41 @@ class Preprocessor(object):
                 msg_tokens = tokenize(event.data)
                 tokens[event.agent] += len(msg_tokens)
                 turns[event.agent] += 1
+            else:  # the action was <DONE>, or some form of ending the chat
+                return True
         if tokens[0] < 40 and tokens[1] < 40:
             return True
         if turns[0] < 2 or turns[1] < 2:
             return True
         return False
 
+    # remove empty utterances with no words
+    def filter_example(self, exp):
+        filtered_agents, filtered_tokens = [], []
+        for agent, tokens in zip(exp.agents, exp.token_turns):
+            if len(tokens) > 2:
+                filtered_agents.append(agent)
+                filtered_tokens.append(tokens)
+            # else:
+            #     print(tokens)
+        exp.agents = filtered_agents
+        exp.token_turns = filtered_tokens
+        return exp
+
     def preprocess(self, examples):
         dialogues = []
         for ex in examples:
             if self.skip_example(ex):
                 continue
-            for d in self._process_example(ex):
-                dialogues.append(d)
+            for processed in self._process_example(ex):
+                filtered = self.filter_example(processed)
+                for words in filtered.token_turns:
+                   print(" ".join(words))
+                print len(filtered.token_turns)
+                # if len(filtered.token_turns) == 0:
+                #     print("yea, caught em")
+                #     continue
+                dialogues.append(filtered)
         return dialogues
 
 class DataGenerator(object):
@@ -423,14 +447,6 @@ class DataGenerator(object):
             start = end
         return dialogue_batches
 
-    def get_all_responses(self, name):
-        dialogues = self.dialogues[name]
-        responses = {'seller': [], 'buyer': []}
-        for dialogue in dialogues:
-            for turn, role in izip(dialogue.token_turns, dialogue.roles):
-                responses[role].extend(turn)
-        return responses
-
     def rewrite_candidate(self, fillers, candidate):
         rewritten = []
         tokens = candidate
@@ -491,7 +507,12 @@ class DataGenerator(object):
         if shuffle:
             random.shuffle(inds)
         for ind in inds:
-            yield dialogue_batches[ind]
+            thing = dialogue_batches[ind]
+            yield thing
+            # yield dialogue_batches[ind]
+
+    # REMOVE 0 AND 1 WORD DIALOGUES
+    # IS JUST ACTIONS LIKE <END> AND <DONE>, 1 IS LIKE <SOS> OR <EOS>
 
     def create_trie(self, batches, path):
         if path is None:
