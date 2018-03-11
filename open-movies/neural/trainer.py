@@ -22,7 +22,7 @@ import onmt.io
 import onmt.modules
 
 from cocoa.pt_model.util import smart_variable, basic_variable
-from logging import Statistics, make_loss, report_func
+from loss import Statistics, make_loss, report_func
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
