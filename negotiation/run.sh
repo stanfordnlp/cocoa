@@ -22,10 +22,12 @@ PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json \
       --train-examples-paths data/train.json --test-examples-paths data/dev.json \
       --train-max-examples 250 --test-max-examples 250 --verbose \
       --stats-file data/stats.train --mappings data/mappings
-      # --pretrained-wordvec data/mappings/glove.pt --word-vec-size 300
+#       --pretrained-wordvec data/mappings/glove.pt --word-vec-size 300
 
 # PYTHONPATH=. python ../scripts/split_dataset.py --example-paths scr/web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/
 
 # PYTHONPATH=. python ../scripts/split_dataset.py --example-paths /juicy/scr61/scr/nlp/hehe/cocoa/open-movie/web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/
 
-# PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file /scr/derekchen14/datasets/glove/glove.840B.300d.txt --vocab-file $(mappings)/vocab.pkl --output-file data/glove
+# PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py \
+#     --emb-file /scr/derekchen14/datasets/glove/glove.840B.300d.txt \
+#     --vocab-file data/mappings/vocab.pkl --output-file scr/glove --verbose
