@@ -6,13 +6,17 @@ from cocoa.core.util import read_json
 stats_path = None
 STATS = {}
 
-def init(path):
+def init(path, verbose=False):
     global stats_path, STATS
     stats_path = path
     try:
         STATS = read_json(stats_path)
+        if verbose:
+            print("Stats file loaded from {}".format(stats_path))
     except Exception:
         STATS = {}
+        if verbose:
+            print("New stats file created, will be stored in {}".format(stats_path))
 
 def add(*args):
     # Example: add_stats('data', 'num_examples', 3)

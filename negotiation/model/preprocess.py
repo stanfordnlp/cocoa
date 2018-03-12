@@ -14,10 +14,10 @@ from cocoa.core.util import read_pickle, write_pickle, read_json
 from cocoa.core.entity import Entity, CanonicalEntity, is_entity
 from cocoa.lib.bleu import compute_bleu
 from cocoa.model.vocab import Vocabulary
+from cocoa.model.trie import Trie
 
 from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
-from trie import Trie
 from batcher import DialogueBatcherFactory
 
 def add_preprocess_arguments(parser):

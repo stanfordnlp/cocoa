@@ -91,10 +91,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     random.seed(args.random_seed)
-    if args.verbose:
-        print("Stats file loaded from {}".format(args.stats_file))
     create_path(args.stats_file)
-    logstats.init(args.stats_file)
+    logstats.init(args.stats_file, args.verbose)
     logstats.add_args('config', args)
     model_args = args
     ckpt = None
