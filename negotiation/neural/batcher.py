@@ -9,8 +9,10 @@ def pad_list_to_array(l, fillvalue, dtype):
     return np.array(list(izip_longest(*l, fillvalue=fillvalue)), dtype=dtype).T
 
 class DialogueBatcher(object):
-    def __init__(self, int_markers=None):
+    def __init__(self, int_markers=None, slot_filling=None, kb_pad=None):
+        self.slot_filling = slot_filling
         self.int_markers = int_markers
+        self.kb_pad = kb_pad
 
     def _normalize_dialogue(self, dialogues):
         '''
@@ -230,12 +232,12 @@ class DialogueBatcher(object):
         agents = self._get_agent_batch_at(dialogues, 1)  # Decoding agent
         kbs = self._get_kb_batch(dialogues)
         uuids = [d.uuid for d in dialogues]
-        #kb_context_batch = self.create_context_batch(dialogues, self.kb_pad)
+        kb_context_batch = self.create_context_batch(dialogues, self.kb_pad)
         return {
                 'agents': agents,
                 'kbs': kbs,
                 'uuids': uuids,
-                'kb_context': None,
+                'kb_context': kb_context_batch,
                 }
 
     def get_encoding_turn_ids(self, num_turns):
@@ -283,6 +285,8 @@ class DialogueBatcher(object):
 class DialogueBatcherWrapper(object):
     def __init__(self, batcher):
         self.batcher = batcher
+        # TODO: fix kb_pad, hacky
+        self.kb_pad = batcher.kb_pad
 
     def create_batch(self, dialogues):
         raise NotImplementedError
@@ -301,6 +305,46 @@ class DialogueBatcherWrapper(object):
 
     def _get_turn_batch_at(self, dialogues, STAGE, i):
         return self.batcher._get_turn_batch_at(dialogues, STAGE, i)
+
+class PriceWrapper(DialogueBatcherWrapper):
+    '''
+    Add prices in the input. Used for PricePredictor.
+    '''
+    def _get_price_batch_at(self, dialogues, i):
+        prices = [d.price_turns[i] for dialogue in dialogues]
+        price_arr = pad_list_to_array(prices, self.int_markers.PAD, np.float32)
+        return price_arr
+
+    def _create_one_batch(self, encoder_prices=None, decoder_prices=None):
+        # Remove pad (<go>) at the beginning of utterance
+        encoder_price_inputs = encoder_prices[:, 1:]
+        decoder_price_inputs = decoder_prices[:, :-1]
+        price_targets = decoder_prices[:, 1:]
+        return {
+                'encoder_price_inputs': encoder_price_inputs,
+                'decoder_price_inputs': decoder_price_inputs,
+                'price_targets': price_targets,
+                }
+
+    def create_batch(self, dialogues):
+        dialogue_batch = self.batcher.create_batch(dialogues)
+
+        num_turns = dialogues[0].num_turns
+        encode_turn_ids = self.batcher.get_encoding_turn_ids(num_turns)
+        price_batch_seq = [
+                self.create_one_batch(
+                    encoder_prices=self._get_price_batch_at(dialogues, i),
+                    decoder_prices=self._get_price_batch_at(dialogues, i+1),
+                    )
+                for i in encode_turn_ids
+                ]
+
+        for batch, price_batch in izip(dialogue_batch['batch_seq'], price_batch_seq):
+            batch['encoder_args']['price_inputs'] = price_batch['encoder_price_inputs']
+            batch['decoder_args']['price_inputs'] = price_batch['decoder_price_inputs']
+            batch['decoder_args']['price_targets'] = price_batch['price_targets']
+
+        return dialogue_batch
 
 class RetrievalWrapper(DialogueBatcherWrapper):
     '''
@@ -517,4 +561,8 @@ class DialogueBatcherFactory(object):
     @classmethod
     def get_dialogue_batcher(cls, model_config, **kwargs):
         batcher = DialogueBatcher(**kwargs)
+        if 'price' in model_config:
+            batcher = PriceWrapper(batcher)
+        if 'retrieve' in model_config:
+            batcher = RetrievalWrapper(batcher)
         return batcher
