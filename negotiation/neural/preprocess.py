@@ -408,6 +408,8 @@ class Preprocessor(object):
         Tokenize, link entities
         '''
         if e.action == 'message':
+	    if self.lexicon is None:
+                return None
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, scale=True, price_clip=4.)
             if self.slot_filling:
@@ -476,11 +478,6 @@ class DataGenerator(object):
 
         self.slot_filling = preprocessor.slot_filling
 
-        if not mappings:
-            mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
-        pdb.set_trace()
-        write_pickle(mappings, 'craigslist-vocab.pkl')
-
         self.cache = cache
         self.ignore_cache = ignore_cache
         if (not os.path.exists(cache)) or ignore_cache:
@@ -497,10 +494,9 @@ class DataGenerator(object):
             self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
-        # if not mappings:
-        #     mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
+        if not mappings:
+            mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
         self.mappings = mappings
-
         self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
         Dialogue.mappings = mappings
         Dialogue.textint_map = self.textint_map
