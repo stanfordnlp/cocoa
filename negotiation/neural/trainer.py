@@ -135,11 +135,13 @@ class Trainer(object):
 
             # 1. Train for one epoch on the training set.
             train_iter = data.generator('train', opt.batch_size)
+            length_train_batches = train_iter.next()  # not sure why this is needed, see 'generator' in preprocess.py
             train_stats = self.train_epoch(train_iter, opt, epoch, report_func)
             print('Train perplexity: %g' % train_stats.ppl())
 
             # 2. Validate on the validation set.
             valid_iter = data.generator('dev', opt.batch_size)
+            length_val_batches = valid_iter.next()
             valid_stats = self.validate(valid_iter)
             print('Validation perplexity: %g' % valid_stats.ppl())
 
