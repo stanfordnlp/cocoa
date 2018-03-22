@@ -151,9 +151,38 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
+    def sort_by_length(self, inputs):
+        """
+        Args:
+            inputs (numpy.ndarray): (batch_size, seq_length)
+        """
+        def get_length(seq):
+            for i, x in enumerate(seq):
+                if x == self.int_markers.PAD:
+                    return i
+            return len(seq)
+        lengths = [get_length(s) for s in inputs]
+        # TODO: look into how it works for all-PAD seqs
+        lengths = [l if l > 0 else 1 for l in lengths]
+        sorted_id = np.argsort(lengths)[::-1]
+        return lengths, sorted_id
+
+    def order_by_id(self, inputs, ids):
+        if ids is None:
+            return inputs
+        else:
+            if type(inputs) is np.ndarray:
+                return inputs[ids, :]
+            elif type(inputs) is list:
+                return [inputs[i] for i in ids]
+            else:
+                raise ValueError
+
+    # TODO: consider sort_by_length
     def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
             target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
-            num_context=None, encoder_tokens=None, decoder_tokens=None):
+            num_context=None, encoder_tokens=None, decoder_tokens=None,
+            sort_by_length=True):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 
@@ -167,30 +196,27 @@ class DialogueBatcher(object):
         decoder_inputs = self._remove_last(decoder_inputs, self.int_markers.EOS)[:, :-1]
         decoder_targets = target_turns[:, 1:]
 
-        # Mask for slots
-        #if self.slot_filling:
-        #    decoder_targets = self._mask_slots(decoder_targets)
+        lengths, sorted_ids = self.sort_by_length(encoder_inputs)
 
-        #helpers = self.pick_helpers(token_candidates, candidates)  # (batch_size, helper_len)
-        #context_batch['helper'] = helpers
-
+        # TODO: context
         encoder_args = {
-                'inputs': encoder_inputs,
+                'inputs': self.order_by_id(encoder_inputs, sorted_ids),
                 'context': encoder_context,
+                'lengths': self.order_by_id(lengths, sorted_ids),
                 }
         decoder_args = {
-                'inputs': decoder_inputs,
-                'targets': decoder_targets,
+                'inputs': self.order_by_id(decoder_inputs, sorted_ids),
+                'targets': self.order_by_id(decoder_targets, sorted_ids),
                 'context': kb_context,
                 }
         batch = {
                 'encoder_args': encoder_args,
                 'decoder_args': decoder_args,
-                'encoder_tokens': encoder_tokens,
-                'decoder_tokens': decoder_tokens,
-                'agents': agents,
-                'kbs': kbs,
-                'uuids': uuids,
+                'encoder_tokens': self.order_by_id(encoder_tokens, sorted_ids),
+                'decoder_tokens': self.order_by_id(decoder_tokens, sorted_ids),
+                'agents': self.order_by_id(agents, sorted_ids),
+                'kbs': self.order_by_id(kbs, sorted_ids),
+                'uuids': self.order_by_id(uuids, sorted_ids),
                 'size': len(agents),
                 }
         return batch

@@ -2,10 +2,12 @@ def add_data_generator_arguments(parser):
     from preprocess import add_preprocess_arguments
     from cocoa.core.scenario_db import add_scenario_arguments
     from cocoa.core.dataset import add_dataset_arguments
+    from core.price_tracker import add_price_tracker_arguments
 
     add_scenario_arguments(parser)
     add_preprocess_arguments(parser)
     add_dataset_arguments(parser)
+    add_price_tracker_arguments(parser)
 
 def get_data_generator(args, model_args, mappings, schema):
     from cocoa.core.scenario_db import ScenarioDB
@@ -13,6 +15,7 @@ def get_data_generator(args, model_args, mappings, schema):
     from cocoa.core.util import read_json
 
     from core.scenario import Scenario
+    from core.price_tracker import PriceTracker
     from preprocess import DataGenerator, LMDataGenerator, EvalDataGenerator, Preprocessor
     import os.path
 
@@ -53,7 +56,7 @@ def get_data_generator(args, model_args, mappings, schema):
     #    retriever = None
 
     retriever = None
-    lexicon = None
+    lexicon = PriceTracker(model_args.price_tracker_model)
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
 
     #trie_path = os.path.join(model_args.mappings, 'trie.pkl')

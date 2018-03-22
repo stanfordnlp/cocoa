@@ -9,8 +9,10 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
 import pdb
 import onmt
+from onmt.Utils import aeq
 from attention import GlobalAttention
-from cocoa.pt_model.util import aeq, smart_variable
+
+from cocoa.pt_model.util import smart_variable
 
 
 def rnn_factory(rnn_type, **kwargs):
@@ -238,7 +240,7 @@ class RNNDecoderBase(nn.Module):
 
         # Set up the standard attention.
         self._coverage = coverage_attn
-        self.attn = GlobalAttention(hidden_size, vocab_size=vocab_size,
+        self.attn = GlobalAttention(hidden_size,
             coverage=coverage_attn, attn_type=attn_type)
 
         # Set up a separated copy attention layer, if needed.
@@ -292,10 +294,7 @@ class RNNDecoderBase(nn.Module):
         for k in attns:
             attns[k] = torch.stack(attns[k])
 
-        # Run a softmax over the output to predict words (and prepare for NLLLoss)
-        # TODO: Consider removing the log and using CrossEntropyLoss method
-        cocoa_outputs = F.log_softmax(decoder_outputs, dim=2)
-        return cocoa_outputs, state, attns
+        return decoder_outputs, state, attns
 
     def init_decoder_state(self, src, memory_bank, encoder_final):
         def _fix_enc_hidden(h):
@@ -557,7 +556,7 @@ class NMTModel(nn.Module):
 
         init_decoder_hidden = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank,
-                          init_decoder_hidden, memory_lengths=lengths)
+                          init_decoder_hidden, memory_lengths=torch.LongTensor(lengths).cuda())
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None

@@ -8,7 +8,9 @@ import os
 import time
 import pdb
 from itertools import chain
+import torch
 import torch.nn as nn
+from torch import cuda
 
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
@@ -17,11 +19,11 @@ from cocoa.lib import logstats
 import onmt
 from onmt.Utils import use_gpu
 
-from neural.trainer import add_trainer_arguments, Trainer
+from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator
 from neural import model_builder
-from neural.loss import make_loss
+from neural.loss import SimpleLossCompute
 
 #from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
 #from model.learner import add_learner_arguments, get_learner
@@ -70,11 +72,39 @@ def build_optim(opt, model, checkpoint):
     return optim
 
 def build_trainer(opt, model, vocab, optim):
+    # TODO: globals PAD
     pad_id = vocab.word_to_ind["<pad>"]
-    train_loss = make_loss(opt, vocab.size, pad_id, model)
-    valid_loss = make_loss(opt, vocab.size, pad_id, model)
+    train_loss = make_loss(opt, model, vocab)
+    valid_loss = make_loss(opt, model, vocab)
     trainer = Trainer(model, train_loss, valid_loss, optim, pad_id, opt.batch_size)
     return trainer
+
+def make_loss(opt, model, tgt_vocab):
+    loss = SimpleLossCompute(model.generator, tgt_vocab)
+    if use_gpu(opt):
+        loss.cuda()
+    return loss
+
+def report_func(opt, epoch, batch, num_batches, start_time, report_stats):
+    """
+    This is the user-defined batch-level traing progress
+    report function.
+    Args:
+        epoch(int): current epoch count.
+        batch(int): current batch count.
+        num_batches(int): total number of batches.
+        start_time(float): last report time.
+        lr(float): current learning rate.
+        report_stats(Statistics): old Statistics instance.
+    Returns:
+        report_stats(Statistics): updated Statistics instance.
+    """
+    if (batch % opt.report_every) == (-1 % opt.report_every):
+        report_stats.output(epoch, batch + 1, num_batches, start_time)
+        # reset the Statistics
+        report_stats = Statistics()
+
+    return report_stats
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -96,6 +126,14 @@ if __name__ == '__main__':
     logstats.add_args('config', args)
     model_args = args
     ckpt = None
+
+    if torch.cuda.is_available() and not args.gpuid:
+        print("WARNING: You have a CUDA device, should run with -gpuid 0")
+
+    if args.gpuid:
+        cuda.set_device(args.gpuid[0])
+        if args.random_seed > 0:
+            torch.cuda.manual_seed(args.random_seed)
 
     # Load vocab
     # TODO: put this in DataGenerator
@@ -147,4 +185,4 @@ if __name__ == '__main__':
     optim = build_optim(args, model, ckpt)
     trainer = build_trainer(args, model, mappings['vocab'], optim)
     # Perform actual training
-    trainer.learn(args, data_generator)
+    trainer.learn(args, data_generator, report_func)

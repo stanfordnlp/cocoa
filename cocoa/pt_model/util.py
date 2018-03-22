@@ -4,7 +4,6 @@ import torch
 from torch.autograd import Variable
 
 EPS = 1e-12
-use_cuda = torch.cuda.is_available()
 
 def basic_variable(data, dtype="long"):
     if dtype == "long":
@@ -13,7 +12,7 @@ def basic_variable(data, dtype="long"):
         tensor = torch.FloatTensor(data)
     return Variable(tensor)
 
-def smart_variable(data, dtype="tensor"):
+def smart_variable(data, dtype="tensor", use_cuda=True):
     if dtype == "list":
         result = basic_variable(data)
     elif dtype == "tensor":

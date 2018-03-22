@@ -408,8 +408,6 @@ class Preprocessor(object):
         Tokenize, link entities
         '''
         if e.action == 'message':
-	    if self.lexicon is None:
-                return None
             # Lower, tokenize, link entity
             entity_tokens = self.lexicon.link_entity(tokenize(e.data), kb=kb, scale=True, price_clip=4.)
             if self.slot_filling:
@@ -557,7 +555,6 @@ class DataGenerator(object):
             # NOTE: last batch may have a smaller size if we don't have enough examples
             end = min(start + batch_size, N)
             dialogue_batch = dialogues[start:end]
-            #dialogue_batches.append(self.get_dialogue_batch(dialogue_batch, self.slot_filling))
             dialogue_batches.append(self.dialogue_batcher.create_batch(dialogue_batch))
             start = end
         return dialogue_batches
@@ -601,15 +598,6 @@ class DataGenerator(object):
                         candidates = self.cached_candidates[k]
                     else:
                         candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
-
-                    #if self.slot_filling:
-                    #    for turn_candidates in candidates:
-                    #        if turn_candidates:
-                    #            for c in turn_candidates:
-                    #                if 'response' in c:
-                    #                    c['response'] = Preprocessor._mark_slots(c['response'])
-                    #                    #print c['response']
-                    #candidates = [c if c else self.retriever.empty_candidates for c in candidates]
 
                     dialogue.add_candidates(candidates, add_ground_truth=add_ground_truth)
                 self.retriever.report_search_time()

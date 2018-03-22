@@ -203,6 +203,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     model.model_type = 'text'
 
     # Make Generator.
+    print model_opt.rnn_size
     if not model_opt.copy_attn:
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, len(tgt_dict)),

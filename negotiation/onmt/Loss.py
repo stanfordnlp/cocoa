@@ -12,10 +12,13 @@ from torch.autograd import Variable
 import onmt
 import onmt.io
 
+
 class LossComputeBase(nn.Module):
     """
-    Class for managing efficient loss computation. Handles sharding
-    next step predictions and accumulating multiple loss computations
+    Class for managing efficient loss computation. Handles
+    sharding next step predictions and accumulating mutiple
+    loss computations
+
 
     Users can implement their own loss computation strategy by making
     subclass of this one.  Users need to implement the _compute_loss()
@@ -25,15 +28,15 @@ class LossComputeBase(nn.Module):
         generator (:obj:`nn.Module`) :
              module that maps the output of the decoder to a
              distribution over the target vocabulary.
-        vocab_size (:int:`vocab_size`) : number of words in the vocabulary
+        tgt_vocab (:obj:`Vocab`) :
+             torchtext vocab object representing the target output
         normalzation (str): normalize by "sents" or "tokens"
-        padding_idx (int): index of the special pad token
     """
-    def __init__(self, generator, vocab_size, padding_idx):
+    def __init__(self, generator, tgt_vocab):
         super(LossComputeBase, self).__init__()
         self.generator = generator
-        self.vocab_size = vocab_size
-        self.padding_idx = padding_idx
+        self.tgt_vocab = tgt_vocab
+        self.padding_idx = tgt_vocab.stoi[onmt.io.PAD_WORD]
 
     def _make_shard_state(self, batch, output, range_, attns=None):
         """
@@ -54,6 +57,7 @@ class LossComputeBase(nn.Module):
         Compute the loss. Subclass must define this method.
 
         Args:
+
             batch: the current batch.
             output: the predict output from the model.
             target: the validate target to compare output with.
@@ -81,8 +85,9 @@ class LossComputeBase(nn.Module):
 
         return batch_stats
 
-    def sharded_compute_loss(self, batch, output, attns, cur_trunc, trunc_size,
-                shard_size, normalization):
+    def sharded_compute_loss(self, batch, output, attns,
+                             cur_trunc, trunc_size, shard_size,
+                             normalization):
         """Compute the forward loss and backpropagate.  Computation is done
         with shards and optionally truncation for memory efficiency.
 
@@ -150,9 +155,9 @@ class NMTLossCompute(LossComputeBase):
     """
     Standard NMT Loss Computation.
     """
-    def __init__(self, generator, vocab_size, padding_idx, normalization="sents",
+    def __init__(self, generator, tgt_vocab, normalization="sents",
                  label_smoothing=0.0):
-        super(NMTLossCompute, self).__init__(generator, vocab_size, padding_idx)
+        super(NMTLossCompute, self).__init__(generator, tgt_vocab)
         assert (label_smoothing >= 0.0 and label_smoothing <= 1.0)
 
         if label_smoothing > 0:
@@ -163,12 +168,12 @@ class NMTLossCompute(LossComputeBase):
             # is equivalent to NLLLoss or CrossEntropyLoss.
             # All non-true labels are uniformly set to low-confidence.
             self.criterion = nn.KLDivLoss(size_average=False)
-            one_hot = torch.randn(1, vocab_size)
-            one_hot.fill_(label_smoothing / (vocab_size - 2))
+            one_hot = torch.randn(1, len(tgt_vocab))
+            one_hot.fill_(label_smoothing / (len(tgt_vocab) - 2))
             one_hot[0][self.padding_idx] = 0
             self.register_buffer('one_hot', one_hot)
         else:
-            weight = torch.ones(vocab_size)
+            weight = torch.ones(len(tgt_vocab))
             weight[self.padding_idx] = 0
             self.criterion = nn.NLLLoss(weight, size_average=False)
         self.confidence = 1.0 - label_smoothing
@@ -212,6 +217,7 @@ def filter_shard_state(state):
                 v = Variable(v.data, requires_grad=True, volatile=False)
             yield k, v
 
+
 def shards(state, shard_size, eval=False):
     """
     Args:
@@ -231,7 +237,8 @@ def shards(state, shard_size, eval=False):
     if eval:
         yield state
     else:
-        # the subdict of the state dictionary where the values are not None
+        # non_none: the subdict of the state dictionary where the values
+        # are not None.
         non_none = dict(filter_shard_state(state))
 
         # Now, the iteration:

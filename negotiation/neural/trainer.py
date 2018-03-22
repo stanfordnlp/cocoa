@@ -1,5 +1,5 @@
 from __future__ import division
-from __future__ import print_function
+#from __future__ import print_function
 """
 This is the loadable seq2seq trainer library that is
 in charge of training details, loss compute, and statistics.
@@ -19,10 +19,11 @@ import torch.nn as nn
 
 import onmt
 import onmt.io
-import onmt.modules
+#import onmt.modules
+from onmt.Trainer import Statistics as BaseStatistics
 
-from cocoa.pt_model.util import smart_variable, basic_variable
-from loss import Statistics, report_func
+from cocoa.pt_model.util import smart_variable, basic_variable, use_gpu
+
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -59,7 +60,7 @@ def add_trainer_arguments(parser):
     group.add_argument('--learning-rate', type=float, default=1.0,
                        help="""Starting learning rate. Recommended settings:
                        sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
-    group.add_argument('-gpuid', default=[], nargs='+', type=int,
+    group.add_argument('--gpuid', default=[], nargs='+', type=int,
                        help="Use CUDA on the listed devices.")
     group.add_argument('-seed', type=int, default=-1,
                        help="""Random seed used for the experiments reproducibility.""")
@@ -79,6 +80,27 @@ def add_trainer_arguments(parser):
                        the perplexity and E is the epoch""")
     group.add_argument('--model-path', default='data/checkpoints',
                        help="""Which file the model checkpoints will be saved""")
+
+
+class Statistics(BaseStatistics):
+    def output(self, epoch, batch, n_batches, start):
+        """Write out statistics to stdout.
+
+        Args:
+           epoch (int): current epoch
+           batch (int): current batch
+           n_batch (int): total batches
+           start (int): start time of epoch.
+        """
+        t = self.elapsed_time()
+        print(("Epoch %2d, %5d/%5d; loss: %6.2f; " +
+               "%3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed") %
+              (epoch, batch,  n_batches,
+               self.mean_loss(),
+               self.n_src_words / (t + 1e-5),
+               self.n_words / (t + 1e-5),
+               time.time() - start))
+        sys.stdout.flush()
 
 
 class Trainer(object):
@@ -119,7 +141,7 @@ class Trainer(object):
         # Set model in training mode.
         self.model.train()
 
-    def learn(self, opt, data):
+    def learn(self, opt, data, report_func):
         """Train model.
         Args:
             opt(namespace)
@@ -134,7 +156,7 @@ class Trainer(object):
             print('')
 
             # 1. Train for one epoch on the training set.
-            train_iter = data.generator('train', opt.batch_size)
+            train_iter = data.generator('train')
             length_train_batches = train_iter.next()  # not sure why this is needed, see 'generator' in preprocess.py
             train_stats = self.train_epoch(train_iter, opt, epoch, report_func)
             print('Train perplexity: %g' % train_stats.ppl())
@@ -180,14 +202,8 @@ class Trainer(object):
         accum = 0
         batch_idx = 0
         normalization = 0
-        # try:
-        #     add_on = 0
-        #     if len(train_iter) % self.grad_accum_count > 0:
-        #         add_on += 1
-        #     num_batches = len(train_iter) / self.grad_accum_count + add_on
-        # except NotImplementedError:
-        #     # Dynamic batching
-        #     num_batches = -1
+        num_batches = -1
+        cuda = use_gpu(opt)
 
         '''
         batch_dialogue is a dictionary with a key 'batch_seq'
@@ -205,37 +221,40 @@ class Trainer(object):
             'kbs': len 64 list of KB objects, the KB for open-movies simply holds
                 a suggested topic and is non-critical, so it can be safely ignored
         '''
-        # for batch_idx in range(opt.batches_per_epoch):
-        epoch_data = train_iter.next()
-        num_batches = len(epoch_data['batch_seq'])   # number of batches per epoch, given from the dataset
-        for batch_idx, batch in enumerate(epoch_data['batch_seq']):
-            true_batchs.append(batch)
-            accum += 1
-            if self.norm_method == "tokens":
-                batch_indices = batch['decoder_args']['targets'].flatten()
-                non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
-                normalization += non_PAD_tokens
-                self.non_pad_count = non_PAD_tokens
-            else:
-                normalization += batch['size']
+        ## for batch_idx in range(opt.batches_per_epoch):
+        #epoch_data = train_iter.next()
+        #num_batches = len(epoch_data['batch_seq'])   # number of batches per epoch, given from the dataset
+        idx = 0
+        for dialogue_batch in train_iter:
+            for batch in dialogue_batch['batch_seq']:
+                true_batchs.append(batch)
+                accum += 1
+                if self.norm_method == "tokens":
+                    batch_indices = batch['decoder_args']['targets'].flatten()
+                    non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
+                    normalization += non_PAD_tokens
+                    self.non_pad_count = non_PAD_tokens
+                else:
+                    normalization += batch['size']
 
-            if accum == self.grad_accum_count:
+                if accum == self.grad_accum_count:
+                    self._gradient_accumulation(true_batchs, total_stats, report_stats, cuda)
+
+                    if report_func is not None:
+                        report_stats = report_func(opt, epoch, idx, num_batches,
+                            total_stats.start_time, report_stats)
+
+                    true_batchs = []
+                    accum = 0
+                    normalization = 0
+                    idx += 1
+
+            # Accumulate gradients one last time if there are any leftover batches
+            # Should not run for us since we plan to accumulate gradients at every
+            # batch, so true_batches should always equal candidate batches
+            if len(true_batchs) > 0:
                 self._gradient_accumulation(true_batchs, total_stats, report_stats)
-
-                if report_func is not None:
-                    report_stats = report_func(opt, epoch, batch_idx, num_batches,
-                        total_stats.start_time, report_stats)
-
                 true_batchs = []
-                accum = 0
-                normalization = 0
-
-        # Accumulate gradients one last time if there are any leftover batches
-        # Should not run for us since we plan to accumulate gradients at every
-        # batch, so true_batches should always equal candidate batches
-        if len(true_batchs) > 0:
-            self._gradient_accumulation(true_batchs, total_stats, report_stats)
-            true_batchs = []
 
         return total_stats
 
@@ -257,9 +276,7 @@ class Trainer(object):
 
             src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
             outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, src_lengths)
-            val_loss = self.valid_loss.simple_compute_loss(targets, outputs)
-            batch_stats = self.valid_loss.compute_stats(val_loss,
-                                        targets, outputs, self.pad_id)
+            val_loss, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 
         return stats
@@ -299,55 +316,53 @@ class Trainer(object):
                    % (opt.model_filename, valid_stats.accuracy(),
                       valid_stats.ppl(), epoch))
 
-    def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
+    def _gradient_accumulation(self, true_batchs, total_stats, report_stats, cuda):
+        if self.grad_accum_count > 1:
+            self.model.zero_grad()
+
         for batch in true_batchs:
             dec_state = None
             encoder_inputs = batch['encoder_args']['inputs']
             # src = onmt.io.make_features(batch, 'src', self.data_type)
             # onmt.io.make_features(batch, 'tgt')
-            if self.data_type == 'text':
-                src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
-                for sl in src_lengths:
-                    if sl == 1:
-                        print(batch['encoder_tokens'])
-                        pdb.set_trace()
-                        sys.exit()
-                print(src_lengths)
-                report_stats.n_src_words += sum(src_lengths)
-            else:
-                src_lengths = None
+            #if self.data_type == 'text':
+            #    src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
+            #    report_stats.n_src_words += sum(src_lengths)
+            #else:
+            #    src_lengths = None
 
-            sorted_inputs, sorted_lengths = self.sort_by_length(encoder_inputs, src_lengths)
-            encoder_inputs = self.prepare_data(sorted_inputs)
+            encoder_inputs = self.prepare_data(encoder_inputs, cuda)
+            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'], cuda)
+            targets = self.prepare_data(batch['decoder_args']['targets'], cuda)
+            lengths = batch['encoder_args']['lengths']
 
-            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
-            targets = self.prepare_data(batch['decoder_args']['targets'])
-            # target_size = batch['size']
-            # for j in range(target_size):
             # 2. Forward-prop all but generator.
-            # if self.grad_accum_count == 1:
+            #if self.grad_accum_count == 1:
             self.model.zero_grad()
 
             outputs, attns, dec_state = \
-                self.model(encoder_inputs, decoder_inputs, sorted_lengths, dec_state)
+                self.model(encoder_inputs, decoder_inputs, lengths, dec_state)
+
             # 3. Compute loss
-            loss_score = self.train_loss.simple_compute_loss(targets, outputs)
-            batch_stats = self.train_loss.compute_accuracy(loss_score,
-                                            targets, outputs, self.pad_id)
-            # 4. Update the parameters and statistics.
-            # if self.grad_accum_count == 1:
+            loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
+            loss.backward()
             self.optim.step()
+
+            # 4. Update the parameters and statistics.
+            #if self.grad_accum_count == 1:
+            #batch_stats = self.train_loss.compute_accuracy(loss_score,
+            #                                targets, outputs, self.pad_id)
             total_stats.update(batch_stats)
             report_stats.update(batch_stats)
 
-    # TODO: Move to pre-processing step
-    def sort_by_length(self, data, lengths):
-        sorted_inputs = [d.tolist() for d,l in 
-			          sorted(zip(data,lengths), key=lambda(x,y): y, reverse=True)]
-        sorted_lengths = sorted(lengths, reverse=True)
-        return sorted_inputs, sorted_lengths
+            # If truncated, don't backprop fully.
+            if dec_state is not None:
+                dec_state.detach()
 
-    def prepare_data(self, data):
-        result = smart_variable(data, "list")
+    def prepare_data(self, data, cuda):
+        #print data.shape
+        #print data
+        result = smart_variable(data.tolist(), "list", cuda)
+        #result = torch.from_numpy(data)
         result = result.transpose(0,1)  # change into (seq_len, batch_size)
         return result

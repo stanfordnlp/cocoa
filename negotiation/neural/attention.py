@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from onmt.modules.UtilClass import BottleLinear
-from cocoa.pt_model.util import aeq, sequence_mask
+from onmt.Utils import aeq, sequence_mask
 
 
 class GlobalAttention(nn.Module):
@@ -39,11 +39,10 @@ class GlobalAttention(nn.Module):
        attn_type (str): type of attention to use, options [dot,general,mlp]
 
     """
-    def __init__(self, dim, vocab_size=None, coverage=False, attn_type="dot"):
+    def __init__(self, dim, coverage=False, attn_type="dot"):
         super(GlobalAttention, self).__init__()
 
         self.dim = dim
-        self.vocab_dim = dim if vocab_size is None else vocab_size
         self.attn_type = attn_type
         assert (self.attn_type in ["dot", "general", "mlp"]), (
                 "Please select a valid attention type.")
@@ -56,7 +55,7 @@ class GlobalAttention(nn.Module):
             self.v = BottleLinear(dim, 1, bias=False)
         # mlp wants it with bias
         out_bias = self.attn_type == "mlp"
-        self.linear_out = nn.Linear(dim*2, self.vocab_dim, bias=out_bias)
+        self.linear_out = nn.Linear(dim*2, dim, bias=out_bias)
 
         self.sm = nn.Softmax()
         self.tanh = nn.Tanh()
@@ -164,7 +163,7 @@ class GlobalAttention(nn.Module):
 
         # concatenate
         concat_c = torch.cat([c, input], 2).view(batch*targetL, dim*2)
-        attn_h = self.linear_out(concat_c).view(batch, targetL, self.vocab_dim)
+        attn_h = self.linear_out(concat_c).view(batch, targetL, dim)
         if self.attn_type in ["general", "dot"]:
             attn_h = self.tanh(attn_h)
 
@@ -175,7 +174,7 @@ class GlobalAttention(nn.Module):
             # Check output sizes
             batch_, dim_ = attn_h.size()
             aeq(batch, batch_)
-            aeq(self.vocab_dim, dim_)
+            aeq(dim, dim_)
             batch_, sourceL_ = align_vectors.size()
             aeq(batch, batch_)
             aeq(sourceL, sourceL_)
@@ -187,7 +186,7 @@ class GlobalAttention(nn.Module):
             targetL_, batch_, dim_ = attn_h.size()
             aeq(targetL, targetL_)
             aeq(batch, batch_)
-            aeq(self.vocab_dim, dim_)
+            aeq(dim, dim_)
             targetL_, batch_, sourceL_ = align_vectors.size()
             aeq(targetL, targetL_)
             aeq(batch, batch_)
