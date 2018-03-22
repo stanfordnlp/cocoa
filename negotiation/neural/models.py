@@ -7,12 +7,8 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
-import pdb
 import onmt
 from onmt.Utils import aeq
-from attention import GlobalAttention
-
-from cocoa.pt_model.util import smart_variable
 
 
 def rnn_factory(rnn_type, **kwargs):
@@ -52,9 +48,9 @@ class EncoderBase(nn.Module):
           E-->G
     """
     def _check_args(self, input, lengths=None, hidden=None):
-        s_len, n_batch = input.size()  # n_feats has been removed
+        s_len, n_batch = input.size()
         if lengths is not None:
-            n_batch_ = len(lengths)  # we store in list rather than a Variable
+            n_batch_, = lengths.size()
             aeq(n_batch, n_batch_)
 
     def forward(self, src, lengths=None, encoder_state=None):
@@ -145,7 +141,8 @@ class RNNEncoder(EncoderBase):
 
         packed_emb = emb
         if lengths is not None and not self.no_pack_padded_seq:
-            # Lengths data is a list of length batch_size, in decreasing order
+            # Lengths data is wrapped inside a Variable.
+            lengths = lengths.view(-1).tolist()
             packed_emb = pack(emb, lengths)
 
         memory_bank, encoder_final = self.rnn(packed_emb, encoder_state)
@@ -194,8 +191,37 @@ class RNNEncoder(EncoderBase):
 
 class RNNDecoderBase(nn.Module):
     """
-    Base recurrent attention-based decoder class. Specifies the interface used
-    by different decoder types and required by :obj:`onmt.Models.NMTModel`.
+    Base recurrent attention-based decoder class.
+    Specifies the interface used by different decoder types
+    and required by :obj:`onmt.Models.NMTModel`.
+
+
+    .. mermaid::
+
+       graph BT
+          A[Input]
+          subgraph RNN
+             C[Pos 1]
+             D[Pos 2]
+             E[Pos N]
+          end
+          G[Decoder State]
+          H[Decoder State]
+          I[Outputs]
+          F[Memory_Bank]
+          A--emb-->C
+          A--emb-->D
+          A--emb-->E
+          H-->C
+          C-- attn --- F
+          D-- attn --- F
+          E-- attn --- F
+          C-->I
+          D-->I
+          E-->I
+          E-->G
+          F---I
+
     Args:
        rnn_type (:obj:`str`):
           style of recurrent unit to use, one of [RNN, LSTM, GRU, SRU]
@@ -210,7 +236,7 @@ class RNNDecoderBase(nn.Module):
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
     """
     def __init__(self, rnn_type, bidirectional_encoder, num_layers,
-                 hidden_size, vocab_size, attn_type="general",
+                 hidden_size, attn_type="general",
                  coverage_attn=False, context_gate=None,
                  copy_attn=False, dropout=0.0, embeddings=None,
                  reuse_copy_attn=False):
@@ -230,6 +256,7 @@ class RNNDecoderBase(nn.Module):
                                    hidden_size=hidden_size,
                                    num_layers=num_layers,
                                    dropout=dropout)
+
         # Set up the context gate.
         self.context_gate = None
         if context_gate is not None:
@@ -240,13 +267,17 @@ class RNNDecoderBase(nn.Module):
 
         # Set up the standard attention.
         self._coverage = coverage_attn
-        self.attn = GlobalAttention(hidden_size,
-            coverage=coverage_attn, attn_type=attn_type)
+        self.attn = onmt.modules.GlobalAttention(
+            hidden_size, coverage=coverage_attn,
+            attn_type=attn_type
+        )
 
         # Set up a separated copy attention layer, if needed.
         self._copy = False
         if copy_attn and not reuse_copy_attn:
-            self.copy_attn = GlobalAttention(hidden_size, attn_type=attn_type)
+            self.copy_attn = onmt.modules.GlobalAttention(
+                hidden_size, attn_type=attn_type
+            )
         if copy_attn:
             self._copy = True
         self._reuse_copy_attn = reuse_copy_attn
@@ -255,7 +286,7 @@ class RNNDecoderBase(nn.Module):
         """
         Args:
             tgt (`LongTensor`): sequences of padded tokens
-                                `[tgt_len x batch x nfeats]`.
+                                `[tgt_len x batch]`.
             memory_bank (`FloatTensor`): vectors from the encoder
                  `[src_len x batch x hidden]`.
             state (:obj:`onmt.Models.DecoderState`):
@@ -273,11 +304,11 @@ class RNNDecoderBase(nn.Module):
         # Check
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
-        # memory bank is (source_len, batch_size, hidden_size)
         _, memory_batch, _ = memory_bank.size()
         aeq(tgt_batch, memory_batch)
+        # END
 
-        # Run the forward pass of the RNN, "state" is the decoder hidden state
+        # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
             tgt, memory_bank, state, memory_lengths=memory_lengths)
 
@@ -289,7 +320,6 @@ class RNNDecoderBase(nn.Module):
         state.update_state(decoder_final, final_output.unsqueeze(0), coverage)
 
         # Concatenates sequence of tensors along a new dimension.
-        # NOTE: not sure is\f this changes anything in our case ...
         decoder_outputs = torch.stack(decoder_outputs)
         for k in attns:
             attns[k] = torch.stack(attns[k])
@@ -334,7 +364,7 @@ class StdRNNDecoder(RNNDecoderBase):
         Must be overriden by all subclasses.
         Args:
             tgt (LongTensor): a sequence of input tokens tensors
-                                 [len x batch ].  # we remove n_feats
+                                 [len x batch].
             memory_bank (FloatTensor): output(tensor sequence) from the encoder
                         RNN of size (src_len x batch x hidden_size).
             state (FloatTensor): hidden state from the encoder RNN for
@@ -363,7 +393,7 @@ class StdRNNDecoder(RNNDecoderBase):
 
         # Check
         tgt_len, tgt_batch = tgt.size()
-        output_len, output_batch, hidden_size = rnn_output.size()
+        output_len, output_batch, _ = rnn_output.size()
         aeq(tgt_len, output_len)
         aeq(tgt_batch, output_batch)
         # END
@@ -436,7 +466,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         # Additional args check.
         input_feed = state.input_feed.squeeze(0)
         input_feed_batch, _ = input_feed.size()
-        tgt_len, tgt_batch, _ = tgt.size()
+        tgt_len, tgt_batch = tgt.size()
         aeq(tgt_batch, input_feed_batch)
         # END Additional args check.
 
@@ -533,30 +563,33 @@ class NMTModel(nn.Module):
         Possible initialized with a beginning decoder state.
 
         Args:
-            src (:obj:`Tensor`): a source sequence passed to encoder.
+            src (:obj:`Tensor`):
+                a source sequence passed to encoder.
                 typically for inputs this will be a padded :obj:`LongTensor`
-                of size `[source_len x batch x features]`. however, may be an
+                of size `[len x batch x features]`. however, may be an
                 image or other generic input depending on encoder.
             tgt (:obj:`LongTensor`):
-                 a target sequence of size `[target_len x batch]`.
+                 a target sequence of size `[tgt_len x batch]`.
             lengths(:obj:`LongTensor`): the src lengths, pre-padding `[batch]`.
             dec_state (:obj:`DecoderState`, optional): initial decoder state
         Returns:
             (:obj:`FloatTensor`, `dict`, :obj:`onmt.Models.DecoderState`):
 
-                 * decoder output `[target_len x batch x hidden]`
+                 * decoder output `[tgt_len x batch x hidden]`
                  * dictionary attention dists of `[tgt_len x batch x src_len]`
                  * final decoder state
         """
         # tgt = tgt[:-1]  originally, this exclude last target (a <EOS> token)
-        # from decoder inputs, but our preprocessing already handles this and
-        # even prepends a <SOS> token
-        enc_final, memory_bank = self.encoder(src, lengths)
-        enc_state = self.decoder.init_decoder_state(src, memory_bank, enc_final)
+        # from decoder inputs, but our preprocessing already handles this
 
-        init_decoder_hidden = enc_state if dec_state is None else dec_state
-        decoder_outputs, dec_state, attns = self.decoder(tgt, memory_bank,
-                          init_decoder_hidden, memory_lengths=torch.LongTensor(lengths).cuda())
+        enc_final, memory_bank = self.encoder(src, lengths)
+        enc_state = \
+            self.decoder.init_decoder_state(src, memory_bank, enc_final)
+        decoder_outputs, dec_state, attns = \
+            self.decoder(tgt, memory_bank,
+                         enc_state if dec_state is None
+                         else dec_state,
+                         memory_lengths=lengths)
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None

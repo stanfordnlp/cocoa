@@ -1,28 +1,17 @@
 from __future__ import division
-#from __future__ import print_function
-"""
-This is the loadable seq2seq trainer library that is
-in charge of training details, loss compute, and statistics.
-See train.py for a use case of this library.
 
-Note!!! To make this a general library, we implement *only*
-mechanism things here(i.e. what to do), and leave the strategy
-things to users(i.e. how to do it). Also see train.py(one of the
-users of this library) for the strategy things we do.
-"""
 import time
 import sys
 import pdb # set_trace
 import math
+import numpy as np
 import torch
 import torch.nn as nn
 
-import onmt
-import onmt.io
-#import onmt.modules
 from onmt.Trainer import Statistics as BaseStatistics
+from onmt.Utils import use_gpu
 
-from cocoa.pt_model.util import smart_variable, basic_variable, use_gpu
+from cocoa.pt_model.util import smart_variable
 
 
 def add_trainer_arguments(parser):
@@ -80,6 +69,9 @@ def add_trainer_arguments(parser):
                        the perplexity and E is the epoch""")
     group.add_argument('--model-path', default='data/checkpoints',
                        help="""Which file the model checkpoints will be saved""")
+    group.add_argument('--start-checkpoint-at', type=int, default=0,
+                       help="""Start checkpointing every epoch after and including
+                       this epoch""")
 
 
 class Statistics(BaseStatistics):
@@ -95,7 +87,7 @@ class Statistics(BaseStatistics):
         t = self.elapsed_time()
         print(("Epoch %2d, %5d/%5d; loss: %6.2f; " +
                "%3.0f src tok/s; %3.0f tgt tok/s; %6.0f s elapsed") %
-              (epoch, batch,  n_batches,
+              (epoch, batch, n_batches,
                self.mean_loss(),
                self.n_src_words / (t + 1e-5),
                self.n_words / (t + 1e-5),
@@ -135,6 +127,7 @@ class Trainer(object):
         self.data_type = data_type
         self.norm_method = norm_method # by sentences vs. by tokens
         self.grad_accum_count = grad_accum_count
+        self.cuda = False
 
         assert(grad_accum_count > 0)
 
@@ -157,15 +150,14 @@ class Trainer(object):
 
             # 1. Train for one epoch on the training set.
             train_iter = data.generator('train')
-            length_train_batches = train_iter.next()  # not sure why this is needed, see 'generator' in preprocess.py
             train_stats = self.train_epoch(train_iter, opt, epoch, report_func)
-            print('Train perplexity: %g' % train_stats.ppl())
+            print('Train loss: %g' % train_stats.mean_loss())
 
             # 2. Validate on the validation set.
             valid_iter = data.generator('dev', opt.batch_size)
             length_val_batches = valid_iter.next()
             valid_stats = self.validate(valid_iter)
-            print('Validation perplexity: %g' % valid_stats.ppl())
+            print('Validation loss: %g' % valid_stats.mean_loss())
 
             # 3. Log to remote server.
             #if opt.exp_host:
@@ -200,14 +192,12 @@ class Trainer(object):
         report_stats = Statistics()
         true_batchs = []
         accum = 0
-        batch_idx = 0
         normalization = 0
-        num_batches = -1
-        cuda = use_gpu(opt)
+        num_batches = train_iter.next()
+        self.cuda = use_gpu(opt)
 
         '''
         batch_dialogue is a dictionary with a key 'batch_seq'
-        It's value is a list of dialogue-batches, in our case 5 batches
         Each batch of data has keys:
             'size': batch size, which is our case is 64
             'decoder_tokens': 64 lists of tokens
@@ -221,40 +211,27 @@ class Trainer(object):
             'kbs': len 64 list of KB objects, the KB for open-movies simply holds
                 a suggested topic and is non-critical, so it can be safely ignored
         '''
-        ## for batch_idx in range(opt.batches_per_epoch):
-        #epoch_data = train_iter.next()
-        #num_batches = len(epoch_data['batch_seq'])   # number of batches per epoch, given from the dataset
-        idx = 0
-        for dialogue_batch in train_iter:
+        for batch_idx, dialogue_batch in enumerate(train_iter):
+            # Each batch is one turn in the dialogue
             for batch in dialogue_batch['batch_seq']:
                 true_batchs.append(batch)
                 accum += 1
-                if self.norm_method == "tokens":
-                    batch_indices = batch['decoder_args']['targets'].flatten()
-                    non_PAD_tokens = sum([1 for bi in batch_indices if bi != self.pad_id])
-                    normalization += non_PAD_tokens
-                    self.non_pad_count = non_PAD_tokens
-                else:
-                    normalization += batch['size']
 
                 if accum == self.grad_accum_count:
-                    self._gradient_accumulation(true_batchs, total_stats, report_stats, cuda)
-
-                    if report_func is not None:
-                        report_stats = report_func(opt, epoch, idx, num_batches,
-                            total_stats.start_time, report_stats)
-
+                    self._gradient_accumulation(true_batchs, total_stats, report_stats)
                     true_batchs = []
                     accum = 0
-                    normalization = 0
-                    idx += 1
 
-            # Accumulate gradients one last time if there are any leftover batches
-            # Should not run for us since we plan to accumulate gradients at every
-            # batch, so true_batches should always equal candidate batches
-            if len(true_batchs) > 0:
-                self._gradient_accumulation(true_batchs, total_stats, report_stats)
-                true_batchs = []
+            if report_func is not None:
+                report_stats = report_func(opt, epoch, batch_idx, num_batches,
+                    total_stats.start_time, report_stats)
+
+        # Accumulate gradients one last time if there are any leftover batches
+        # Should not run for us since we plan to accumulate gradients at every
+        # batch, so true_batches should always equal candidate batches
+        if len(true_batchs) > 0:
+            self._gradient_accumulation(true_batchs, total_stats, report_stats)
+            true_batchs = []
 
         return total_stats
 
@@ -269,15 +246,20 @@ class Trainer(object):
 
         stats = Statistics()
 
-        for batch in valid_iter:
-            encoder_inputs = batch['encoder_args']['inputs']
-            decoder_inputs = batch['decoder_args']['inputs']
-            decoder_targets = batch['decoder_args']['targets']
+        for dialogue_batch in valid_iter:
+            for batch in dialogue_batch['batch_seq']:
+                encoder_inputs = self.prepare_data(batch['encoder_args']['inputs'])
+                decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
+                targets = self.prepare_data(batch['decoder_args']['targets'])
+                # TODO
+                lengths = torch.LongTensor(batch['encoder_args']['lengths']).cuda()
 
-            src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
-            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, src_lengths)
-            val_loss, batch_stats = self.valid_loss.compute_loss(targets, outputs)
-            stats.update(batch_stats)
+                outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+                _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
+                stats.update(batch_stats)
+
+        # Set model back to training mode
+        self.model.train()
 
         return stats
 
@@ -311,58 +293,46 @@ class Trainer(object):
             'epoch': epoch,
             'optim': self.optim,
         }
-        torch.save(checkpoint,
-                   '%s_acc_%.2f_ppl_%.2f_e%d.pt'
-                   % (opt.model_filename, valid_stats.accuracy(),
-                      valid_stats.ppl(), epoch))
+        path = '{root}/{model}_loss{loss:.2f}_e{epoch:d}.pt'.format(
+                    root=opt.model_path,
+                    model=opt.model_filename,
+                    loss=valid_stats.mean_loss(),
+                    epoch=epoch)
+        print 'Save checkpoint {path}'.format(path=path)
+        torch.save(checkpoint, path)
 
-    def _gradient_accumulation(self, true_batchs, total_stats, report_stats, cuda):
+    def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
         if self.grad_accum_count > 1:
             self.model.zero_grad()
 
         for batch in true_batchs:
             dec_state = None
             encoder_inputs = batch['encoder_args']['inputs']
-            # src = onmt.io.make_features(batch, 'src', self.data_type)
-            # onmt.io.make_features(batch, 'tgt')
-            #if self.data_type == 'text':
-            #    src_lengths = [sum([1 for x in source if x != self.pad_id]) for source in encoder_inputs]
-            #    report_stats.n_src_words += sum(src_lengths)
-            #else:
-            #    src_lengths = None
 
-            encoder_inputs = self.prepare_data(encoder_inputs, cuda)
-            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'], cuda)
-            targets = self.prepare_data(batch['decoder_args']['targets'], cuda)
-            lengths = batch['encoder_args']['lengths']
+            encoder_inputs = self.prepare_data(encoder_inputs)
+            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
+            targets = self.prepare_data(batch['decoder_args']['targets'])
+            lengths = torch.LongTensor(batch['encoder_args']['lengths']).cuda()
 
-            # 2. Forward-prop all but generator.
-            #if self.grad_accum_count == 1:
             self.model.zero_grad()
 
             outputs, attns, dec_state = \
                 self.model(encoder_inputs, decoder_inputs, lengths, dec_state)
 
-            # 3. Compute loss
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()
             self.optim.step()
 
-            # 4. Update the parameters and statistics.
-            #if self.grad_accum_count == 1:
-            #batch_stats = self.train_loss.compute_accuracy(loss_score,
-            #                                targets, outputs, self.pad_id)
             total_stats.update(batch_stats)
             report_stats.update(batch_stats)
 
-            # If truncated, don't backprop fully.
+            # Don't backprop fully.
             if dec_state is not None:
                 dec_state.detach()
 
-    def prepare_data(self, data, cuda):
-        #print data.shape
-        #print data
-        result = smart_variable(data.tolist(), "list", cuda)
-        #result = torch.from_numpy(data)
-        result = result.transpose(0,1)  # change into (seq_len, batch_size)
+    # TODO: move this to data iterator
+    def prepare_data(self, data):
+        result = smart_variable(data, "list", self.cuda)
+        if len(result.size()) > 1:
+            result = result.transpose(0, 1)  # change into (seq_len, batch_size)
         return result

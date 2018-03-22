@@ -117,7 +117,7 @@ def make_encoder(opt, embeddings):
                           False)
 
 
-def make_decoder(opt, embeddings, vocab_size):
+def make_decoder(opt, embeddings):
     """
     Various decoder dispatcher function.
     Args:
@@ -142,7 +142,7 @@ def make_decoder(opt, embeddings, vocab_size):
                                    embeddings=embeddings)
     else:
         return StdRNNDecoder(opt.rnn_type, bidirectional,
-                             opt.dec_layers, opt.rnn_size, vocab_size,
+                             opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
                              embeddings=embeddings)
@@ -196,7 +196,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
     #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
 
-    decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict.size)
+    decoder = make_decoder(model_opt, tgt_embeddings)
 
     # Make NMTModel(= encoder + decoder).
     model = NMTModel(encoder, decoder)

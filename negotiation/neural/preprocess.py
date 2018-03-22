@@ -622,11 +622,10 @@ class DataGenerator(object):
         dialogue_batches = self.batches[name]
         yield len(dialogue_batches)
         inds = range(len(dialogue_batches))
-        while True:
-            if shuffle:
-                random.shuffle(inds)
-            for ind in inds:
-                yield dialogue_batches[ind]
+        if shuffle:
+            random.shuffle(inds)
+        for ind in inds:
+            yield dialogue_batches[ind]
 
     def create_trie(self, batches, path):
         if path is None:

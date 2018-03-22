@@ -13,6 +13,9 @@ def basic_variable(data, dtype="long"):
     return Variable(tensor)
 
 def smart_variable(data, dtype="tensor", use_cuda=True):
+    if type(data) == np.ndarray:
+        data = data.tolist()
+        dtype = 'list'
     if dtype == "list":
         result = basic_variable(data)
     elif dtype == "tensor":
@@ -58,17 +61,6 @@ def transpose_first_two_dims(batch_input):
     rank = len(batch_input.size)
     return torch.transpose(batch_input, perm=[1, 0]+range(2, rank))
 
-
-def resettable_metric(metric, scope_name, **metric_args):
-    '''
-    Originally from https://github.com/tensorflow/tensorflow/issues/4814#issuecomment-314801758
-    '''
-    with tf.variable_scope(scope_name) as scope:
-        metric_op, update_op = metric(**metric_args)
-        v = tf.contrib.framework.get_variables(\
-                    scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
-        reset_op = tf.variables_initializer(v)
-    return metric_op, update_op, reset_op
 
 def entropy(p, normalized=True):
     p = np.array(p, dtype=np.float32)
