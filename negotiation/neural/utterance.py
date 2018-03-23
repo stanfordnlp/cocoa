@@ -84,7 +84,7 @@ class UtteranceBuilder(object):
                           for n in range(self.n_best)]
             gold_sent = None
             if tgt is not None:
-                gold_sent = self._build_target_tokens(tgt[1:, b])
+                gold_sent = self._build_target_tokens(tgt[:, b])
 
             utterance = Utterance(src_raw, pred_sents,
                                   attn[b], pred_score[b], gold_sent,

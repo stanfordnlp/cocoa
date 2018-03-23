@@ -66,15 +66,21 @@ class Generator(object):
         beam_size = self.beam_size
         batch_size = batch.size
         vocab = self.vocab
-        # TODO: fix go_s, go_b
+
+        def get_bos(b):
+            tgt_sent = batch.context_data['decoder_tokens'][b]
+            # Padded turn, use arbitrary start symbol
+            bos = markers.GO_S if not tgt_sent else tgt_sent[0]
+            return vocab.word_to_ind[bos]
+
         beam = [onmt.translate.Beam(beam_size, n_best=self.n_best,
                                     cuda=self.cuda,
                                     global_scorer=self.global_scorer,
                                     pad=vocab.word_to_ind[markers.PAD],
-                                    bos=vocab.word_to_ind[markers.GO_S],
+                                    bos=get_bos(b),
                                     eos=vocab.word_to_ind[markers.EOS],
                                     min_length=self.min_length)
-                for __ in range(batch_size)]
+                for b in range(batch_size)]
 
         # Help functions for working with beams and batches
         def var(a): return Variable(a, volatile=True)

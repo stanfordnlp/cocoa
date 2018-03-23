@@ -6,6 +6,7 @@ from onmt.Utils import use_gpu
 
 from neural.generator import Generator
 from neural.utterance import UtteranceBuilder
+from neural.beam import Scorer
 
 
 def add_evaluator_arguments(parser):
@@ -23,6 +24,9 @@ def add_evaluator_arguments(parser):
     group.add_argument('--n-best', type=int, default=1,
                        help="""If verbose is set, will output the n_best
                        decoded sentences""")
+    group.add_argument('--alpha', type=float, default=0.5,
+                       help="""Google NMT length penalty parameter
+                        (higher = longer generation)""")
 
     group = parser.add_argument_group('Efficiency')
     group.add_argument('--batch-size', type=int, default=30,
@@ -41,10 +45,13 @@ class Evaluator(object):
         self.vocab = vocab
 
     def evaluate(self, opt, model_opt, data, split='test'):
+        scorer = Scorer(opt.alpha)
+
         generator = Generator(self.model, self.vocab,
                               beam_size=opt.beam_size,
                               n_best=opt.n_best,
                               max_length=opt.max_length,
+                              global_scorer=scorer,
                               cuda=use_gpu(opt),
                               min_length=opt.min_length)
 
