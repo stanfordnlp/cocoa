@@ -1,4 +1,5 @@
 model=encdec
+test_model_ckpt=trained_model.pt # path to checkpoint of a trained model
 exp=basic
 lr=0.5
 scr=/scr/hehe/game-dialogue
@@ -59,7 +60,7 @@ train:
  	#--train-max-examples 250 --test-max-examples 250 
 
 test:
-	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --model $(test_model) \
+	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --model $(test_model_ckpt) \
 	--test-max-examples 10 \
 	--ignore-cache \
 
