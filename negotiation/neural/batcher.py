@@ -1,12 +1,90 @@
 import numpy as np
 from itertools import izip_longest, izip
 
+import torch
+from torch.autograd import Variable
+
+from symbols import markers
+
 def pad_list_to_array(l, fillvalue, dtype):
     '''
     l: list of lists with unequal length
     return: np array with minimal padding
     '''
     return np.array(list(izip_longest(*l, fillvalue=fillvalue)), dtype=dtype).T
+
+class Batch(object):
+    def __init__(self, encoder_args, decoder_args, context_data, vocab, time_major=True, sort_by_length=True, cuda=False):
+        # TODO: context
+        self.vocab = vocab
+        self.encoder_inputs = encoder_args['inputs']
+        self.decoder_inputs = decoder_args['inputs']
+        self.targets = decoder_args['targets']
+        self.size = self.targets.shape[0]
+        self.context_data = context_data
+
+        self.lengths, sorted_ids = self.sort_by_length(self.encoder_inputs)
+        if sort_by_length:
+            for k, v in self.context_data.iteritems():
+                self.context_data[k] = self.order_by_id(v, sorted_ids)
+            for attr in ('encoder_inputs', 'decoder_inputs', 'targets', 'lengths'):
+                setattr(self, attr, self.order_by_id(getattr(self, attr), sorted_ids))
+
+        if time_major:
+            for attr in ('encoder_inputs', 'decoder_inputs', 'targets'):
+                setattr(self, attr, np.swapaxes(getattr(self, attr), 0, 1))
+
+        # To tensor/variable
+        self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
+        self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
+        self.targets = self.to_variable(self.targets, 'long', cuda)
+        self.lengths = self.to_tensor(self.lengths, 'long', cuda)
+
+    @classmethod
+    def to_tensor(cls, data, dtype, cuda=False):
+        if type(data) == np.ndarray:
+            data = data.tolist()
+        if dtype == "long":
+            tensor = torch.LongTensor(data)
+        elif dtype == "float":
+            tensor = torch.FloatTensor(data)
+        else:
+            raise ValueError
+        return tensor.cuda() if cuda else tensor
+
+    @classmethod
+    def to_variable(cls, data, dtype, cuda=False):
+        tensor = cls.to_tensor(data, dtype)
+        var = Variable(tensor)
+        return var.cuda() if cuda else var
+
+    def sort_by_length(self, inputs):
+        """
+        Args:
+            inputs (numpy.ndarray): (batch_size, seq_length)
+        """
+        pad = self.vocab.word_to_ind[markers.PAD]
+        def get_length(seq):
+            for i, x in enumerate(seq):
+                if x == pad:
+                    return i
+            return len(seq)
+        lengths = [get_length(s) for s in inputs]
+        # TODO: look into how it works for all-PAD seqs
+        lengths = [l if l > 0 else 1 for l in lengths]
+        sorted_id = np.argsort(lengths)[::-1]
+        return lengths, sorted_id
+
+    def order_by_id(self, inputs, ids):
+        if ids is None:
+            return inputs
+        else:
+            if type(inputs) is np.ndarray:
+                return inputs[ids, :]
+            elif type(inputs) is list:
+                return [inputs[i] for i in ids]
+            else:
+                raise ValueError
 
 class DialogueBatcher(object):
     def __init__(self, int_markers=None, slot_filling=None, kb_pad=None):
@@ -151,38 +229,9 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
-    def sort_by_length(self, inputs):
-        """
-        Args:
-            inputs (numpy.ndarray): (batch_size, seq_length)
-        """
-        def get_length(seq):
-            for i, x in enumerate(seq):
-                if x == self.int_markers.PAD:
-                    return i
-            return len(seq)
-        lengths = [get_length(s) for s in inputs]
-        # TODO: look into how it works for all-PAD seqs
-        lengths = [l if l > 0 else 1 for l in lengths]
-        sorted_id = np.argsort(lengths)[::-1]
-        return lengths, sorted_id
-
-    def order_by_id(self, inputs, ids):
-        if ids is None:
-            return inputs
-        else:
-            if type(inputs) is np.ndarray:
-                return inputs[ids, :]
-            elif type(inputs) is list:
-                return [inputs[i] for i in ids]
-            else:
-                raise ValueError
-
-    # TODO: consider sort_by_length
     def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
             target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
-            num_context=None, encoder_tokens=None, decoder_tokens=None,
-            sort_by_length=True):
+            num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 
@@ -196,28 +245,26 @@ class DialogueBatcher(object):
         decoder_inputs = self._remove_last(decoder_inputs, self.int_markers.EOS)[:, :-1]
         decoder_targets = target_turns[:, 1:]
 
-        lengths, sorted_ids = self.sort_by_length(encoder_inputs)
-
-        # TODO: context
         encoder_args = {
-                'inputs': self.order_by_id(encoder_inputs, sorted_ids),
+                'inputs': encoder_inputs,
                 'context': encoder_context,
-                'lengths': self.order_by_id(lengths, sorted_ids),
                 }
         decoder_args = {
-                'inputs': self.order_by_id(decoder_inputs, sorted_ids),
-                'targets': self.order_by_id(decoder_targets, sorted_ids),
+                'inputs': decoder_inputs,
+                'targets': decoder_targets,
                 'context': kb_context,
+                }
+        context_data = {
+                'encoder_tokens': encoder_tokens,
+                'decoder_tokens': decoder_tokens,
+                'agents': agents,
+                'kbs': kbs,
+                'uuids': uuids,
                 }
         batch = {
                 'encoder_args': encoder_args,
                 'decoder_args': decoder_args,
-                'encoder_tokens': self.order_by_id(encoder_tokens, sorted_ids),
-                'decoder_tokens': self.order_by_id(decoder_tokens, sorted_ids),
-                'agents': self.order_by_id(agents, sorted_ids),
-                'kbs': self.order_by_id(kbs, sorted_ids),
-                'uuids': self.order_by_id(uuids, sorted_ids),
-                'size': len(agents),
+                'context_data': context_data,
                 }
         return batch
 
@@ -302,11 +349,7 @@ class DialogueBatcher(object):
 
         # bath_seq: A sequence of batches that can be processed in turn where
         # the state of each batch is passed on to the next batch
-        batch = {
-                 'batch_seq': batch_seq,
-                }
-
-        return batch
+        return batch_seq
 
 class DialogueBatcherWrapper(object):
     def __init__(self, batcher):

@@ -29,7 +29,7 @@ from neural.loss import SimpleLossCompute
 #from model.learner import add_learner_arguments, get_learner
 #from model.evaluate import get_evaluator
 
-def build_model(model_opt, opt, mappings, checkpoint=None):
+def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
     model = model_builder.make_base_model(model_opt, mappings,
                                     use_gpu(opt), checkpoint=checkpoint)
@@ -111,7 +111,6 @@ if __name__ == '__main__':
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
-    parser.add_argument('--eval', default=False, action='store_true', help='Eval mode')
     parser.add_argument('--eval-output', default=None, help='JSON file to save evaluation results')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
@@ -125,7 +124,6 @@ if __name__ == '__main__':
     logstats.init(args.stats_file, args.verbose)
     logstats.add_args('config', args)
     model_args = args
-    ckpt = None
 
     if torch.cuda.is_available() and not args.gpuid:
         print("WARNING: You have a CUDA device, should run with -gpuid 0")
@@ -173,6 +171,9 @@ if __name__ == '__main__':
     #        import sys; sys.exit()
 
     logstats.add_args('model_args', model_args)
+
+    # TODO: load from checkpoint
+    ckpt = None
 
     # Build the model
     model = build_model(model_args, args, mappings, ckpt)

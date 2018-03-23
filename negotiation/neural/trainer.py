@@ -149,13 +149,12 @@ class Trainer(object):
             print('')
 
             # 1. Train for one epoch on the training set.
-            train_iter = data.generator('train')
+            train_iter = data.generator('train', cuda=use_gpu(opt))
             train_stats = self.train_epoch(train_iter, opt, epoch, report_func)
             print('Train loss: %g' % train_stats.mean_loss())
 
             # 2. Validate on the validation set.
-            valid_iter = data.generator('dev', opt.batch_size)
-            length_val_batches = valid_iter.next()
+            valid_iter = data.generator('dev', cuda=use_gpu(opt))
             valid_stats = self.validate(valid_iter)
             print('Validation loss: %g' % valid_stats.mean_loss())
 
@@ -196,31 +195,14 @@ class Trainer(object):
         num_batches = train_iter.next()
         self.cuda = use_gpu(opt)
 
-        '''
-        batch_dialogue is a dictionary with a key 'batch_seq'
-        Each batch of data has keys:
-            'size': batch size, which is our case is 64
-            'decoder_tokens': 64 lists of tokens
-            'decoder_args': a dictionary with keys [inputs, targets, context]
-                inputs and targets are len 64 arrays, that hold integer indexes
-                of the words (as opposed to the text tokens)
-            'agents': length 64 list referring to the speaker, either 0 or 1
-            'uuids': length 64 list hold uuids for each example
-            'encoder_tokens': same as decoder tokens, except for encoder
-            'encoder_args': a dictionary with keys [inputs, context]
-            'kbs': len 64 list of KB objects, the KB for open-movies simply holds
-                a suggested topic and is non-critical, so it can be safely ignored
-        '''
-        for batch_idx, dialogue_batch in enumerate(train_iter):
-            # Each batch is one turn in the dialogue
-            for batch in dialogue_batch['batch_seq']:
-                true_batchs.append(batch)
-                accum += 1
+        for batch_idx, batch in enumerate(train_iter):
+            true_batchs.append(batch)
+            accum += 1
 
-                if accum == self.grad_accum_count:
-                    self._gradient_accumulation(true_batchs, total_stats, report_stats)
-                    true_batchs = []
-                    accum = 0
+            if accum == self.grad_accum_count:
+                self._gradient_accumulation(true_batchs, total_stats, report_stats)
+                true_batchs = []
+                accum = 0
 
             if report_func is not None:
                 report_stats = report_func(opt, epoch, batch_idx, num_batches,
@@ -246,17 +228,16 @@ class Trainer(object):
 
         stats = Statistics()
 
-        for dialogue_batch in valid_iter:
-            for batch in dialogue_batch['batch_seq']:
-                encoder_inputs = self.prepare_data(batch['encoder_args']['inputs'])
-                decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
-                targets = self.prepare_data(batch['decoder_args']['targets'])
-                # TODO
-                lengths = torch.LongTensor(batch['encoder_args']['lengths']).cuda()
+        num_val_batches = valid_iter.next()
+        for batch in valid_iter:
+            encoder_inputs = batch.encoder_inputs
+            decoder_inputs = batch.decoder_inputs
+            targets = batch.targets
+            lengths = batch.lengths
 
-                outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
-                _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
-                stats.update(batch_stats)
+            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+            _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
+            stats.update(batch_stats)
 
         # Set model back to training mode
         self.model.train()
@@ -307,12 +288,11 @@ class Trainer(object):
 
         for batch in true_batchs:
             dec_state = None
-            encoder_inputs = batch['encoder_args']['inputs']
 
-            encoder_inputs = self.prepare_data(encoder_inputs)
-            decoder_inputs = self.prepare_data(batch['decoder_args']['inputs'])
-            targets = self.prepare_data(batch['decoder_args']['targets'])
-            lengths = torch.LongTensor(batch['encoder_args']['lengths']).cuda()
+            encoder_inputs = batch.encoder_inputs
+            decoder_inputs = batch.decoder_inputs
+            targets = batch.targets
+            lengths = batch.lengths
 
             self.model.zero_grad()
 
@@ -329,10 +309,3 @@ class Trainer(object):
             # Don't backprop fully.
             if dec_state is not None:
                 dec_state.detach()
-
-    # TODO: move this to data iterator
-    def prepare_data(self, data):
-        result = smart_variable(data, "list", self.cuda)
-        if len(result.size()) > 1:
-            result = result.transpose(0, 1)  # change into (seq_len, batch_size)
-        return result

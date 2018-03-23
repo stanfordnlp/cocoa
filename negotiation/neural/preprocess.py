@@ -18,7 +18,8 @@ from cocoa.model.trie import Trie
 
 from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
-from batcher import DialogueBatcherFactory
+from batcher import DialogueBatcherFactory, Batch
+from symbols import markers, SpecialSymbols
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -30,8 +31,6 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
     parser.add_argument('--mappings', help='Path to vocab mappings')
 
-SpecialSymbols = namedtuple('SpecialSymbols', ['EOS', 'GO_S', 'GO_B', 'OFFER', 'QUIT', 'ACCEPT', 'REJECT', 'PAD', 'START_SLOT', 'END_SLOT', 'C_car', 'C_phone', 'C_housing', 'C_electronics', 'C_furniture', 'C_bike'])
-markers = SpecialSymbols(EOS='</s>', GO_S='<go-s>', GO_B='<go-b>', OFFER='<offer>', QUIT='<quit>', ACCEPT='<accept>', REJECT='<reject>', PAD='<pad>', START_SLOT='<slot>', END_SLOT='</slot>', C_car='<car>', C_phone='<phone>', C_housing='<housing>', C_electronics='<electronics>', C_furniture='<furniture>', C_bike='<bike>')
 START_PRICE = -1
 category_to_marker = {
         'car': markers.C_car,
@@ -612,20 +611,26 @@ class DataGenerator(object):
             print '[%d s]' % (time.time() - start_time)
         else:
             start_time = time.time()
+            print cache_file
             dialogue_batches = read_pickle(cache_file)
             if verbose:
                 print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)
                 print '[%d s]' % (time.time() - start_time)
         return dialogue_batches
 
-    def generator(self, name, shuffle=True):
+    def generator(self, name, shuffle=True, cuda=True):
         dialogue_batches = self.batches[name]
-        yield len(dialogue_batches)
+        yield sum([len(b) for b in dialogue_batches])
         inds = range(len(dialogue_batches))
         if shuffle:
             random.shuffle(inds)
         for ind in inds:
-            yield dialogue_batches[ind]
+            for batch in dialogue_batches[ind]:
+                yield Batch(batch['encoder_args'],
+                            batch['decoder_args'],
+                            batch['context_data'],
+                            self.mappings['vocab'],
+                            cuda=cuda)
 
     def create_trie(self, batches, path):
         if path is None:

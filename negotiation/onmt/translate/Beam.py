@@ -15,7 +15,7 @@ class Beam(object):
        cuda (bool): use gpu
        global_scorer (:obj:`GlobalScorer`)
     """
-    def __init__(self, size, pad, bos, eos,
+    def __init__(self, size, pad=None, bos=None, eos=None,
                  n_best=1, cuda=False,
                  global_scorer=None,
                  min_length=0):

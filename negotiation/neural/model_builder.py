@@ -13,6 +13,7 @@ from models import NMTModel, MeanEncoder, RNNEncoder, StdRNNDecoder
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, TransformerEncoder, \
               TransformerDecoder, CNNEncoder, CNNDecoder, AudioEncoder
 
+from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
 
 from preprocess import markers
@@ -151,19 +152,19 @@ def make_decoder(opt, embeddings):
 def load_test_model(opt, dummy_opt):
     checkpoint = torch.load(opt.model,
                             map_location=lambda storage, loc: storage)
-    fields = onmt.io.load_fields_from_vocab(
-        checkpoint['vocab'], data_type=opt.data_type)
 
     model_opt = checkpoint['opt']
     for arg in dummy_opt:
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
 
-    model = make_base_model(model_opt, fields,
+    mappings = read_pickle('{}/vocab.pkl'.format(model_opt.mappings))
+
+    model = make_base_model(model_opt, mappings,
                             use_gpu(opt), checkpoint)
     model.eval()
     model.generator.eval()
-    return fields, model, model_opt
+    return mappings, model, model_opt
 
 
 def make_base_model(model_opt, mappings, gpu, checkpoint=None):

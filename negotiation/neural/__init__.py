@@ -9,7 +9,7 @@ def add_data_generator_arguments(parser):
     add_dataset_arguments(parser)
     add_price_tracker_arguments(parser)
 
-def get_data_generator(args, model_args, mappings, schema):
+def get_data_generator(args, model_args, mappings, schema, test=False):
     from cocoa.core.scenario_db import ScenarioDB
     from cocoa.core.dataset import read_dataset, EvalExample
     from cocoa.core.util import read_json
@@ -20,12 +20,7 @@ def get_data_generator(args, model_args, mappings, schema):
     import os.path
 
     # TODO: move this to dataset
-    if args.eval:
-        dataset = []
-        for path in args.eval_examples_paths:
-            dataset.extend([EvalExample.from_dict(schema, e) for e in read_json(path)])
-    else:
-        dataset = read_dataset(args, Scenario)
+    dataset = read_dataset(args, Scenario)
 
     # Model config tells data generator which batcher to use
     model_config = {}
@@ -62,15 +57,12 @@ def get_data_generator(args, model_args, mappings, schema):
     #trie_path = os.path.join(model_args.mappings, 'trie.pkl')
     trie_path = None
 
-    if args.eval:
-        data_generator = EvalDataGenerator(dataset, preprocessor, mappings, model_args.num_context)
+    if test:
+        model_args.dropout = 0
+        train, dev, test = None, None, dataset.test_examples
     else:
-        if args.test:
-            model_args.dropout = 0
-            train, dev, test = None, None, dataset.test_examples
-        else:
-            train, dev, test = dataset.train_examples, dataset.test_examples, None
-        data_generator = DataGenerator(train, dev, test, preprocessor, args, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config, add_ground_truth=add_ground_truth)
+        train, dev, test = dataset.train_examples, dataset.test_examples, None
+    data_generator = DataGenerator(train, dev, test, preprocessor, args, schema, mappings, retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache, candidates_path=args.candidates_path, num_context=model_args.num_context, trie_path=trie_path, batch_size=args.batch_size, model_config=model_config, add_ground_truth=add_ground_truth)
 
     return data_generator
 
