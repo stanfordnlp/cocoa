@@ -40,9 +40,10 @@ def add_evaluator_arguments(parser):
 
 
 class Evaluator(object):
-    def __init__(self, model, vocab):
+    def __init__(self, model, vocab, gt_prefix=1):
         self.model = model
         self.vocab = vocab
+        self.gt_prefix = gt_prefix
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
@@ -67,7 +68,7 @@ class Evaluator(object):
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
         for batch in data_iter:
-            batch_data = generator.generate_batch(batch)
+            batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
 
             for trans in utterances:

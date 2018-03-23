@@ -2,8 +2,8 @@ import torch
 from torch.autograd import Variable
 
 import onmt.io
+from onmt.Utils import aeq
 
-from cocoa.pt_model.util import smart_variable
 from preprocess import markers
 from neural.beam import Beam
 
@@ -50,7 +50,7 @@ class Generator(object):
                 "scores": [],
                 "log_probs": []}
 
-    def generate_batch(self, batch):
+    def generate_batch(self, batch, gt_prefix=1):
         """
         Generate a batch of sentences.
 
@@ -58,6 +58,7 @@ class Generator(object):
 
         Args:
            batch (:obj:`Batch`): a batch from a dataset object
+           gt_prefix (int): ground truth prefix length(bos)
 
         """
 
@@ -70,7 +71,7 @@ class Generator(object):
         def get_bos(b):
             tgt_sent = batch.context_data['decoder_tokens'][b]
             # Padded turn, use arbitrary start symbol
-            bos = markers.GO_S if not tgt_sent else tgt_sent[0]
+            bos = markers.PAD if not tgt_sent else tgt_sent[gt_prefix-1]
             return vocab.word_to_ind[bos]
 
         beam = [Beam(beam_size, n_best=self.n_best,
@@ -101,6 +102,12 @@ class Generator(object):
         dec_states = self.model.decoder.init_decoder_state(
                                         encoder_inputs, memory_bank, enc_states)
         # enc/dec_states: (seq_len, batch_size, rnn_size)
+
+        # (1.1) Go over forced prefix.
+        if gt_prefix > 1:
+            inp = batch.targets[:gt_prefix-1]
+            _, dec_states, _ = self.model.decoder(
+                inp, memory_bank, dec_states, memory_lengths=lengths)
 
         # (2) Repeat src objects `beam_size` times.
         #src_map = rvar(batch.src_map.data) \

@@ -60,8 +60,8 @@ train:
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --model $(test_model) \
+	--test-max-examples 10 \
 	--ignore-cache \
-	--test-max-examples 250
 
 
 dropout=0.0
