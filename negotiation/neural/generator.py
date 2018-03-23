@@ -1,11 +1,11 @@
 import torch
 from torch.autograd import Variable
 
-import onmt.translate.Beam
 import onmt.io
 
 from cocoa.pt_model.util import smart_variable
 from preprocess import markers
+from neural.beam import Beam
 
 
 class Generator(object):
@@ -73,13 +73,13 @@ class Generator(object):
             bos = markers.GO_S if not tgt_sent else tgt_sent[0]
             return vocab.word_to_ind[bos]
 
-        beam = [onmt.translate.Beam(beam_size, n_best=self.n_best,
-                                    cuda=self.cuda,
-                                    global_scorer=self.global_scorer,
-                                    pad=vocab.word_to_ind[markers.PAD],
-                                    bos=get_bos(b),
-                                    eos=vocab.word_to_ind[markers.EOS],
-                                    min_length=self.min_length)
+        beam = [Beam(beam_size, n_best=self.n_best,
+                     cuda=self.cuda,
+                     global_scorer=self.global_scorer,
+                     pad=vocab.word_to_ind[markers.PAD],
+                     bos=get_bos(b),
+                     eos=vocab.word_to_ind[markers.EOS],
+                     min_length=self.min_length)
                 for b in range(batch_size)]
 
         # Help functions for working with beams and batches

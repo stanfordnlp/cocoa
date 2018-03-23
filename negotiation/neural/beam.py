@@ -1,3 +1,6 @@
+from onmt.translate.Beam import Beam
+
+
 class Scorer(object):
     """
     Re-ranking score.

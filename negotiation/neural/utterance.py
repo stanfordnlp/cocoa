@@ -26,8 +26,7 @@ class Utterance(object):
         output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
-            # TODO: handle Entity
-            tgt_sent = ' '.join([str(x) for x in self.gold_sent])
+            tgt_sent = ' '.join(self.gold_sent)
             output += 'GOLD {}: {}\n'.format(sent_number, tgt_sent)
             output += "GOLD SCORE: {:.4f}\n".format(self.gold_score)
 
@@ -35,6 +34,8 @@ class Utterance(object):
             output += 'BEST HYP:\n'
             for score, sent in zip(self.pred_scores, self.pred_sents):
                 output += "[{:.4f}] {}\n".format(score, sent)
+
+        output += "\n"
 
         return output
 
@@ -52,7 +53,8 @@ class UtteranceBuilder(object):
         vocab = self.vocab
         tokens = []
         for tok in pred:
-            tokens.append(vocab.ind_to_word[tok])
+            # str() to convert Entity
+            tokens.append(str(vocab.ind_to_word[tok]))
             if tokens[-1] == markers.EOS:
                 tokens = tokens[:-1]
                 break
