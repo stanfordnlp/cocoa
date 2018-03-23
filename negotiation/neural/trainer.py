@@ -61,7 +61,7 @@ def add_trainer_arguments(parser):
                        https://arxiv.org/abs/1512.00567""")
 
     # Logging
-    group.add_argument('--report-every', type=int, default=5, choices=[1,10],
+    group.add_argument('--report-every', type=int, default=5,
                        help="Print stats at this many batch intervals")
     group.add_argument('--model-filename', default='model',
                        help="""Model filename (the model will be saved as
