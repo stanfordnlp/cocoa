@@ -193,4 +193,5 @@ class PytorchNeuralSystem(System):
             raise ValueError('Unknown model name')
         if self.timed_session:
             session = TimedSessionWrapper(session)
-    return session
+
+        return session

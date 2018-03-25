@@ -8,8 +8,10 @@ from cocoa.core.entity import is_entity, Entity
 
 from core.event import Event
 from session import Session
-from model.preprocess import markers, Dialogue
-from model.evaluate import EncDecEvaluator
+# from model.preprocess import markers, Dialogue
+# from model.evaluate import EncDecEvaluator
+from neural.preprocess import markers, Dialogue
+from neural.evaluator import Evaluator, add_evaluator_arguments
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -263,9 +265,14 @@ class PyTorchNeuralSession(NeuralSession):
             return False
         return True
 
-    def _pred_to_token_original(self, preds):
-        entity_tokens, _ = EncDecEvaluator.pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
+    def _pred_to_token(self, preds):
+        # Prefix: [GO, CATEGORY]
+        # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
+        evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
+        entity_tokens = evaluator.evaluate(args, model_args, data_generator)
         return entity_tokens
+        # entity_tokens, _ = EncDecEvaluator.pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
+        # return entity_tokens
 
     def _build_target_tokens(self, pred):
         vocab = self.vocab
