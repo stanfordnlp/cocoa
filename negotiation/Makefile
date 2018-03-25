@@ -124,7 +124,7 @@ config-search:
 
 rule_model=scr/model.pkl
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/parsed_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --checkpoint $(checkpoint) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --verbose
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/parsed_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --mappings $(mappings) --checkpoint $(checkpoint) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --verbose
 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/neural_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents neural-gen cmd --max-turns 20 --checkpoint $(checkpoint) --mappings $(mappings) --price-tracker $(price_tracker) --decoding sample 0 --retrieve --index scr/index --retriever-context-len 2 --num-candidates 10

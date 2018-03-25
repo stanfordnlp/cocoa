@@ -1,19 +1,22 @@
 import os
 import argparse
 from collections import namedtuple
-# import tensorflow as tf
-import torch
+from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSession
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 from cocoa.core.util import read_pickle, read_json
 from cocoa.lib import logstats
 
-from model import build_model
-from model.retriever import Retriever, add_retriever_arguments
-from model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
-from model.batcher import DialogueBatcherFactory
-from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSession
+# import tensorflow as tf
+# from tf_model import build_model
+# from tf_model.retriever import Retriever, add_retriever_arguments
+# from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
+# from tf_model.batcher import DialogueBatcherFactory
+import torch
+from neural import build_model
+from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
+from neural.batcher import DialogueBatcherFactory
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
