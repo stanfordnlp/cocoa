@@ -3,10 +3,10 @@ from cocoa.core.util import read_json, read_pickle
 from core.price_tracker import PriceTracker, add_price_tracker_arguments
 from rulebased_system import RulebasedSystem, add_rulebased_arguments
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
-from ranker_system import IRRankerSystem, NeuralRankerSystem
 from neural_system import NeuralSystem, add_neural_system_arguments, PytorchNeuralSystem
 from cmd_system import CmdSystem
 
+# from ranker_system import IRRankerSystem, NeuralRankerSystem
 # from model.retriever import Retriever, add_retriever_arguments
 # from model.generator import Templates, Generator
 # from model.manager import Manager
