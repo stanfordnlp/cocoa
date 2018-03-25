@@ -2,6 +2,7 @@ import os
 import argparse
 from collections import namedtuple
 import tensorflow as tf
+import torch
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
@@ -114,3 +115,82 @@ class NeuralSystem(System):
         if self.timed_session:
             session = TimedSessionWrapper(session)
 	return session
+
+
+class PytorchNeuralSystem(System):
+    """
+    NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
+    object) that makes use of this underlying model to send and receive messages in a dialogue.
+    """
+    def __init__(self, schema, price_tracker, model_path, mappings_path, decoding, index=None, num_candidates=20, retriever_context_len=2, timed_session=False):
+        super(PytorchNeuralSystem, self).__init__()
+        self.schema = schema
+        self.price_tracker = price_tracker
+        self.timed_session = timed_session
+
+        # Load arguments
+        args_path = os.path.join(model_path, 'config.json')
+        config = read_json(args_path)
+        config['batch_size'] = 1
+        config['gpu'] = 0  # Don't need GPU for batch_size=1
+        config['decoding'] = decoding
+        config['pretrained_wordvec'] = None
+        args = argparse.Namespace(**config)
+
+        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
+        mappings = read_pickle(vocab_path)
+        vocab = mappings['vocab']
+
+        # TODO: different models have the same key now
+        args.dropout = 0
+        logstats.add_args('model_args', args)
+        model = build_model(schema, mappings, None, args)
+
+        # Tensorflow config
+        # if args.gpu == 0:
+        #     print 'GPU is disabled'
+        #     config = tf.ConfigProto(device_count = {'GPU': 0})
+        # else:
+        #     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
+        #     config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
+
+        # Load TF model parameters
+        assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
+        ckpt = torch.load(model_path)
+        assert ckpt, 'No checkpoint found'
+
+        # Model config tells data generator which batcher to use
+        model_config = {'price': True}
+
+        self.model_name = args.model
+        preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
+        textint_map = TextIntMap(vocab, preprocessor)
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+
+        #TODO: class variable is not a good way to do this
+        Dialogue.mappings = mappings
+        Dialogue.textint_map = textint_map
+        Dialogue.preprocessor = preprocessor
+        Dialogue.num_context = args.num_context
+
+        Env = namedtuple('Env', ['model', 'pt_session', 'preprocessor', 'vocab',
+            'textint_map', 'stop_symbol', 'remove_symbols', 'max_len',
+            'dialogue_batcher', 'retriever'])
+        self.env = Env(model, pt_session, preprocessor, mappings['vocab'],
+            textint_map, stop_symbol=vocab.to_ind(markers.EOS),
+            remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)),
+            max_len=20, dialogue_batcher=dialogue_batcher, retriever=retriever)
+
+    @classmethod
+    def name(cls):
+        return 'pt-neural'
+
+    def new_session(self, agent, kb):
+        if self.model_name == 'encdec':
+            session = PytorchNeuralSession(agent , kb, self.env)
+        else:
+            raise ValueError('Unknown model name')
+        if self.timed_session:
+            session = TimedSessionWrapper(session)
+    return session
