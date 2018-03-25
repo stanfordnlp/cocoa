@@ -11,7 +11,7 @@ from neural.beam import Scorer
 
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
-    group.add_argument('--model', required=True,
+    group.add_argument('--checkpoint-file', required=True,
                        help='Path to model .pt file')
 
     group = parser.add_argument_group('Beam')

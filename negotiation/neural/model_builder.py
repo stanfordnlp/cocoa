@@ -150,7 +150,7 @@ def make_decoder(opt, embeddings):
 
 
 def load_test_model(opt, dummy_opt):
-    checkpoint = torch.load(opt.model,
+    checkpoint = torch.load(opt.checkpoint_file,
                             map_location=lambda storage, loc: storage)
 
     model_opt = checkpoint['opt']

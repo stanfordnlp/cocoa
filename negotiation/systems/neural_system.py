@@ -14,7 +14,7 @@ from cocoa.lib import logstats
 # from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 # from tf_model.batcher import DialogueBatcherFactory
 import torch
-from neural import build_model
+from neural import model_builder
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
 
@@ -144,27 +144,33 @@ class PytorchNeuralSystem(System):
         args = argparse.Namespace(**config)
 
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
-        mappings = read_pickle(vocab_path)
         vocab = mappings['vocab']
-
-        # TODO: different models have the same key now
-        args.dropout = 0
+        # args.dropout = 0
         logstats.add_args('model_args', args)
-        model = build_model(schema, mappings, None, args)
 
-        # Tensorflow config
-        # if args.gpu == 0:
-        #     print 'GPU is disabled'
-        #     config = tf.ConfigProto(device_count = {'GPU': 0})
-        # else:
-        #     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction = 0.5, allow_growth=True)
-        #     config = tf.ConfigProto(device_count = {'GPU': 1}, gpu_options=gpu_options)
+        # Pytorch config
+        if torch.cuda.is_available() and not args.gpuid:
+            print("WARNING: You have a CUDA device, should run with --gpuid 0")
+        if args.gpuid:
+            cuda.set_device(args.gpuid[0])
 
-        # Load TF model parameters
-        assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
+        # Know which arguments are for the models thus should not be
+        # overwritten during test
+        dummy_parser = argparse.ArgumentParser(description='duh')
+        add_model_arguments(dummy_parser)
+        add_data_generator_arguments(dummy_parser)
+        dummy_args = dummy_parser.parse_known_args([])[0]
+
+        # Load the model.
         full_model_path = os.path.join(model_path, ckpt_file)
-        ckpt = torch.load(full_model_path)
-        assert ckpt, 'No checkpoint found'
+        mappings, model, model_args = model_builder.load_test_model(args, dummy_args.__dict__)
+
+        schema = Schema(model_args.schema_path, None)
+        data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
+
+        # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
+        # evaluator.evaluate(args, model_args, data_generator)
+        pt_session = Evaluator(model, mappings['vocab'], gt_prefix=1)
 
         # Model config tells data generator which batcher to use
         model_config = {'price': True}
@@ -187,7 +193,7 @@ class PytorchNeuralSystem(System):
         self.env = Env(model, pt_session, preprocessor, mappings['vocab'],
             textint_map, stop_symbol=vocab.to_ind(markers.EOS),
             remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)),
-            max_len=20, dialogue_batcher=dialogue_batcher, retriever=retriever)
+            max_len=20, dialogue_batcher=dialogue_batcher)
 
     @classmethod
     def name(cls):
