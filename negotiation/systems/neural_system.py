@@ -24,7 +24,7 @@ def add_neural_system_arguments(parser):
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
     parser.add_argument('--checkpoint-file', default='model.pt', help='name of the actual checkpoint file')
-    add_retriever_arguments(parser)
+    # add_retriever_arguments(parser)
 
 class NeuralSystem(System):
     """
@@ -127,14 +127,19 @@ class PytorchNeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, args, schema, price_tracker, model_path, timed):
+    def __init__(self, args, schema, price_tracker, timed):
         super(PytorchNeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
-        self.timed_session = timed_session
+        self.timed_session = timed
 
         # Load arguments
-        config_path = os.path.join(model_path, 'config.json')
+        checkpoint_dir = args.checkpoint
+        checkpoint_path = os.path.join(checkpoint_dir, args.checkpoint_file)
+        config_path = os.path.join(checkpoint_dir, 'config.json')
+
+        import pdb; pdb.set_trace()
+
         config = read_json(config_path)
         config = {}
         config['batch_size'] = 1

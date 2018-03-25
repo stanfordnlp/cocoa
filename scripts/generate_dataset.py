@@ -43,9 +43,6 @@ if not args.agents:
     args.agents = ['rulebased', 'rulebased']
 if hasattr(args, 'checkpoint'):
     model_path = args.checkpoint
-elif hasattr(args, 'checkpoint_file'):
-    model_path = args.checkpoint_file
-    print("assure it goes here")
 else:
     model_path = None
 agents = [get_system(name, args, schema, model_path=model_path) for name in args.agents]
