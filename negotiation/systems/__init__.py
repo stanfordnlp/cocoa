@@ -1,14 +1,15 @@
 from cocoa.core.util import read_json, read_pickle
 
 from core.price_tracker import PriceTracker, add_price_tracker_arguments
-from model.retriever import Retriever, add_retriever_arguments
 from rulebased_system import RulebasedSystem, add_rulebased_arguments
-from model.generator import Templates, Generator
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from ranker_system import IRRankerSystem, NeuralRankerSystem
-from neural_system import NeuralSystem, add_neural_system_arguments
+from neural_system import NeuralSystem, add_neural_system_arguments, PytorchNeuralSystem
 from cmd_system import CmdSystem
-from model.manager import Manager
+
+# from model.retriever import Retriever, add_retriever_arguments
+# from model.generator import Templates, Generator
+# from model.manager import Manager
 
 def add_system_arguments(parser):
     add_neural_system_arguments(parser)
@@ -48,7 +49,7 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         assert model_path
         return NeuralSystem(schema, lexicon, model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len, timed_session=timed)
     elif name == 'pt-neural':
-        return PtNeuralSystem(schema, lexicon, model_path, args.mappings,
+        return PytorchNeuralSystem(schema, lexicon, model_path, args.mappings,
             args.decoding, index=args.index, num_candidates=args.num_candidates,
             retriever_context_len=args.retriever_context_len, timed_session=timed)
     else:
