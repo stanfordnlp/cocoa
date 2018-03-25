@@ -15,7 +15,7 @@ from cocoa.lib import logstats
 # from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 # from tf_model.batcher import DialogueBatcherFactory
 import torch
-from neural import model_builder
+from neural import model_builder, add_model_arguments
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
 
@@ -133,57 +133,57 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
-        # Load arguments
-        checkpoint_dir = args.checkpoint
-        checkpoint_path = os.path.join(checkpoint_dir, args.checkpoint_file)
-        config_path = os.path.join(checkpoint_dir, 'config.json')
-
-        import pdb; pdb.set_trace()
-
+        # Extract some items from original arguments
+        self.model_name = args.model
+        model_path = args.checkpoint_file
+        # Load config and set new args
+        config_path = os.path.join(args.checkpoint, 'config.json')
         config = read_json(config_path)
-        config = {}
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
+        config['dropout'] = 0  # Don't want dropout during test split
         config['decoding'] = args.decoding
         config['pretrained_wordvec'] = None
-        args = argparse.Namespace(**config)
-
-        vocab_path = os.path.join(args.mappings, 'vocab.pkl')
-        vocab = mappings['vocab']
-        # args.dropout = 0
-        logstats.add_args('model_args', args)
-
-        # Pytorch config
-        if torch.cuda.is_available() and not args.gpuid:
-            print("WARNING: You have a CUDA device, should run with --gpuid 0")
-        if args.gpuid:
-            cuda.set_device(args.gpuid[0])
-
-        # Know which arguments are for the models thus should not be
-        # overwritten during test
-        dummy_parser = argparse.ArgumentParser(description='duh')
-        add_model_arguments(dummy_parser)
-        add_data_generator_arguments(dummy_parser)
-        dummy_args = dummy_parser.parse_known_args([])[0]
+        # Merge config with existing arguments
+        config_args = argparse.Namespace(**config)
+        for arg in args:
+            if arg not in config_args:
+                config_args.__dict__[arg] = args[arg]
+        # Assume that original arguments + config + checkpoint options includes
+        # all the args we need, so no need to create dummy_parser
+        # ------ Archived settings, saved here in case assumption is wrong ---
+        # if args.gpuid:
+        #     cuda.set_device(args.gpuid[0])
+        # add_preprocess_arguments(parser)
+        # add_model_arguments(parser)
+        # Dialogue.num_context = args.num_context
+        # args.entity_encoding_form,
+        # args.entity_decoding_form, args.entity_target_form
 
         # Load the model.
         mappings, model, model_args = model_builder.load_test_model(model_path,
-                use_gpu(args), dummy_args.__dict__)
+                use_gpu(config_args), config_args)
+        logstats.add_args('model_args', args)
 
+        vocab = mappings['vocab']
         data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
+
+        import pdb; pdb.set_trace()
 
         # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
         # evaluator.evaluate(args, model_args, data_generator)
-        pt_session = Evaluator(model, mappings['vocab'], gt_prefix=1)
-
+        pt_session = Evaluator(model, vocab, gt_prefix=1)
         # Model config tells data generator which batcher to use
-        model_config = {'price': True}
 
-        self.model_name = args.model
-        preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
+        preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form,
+                args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+        int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
+
+        model_config = {'price': True}  # as opposed to retriever: True
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
+            int_markers=int_markers, slot_filling=False,
+            kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
 
         #TODO: class variable is not a good way to do this
         Dialogue.mappings = mappings
@@ -194,7 +194,7 @@ class PytorchNeuralSystem(System):
         Env = namedtuple('Env', ['model', 'pt_session', 'preprocessor', 'vocab',
             'textint_map', 'stop_symbol', 'remove_symbols', 'max_len',
             'dialogue_batcher', 'retriever'])
-        self.env = Env(model, pt_session, preprocessor, mappings['vocab'],
+        self.env = Env(model, pt_session, preprocessor, vocab,
             textint_map, stop_symbol=vocab.to_ind(markers.EOS),
             remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)),
             max_len=20, dialogue_batcher=dialogue_batcher)
