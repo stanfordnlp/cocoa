@@ -42,7 +42,7 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
     add_ground_truth = False
 
     # TODO: hacky
-    if args.model == 'lm':
+    if model_args.model == 'lm':
         DataGenerator = LMDataGenerator
 
     #if args.retrieve or args.model in ('selector', 'ir'):

@@ -2,7 +2,7 @@ import sys
 import os
 from itertools import count
 
-from onmt.Utils import use_gpu
+from cocoa.pt_model.util import use_gpu
 
 from neural.generator import Generator
 from neural.utterance import UtteranceBuilder

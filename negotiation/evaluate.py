@@ -13,7 +13,7 @@ from cocoa.core.schema import Schema
 from cocoa.lib import logstats
 
 import onmt
-from onmt.Utils import use_gpu
+from cocoa.pt_model.util import use_gpu
 
 from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
@@ -48,8 +48,8 @@ if __name__ == '__main__':
         cuda.set_device(args.gpuid[0])
 
     # Load the model.
-    mappings, model, model_args = \
-        model_builder.load_test_model(args, dummy_args.__dict__)
+    mappings, model, model_args = model_builder.load_test_model(args.checkpoint_file,
+        use_gpu(args), dummy_args.__dict__)
 
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, mappings, schema, test=True)

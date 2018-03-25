@@ -6,6 +6,7 @@ from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSessio
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 from cocoa.core.util import read_pickle, read_json
+from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
 
 # import tensorflow as tf
@@ -126,24 +127,23 @@ class PytorchNeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, price_tracker, model_path, ckpt_file, mappings_path, decoding, index=None, timed_session=False):
+    def __init__(self, args, schema, price_tracker, model_path, timed):
         super(PytorchNeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
         self.timed_session = timed_session
 
         # Load arguments
-        print("model: {}".format(model_path) )
         config_path = os.path.join(model_path, 'config.json')
         config = read_json(config_path)
         config = {}
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
-        config['decoding'] = decoding
+        config['decoding'] = args.decoding
         config['pretrained_wordvec'] = None
         args = argparse.Namespace(**config)
 
-        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
+        vocab_path = os.path.join(args.mappings, 'vocab.pkl')
         vocab = mappings['vocab']
         # args.dropout = 0
         logstats.add_args('model_args', args)
@@ -162,10 +162,9 @@ class PytorchNeuralSystem(System):
         dummy_args = dummy_parser.parse_known_args([])[0]
 
         # Load the model.
-        full_model_path = os.path.join(model_path, ckpt_file)
-        mappings, model, model_args = model_builder.load_test_model(args, dummy_args.__dict__)
+        mappings, model, model_args = model_builder.load_test_model(model_path,
+                use_gpu(args), dummy_args.__dict__)
 
-        schema = Schema(model_args.schema_path, None)
         data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
 
         # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
