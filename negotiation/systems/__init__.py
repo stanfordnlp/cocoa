@@ -49,8 +49,7 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         assert model_path
         return NeuralSystem(schema, lexicon, model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len, timed_session=timed)
     elif name == 'pt-neural':
-        return PytorchNeuralSystem(schema, lexicon, model_path, args.mappings,
-            args.decoding, index=args.index, num_candidates=args.num_candidates,
-            retriever_context_len=args.retriever_context_len, timed_session=timed)
+        return PytorchNeuralSystem(schema, lexicon, model_path, args.checkpoint_file,
+            args.mappings, args.decoding, index=args.index, timed_session=timed)
     else:
         raise ValueError('Unknown system %s' % name)

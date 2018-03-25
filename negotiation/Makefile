@@ -1,5 +1,4 @@
 model=encdec
-test_model_ckpt=trained_model.pt # path to checkpoint of a trained model
 exp=basic
 lr=0.5
 scr=/scr/hehe/game-dialogue
@@ -22,6 +21,9 @@ entity_form=type
 data=negotiation
 port=5040
 cat=furniture
+# cat = category
+test_model_ckpt=model_loss3.02_e13.pt
+# path to checkpoint of a trained model
 
 tensorboard:
 	fuser 6006/tcp -k; \
@@ -122,7 +124,7 @@ config-search:
 
 rule_model=scr/model.pkl
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/parsed_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --max-turns 20 --random-seed $(seed) --verbose
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/parsed_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --checkpoint $(checkpoint) --checkpoint_file $(test_model_ckpt) --max-turns 20 --random-seed $(seed) --verbose
 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/neural_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents neural-gen cmd --max-turns 20 --checkpoint $(checkpoint) --mappings $(mappings) --price-tracker $(price_tracker) --decoding sample 0 --retrieve --index scr/index --retriever-context-len 2 --num-candidates 10

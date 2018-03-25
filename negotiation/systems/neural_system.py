@@ -19,6 +19,7 @@ def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
+    parser.add_argument('--checkpoint-file', default='model.pt', help='name of the actual checkpoint file')
     add_retriever_arguments(parser)
 
 class NeuralSystem(System):
@@ -122,15 +123,17 @@ class PytorchNeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, schema, price_tracker, model_path, mappings_path, decoding, index=None, num_candidates=20, retriever_context_len=2, timed_session=False):
+    def __init__(self, schema, price_tracker, model_path, ckpt_file, mappings_path, decoding, index=None, timed_session=False):
         super(PytorchNeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
         self.timed_session = timed_session
 
         # Load arguments
-        args_path = os.path.join(model_path, 'config.json')
-        config = read_json(args_path)
+        print("model: {}".format(model_path) )
+        config_path = os.path.join(model_path, 'config.json')
+        config = read_json(config_path)
+        config = {}
         config['batch_size'] = 1
         config['gpu'] = 0  # Don't need GPU for batch_size=1
         config['decoding'] = decoding
@@ -156,7 +159,8 @@ class PytorchNeuralSystem(System):
 
         # Load TF model parameters
         assert ckpt.model_checkpoint_path, 'No model path found in checkpoint'
-        ckpt = torch.load(model_path)
+        full_model_path = os.path.join(model_path, ckpt_file)
+        ckpt = torch.load(full_model_path)
         assert ckpt, 'No checkpoint found'
 
         # Model config tells data generator which batcher to use
