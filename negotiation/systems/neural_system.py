@@ -202,10 +202,10 @@ class PytorchNeuralSystem(System):
         return 'pt-neural'
 
     def new_session(self, agent, kb):
-        if self.model_name == 'encdec':
+        if self.model_name in ['encdec', 'seq2seq']:
             session = PytorchNeuralSession(agent , kb, self.env)
         else:
-            raise ValueError('Unknown model name')
+            raise ValueError('Unknown model name {}'.format(self.model_name))
         if self.timed_session:
             session = TimedSessionWrapper(session)
 

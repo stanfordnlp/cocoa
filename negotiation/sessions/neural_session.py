@@ -199,7 +199,7 @@ class SelectorNeuralSession(GeneratorNeuralSession):
 
 class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
-        super(GeneratorNeuralSession, self).__init__(agent, kb, env)
+        super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.gt_prefix = 1 # gt_prefix
 
