@@ -196,6 +196,24 @@ class SelectorNeuralSession(GeneratorNeuralSession):
 class PyTorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
         super(GeneratorNeuralSession, self).__init__(agent, kb, env)
+
+        ------- Needed by Generator---------
+        self.vocab = vocab
+        self.gt_prefix = gt_prefix
+
+        -------Already in NeuralSession-------
+
+        self.env = env
+        self.model = env.model
+        self.kb = kb
+
+        self.batcher = self.env.dialogue_batcher
+        self.dialogue = Dialogue(agent, kb, None)
+        self.dialogue.kb_context_to_int()
+        self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
+        self.max_len = 100
+
+        -------Currently passed in to PT Session--------
         self.encoder_state = None
         self.decoder_state = None
         self.encoder_output_dict = None
@@ -211,6 +229,11 @@ class PyTorchNeuralSession(NeuralSession):
         return inputs
 
     def _create_batch(self):
+        num_batches = self.batcher.next()  # spits out number the first time
+        assert num_batches == 1
+        batch = self.batcher.next()
+        return batch
+        ''' ------old method ---------
         num_context = Dialogue.num_context
         # All turns up to now
         self.convert_to_int()
@@ -229,7 +252,7 @@ class PyTorchNeuralSession(NeuralSession):
                 'encoder_args': encoder_args,
                 'decoder_args': decoder_args,
                 }
-        return batch
+        '''
 
     def _decoder_args(self, entity_tokens):
         inputs = self._process_entity_tokens(entity_tokens, 'decoding')
@@ -257,6 +280,55 @@ class PyTorchNeuralSession(NeuralSession):
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
+
+        ------------------------------------
+        scorer = Scorer(opt.alpha)
+
+        generator = Generator(self.model, self.vocab,
+                              beam_size=opt.beam_size,
+                              n_best=opt.n_best,
+                              max_length=opt.max_length,
+                              global_scorer=scorer,
+                              cuda=use_gpu(opt),
+                              min_length=opt.min_length)
+
+        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
+
+        # Statistics
+        pred_score_total, pred_words_total = 0, 0
+        gold_score_total, gold_words_total = 0, 0
+
+        # i think batch_size is 8
+        # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
+        #     'lengths', 'encoder_inputs', 'targets', 'size']
+        # batch_data = dictionary with the keys
+        #    ['batch', 'attention', 'predictions', 'gold_score', 'scores']
+            # batch - the original batch object
+            # attention - list of 8 attention weights
+            # predictions - list of 8 preds, where each pred is array of digits
+            # gold_score - list of 8 0s
+            # scores - list of 8 scores, where each scores is a list with
+            #             log-likeihood of each word in the prediction
+        # utterances = UTTERANCE object with attributes
+            # ['attns',
+            # 'gold_sent' - a list of the gold tokens
+            # , 'gold_score', - scores
+            #  'src_raw', - probably user input
+            # 'pred_scores', - some float
+            # 'pred_sents' - a list of lists, where list of pred tokens
+            # since batxh size is one, each pred_sents only has one "sentence"
+
+        batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        utterances = builder.from_batch(batch_data)
+
+        # change "trans" to "response" since we aren't doing translation
+        for response in utterances:
+            pred_score_total += response.pred_scores[0]
+            gold_score_total += response.gold_score
+
+            # select top response since doing live response
+            output_tokens = response.pred_sents[0]
+            print output_tokens
 
     def _is_valid(self, tokens):
         if not tokens:

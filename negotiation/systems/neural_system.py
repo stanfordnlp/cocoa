@@ -133,9 +133,8 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
-	# import pdb; pdb.set_trace()
         # Extract some items from original arguments
-        # self.model_name = args.model
+        self.model_name = args.model
         model_path = args.checkpoint_file
         # Load config and set new args
         config_path = os.path.join(args.checkpoint, 'config.json')
@@ -145,13 +144,22 @@ class PytorchNeuralSystem(System):
         config['dropout'] = 0  # Don't want dropout during test split
         config['decoding'] = args.decoding
         config['pretrained_wordvec'] = None
+        # Assume that original arguments + config + checkpoint options includes
+        # all the args we need, so no need to create dummy_parser
+        dummy_parser = argparse.ArgumentParser(description='duh')
+        add_model_arguments(dummy_parser)
+        add_data_generator_arguments(dummy_parser)
+        dummy_args = dummy_parser.parse_known_args([])[0]
         # Merge config with existing arguments
         config_args = argparse.Namespace(**config)
         for arg in args.__dict__:
             if arg not in config_args:
                 config_args.__dict__[arg] = args.__dict__[arg]
-        # Assume that original arguments + config + checkpoint options includes
-        # all the args we need, so no need to create dummy_parser
+
+        # Use all the args!
+        for arg in dummy_args.__dict__:
+            if arg not in args:
+                args.__dict__[arg] = dummy_args.__dict__[arg]
 
         # Load the model.
         mappings, model, model_args = model_builder.load_test_model(model_path,
@@ -159,8 +167,8 @@ class PytorchNeuralSystem(System):
         logstats.add_args('model_args', args)
 
         vocab = mappings['vocab']
-        # import pdb; pdb.set_trace()
-        # data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
+        data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
+        dialogue_batcher = data_batcher.generator(split='test', shuffle=False)
 
         # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
         # evaluator.evaluate(args, model_args, data_generator)
@@ -171,29 +179,30 @@ class PytorchNeuralSystem(System):
         #Evaluator does not return a pt_session, so how what do we need to pass to Env
         #in order to be able to generate response?
         #        ---------------------------------
-        pt_session = 14
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
+        remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
 
+        '''
+        # temporarily ignore the batcher and use the raw data_generator instead
         model_config = {'price': True}  # as opposed to retriever: True
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
             int_markers=int_markers, slot_filling=False,
             kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
-
+        '''
         #TODO: class variable is not a good way to do this
         Dialogue.mappings = mappings
         Dialogue.textint_map = textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = model_args.num_context
 
-        Env = namedtuple('Env', ['model', 'pt_session', 'preprocessor', 'vocab',
-            'textint_map', 'stop_symbol', 'remove_symbols', 'max_len',
-            'dialogue_batcher', 'retriever'])
-        self.env = Env(model, pt_session, preprocessor, vocab,
-            textint_map, stop_symbol=vocab.to_ind(markers.EOS),
-            remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)),
+        Env = namedtuple('Env', ['model', 'preprocessor', 'vocab', 'textint_map',
+            'stop_symbol', 'remove_symbols',
+            'max_len', 'dialogue_batcher'])
+        self.env = Env(model, preprocessor, vocab, textint_map,
+            stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
             max_len=20, dialogue_batcher=dialogue_batcher)
 
     @classmethod
