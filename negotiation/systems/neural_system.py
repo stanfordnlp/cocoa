@@ -1,7 +1,7 @@
 import os
 import argparse
 from collections import namedtuple
-from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSession
+from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSession, PytorchNeuralSession
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
@@ -133,9 +133,6 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
-        # Extract some items from original arguments
-        self.model_name = args.model
-        model_path = args.checkpoint_file
         # Load config and set new args
         config_path = os.path.join(args.checkpoint, 'config.json')
         config = read_json(config_path)
@@ -146,10 +143,10 @@ class PytorchNeuralSystem(System):
         config['pretrained_wordvec'] = None
         # Assume that original arguments + config + checkpoint options includes
         # all the args we need, so no need to create dummy_parser
-        dummy_parser = argparse.ArgumentParser(description='duh')
-        add_model_arguments(dummy_parser)
-        add_data_generator_arguments(dummy_parser)
-        dummy_args = dummy_parser.parse_known_args([])[0]
+        # dummy_parser = argparse.ArgumentParser(description='duh')
+        # add_model_arguments(dummy_parser)
+        # add_data_generator_arguments(dummy_parser)
+        # dummy_args = dummy_parser.parse_known_args([])[0]
         # Merge config with existing arguments
         config_args = argparse.Namespace(**config)
         for arg in args.__dict__:
@@ -157,48 +154,43 @@ class PytorchNeuralSystem(System):
                 config_args.__dict__[arg] = args.__dict__[arg]
 
         # Use all the args!
-        for arg in dummy_args.__dict__:
-            if arg not in args:
-                args.__dict__[arg] = dummy_args.__dict__[arg]
+        # for arg in dummy_args.__dict__:
+        #     if arg not in args:
+        #         args.__dict__[arg] = dummy_args.__dict__[arg]
 
         # Load the model.
+        model_path = config_args.checkpoint_file
         mappings, model, model_args = model_builder.load_test_model(model_path,
                 use_gpu(config_args), config_args.__dict__)
-        logstats.add_args('model_args', args)
-
-        vocab = mappings['vocab']
-        data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
-        dialogue_batcher = data_batcher.generator(split='test', shuffle=False)
+        logstats.add_args('model_args', model_args)
+        self.model_name = model_args.model
 
         # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
         # evaluator.evaluate(args, model_args, data_generator)
         # pt_session = Evaluator(model, vocab, gt_prefix=1)
         # Model config tells data generator which batcher to use
 
-        #---------------------------
-        #Evaluator does not return a pt_session, so how what do we need to pass to Env
-        #in order to be able to generate response?
-        #        ---------------------------------
+        vocab = mappings['vocab']
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
-        int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
 
-        '''
-        # temporarily ignore the batcher and use the raw data_generator instead
         model_config = {'price': True}  # as opposed to retriever: True
+        int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
+        kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
-            int_markers=int_markers, slot_filling=False,
-            kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
-        '''
-        #TODO: class variable is not a good way to do this
-        Dialogue.mappings = mappings
-        Dialogue.textint_map = textint_map
-        Dialogue.preprocessor = preprocessor
-        Dialogue.num_context = model_args.num_context
+            int_markers=int_markers, slot_filling=False, kb_pad=kb_padding)
+        # data_batcher = get_data_generator(args, model_args, mappings, schema, test=True)
+        # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
 
-        Env = namedtuple('Env', ['model', 'preprocessor', 'vocab', 'textint_map',
+        #TODO: class variable is not a good way to do this
+        # Dialogue.preprocessor = preprocessor
+        # Dialogue.textint_map = textint_map
+        # Dialogue.mappings = mappings
+        # Dialogue.num_context = model_args.num_context
+
+        Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
             'stop_symbol', 'remove_symbols',
             'max_len', 'dialogue_batcher'])
         self.env = Env(model, preprocessor, vocab, textint_map,

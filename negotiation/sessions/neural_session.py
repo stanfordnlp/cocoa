@@ -5,6 +5,7 @@ import numpy as np
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
+from cocoa.pt_model.util import use_gpu
 
 from core.event import Event
 from session import Session
@@ -12,6 +13,9 @@ from session import Session
 # from model.evaluate import EncDecEvaluator
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
+from neural.beam import Scorer
+from neural.generator import Generator
+from neural.utterance import UtteranceBuilder
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -193,27 +197,12 @@ class SelectorNeuralSession(GeneratorNeuralSession):
         entity_tokens = entity_tokens[2:]
         return entity_tokens
 
-class PyTorchNeuralSession(NeuralSession):
+class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
         super(GeneratorNeuralSession, self).__init__(agent, kb, env)
+        self.vocab = env.vocab
+        self.gt_prefix = 1 # gt_prefix
 
-        ------- Needed by Generator---------
-        self.vocab = vocab
-        self.gt_prefix = gt_prefix
-
-        -------Already in NeuralSession-------
-
-        self.env = env
-        self.model = env.model
-        self.kb = kb
-
-        self.batcher = self.env.dialogue_batcher
-        self.dialogue = Dialogue(agent, kb, None)
-        self.dialogue.kb_context_to_int()
-        self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
-        self.max_len = 100
-
-        -------Currently passed in to PT Session--------
         self.encoder_state = None
         self.decoder_state = None
         self.encoder_output_dict = None
@@ -229,11 +218,23 @@ class PyTorchNeuralSession(NeuralSession):
         return inputs
 
     def _create_batch(self):
-        num_batches = self.batcher.next()  # spits out number the first time
-        assert num_batches == 1
-        batch = self.batcher.next()
-        return batch
-        ''' ------old method ---------
+        # ---- hack method -----------
+        # num_batches = self.batcher.next()  # spits out number the first time
+        # return self.batcher.next()
+
+        scorer = Scorer(opt.alpha)
+
+        generator = Generator(self.model, self.vocab,
+                              beam_size=opt.beam_size,
+                              n_best=opt.n_best,
+                              max_length=opt.max_length,
+                              global_scorer=scorer,
+                              cuda=use_gpu(opt),
+                              min_length=opt.min_length)
+
+        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
+
+
         num_context = Dialogue.num_context
         # All turns up to now
         self.convert_to_int()
@@ -248,11 +249,9 @@ class PyTorchNeuralSession(NeuralSession):
                 'inputs': self._decoder_inputs(),
                 'context': self.kb_context_batch,
                 }
-        batch = {
-                'encoder_args': encoder_args,
-                'decoder_args': decoder_args,
-                }
-        '''
+
+        batch = {'encoder_args': encoder_args, 'decoder_args': decoder_args}
+        return batch
 
     def _decoder_args(self, entity_tokens):
         inputs = self._process_entity_tokens(entity_tokens, 'decoding')
@@ -273,30 +272,18 @@ class PyTorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
-        entity_tokens = self.output_to_tokens(output_dict)
+        # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
+        # entity_tokens = self.output_to_tokens(output_dict)
 
-        print 'generate:', entity_tokens
+        batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        output_dict = builder.from_batch(batch_data)
+        # select top response since doing live response
+        entity_tokens = output_dict[0].pred_sents[0]
+
+        print('generate:', " ".join(entity_tokens))
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
-
-        ------------------------------------
-        scorer = Scorer(opt.alpha)
-
-        generator = Generator(self.model, self.vocab,
-                              beam_size=opt.beam_size,
-                              n_best=opt.n_best,
-                              max_length=opt.max_length,
-                              global_scorer=scorer,
-                              cuda=use_gpu(opt),
-                              min_length=opt.min_length)
-
-        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
-
-        # Statistics
-        pred_score_total, pred_words_total = 0, 0
-        gold_score_total, gold_words_total = 0, 0
 
         # i think batch_size is 8
         # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
@@ -318,17 +305,6 @@ class PyTorchNeuralSession(NeuralSession):
             # 'pred_sents' - a list of lists, where list of pred tokens
             # since batxh size is one, each pred_sents only has one "sentence"
 
-        batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        utterances = builder.from_batch(batch_data)
-
-        # change "trans" to "response" since we aren't doing translation
-        for response in utterances:
-            pred_score_total += response.pred_scores[0]
-            gold_score_total += response.gold_score
-
-            # select top response since doing live response
-            output_tokens = response.pred_sents[0]
-            print output_tokens
 
     def _is_valid(self, tokens):
         if not tokens:
