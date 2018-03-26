@@ -68,8 +68,17 @@ class Evaluator(object):
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
         for batch in data_iter:
+            print("just the batch {}".format(batch))
+
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+	    print("batch_data: {}".format(batch_data))
+
             utterances = builder.from_batch(batch_data)
+
+            print(len(utterances))
+	    print("one response: {}".format(utterances[1]))
+	    import pdb; pdb.set_trace()
+	    sys.exit()
 
             for trans in utterances:
                 pred_score_total += trans.pred_scores[0]

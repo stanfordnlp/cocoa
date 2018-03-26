@@ -15,7 +15,7 @@ from cocoa.lib import logstats
 # from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 # from tf_model.batcher import DialogueBatcherFactory
 import torch
-from neural import model_builder, add_model_arguments
+from neural import model_builder, get_data_generator
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
 
@@ -133,8 +133,9 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
+	# import pdb; pdb.set_trace()
         # Extract some items from original arguments
-        self.model_name = args.model
+        # self.model_name = args.model
         model_path = args.checkpoint_file
         # Load config and set new args
         config_path = os.path.join(args.checkpoint, 'config.json')
@@ -146,37 +147,33 @@ class PytorchNeuralSystem(System):
         config['pretrained_wordvec'] = None
         # Merge config with existing arguments
         config_args = argparse.Namespace(**config)
-        for arg in args:
+        for arg in args.__dict__:
             if arg not in config_args:
-                config_args.__dict__[arg] = args[arg]
+                config_args.__dict__[arg] = args.__dict__[arg]
         # Assume that original arguments + config + checkpoint options includes
         # all the args we need, so no need to create dummy_parser
-        # ------ Archived settings, saved here in case assumption is wrong ---
-        # if args.gpuid:
-        #     cuda.set_device(args.gpuid[0])
-        # add_preprocess_arguments(parser)
-        # add_model_arguments(parser)
-        # Dialogue.num_context = args.num_context
-        # args.entity_encoding_form,
-        # args.entity_decoding_form, args.entity_target_form
 
         # Load the model.
         mappings, model, model_args = model_builder.load_test_model(model_path,
-                use_gpu(config_args), config_args)
+                use_gpu(config_args), config_args.__dict__)
         logstats.add_args('model_args', args)
 
         vocab = mappings['vocab']
-        data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
-
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
+        # data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
 
         # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
         # evaluator.evaluate(args, model_args, data_generator)
-        pt_session = Evaluator(model, vocab, gt_prefix=1)
+        # pt_session = Evaluator(model, vocab, gt_prefix=1)
         # Model config tells data generator which batcher to use
 
-        preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form,
-                args.entity_decoding_form, args.entity_target_form)
+        #---------------------------
+        #Evaluator does not return a pt_session, so how what do we need to pass to Env
+        #in order to be able to generate response?
+        #        ---------------------------------
+        pt_session = 14
+        preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
+                model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
 
@@ -189,7 +186,7 @@ class PytorchNeuralSystem(System):
         Dialogue.mappings = mappings
         Dialogue.textint_map = textint_map
         Dialogue.preprocessor = preprocessor
-        Dialogue.num_context = args.num_context
+        Dialogue.num_context = model_args.num_context
 
         Env = namedtuple('Env', ['model', 'pt_session', 'preprocessor', 'vocab',
             'textint_map', 'stop_symbol', 'remove_symbols', 'max_len',
