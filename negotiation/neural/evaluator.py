@@ -31,8 +31,6 @@ def add_evaluator_arguments(parser):
                        help='Batch size')
     group.add_argument('--gpuid', default=[], nargs='+', type=int,
                        help="Use CUDA on the listed devices.")
-    group.add_argument('--verbose', action="store_true",
-                       help='Print scores and predictions for each sentence')
 
 
 class Evaluator(object):

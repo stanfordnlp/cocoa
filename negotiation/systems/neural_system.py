@@ -19,6 +19,9 @@ from neural import model_builder, get_data_generator
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
+from neural.beam import Scorer
+from neural.generator import Generator
+from neural.utterance import UtteranceBuilder
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')

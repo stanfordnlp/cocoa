@@ -13,9 +13,6 @@ from session import Session
 # from model.evaluate import EncDecEvaluator
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
-from neural.beam import Scorer
-from neural.generator import Generator
-from neural.utterance import UtteranceBuilder
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
