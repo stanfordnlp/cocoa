@@ -137,16 +137,6 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
-        scorer = Scorer(args.alpha)
-        generator = Generator(self.model, self.vocab,
-                              beam_size=args.beam_size,
-                              n_best=args.n_best,
-                              max_length=args.max_length,
-                              global_scorer=scorer,
-                              cuda=use_gpu(args),
-                              min_length=args.min_length)
-        builder = UtteranceBuilder(self.vocab, args.n_best, has_tgt=True)
-
         # Load config and set new args
         config_path = os.path.join(args.checkpoint, 'config.json')
         config = read_json(config_path)
@@ -169,8 +159,17 @@ class PytorchNeuralSystem(System):
                 use_gpu(config_args), config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-
         vocab = mappings['vocab']
+
+        generator = Generator(model, vocab,
+                              beam_size=args.beam_size,
+                              n_best=args.n_best,
+                              max_length=args.max_length,
+                              global_scorer=Scorer(args.alpha),
+                              cuda=use_gpu(args),
+                              min_length=args.min_length)
+        builder = UtteranceBuilder(vocab, args.n_best, has_tgt=True)
+
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
