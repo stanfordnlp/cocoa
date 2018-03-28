@@ -18,12 +18,13 @@ import torch
 from neural import model_builder, get_data_generator
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
+from neural.evaluator import add_evaluator_arguments
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
-    parser.add_argument('--checkpoint-file', default='model.pt', help='name of the actual checkpoint file')
+    add_evaluator_arguments(parser)
     # add_retriever_arguments(parser)
 
 class NeuralSystem(System):
@@ -133,6 +134,16 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
+        scorer = Scorer(args.alpha)
+        generator = Generator(self.model, self.vocab,
+                              beam_size=args.beam_size,
+                              n_best=args.n_best,
+                              max_length=args.max_length,
+                              global_scorer=scorer,
+                              cuda=use_gpu(args),
+                              min_length=args.min_length)
+        builder = UtteranceBuilder(self.vocab, args.n_best, has_tgt=True)
+
         # Load config and set new args
         config_path = os.path.join(args.checkpoint, 'config.json')
         config = read_json(config_path)
@@ -141,22 +152,13 @@ class PytorchNeuralSystem(System):
         config['dropout'] = 0  # Don't want dropout during test split
         config['decoding'] = args.decoding
         config['pretrained_wordvec'] = None
-        # Assume that original arguments + config + checkpoint options includes
-        # all the args we need, so no need to create dummy_parser
-        # dummy_parser = argparse.ArgumentParser(description='duh')
-        # add_model_arguments(dummy_parser)
-        # add_data_generator_arguments(dummy_parser)
-        # dummy_args = dummy_parser.parse_known_args([])[0]
-        # Merge config with existing arguments
+        # Merge config with existing options
         config_args = argparse.Namespace(**config)
         for arg in args.__dict__:
             if arg not in config_args:
                 config_args.__dict__[arg] = args.__dict__[arg]
-
-        # Use all the args!
-        # for arg in dummy_args.__dict__:
-        #     if arg not in args:
-        #         args.__dict__[arg] = dummy_args.__dict__[arg]
+        # Assume that original arguments + config + model_builder options
+        # includes all the args we need, so no need to create dummy_parser
 
         # Load the model.
         model_path = config_args.checkpoint_file
@@ -165,18 +167,13 @@ class PytorchNeuralSystem(System):
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
 
-        # evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
-        # evaluator.evaluate(args, model_args, data_generator)
-        # pt_session = Evaluator(model, vocab, gt_prefix=1)
-        # Model config tells data generator which batcher to use
-
         vocab = mappings['vocab']
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
 
-        model_config = {'price': True}  # as opposed to retriever: True
+        model_config = {} # since we are not doing 'retrieve' or 'price' at this time,
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
@@ -185,17 +182,19 @@ class PytorchNeuralSystem(System):
         # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
 
         #TODO: class variable is not a good way to do this
-        # Dialogue.preprocessor = preprocessor
-        # Dialogue.textint_map = textint_map
-        # Dialogue.mappings = mappings
-        # Dialogue.num_context = model_args.num_context
+        Dialogue.preprocessor = preprocessor
+        Dialogue.textint_map = textint_map
+        Dialogue.mappings = mappings
+        Dialogue.num_context = model_args.num_context
 
         Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
             'stop_symbol', 'remove_symbols',
-            'max_len', 'dialogue_batcher'])
+            'max_len', 'dialogue_batcher',
+            'dialogue_generator', 'utterance_builder'])
         self.env = Env(model, preprocessor, vocab, textint_map,
             stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
-            max_len=20, dialogue_batcher=dialogue_batcher)
+            max_len=20, dialogue_batcher=dialogue_batcher,
+            dialogue_generator=generator, utterance_builder=builder)
 
     @classmethod
     def name(cls):

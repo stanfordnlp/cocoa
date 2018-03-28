@@ -13,8 +13,8 @@ from cmd_system import CmdSystem
 
 def add_system_arguments(parser):
     add_neural_system_arguments(parser)
-    #add_retriever_arguments(parser)
-    add_rulebased_arguments(parser)
+    # add_retriever_arguments(parser)
+    # add_rulebased_arguments(parser)
     add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
 

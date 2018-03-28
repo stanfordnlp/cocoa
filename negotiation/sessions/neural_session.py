@@ -201,7 +201,9 @@ class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
-        self.gt_prefix = 1 # gt_prefix
+        self.generator = env.dialogue_generator
+        self.builder = env.utterance_builder
+        self.gt_prefix = 1 # cannot be > 1
 
         self.encoder_state = None
         self.decoder_state = None
@@ -218,40 +220,31 @@ class PytorchNeuralSession(NeuralSession):
         return inputs
 
     def _create_batch(self):
-        # ---- hack method -----------
-        # num_batches = self.batcher.next()  # spits out number the first time
-        # return self.batcher.next()
-
-        scorer = Scorer(opt.alpha)
-
-        generator = Generator(self.model, self.vocab,
-                              beam_size=opt.beam_size,
-                              n_best=opt.n_best,
-                              max_length=opt.max_length,
-                              global_scorer=scorer,
-                              cuda=use_gpu(opt),
-                              min_length=opt.min_length)
-
-        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
-
-
         num_context = Dialogue.num_context
         # All turns up to now
         self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
+
         inputs = self.batcher.get_encoder_inputs(encoder_turns)
         context = self.batcher.get_encoder_context(encoder_turns, num_context)
-        encoder_args = {
-                'inputs': inputs,
-                'context': context,
-                }
-        decoder_args = {
-                'inputs': self._decoder_inputs(),
-                'context': self.kb_context_batch,
+        # encoder_args = {'inputs': inputs, 'context': context}
+        # decoder_args = {'inputs': self._decoder_inputs(), 'context': self.kb_context_batch}
+
+        batch = {'vocab': self.vocab,
+                 'context_data': context,
+                 'decoder_inputs': self._decoder_inputs(),
+                 'lengths': UNK,
+                 'encoder_inputs': inputs,
+                 'targets': None,
+                 'size': 1  # batch_size
                 }
 
-        batch = {'encoder_args': encoder_args, 'decoder_args': decoder_args}
         return batch
+
+        # ---- hack method -----------
+        # num_batches = self.batcher.next()  # spits out number the first time
+        # return self.batcher.next()
+
 
     def _decoder_args(self, entity_tokens):
         inputs = self._process_entity_tokens(entity_tokens, 'decoding')
@@ -272,18 +265,17 @@ class PytorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
-        # entity_tokens = self.output_to_tokens(output_dict)
-
         batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         output_dict = builder.from_batch(batch_data)
-        # select top response since doing live response
-        entity_tokens = output_dict[0].pred_sents[0]
+        # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
+        entity_tokens = self.output_to_tokens(output_dict)
 
         print('generate:', " ".join(entity_tokens))
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
+
+        batch = {'encoder_args': encoder_args, 'decoder_args': decoder_args}
 
         # i think batch_size is 8
         # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
@@ -305,7 +297,6 @@ class PytorchNeuralSession(NeuralSession):
             # 'pred_sents' - a list of lists, where list of pred tokens
             # since batxh size is one, each pred_sents only has one "sentence"
 
-
     def _is_valid(self, tokens):
         if not tokens:
             return False
@@ -314,13 +305,10 @@ class PytorchNeuralSession(NeuralSession):
         return True
 
     def _pred_to_token(self, preds):
-        # Prefix: [GO, CATEGORY]
-        # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
-        evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
-        entity_tokens = evaluator.evaluate(args, model_args, data_generator)
-        return entity_tokens
+        n_best_predictions = preds[0].pred_sents
+        entity_tokens = n_best_predictions[0] # select top response
         # entity_tokens, _ = EncDecEvaluator.pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
-        # return entity_tokens
+        return entity_tokens
 
     def _build_target_tokens(self, pred):
         vocab = self.vocab

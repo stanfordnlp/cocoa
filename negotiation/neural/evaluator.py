@@ -12,29 +12,25 @@ from neural.beam import Scorer
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
     group.add_argument('--checkpoint-file', required=True,
-                       help='Path to model .pt file')
+          help='Path to model .pt file')
 
     group = parser.add_argument_group('Beam')
     group.add_argument('--beam-size',  type=int, default=5,
                        help='Beam size')
-    group.add_argument('--min-length', type=int, default=0,
+    group.add_argument('--min-length', type=int, default=1,
                        help='Minimum prediction length')
-    group.add_argument('--max-length', type=int, default=100,
+    group.add_argument('--max-length', type=int, default=50,
                        help='Maximum prediction length.')
     group.add_argument('--n-best', type=int, default=1,
-                       help="""If verbose is set, will output the n_best
-                       decoded sentences""")
+                help="""If verbose is set, will output the n_best decoded sentences""")
     group.add_argument('--alpha', type=float, default=0.5,
-                       help="""Google NMT length penalty parameter
-                        (higher = longer generation)""")
+                help="""length penalty parameter (higher = longer generation)""")
 
     group = parser.add_argument_group('Efficiency')
     group.add_argument('--batch-size', type=int, default=30,
                        help='Batch size')
     group.add_argument('--gpuid', default=[], nargs='+', type=int,
                        help="Use CUDA on the listed devices.")
-
-    group = parser.add_argument_group('Logging')
     group.add_argument('--verbose', action="store_true",
                        help='Print scores and predictions for each sentence')
 
@@ -68,17 +64,8 @@ class Evaluator(object):
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
         for batch in data_iter:
-            print("just the batch {}".format(batch))
-
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-	    print("batch_data: {}".format(batch_data))
-
             utterances = builder.from_batch(batch_data)
-
-            print(len(utterances))
-	    print("one response: {}".format(utterances[1]))
-	    import pdb; pdb.set_trace()
-	    sys.exit()
 
             for trans in utterances:
                 pred_score_total += trans.pred_scores[0]
