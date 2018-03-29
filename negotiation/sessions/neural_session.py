@@ -2,6 +2,7 @@ import random
 import re
 from itertools import izip
 import numpy as np
+import pdb
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
@@ -200,7 +201,7 @@ class PytorchNeuralSession(NeuralSession):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.generator = env.dialogue_generator
-        self.builder = env.utterance_builder
+        # self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
 
@@ -256,10 +257,6 @@ class PytorchNeuralSession(NeuralSession):
                 }
         return decoder_args
 
-    def output_to_tokens(self, output_dict):
-        entity_tokens = self._pred_to_token(output_dict['preds'])[0]
-        return entity_tokens
-
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
@@ -267,36 +264,17 @@ class PytorchNeuralSession(NeuralSession):
         encoder_init_state = None
 
         batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        output_dict = self.builder.from_batch(batch_data)
+        entity_tokens = self._build_target_tokens(batch_data["predictions"])
         # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
-        entity_tokens = self.output_to_tokens(output_dict)
+        # entity_tokens = self.output_to_tokens(output_dict)
 
         print('generate:', " ".join(entity_tokens))
+
+        pdb.set_trace()
+
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
-
-        batch = {'encoder_args': encoder_args, 'decoder_args': decoder_args}
-
-        # i think batch_size is 8
-        # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
-        #     'lengths', 'encoder_inputs', 'targets', 'size']
-        # batch_data = dictionary with the keys
-        #    ['batch', 'attention', 'predictions', 'gold_score', 'scores']
-            # batch - the original batch object
-            # attention - list of 8 attention weights
-            # predictions - list of 8 preds, where each pred is array of digits
-            # gold_score - list of 8 0s
-            # scores - list of 8 scores, where each scores is a list with
-            #             log-likeihood of each word in the prediction
-        # utterances = UTTERANCE object with attributes
-            # ['attns',
-            # 'gold_sent' - a list of the gold tokens
-            # , 'gold_score', - scores
-            #  'src_raw', - probably user input
-            # 'pred_scores', - some float
-            # 'pred_sents' - a list of lists, where list of pred tokens
-            # since batxh size is one, each pred_sents only has one "sentence"
 
     def _is_valid(self, tokens):
         if not tokens:
@@ -304,6 +282,10 @@ class PytorchNeuralSession(NeuralSession):
         if Vocabulary.UNK in tokens:
             return False
         return True
+
+    def output_to_tokens(self, output_dict):
+        entity_tokens = self._pred_to_token(output_dict['preds'])[0]
+        return entity_tokens
 
     def _pred_to_token(self, preds):
         n_best_predictions = preds[0].pred_sents
@@ -321,3 +303,22 @@ class PytorchNeuralSession(NeuralSession):
                 tokens = tokens[:-1]
                 break
         return tokens
+
+    # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
+    #     'lengths', 'encoder_inputs', 'targets', 'size']
+    # batch_data = dictionary with the keys
+    #    ['batch', 'attention', 'predictions', 'gold_score', 'scores']
+        # batch - the original batch object
+        # attention - list of 8 attention weights
+        # predictions - list of 8 preds, where each pred is array of digits
+        # gold_score - list of 8 0s
+        # scores - list of 8 scores, where each scores is a list with
+        #             log-likeihood of each word in the prediction
+    # utterances = UTTERANCE object with attributes
+        # ['attns',
+        # 'gold_sent' - a list of the gold tokens
+        # , 'gold_score', - scores
+        #  'src_raw', - probably user input
+        # 'pred_scores', - some float
+        # 'pred_sents' - a list of lists, where list of pred tokens
+        # since batxh size is one, each pred_sents only has one "sentence"
