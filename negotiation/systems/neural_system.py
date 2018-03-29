@@ -174,6 +174,7 @@ class PytorchNeuralSystem(System):
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
+        use_cuda = use_gpu(model_args)
 
         model_config = {} # since we are not doing 'retrieve' or 'price' at this time,
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
@@ -191,11 +192,11 @@ class PytorchNeuralSystem(System):
 
         Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
             'stop_symbol', 'remove_symbols',
-            'max_len', 'dialogue_batcher',
+            'max_len', 'dialogue_batcher', 'cuda',
             'dialogue_generator', 'utterance_builder'])
         self.env = Env(model, preprocessor, vocab, textint_map,
             stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
-            max_len=20, dialogue_batcher=dialogue_batcher,
+            max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
             dialogue_generator=generator, utterance_builder=builder)
 
     @classmethod

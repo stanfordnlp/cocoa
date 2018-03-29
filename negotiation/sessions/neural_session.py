@@ -13,6 +13,7 @@ from session import Session
 # from model.evaluate import EncDecEvaluator
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
+from neural.batcher import Batch
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -200,6 +201,7 @@ class PytorchNeuralSession(NeuralSession):
         self.vocab = env.vocab
         self.generator = env.dialogue_generator
         self.builder = env.utterance_builder
+        self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
 
         self.encoder_state = None
@@ -209,11 +211,11 @@ class PytorchNeuralSession(NeuralSession):
         self.new_turn = False
         self.end_turn = False
 
-    def _decoder_inputs(self):
+    def get_decoder_inputs(self):
         utterance = self.dialogue._insert_markers(self.agent, [], True)
         inputs = self.env.textint_map.text_to_int(utterance, 'decoding')
         inputs = np.array(inputs, dtype=np.int32).reshape([1, -1])
-        inputs = inputs[:, :self.model.decoder.prompt_len]
+        # inputs = inputs[:, :self.model.decoder.prompt_len]
         return inputs
 
     def _create_batch(self):
@@ -222,25 +224,23 @@ class PytorchNeuralSession(NeuralSession):
         self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
-        inputs = self.batcher.get_encoder_inputs(encoder_turns)
-        context = self.batcher.get_encoder_context(encoder_turns, num_context)
-        # encoder_args = {'inputs': inputs, 'context': context}
-        # decoder_args = {'inputs': self._decoder_inputs(), 'context': self.kb_context_batch}
+        encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
+        context_data = self.batcher.get_encoder_context(encoder_turns, num_context)
+        encoder_args = {
+                        'inputs': encoder_inputs,
+                        'context': context_data
+                    }
+        decoder_args = {
+                        'inputs': self._decoder_inputs(),
+                        'context': self.kb_context_batch,
+                        'targets': np.copy(encoder_turns),
+                    }
 
-        batch = {'vocab': self.vocab,
-                 'context_data': context,
-                 'decoder_inputs': self._decoder_inputs(),
-                 'lengths': UNK,
-                 'encoder_inputs': inputs,
-                 'targets': None,
-                 'size': 1  # batch_size
-                }
+        import pdb; pdb.set_trace()
+        print("size {} should be 1".format(decoder_args['targets'].shape[0]))
 
-        return batch
-
-        # ---- hack method -----------
-        # num_batches = self.batcher.next()  # spits out number the first time
-        # return self.batcher.next()
+        made_one = Batch(encoder_args, decoder_args, context_data, self.vocab, self.cuda)
+        return made_one
 
 
     def _decoder_args(self, entity_tokens):
@@ -262,8 +262,8 @@ class PytorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        output_dict = builder.from_batch(batch_data)
+        batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        output_dict = self.builder.from_batch(batch_data)
         # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
         entity_tokens = self.output_to_tokens(output_dict)
 
