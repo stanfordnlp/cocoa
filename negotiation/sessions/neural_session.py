@@ -264,13 +264,11 @@ class PytorchNeuralSession(NeuralSession):
         encoder_init_state = None
 
         batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        entity_tokens = self._build_target_tokens(batch_data["predictions"])
+        entity_tokens = self.output_to_tokens(batch_data)
         # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
         # entity_tokens = self.output_to_tokens(output_dict)
 
         print('generate:', " ".join(entity_tokens))
-
-        pdb.set_trace()
 
         if not self._is_valid(entity_tokens):
             return None
@@ -283,8 +281,8 @@ class PytorchNeuralSession(NeuralSession):
             return False
         return True
 
-    def output_to_tokens(self, output_dict):
-        entity_tokens = self._pred_to_token(output_dict['preds'])[0]
+    def output_to_tokens(self, data):
+        entity_tokens = self._build_target_tokens(data["predictions"][0][0])
         return entity_tokens
 
     def _pred_to_token(self, preds):
