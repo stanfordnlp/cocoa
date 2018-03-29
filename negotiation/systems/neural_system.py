@@ -194,7 +194,7 @@ class PytorchNeuralSystem(System):
             'stop_symbol', 'remove_symbols',
             'max_len', 'dialogue_batcher', 'cuda',
             'dialogue_generator', 'utterance_builder'])
-        self.env = Env(model, preprocessor, vocab, textint_map,
+        self.env = Env(model, vocab, preprocessor, textint_map,
             stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
             max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
             dialogue_generator=generator, utterance_builder=builder)

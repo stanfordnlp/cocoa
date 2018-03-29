@@ -236,9 +236,6 @@ class PytorchNeuralSession(NeuralSession):
                         'targets': np.copy(encoder_turns),
                     }
 
-        import pdb; pdb.set_trace()
-        print("size {} should be 1".format(decoder_args['targets'].shape[0]))
-
         made_one = Batch(encoder_args, decoder_args, context_data, self.vocab, self.cuda)
         return made_one
 
