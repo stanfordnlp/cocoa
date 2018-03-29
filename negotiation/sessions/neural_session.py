@@ -225,16 +225,27 @@ class PytorchNeuralSession(NeuralSession):
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
         encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
-        context_data = self.batcher.get_encoder_context(encoder_turns, num_context)
+        encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
         encoder_args = {
                         'inputs': encoder_inputs,
-                        'context': context_data
+                        'context': encoder_context
                     }
         decoder_args = {
                         'inputs': self.get_decoder_inputs(),
                         'context': self.kb_context_batch,
                         'targets': np.copy(encoder_turns),
                     }
+
+        context_data = {
+                'encoder_tokens': [None],
+                'decoder_tokens': [None],
+                'agents': [self.agent, 1-self.agent],
+                'kbs': [self.kb],
+                'uuids': [None],
+                }
+
+        made_one = Batch(encoder_args, decoder_args, context_data,
+                self.vocab, sort_by_length=False, cuda=self.cuda)
 
         made_one = Batch(encoder_args, decoder_args, context_data, self.vocab, self.cuda)
         return made_one
