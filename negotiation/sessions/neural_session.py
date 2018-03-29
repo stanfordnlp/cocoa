@@ -265,10 +265,6 @@ class PytorchNeuralSession(NeuralSession):
 
         batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(batch_data)
-        # output_dict = self.model.generate(sess, batch, encoder_init_state, max_len=self.max_len, textint_map=self.env.textint_map)
-        # entity_tokens = self.output_to_tokens(output_dict)
-
-        print('generate:', " ".join(entity_tokens))
 
         if not self._is_valid(entity_tokens):
             return None
@@ -288,35 +284,21 @@ class PytorchNeuralSession(NeuralSession):
     def _pred_to_token(self, preds):
         n_best_predictions = preds[0].pred_sents
         entity_tokens = n_best_predictions[0] # select top response
-        # entity_tokens, _ = EncDecEvaluator.pred_to_token(preds, self.env.stop_symbol, self.env.remove_symbols, self.env.textint_map)
+        entity_tokens, _ = EncDecEvaluator.pred_to_token(preds,
+                self.env.stop_symbol, self.env.remove_symbols,
+                self.env.textint_map)
         return entity_tokens
 
     def _build_target_tokens(self, pred):
         vocab = self.vocab
         tokens = []
         for tok in pred:
+            raw_token = vocab.ind_to_word[tok]
             # str() to convert Entity
-            tokens.append(str(vocab.ind_to_word[tok]))
+            string_token = str(raw_token.canonical) if is_entity(raw_token) else raw_token
+            tokens.append(string_token)
+
             if tokens[-1] == markers.EOS:
                 tokens = tokens[:-1]
                 break
         return tokens
-
-    # batch = BATCH object   ['vocab', 'context_data', 'decoder_inputs',
-    #     'lengths', 'encoder_inputs', 'targets', 'size']
-    # batch_data = dictionary with the keys
-    #    ['batch', 'attention', 'predictions', 'gold_score', 'scores']
-        # batch - the original batch object
-        # attention - list of 8 attention weights
-        # predictions - list of 8 preds, where each pred is array of digits
-        # gold_score - list of 8 0s
-        # scores - list of 8 scores, where each scores is a list with
-        #             log-likeihood of each word in the prediction
-    # utterances = UTTERANCE object with attributes
-        # ['attns',
-        # 'gold_sent' - a list of the gold tokens
-        # , 'gold_score', - scores
-        #  'src_raw', - probably user input
-        # 'pred_scores', - some float
-        # 'pred_sents' - a list of lists, where list of pred tokens
-        # since batxh size is one, each pred_sents only has one "sentence"
