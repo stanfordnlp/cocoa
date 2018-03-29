@@ -244,12 +244,8 @@ class PytorchNeuralSession(NeuralSession):
                 'uuids': [None],
                 }
 
-        made_one = Batch(encoder_args, decoder_args, context_data,
+        return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, cuda=self.cuda)
-
-        made_one = Batch(encoder_args, decoder_args, context_data, self.vocab, self.cuda)
-        return made_one
-
 
     def _decoder_args(self, entity_tokens):
         inputs = self._process_entity_tokens(entity_tokens, 'decoding')
