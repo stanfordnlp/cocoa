@@ -234,7 +234,7 @@ class PytorchNeuralSession(NeuralSession):
         decoder_args = {
                         'inputs': self.get_decoder_inputs(),
                         'context': self.kb_context_batch,
-                        'targets': np.copy(encoder_turns),
+                        'targets': np.copy(encoder_turns[0]),
                     }
 
         context_data = {
