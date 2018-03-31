@@ -155,8 +155,7 @@ class PytorchNeuralSystem(System):
 
         # Load the model.
         model_path = config_args.checkpoint_file
-        mappings, model, model_args = model_builder.load_test_model(model_path,
-                use_gpu(config_args), config_args.__dict__)
+        mappings, model, model_args = model_builder.load_test_model(args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         vocab = mappings['vocab']
