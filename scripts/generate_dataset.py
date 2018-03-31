@@ -16,7 +16,7 @@ from core.scenario import Scenario
 from core.controller import Controller
 from systems import add_system_arguments, get_system
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(conflict_handler='resolve')
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use', nargs='*')
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
