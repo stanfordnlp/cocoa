@@ -62,7 +62,7 @@ train:
  	#--train-max-examples 250 --test-max-examples 250 
 
 test:
-	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --checkpoint-file $(ckpt_file) \
+	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --checkpoint-file $(ckpt_file) \
 	--test-max-examples 10 \
 	--ignore-cache \
 

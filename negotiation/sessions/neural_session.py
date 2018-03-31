@@ -246,7 +246,7 @@ class PytorchNeuralSession(NeuralSession):
                 }
 
         return Batch(encoder_args, decoder_args, context_data,
-                self.vocab, sort_by_length=False, cuda=self.cuda)
+                self.vocab, sort_by_length=False) #, cuda=self.cuda)
 
     def generate(self):
         if len(self.dialogue.agents) == 0:

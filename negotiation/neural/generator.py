@@ -125,8 +125,7 @@ class Generator(object):
             # Construct batch x beam_size nxt words.
             # Get all the pending current beam words and arrange for forward.
             inp = var(torch.stack([b.get_current_state() for b in beam])
-                      .t().contiguous().view(1, -1))
-            # smart_inp = smart_variable(inp, dtype="var")
+                     .t().contiguous().view(1, -1))
 
             # Turn any copied words to UNKs
             # 0 is unk
