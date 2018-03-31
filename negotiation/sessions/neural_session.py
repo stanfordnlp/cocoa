@@ -201,7 +201,7 @@ class PytorchNeuralSession(NeuralSession):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.generator = env.dialogue_generator
-        # self.builder = env.utterance_builder
+        self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
 
@@ -248,15 +248,6 @@ class PytorchNeuralSession(NeuralSession):
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, cuda=self.cuda)
 
-    def _decoder_args(self, entity_tokens):
-        inputs = self._process_entity_tokens(entity_tokens, 'decoding')
-        decoder_args = {'inputs': inputs,
-                'last_inds': self._get_last_inds(inputs),
-                'init_state': self.decoder_state,
-                'textint_map': self.env.textint_map,
-                }
-        return decoder_args
-
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
@@ -278,27 +269,6 @@ class PytorchNeuralSession(NeuralSession):
         return True
 
     def output_to_tokens(self, data):
-        entity_tokens = self._build_target_tokens(data["predictions"][0][0])
+        pred = data["predictions"][0][0]
+        entity_tokens = self.builder._build_target_tokens(pred)
         return entity_tokens
-
-    def _pred_to_token(self, preds):
-        n_best_predictions = preds[0].pred_sents
-        entity_tokens = n_best_predictions[0] # select top response
-        entity_tokens, _ = EncDecEvaluator.pred_to_token(preds,
-                self.env.stop_symbol, self.env.remove_symbols,
-                self.env.textint_map)
-        return entity_tokens
-
-    def _build_target_tokens(self, pred):
-        vocab = self.vocab
-        tokens = []
-        for tok in pred:
-            raw_token = vocab.ind_to_word[tok]
-            # str() to convert Entity
-            string_token = str(raw_token.canonical) if is_entity(raw_token) else raw_token
-            tokens.append(string_token)
-
-            if tokens[-1] == markers.EOS:
-                tokens = tokens[:-1]
-                break
-        return tokens

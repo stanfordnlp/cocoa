@@ -2,7 +2,7 @@ import sys
 import os
 from itertools import count
 
-from cocoa.pt_model.util import use_gpu
+from onmt.Utils import use_gpu
 
 from neural.generator import Generator
 from neural.utterance import UtteranceBuilder
@@ -31,6 +31,11 @@ def add_evaluator_arguments(parser):
                        help='Batch size')
     group.add_argument('--gpuid', default=[], nargs='+', type=int,
                        help="Use CUDA on the listed devices.")
+
+    group = parser.add_argument_group('Logging')
+    group.add_argument('--verbose', action="store_true",
+                         help='Print scores and predictions for each sentence')
+
 
 
 class Evaluator(object):
