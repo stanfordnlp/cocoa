@@ -147,7 +147,9 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None, target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None, num_context=None, encoder_tokens=None, decoder_tokens=None):
+    def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
+            target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
+            num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 

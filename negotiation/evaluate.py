@@ -13,7 +13,7 @@ from cocoa.core.schema import Schema
 from cocoa.lib import logstats
 
 import onmt
-from onmt.Utils import use_gpu
+from cocoa.pt_model.util import use_gpu
 
 from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments

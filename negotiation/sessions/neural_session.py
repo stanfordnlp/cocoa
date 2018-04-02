@@ -2,14 +2,19 @@ import random
 import re
 from itertools import izip
 import numpy as np
+import pdb
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
+from cocoa.pt_model.util import use_gpu
 
 from core.event import Event
 from session import Session
-from model.preprocess import markers, Dialogue
-from model.evaluate import EncDecEvaluator
+# from model.preprocess import markers, Dialogue
+# from model.evaluate import EncDecEvaluator
+from neural.preprocess import markers, Dialogue
+from neural.evaluator import Evaluator, add_evaluator_arguments
+from neural.batcher import Batch
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -189,4 +194,81 @@ class SelectorNeuralSession(GeneratorNeuralSession):
             entity_tokens.append(token)
         # Remove 'prompts', e.g. <go>
         entity_tokens = entity_tokens[2:]
+        return entity_tokens
+
+class PytorchNeuralSession(NeuralSession):
+    def __init__(self, agent, kb, env):
+        super(PytorchNeuralSession, self).__init__(agent, kb, env)
+        self.vocab = env.vocab
+        self.generator = env.dialogue_generator
+        self.builder = env.utterance_builder
+        self.cuda = env.cuda
+        self.gt_prefix = 1 # cannot be > 1
+
+        self.encoder_state = None
+        self.decoder_state = None
+        self.encoder_output_dict = None
+
+        self.new_turn = False
+        self.end_turn = False
+
+    def get_decoder_inputs(self):
+        utterance = self.dialogue._insert_markers(self.agent, [], True)
+        inputs = self.env.textint_map.text_to_int(utterance, 'decoding')
+        inputs = np.array(inputs, dtype=np.int32).reshape([1, -1])
+        # inputs = inputs[:, :self.model.decoder.prompt_len]
+        return inputs
+
+    def _create_batch(self):
+        num_context = Dialogue.num_context
+        # All turns up to now
+        self.convert_to_int()
+        encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
+
+        encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
+        encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
+        encoder_args = {
+                        'inputs': encoder_inputs,
+                        'context': encoder_context
+                    }
+        decoder_args = {
+                        'inputs': self.get_decoder_inputs(),
+                        'context': self.kb_context_batch,
+                        'targets': np.copy(encoder_turns[0]),
+                    }
+
+        context_data = {
+                'encoder_tokens': [None],
+                'decoder_tokens': [None],
+                'agents': [self.agent, 1-self.agent],
+                'kbs': [self.kb],
+                'uuids': [None],
+                }
+
+        return Batch(encoder_args, decoder_args, context_data,
+                self.vocab, sort_by_length=False) #, cuda=self.cuda)
+
+    def generate(self):
+        if len(self.dialogue.agents) == 0:
+            self.dialogue._add_utterance(1 - self.agent, [])
+        batch = self._create_batch()
+        encoder_init_state = None
+
+        batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        entity_tokens = self.output_to_tokens(batch_data)
+
+        if not self._is_valid(entity_tokens):
+            return None
+        return entity_tokens
+
+    def _is_valid(self, tokens):
+        if not tokens:
+            return False
+        if Vocabulary.UNK in tokens:
+            return False
+        return True
+
+    def output_to_tokens(self, data):
+        pred = data["predictions"][0][0]
+        entity_tokens = self.builder._build_target_tokens(pred)
         return entity_tokens

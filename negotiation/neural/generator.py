@@ -6,6 +6,7 @@ from onmt.Utils import aeq
 
 from preprocess import markers
 from neural.beam import Beam
+from cocoa.pt_model.util import smart_variable
 
 
 class Generator(object):
@@ -124,7 +125,7 @@ class Generator(object):
             # Construct batch x beam_size nxt words.
             # Get all the pending current beam words and arrange for forward.
             inp = var(torch.stack([b.get_current_state() for b in beam])
-                      .t().contiguous().view(1, -1))
+                     .t().contiguous().view(1, -1))
 
             # Turn any copied words to UNKs
             # 0 is unk
@@ -137,8 +138,8 @@ class Generator(object):
             #inp = inp.unsqueeze(2)
 
             # Run one step.
-            dec_out, dec_states, attn = self.model.decoder(
-                inp, memory_bank, dec_states, memory_lengths=memory_lengths)
+            dec_out, dec_states, attn = self.model.decoder(inp, memory_bank,
+                        dec_states, memory_lengths=memory_lengths)
             dec_out = dec_out.squeeze(0)
             # dec_out: beam x rnn_size
 

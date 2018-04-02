@@ -14,7 +14,8 @@ def pad_list_to_array(l, fillvalue, dtype):
     return np.array(list(izip_longest(*l, fillvalue=fillvalue)), dtype=dtype).T
 
 class Batch(object):
-    def __init__(self, encoder_args, decoder_args, context_data, vocab, time_major=True, sort_by_length=True, cuda=False):
+    def __init__(self, encoder_args, decoder_args, context_data, vocab,
+                        time_major=True, sort_by_length=True, cuda=False):
         # TODO: context
         self.vocab = vocab
         self.encoder_inputs = encoder_args['inputs']

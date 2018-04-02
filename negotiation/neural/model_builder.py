@@ -150,8 +150,8 @@ def make_decoder(opt, embeddings):
 
 
 def load_test_model(opt, dummy_opt):
-    checkpoint = torch.load(opt.model,
-                            map_location=lambda storage, loc: storage)
+    checkpoint = torch.load(opt.checkpoint_file,
+                              map_location=lambda storage, loc: storage)
 
     model_opt = checkpoint['opt']
     for arg in dummy_opt:
@@ -160,8 +160,7 @@ def load_test_model(opt, dummy_opt):
 
     mappings = read_pickle('{}/vocab.pkl'.format(model_opt.mappings))
 
-    model = make_base_model(model_opt, mappings,
-                            use_gpu(opt), checkpoint)
+    model = make_base_model(model_opt, mappings, use_gpu(opt), checkpoint)
     model.eval()
     model.generator.eval()
     return mappings, model, model_opt
