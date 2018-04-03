@@ -58,6 +58,7 @@ glove-pt:
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--report-every 500 \
+	--epochs 50
 	#--ignore-cache \
  	#--train-max-examples 250 --test-max-examples 250 
 
