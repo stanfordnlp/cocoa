@@ -294,10 +294,18 @@ class Trainer(object):
             targets = batch.targets
             lengths = batch.lengths
 
+            item_title = batch.item_title
+            previous_turns = batch.prev_turns
+            combined_inputs = {'enc': encoder_inputs,
+                              'item': item_title,
+                              'prev': previous_turns}
+
+            batch.print_sample()
             self.model.zero_grad()
 
-            outputs, attns, dec_state = \
-                self.model(encoder_inputs, decoder_inputs, lengths, dec_state)
+            # running forward() method in the NegotiationModel
+            outputs, attns, dec_state = self.model(combined_inputs,
+                  decoder_inputs, lengths, item_context, dec_state)
 
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()

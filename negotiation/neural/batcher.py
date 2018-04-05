@@ -21,10 +21,9 @@ class Batch(object):
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
 
-        import pdb; pdb.set_trace()
-        self.kb_item = decoder_args['kbs'][0]['item']
-        print("item: {}".format(self.kb_item) )
-        print("context: {}".format(context_data) )
+        self.item_title = decoder_args['context']['title']
+        # self.item_desc = decoder_args['context']['description']
+        self.prev_turns = encoder_args['context']
 
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
@@ -46,6 +45,10 @@ class Batch(object):
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
+
+    def print_sample(self):
+        sample = " ".join([vocab.to_word(i) for i in self.prev_turns[6]])
+        print("sample: {}".format(sample) )
 
     @classmethod
     def to_tensor(cls, data, dtype, cuda=False):

@@ -9,9 +9,9 @@ import onmt
 import onmt.io
 import onmt.Models
 import onmt.modules
-from models import NMTModel, MeanEncoder, RNNEncoder, StdRNNDecoder
-from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, TransformerEncoder, \
-              TransformerDecoder, CNNEncoder, CNNDecoder, AudioEncoder
+from models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
+              MultiAttnDecoder, NegotiationModel
+from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
@@ -31,8 +31,8 @@ def add_model_arguments(parser):
                        help="""Type of encoder layer to use. Non-RNN layers
                        are experimental. Options are
                        [rnn|brnn|mean|transformer|cnn].""")
-    group.add_argument('--decoder-type', type=str, default='rnn',
-                       choices=['rnn', 'transformer', 'cnn'],
+    group.add_argument('--decoder-type', type=str, default='multibank',
+                       choices=['rnn', 'transformer', 'cnn', 'multibank'],
                        help="""Type of decoder layer to use. Non-RNN layers
                        are experimental. Options are
                        [rnn|transformer|cnn].""")
@@ -141,13 +141,19 @@ def make_decoder(opt, embeddings):
                                    attn_type=opt.global_attention,
                                    dropout=opt.dropout,
                                    embeddings=embeddings)
-    else:
+    elif opt.decoder_type == "rnn":
         return StdRNNDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
                              embeddings=embeddings)
-
+    else:
+        print("correctly built the multi attention decoder")
+        return MultiAttnDecoder(opt.rnn_type, bidirectional,
+                             opt.dec_layers, opt.rnn_size,
+                             attn_type=opt.global_attention,
+                             dropout=opt.dropout,
+                             embeddings=embeddings)
 
 def load_test_model(opt, dummy_opt):
     checkpoint = torch.load(opt.checkpoint_file,
@@ -180,26 +186,22 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     # Make encoder.
     src_dict = mappings['vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
-
     encoder = make_encoder(model_opt, src_embeddings)
-
+    # Make context embedder.
+    model_opt.encoder_type = "mean"
+    context_dict = mappings['vocab']
+    context_embeddings = make_embeddings(model_opt, context_dict)
+    context_embedder = make_encoder(model_opt, context_embeddings)
     # Make decoder.
     tgt_dict = mappings['vocab']
-    tgt_embeddings = make_embeddings(model_opt, tgt_dict)
-
-    # Share the embedding matrix - preprocess with share_vocab required.
-    #if model_opt.share_embeddings:
-    #    # src/tgt vocab should be the same if `-share_vocab` is specified.
-    #    if src_dict != tgt_dict:
-    #        raise AssertionError('The `-share_vocab` should be set during '
-    #                             'preprocess if you use share_embeddings!')
-
-    #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
-
+    tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
     decoder = make_decoder(model_opt, tgt_embeddings)
 
-    # Make NMTModel(= encoder + decoder).
-    model = NMTModel(encoder, decoder)
+    # Make NegotiationModel(= encoder + decoder + context_embedder).
+    if model_opt.decoder_type == "rnn":
+      model = NMTModel(encoder, decoder)
+    elif model_opt.decoder_type == "multibank":
+      model = NegotiationModel(encoder, decoder, context_embedder)
     model.model_type = 'text'
 
     # Make Generator.

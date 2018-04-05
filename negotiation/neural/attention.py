@@ -196,16 +196,13 @@ class GlobalAttention(nn.Module):
 
 class MultibankGlobalAttention(GlobalAttention):
 
-    def __init__(self, dim, coverage=False, attn_type="dot"):
-        super(MultibankGlobalAttention, self).__init__(dim, coverage, attn_type)
-
     def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
         """
         Args:
           input (`FloatTensor`): query vectors `[batch x tgt_len x dim]`
-          memory_banks (`FloatTensor`): source vectors `[batch x src_len x dim]`
-          memory_lengths (`LongTensor`): the source context lengths `[batch]`
-          coverage (`FloatTensor`): None (not supported yet)
+          memory_banks (`FloatTensor`): list of source vectors where each source
+            vector has shape `[batch x src_len x dim]`
+          memory_lengths (`LongTensor`): list of lengths `[batch]`
         Returns:
           (`FloatTensor`, `FloatTensor`):
           * Computed vector `[tgt_len x batch x dim]`
@@ -220,7 +217,11 @@ class MultibankGlobalAttention(GlobalAttention):
         else:
             one_step = False
 
+        attention_hidden_states = []
+        alignment_vectors = []
+
         for memory_bank in memory_banks:
+            # memory_bank = memory_bank.transpose(0,1)
             batch, sourceL, dim = memory_bank.size()
             batch_, targetL, dim_ = input.size()
             aeq(batch, batch_)
@@ -283,4 +284,9 @@ class MultibankGlobalAttention(GlobalAttention):
                 aeq(batch, batch_)
                 aeq(sourceL, sourceL_)
 
-        return attn_h, align_vectors
+            attention_hidden_states.append[attn_h]
+            alignment_vectors = [align_vectors]
+
+        final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=3)
+        final_align_v = torch.sum(torch.stacK(alignment_vectors), dim=3)
+        return final_attn_h, final_align_v
