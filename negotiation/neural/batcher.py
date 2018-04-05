@@ -20,6 +20,12 @@ class Batch(object):
         self.vocab = vocab
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
+
+        import pdb; pdb.set_trace()
+        self.kb_item = decoder_args['kbs'][0]['item']
+        print("item: {}".format(self.kb_item) )
+        print("context: {}".format(context_data) )
+
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
         self.context_data = context_data
@@ -574,7 +580,6 @@ class LMDialogueBatcher(DialogueBatcher):
                 batch_seq.append(self._create_one_batch_lm(T[:, i:i+bptt_steps]))
 
         return batch_seq
-
 
 class EvalDialogueBatcher(DialogueBatcher):
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context, candidate_scores):
