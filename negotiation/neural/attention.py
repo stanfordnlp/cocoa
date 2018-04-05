@@ -193,3 +193,94 @@ class GlobalAttention(nn.Module):
             aeq(sourceL, sourceL_)
 
         return attn_h, align_vectors
+
+class MultibankGlobalAttention(GlobalAttention):
+
+    def __init__(self, dim, coverage=False, attn_type="dot"):
+        super(MultibankGlobalAttention, self).__init__(dim, coverage, attn_type)
+
+    def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
+        """
+        Args:
+          input (`FloatTensor`): query vectors `[batch x tgt_len x dim]`
+          memory_banks (`FloatTensor`): source vectors `[batch x src_len x dim]`
+          memory_lengths (`LongTensor`): the source context lengths `[batch]`
+          coverage (`FloatTensor`): None (not supported yet)
+        Returns:
+          (`FloatTensor`, `FloatTensor`):
+          * Computed vector `[tgt_len x batch x dim]`
+          * Attention distribtutions for each query
+             `[tgt_len x batch x src_len]`
+        """
+
+        # one step input
+        if input.dim() == 2:
+            one_step = True
+            input = input.unsqueeze(1)
+        else:
+            one_step = False
+
+        for memory_bank in memory_banks:
+            batch, sourceL, dim = memory_bank.size()
+            batch_, targetL, dim_ = input.size()
+            aeq(batch, batch_)
+            aeq(dim, dim_)
+            aeq(self.dim, dim)
+            if coverage is not None:
+                batch_, sourceL_ = coverage.size()
+                aeq(batch, batch_)
+                aeq(sourceL, sourceL_)
+
+            if coverage is not None:
+                cover = coverage.view(-1).unsqueeze(1)
+                memory_bank += self.linear_cover(cover).view_as(memory_bank)
+                memory_bank = self.tanh(memory_bank)
+
+            # compute attention scores, as in Luong et al.
+            align = self.score(input, memory_bank)
+
+            if memory_lengths is not None:
+                mask = sequence_mask(memory_lengths)
+                mask = mask.unsqueeze(1)  # Make it broadcastable.
+                align.data.masked_fill_(1 - mask, -float('inf'))
+
+            # Softmax to normalize attention weights
+            align_vectors = self.sm(align.view(batch*targetL, sourceL))
+            align_vectors = align_vectors.view(batch, targetL, sourceL)
+
+            # each context vector c_t is the weighted average
+            # over all the source hidden states
+            c = torch.bmm(align_vectors, memory_bank)
+
+            # concatenate
+            concat_c = torch.cat([c, input], 2).view(batch*targetL, dim*2)
+            attn_h = self.linear_out(concat_c).view(batch, targetL, dim)
+            if self.attn_type in ["general", "dot"]:
+                attn_h = self.tanh(attn_h)
+
+            if one_step:
+                attn_h = attn_h.squeeze(1)
+                align_vectors = align_vectors.squeeze(1)
+
+                # Check output sizes
+                batch_, dim_ = attn_h.size()
+                aeq(batch, batch_)
+                aeq(dim, dim_)
+                batch_, sourceL_ = align_vectors.size()
+                aeq(batch, batch_)
+                aeq(sourceL, sourceL_)
+            else:
+                attn_h = attn_h.transpose(0, 1).contiguous()
+                align_vectors = align_vectors.transpose(0, 1).contiguous()
+
+                # Check output sizes
+                targetL_, batch_, dim_ = attn_h.size()
+                aeq(targetL, targetL_)
+                aeq(batch, batch_)
+                aeq(dim, dim_)
+                targetL_, batch_, sourceL_ = align_vectors.size()
+                aeq(targetL, targetL_)
+                aeq(batch, batch_)
+                aeq(sourceL, sourceL_)
+
+        return attn_h, align_vectors
