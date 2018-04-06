@@ -274,7 +274,11 @@ class PytorchNeuralSession(NeuralSession):
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
-        batch = self.new_create_batch()
+        pad_marker = self.batcher.int_markers.PAD
+        print("pad_marker: {}".format(pad_marker))
+        pdb.set_trace()
+        self.dialogue.convert_to_int(pad_marker)
+        batch = self.batcher.create_batch([self.dialogue])
         encoder_init_state = None
 
         batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
