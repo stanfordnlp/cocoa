@@ -219,7 +219,7 @@ class PytorchNeuralSession(NeuralSession):
         # inputs = inputs[:, :self.model.decoder.prompt_len]
         return inputs
 
-    def _create_batch(self):
+    def old_create_batch(self):
         num_context = Dialogue.num_context
         # All turns up to now
         self.convert_to_int()
@@ -248,10 +248,33 @@ class PytorchNeuralSession(NeuralSession):
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False) #, cuda=self.cuda)
 
+    def new_create_batch(self):
+        dialogue_class = type(self.dialogue)
+        ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
+        num_context = dialogue_class.num_context
+
+        encode_turn_ids = self.get_encoding_turn_ids(num_turns)
+        encoder_turns_all = self._get_turn_batch_at(dialogues, ENC, None)
+        # NOTE: encoder_turns contains all previous dialogue context, |num_context|
+        # decides how many turns to use
+        one_batch = self.batcher._create_one_batch(
+                        encoder_turns=encoder_turns_all[:i+1],
+                        decoder_turns=self._get_turn_batch_at(dialogues, DEC, i+1),
+                        target_turns=self._get_turn_batch_at(dialogues, TARGET, i+1),
+                        encoder_tokens=self._get_token_turns_at(dialogues, i),
+                        decoder_tokens=self._get_token_turns_at(dialogues, i+1),
+                        agents=dialogue_data['agents'],
+                        uuids=dialogue_data['uuids'],
+                        kbs=dialogue_data['kbs'],
+                        kb_context=dialogue_data['kb_context'],
+                        num_context=num_context,
+                    )
+        return one_batch
+
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
-        batch = self._create_batch()
+        batch = self.new_create_batch()
         encoder_init_state = None
 
         batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
