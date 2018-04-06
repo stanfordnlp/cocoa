@@ -222,8 +222,6 @@ class MultibankGlobalAttention(GlobalAttention):
         alignment_vectors = []
 
         for idx, memory_bank in enumerate(memory_banks):
-            if idx < 1: # if we are dealing with enc_memory_bank
-                memory_bank = memory_bank.transpose(0,1)
             batch, sourceL, dim = memory_bank.size()
             batch_, targetL, dim_ = input.size()
             aeq(batch, batch_)

@@ -107,9 +107,9 @@ class Generator(object):
             item_title = batch.item_title
             previous_turns = batch.prev_turns
             prev_states, prev_memory_bank = self.model.cbow_embedder(previous_turns)
-            memory_bank = [enc_memory_bank, prev_memory_bank]
+            memory_bank = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
             predict_with_context = True
-        except:
+        else:
             memory_bank = enc_memory_bank.data
         # enc/dec_states: (seq_len, batch_size, rnn_size)
 
