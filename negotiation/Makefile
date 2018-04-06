@@ -1,6 +1,6 @@
 model=encdec
-exp=basic
-lr=0.034
+exp=decay
+lr=0.031
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
 mappings=scr/mappings-10k
@@ -9,13 +9,14 @@ summary_dir=$(checkpoint)/summary
 stats_file=$(checkpoint)/stats
 cache=basic
 cache_path=/u/nlp/scr/hehe/game-dialogue/data_cache/$(cache)
-print=50
+print_every=400
 gpu=1
 rnn_size=300
 num_items=5
 seed=1
 max_epochs=100
-min_epochs=50
+min_epochs=10
+num_epochs=50
 batch_size=128
 entity_form=type
 data=negotiation
@@ -58,8 +59,8 @@ glove-pt:
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
 	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) \
-	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate $(lr) --rnn-type LSTM \
-	--report-every 500 --epochs 50   # --train-max-examples 250 --test-max-examples 250 --ignore-cache
+	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
+	--report-every 500 --epochs $(num_epochs) --verbose  # --train-max-examples 250 --test-max-examples 250 --ignore-cache
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --checkpoint-file $(ckpt_file) \
@@ -72,7 +73,7 @@ train-neg:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
 	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) \
 	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate $(lr) --rnn-type LSTM \
-	--report-every 500 --epochs 50  --context title  # --train-max-examples 250 --test-max-examples 250 --ignore-cache
+	--report-every $(print_every) --epochs 50  --context title  # --train-max-examples 250 --test-max-examples 250 --ignore-cache
 
 	# --checkpoint $(checkpoint) --min-epochs $(min_epochs) --max-epochs $(max_epochs) --grad-clip 5  --decoder rnn-attn --cache $(cache_path)
 	# --context-size 300 --context-encoder bow --num-context 2 --dropout $(dropout) --attention-memory title description --num-candidates 20 \
