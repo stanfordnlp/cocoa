@@ -1,6 +1,6 @@
 model=encdec
 exp=basic
-lr=0.5
+lr=0.034
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
 mappings=scr/mappings-10k
@@ -11,7 +11,7 @@ cache=basic
 cache_path=/u/nlp/scr/hehe/game-dialogue/data_cache/$(cache)
 print=50
 gpu=1
-rnn_size=50
+rnn_size=200
 num_items=5
 seed=1
 max_epochs=100
@@ -53,13 +53,13 @@ real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/$(data)/
 
 glove-pt:
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab.pkl --output-file scr/glove 
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab.pkl --output-file scr/glove
 
 train:
-	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
- 	--train-max-examples 250 --test-max-examples 250 \
-	--report-every 50 --epochs 5  # originally 500 and 50
-	#--ignore-cache \
+	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
+	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) \
+	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate $(lr) --rnn-type LSTM \
+	--report-every 500 --epochs 50   # --train-max-examples 250 --test-max-examples 250 --ignore-cache
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --checkpoint-file $(ckpt_file) \
@@ -69,7 +69,18 @@ test:
 
 dropout=0.0
 train-neg:
-	PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json --train-max-examples 250 --test-max-examples 250 --checkpoint $(checkpoint) --min-epochs $(min_epochs) --max-epochs $(max_epochs) --mappings $(mappings) --rnn-type lstm --learning-rate $(lr) --optimizer adagrad --print-every $(print) --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --grad-clip 5 --batch-size $(batch_size) --stats-file $(stats_file).train --price-tracker $(price_tracker) --word-embed-size 300 --decoder rnn-attn --cache $(cache_path) --context category --context-size 300 --context-encoder bow --num-context 2 --dropout $(dropout) --attention-memory title description --num-candidates 20 --candidates-path /scr/hehe/game-dialogue/train_candidates.json /scr/hehe/game-dialogue/dev_candidates.json --index /scr/hehe/game-dialogue/index --pretrained-wordvec $(glove) --ignore-cache #--test-max-examples 10 --train-max-example 100 #--verbose #--summary-dir $(summary_dir) #--predict-price #--test-max-examples 10 --train-max-example 100 #--slot-filling --slot-scores $(slot_scores) --dropout 0.5 #--retrieve --index /scr/hehe/game-dialogue/index --rewrite-index --retriever-context-len 2 --num-candidates 20 --candidates-path /scr/hehe/game-dialogue/dev_candidates.json /scr/hehe/game-dialogue/train_candidates.json #--sample-targets #--sampled-loss #--entity-decoding-form type --entity-target-form type 
+	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
+	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) \
+	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate $(lr) --rnn-type LSTM \
+	--report-every 500 --epochs 50  --context title  # --train-max-examples 250 --test-max-examples 250 --ignore-cache
+
+	# --checkpoint $(checkpoint) --min-epochs $(min_epochs) --max-epochs $(max_epochs) --grad-clip 5  --decoder rnn-attn --cache $(cache_path)
+	# --context-size 300 --context-encoder bow --num-context 2 --dropout $(dropout) --attention-memory title description --num-candidates 20 \
+	# --candidates-path /scr/hehe/game-dialogue/train_candidates.json /scr/hehe/game-dialogue/dev_candidates.json --index /scr/hehe/game-dialogue/index \
+	#--test-max-examples 10 --train-max-example 100 #--verbose #--summary-dir $(summary_dir) #--predict-price #--test-max-examples 10 --train-max-example 100
+	#--slot-filling --slot-scores $(slot_scores) --dropout 0.5 #--retrieve --index /scr/hehe/game-dialogue/index --rewrite-index --retriever-context-len 2
+	#--num-candidates 20 --candidates-path /scr/hehe/game-dialogue/dev_candidates.json /scr/hehe/game-dialogue/train_candidates.json
+	#--sample-targets #--sampled-loss #--entity-decoding-form type --entity-target-form type
 
 train-neg-ir:
 	PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json --checkpoint $(checkpoint) --min-epochs $(min_epochs) --max-epochs $(max_epochs) --mappings $(mappings) --rnn-type lstm --learning-rate $(lr) --optimizer adagrad --print-every $(print) --model $(model) --gpu $(gpu) --rnn-size $(rnn_size) --grad-clip 5 --batch-size $(batch_size) --stats-file $(stats_file).train --price-tracker $(price_tracker) --word-embed-size 300 --decoder rnn-attn --cache $(cache_path) --context category --context-size 300 --context-encoder bow --num-context 2 --dropout $(dropout) --attention-memory title description --num-candidates 20 --candidates-path /scr/hehe/game-dialogue/train_candidates.json /scr/hehe/game-dialogue/dev_candidates.json --index /scr/hehe/game-dialogue/index --pretrained-wordvec $(glove) --ignore-cache #--test-max-examples 10 --train-max-example 100 #--verbose #--summary-dir $(summary_dir) #--predict-price #--test-max-examples 10 --train-max-example 100 --dropout 0.5 --retrieve --index /scr/hehe/game-dialogue/index--ignore-cache --rewrite-index --retriever-context-len 2 --num-candidates 20 --candidates-path /scr/hehe/game-dialogue/dev_candidates.json /scr/hehe/game-dialogue/train_candidates.json #--sample-targets #--sampled-loss #--entity-decoding-form type --entity-target-form type 

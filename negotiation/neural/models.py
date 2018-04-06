@@ -401,8 +401,7 @@ class StdRNNDecoder(RNNDecoderBase):
 
         # Calculate the attention.
         decoder_outputs, p_attn = self.attn(
-            rnn_output.transpose(0, 1).contiguous(),
-            memory_bank.transpose(0, 1),
+            rnn_output.transpose(0, 1).contiguous(), memory_bank,
             memory_lengths=memory_lengths
         )
         attns["std"] = p_attn
