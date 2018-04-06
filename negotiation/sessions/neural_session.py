@@ -256,23 +256,25 @@ class PytorchNeuralSession(NeuralSession):
     #     return batch_seq[0]
 
     def _create_batch(self):
-        br = self.batcher
+        btr = self.batcher
+        dialog = [self.dialogue]
         dialogue_class = type(self.dialogue)
         ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
         num_context = dialogue_class.num_context
-        encoder_turns_all = br._get_turn_batch_at([self.dialogue], ENC, None)
+        encoder_turns_all = btr._get_turn_batch_at(dialog, ENC, None)
+        self.dialogue.agents.insert(0,0)
         print("num_context: {}".format(num_context))
 
-        one_batch = br._create_one_batch(
-                encoder_turns=encoder_turns_all[:i+1],
-                decoder_turns=br._get_turn_batch_at(dialogues, DEC, i+1),
-                target_turns=br._get_turn_batch_at(dialogues, TARGET, i+1),
-                encoder_tokens=br._get_token_turns_at(dialogues, i),
-                decoder_tokens=br._get_token_turns_at(dialogues, i+1),
-                agents=[self.dialogue.agents[0], 1-self.dialogue.agents[0]],
+        one_batch = btr._create_one_batch(
+                encoder_turns=encoder_turns_all[:1],
+                decoder_turns=btr._get_turn_batch_at(dialog, DEC, 1),
+                target_turns=btr._get_turn_batch_at(dialog, TARGET, 1),
+                encoder_tokens=btr._get_token_turns_at(dialog, 0),
+                decoder_tokens=btr._get_token_turns_at(dialog, 1),
+                agents=self.dialogue.agents,
                 uuids=[self.dialogue.uuid],
-                kbs=br._get_kb_batch([self.dialogue]),
-                kb_context=br.create_context_batch([self.dialogue], br.kb_pad)
+                kbs=btr._get_kb_batch(dialog),
+                kb_context=btr.create_context_batch(dialog, btr.kb_pad),
                 num_context=num_context,
             )
         return one_batch
