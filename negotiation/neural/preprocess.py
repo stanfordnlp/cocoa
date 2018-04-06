@@ -277,7 +277,7 @@ class Dialogue(object):
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
 
-    def convert_to_int(self, pad_marker=None):
+    def convert_to_int(self):
         if self.is_int:
             return
 
@@ -288,10 +288,7 @@ class Dialogue(object):
         if self.token_candidates:
             self.candidates_to_int()
 
-        if pad_marker is not None:
-            self.price_turns = self.get_price_turns(pad_marker)
-        else:
-            self.price_turns = self.get_price_turns(int_markers.PAD)
+        self.price_turns = self.get_price_turns(int_markers.PAD)
         self.kb_context_to_int()
 
         self.is_int = True

@@ -7,7 +7,7 @@ from onmt.Utils import aeq
 from preprocess import markers
 from neural.beam import Beam
 from cocoa.pt_model.util import smart_variable
-import pdb
+
 
 class Generator(object):
     """
@@ -99,22 +99,21 @@ class Generator(object):
         encoder_inputs = batch.encoder_inputs
         lengths = batch.lengths
 
-        enc_states, enc_memory_bank = self.model.encoder(encoder_inputs, lengths)
+        enc_states, memory_bank = self.model.encoder(encoder_inputs, lengths)
         dec_states = self.model.decoder.init_decoder_state(
-                                        encoder_inputs, enc_memory_bank, enc_states)
+                                        encoder_inputs, memory_bank, enc_states)
 
         if hasattr(batch, 'prev_turns'):
             item_title = batch.item_title
             previous_turns = batch.prev_turns
-            prev_states, prev_memory_bank = self.model.cbow_embedder(previous_turns)
+
+            _, item_memory_bank = self.model.cbow_embedder(item_title)
+            _, prev_memory_bank = self.model.cbow_embedder(previous_turns)
+            enc_memory_bank = memory_bank
+
             memory_bank = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
             predict_with_context = True
-        else:
-            memory_bank = enc_memory_bank.data
         # enc/dec_states: (seq_len, batch_size, rnn_size)
-
-        print("enc: {}".format(enc_memory_bank.shape))
-        print("prev: {}".format(prev_memory_bank.shape))
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:

@@ -304,8 +304,15 @@ class RNNDecoderBase(nn.Module):
         # Check
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
-        memory_batch = memory_banks[0].shape[0] if isinstance(memory_banks, list) else memory_banks
-        # _, memory_batch, _ = one_memory.size()
+        if isinstance(memory_banks, list):
+            memory_bank = memory_banks[0]
+        else:
+            # We transpose since the code originally did so when calculating
+            # attention in StdRNNDecoder._run_forward_pass(), but we can no
+            # longer do that anymore because memory_banks is sometimes a list
+            memory_banks = memory_banks.transpose(0, 1)
+            memory_bank = memory_banks
+        memory_batch, _, _ = memory_bank.shape
         aeq(tgt_batch, memory_batch)
         # END
 
@@ -367,7 +374,7 @@ class StdRNNDecoder(RNNDecoderBase):
             tgt (LongTensor): a sequence of input tokens tensors
                                  [len x batch].
             memory_bank (FloatTensor): output(tensor sequence) from the encoder
-                        RNN of size (src_len x batch x hidden_size).
+                        RNN of size (batch x src_len x hidden_size).
             state (FloatTensor): hidden state from the encoder RNN for
                                  initializing the decoder.
             memory_lengths (LongTensor): the source memory_bank lengths.
@@ -553,8 +560,8 @@ class NMTModel(nn.Module):
       multi<gpu (bool): setup for multigpu support
     """
     def __init__(self, encoder, decoder, multigpu=False):
-        super(NMTModel, self).__init__()
         self.multigpu = multigpu
+        super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
 
@@ -586,7 +593,7 @@ class NMTModel(nn.Module):
         enc_state = \
             self.decoder.init_decoder_state(src, memory_bank, enc_final)
         decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank.transpose(0,1),
+            self.decoder(tgt, memory_bank,
                          enc_state if dec_state is None
                          else dec_state,
                          memory_lengths=lengths)

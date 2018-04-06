@@ -583,6 +583,7 @@ class LMDialogueBatcher(DialogueBatcher):
 
         return batch_seq
 
+
 class EvalDialogueBatcher(DialogueBatcher):
     def _create_one_batch(self, encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context, candidate_scores):
         batch = super(EvalDialogueBatcher, self)._create_one_batch(encode_turn, decode_turn, target_turn, price_encode_turn, price_decode_turn, encode_tokens, decode_tokens, token_candidates, candidates, agents, kbs, context_batch, num_context)
