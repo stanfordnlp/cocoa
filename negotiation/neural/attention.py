@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from onmt.modules.UtilClass import BottleLinear
 from onmt.Utils import aeq, sequence_mask
-
+import pdb
 
 class GlobalAttention(nn.Module):
     """
@@ -221,9 +221,9 @@ class MultibankGlobalAttention(GlobalAttention):
         attention_hidden_states = []
         alignment_vectors = []
 
-        for memory_bank in memory_banks:
-            memory_bank = memory_bank.transpose(0,1)
-            print("memory_bank: {}".format(memory_bank.shape))
+        for idx, memory_bank in enumerate(memory_banks):
+            if idx < 1: # if we are dealing with enc_memory_bank
+                memory_bank = memory_bank.transpose(0,1)
             batch, sourceL, dim = memory_bank.size()
             batch_, targetL, dim_ = input.size()
             aeq(batch, batch_)
@@ -242,7 +242,7 @@ class MultibankGlobalAttention(GlobalAttention):
             # compute attention scores, as in Luong et al.
             align = self.score(input, memory_bank)
 
-            if memory_lengths is not None:
+            if (memory_lengths is not None) and (idx < 1):
                 mask = sequence_mask(memory_lengths)
                 mask = mask.unsqueeze(1)  # Make it broadcastable.
                 align.data.masked_fill_(1 - mask, -float('inf'))
@@ -286,9 +286,9 @@ class MultibankGlobalAttention(GlobalAttention):
                 aeq(batch, batch_)
                 aeq(sourceL, sourceL_)
 
-            attention_hidden_states.append[attn_h]
-            alignment_vectors = [align_vectors]
+            attention_hidden_states.append(attn_h)
+            alignment_vectors.append(align_vectors)
 
-        final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=3)
-        final_align_v = torch.sum(torch.stacK(alignment_vectors), dim=3)
+        final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=0)
+        final_align_v = torch.cat(alignment_vectors, dim=2)
         return final_attn_h, final_align_v
