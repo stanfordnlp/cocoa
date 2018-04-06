@@ -113,7 +113,7 @@ def make_encoder(opt, embeddings):
     else:
         # "rnn" or "brnn"
         bidirectional = True if opt.encoder_type == 'brnn' else False
-        return RNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
+        return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                           opt.rnn_size, opt.dropout, embeddings,
                           False)
 
@@ -148,7 +148,6 @@ def make_decoder(opt, embeddings):
                              dropout=opt.dropout,
                              embeddings=embeddings)
     else:
-        print("correctly built the multi attention decoder")
         return MultiAttnDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,

@@ -23,8 +23,8 @@ class Batch(object):
 
         self.item_title = decoder_args['context']['title']
         # self.item_desc = decoder_args['context']['description']
-        self.prev_turns = encoder_args['context']
-
+        self.prev_turns = encoder_args['context'][0]
+        
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
         self.context_data = context_data
@@ -47,7 +47,7 @@ class Batch(object):
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
 
     def print_sample(self):
-        sample = " ".join([vocab.to_word(i) for i in self.prev_turns[6]])
+        sample = " ".join([self.vocab.to_word(i) for i in self.prev_turns[7]])
         print("sample: {}".format(sample) )
 
     @classmethod

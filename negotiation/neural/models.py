@@ -10,7 +10,7 @@ from attention import MultibankGlobalAttention, GlobalAttention
 
 import onmt
 from onmt.Utils import aeq
-
+import pdb
 
 def rnn_factory(rnn_type, **kwargs):
     # Use pytorch version when available.
@@ -604,10 +604,10 @@ class NegotiationModel(NMTModel):
 
     def forward(self, sources, tgt, lengths, dec_state=None):
         enc_final, enc_memory_bank = self.encoder(sources['enc'], lengths)
-		# item_final, item_memory_bank = self.cbow_embedder(sources['item'])
-		prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
-		# memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
-		memory_banks = [enc_memory_bank, prev_memory_bank]
+	# item_final, item_memory_bank = self.cbow_embedder(sources['item'])
+	prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
+	# memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
+	memory_banks = [enc_memory_bank, prev_memory_bank]
 
         enc_state = self.decoder.init_decoder_state(sources['enc'], enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
@@ -677,13 +677,13 @@ class RNNDecoderState(DecoderState):
         self.hidden = tuple(vars[:-1])
         self.input_feed = vars[-1]
 
-class MultiAttnDecoder(RNNDecoderBase):
+class MultiAttnDecoder(StdRNNDecoder):
 
     def __init__(self, rnn_type, bidirectional_encoder, num_layers,
             hidden_size, attn_type="general", coverage_attn=False,
             context_gate=None, copy_attn=False, dropout=0.0,
             embeddings=None, reuse_copy_attn=False):
-        super(RNNDecoderBase, self).__init__(rnn_type, bidirectional_encoder,
+        super(MultiAttnDecoder, self).__init__(rnn_type, bidirectional_encoder,
               num_layers, hidden_size, attn_type, coverage_attn,
               context_gate, copy_attn, dropout, embeddings, reuse_copy_attn)
 
@@ -692,40 +692,3 @@ class MultiAttnDecoder(RNNDecoderBase):
             attn_type=attn_type
         )
 
-
-    def _run_forward_pass(self, tgt, memory_banks, state, memory_lengths=None):
-        # Initialize local and return variables.
-        attns = {}
-        emb = self.embeddings(tgt)
-
-        # Run the forward pass of the RNN.
-        if isinstance(self.rnn, nn.GRU):
-            rnn_output, decoder_final = self.rnn(emb, state.hidden[0])
-        else:
-            rnn_output, decoder_final = self.rnn(emb, state.hidden)
-
-        # Check
-        tgt_len, tgt_batch = tgt.size()
-        output_len, output_batch, _ = rnn_output.size()
-        aeq(tgt_len, output_len)
-        aeq(tgt_batch, output_batch)
-
-        # Calculate the attention.
-        decoder_outputs, p_attn = self.attn(
-            rnn_output.transpose(0, 1).contiguous(), memory_banks,
-            memory_lengths=memory_lengths
-        )
-        attns["multi"] = p_attn
-
-        # Calculate the context gate.
-        if self.context_gate is not None:
-            decoder_outputs = self.context_gate(
-                emb.view(-1, emb.size(2)),
-                rnn_output.view(-1, rnn_output.size(2)),
-                decoder_outputs.view(-1, decoder_outputs.size(2))
-            )
-            decoder_outputs = \
-                decoder_outputs.view(tgt_len, tgt_batch, self.hidden_size)
-
-        decoder_outputs = self.dropout(decoder_outputs)
-        return decoder_final, decoder_outputs, attns

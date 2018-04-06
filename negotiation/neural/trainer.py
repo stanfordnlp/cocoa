@@ -305,7 +305,7 @@ class Trainer(object):
 
             # running forward() method in the NegotiationModel
             outputs, attns, dec_state = self.model(combined_inputs,
-                  decoder_inputs, lengths, item_context, dec_state)
+                  decoder_inputs, lengths, dec_state)
 
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()
