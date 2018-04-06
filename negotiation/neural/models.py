@@ -282,13 +282,13 @@ class RNNDecoderBase(nn.Module):
             self._copy = True
         self._reuse_copy_attn = reuse_copy_attn
 
-    def forward(self, tgt, memory_bank, state, memory_lengths=None):
+    def forward(self, tgt, memory_banks, state, memory_lengths=None):
         """
         Args:
             tgt (`LongTensor`): sequences of padded tokens
                                 `[tgt_len x batch]`.
-            memory_bank (`FloatTensor`): vectors from the encoder
-                 `[src_len x batch x hidden]`.
+            memory_bank(s) (`FloatTensor`): vectors from the encoder
+                 `[src_len x batch x hidden]`. possibly a list of vectors
             state (:obj:`onmt.Models.DecoderState`):
                  decoder state object to initialize the decoder
             memory_lengths (`LongTensor`): the padded source lengths
@@ -304,13 +304,14 @@ class RNNDecoderBase(nn.Module):
         # Check
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
-        _, memory_batch, _ = memory_bank.size()
+        one_memory = memory_banks[0] if isinstance(memory_banks, list) else memory_banks
+        _, memory_batch, _ = one_memory.size()
         aeq(tgt_batch, memory_batch)
         # END
 
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
-            tgt, memory_bank, state, memory_lengths=memory_lengths)
+            tgt, memory_banks, state, memory_lengths=memory_lengths)
 
         # Update the state with the result.
         final_output = decoder_outputs[-1]
