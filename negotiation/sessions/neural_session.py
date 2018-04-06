@@ -260,15 +260,14 @@ class PytorchNeuralSession(NeuralSession):
         dialog = [self.dialogue]
         dialogue_class = type(self.dialogue)
         ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
-        num_context = dialogue_class.num_context
-        encoder_turns_all = btr._get_turn_batch_at(dialog, ENC, None)
+        num_context = dialogue_class.num_context + 1
         self.dialogue.agents.insert(0,0)
         print("num_context: {}".format(num_context))
 
         one_batch = btr._create_one_batch(
-                encoder_turns=encoder_turns_all[:1],
-                decoder_turns=btr._get_turn_batch_at(dialog, DEC, 1),
-                target_turns=btr._get_turn_batch_at(dialog, TARGET, 1),
+                encoder_turns=btr._get_turn_batch_at(dialog, ENC, None),
+                decoder_turns=btr._get_turn_batch_at(dialog, DEC, None),
+                target_turns=btr._get_turn_batch_at(dialog, TARGET, None),
                 encoder_tokens=btr._get_token_turns_at(dialog, 0),
                 decoder_tokens=btr._get_token_turns_at(dialog, 1),
                 agents=self.dialogue.agents,
