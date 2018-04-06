@@ -253,22 +253,22 @@ class PytorchNeuralSession(NeuralSession):
         ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
         num_context = dialogue_class.num_context
 
-        encode_turn_ids = self.get_encoding_turn_ids(num_turns)
-        encoder_turns_all = self._get_turn_batch_at(dialogues, ENC, None)
+        encode_turn_ids = self.batcher.get_encoding_turn_ids(num_turns)
+        encoder_turns_all = self.batcher._get_turn_batch_at(dialogues, ENC, None)
         # NOTE: encoder_turns contains all previous dialogue context, |num_context|
         # decides how many turns to use
         one_batch = self.batcher._create_one_batch(
-                        encoder_turns=encoder_turns_all[:i+1],
-                        decoder_turns=self._get_turn_batch_at(dialogues, DEC, i+1),
-                        target_turns=self._get_turn_batch_at(dialogues, TARGET, i+1),
-                        encoder_tokens=self._get_token_turns_at(dialogues, i),
-                        decoder_tokens=self._get_token_turns_at(dialogues, i+1),
-                        agents=dialogue_data['agents'],
-                        uuids=dialogue_data['uuids'],
-                        kbs=dialogue_data['kbs'],
-                        kb_context=dialogue_data['kb_context'],
-                        num_context=num_context,
-                    )
+                encoder_turns=encoder_turns_all[:i+1],
+                decoder_turns=self.batcher._get_turn_batch_at(dialogues, DEC, i+1),
+                target_turns=self.batcher._get_turn_batch_at(dialogues, TARGET, i+1),
+                encoder_tokens=self.batcher._get_token_turns_at(dialogues, i),
+                decoder_tokens=self.batcher._get_token_turns_at(dialogues, i+1),
+                agents=dialogue_data['agents'],
+                uuids=dialogue_data['uuids'],
+                kbs=dialogue_data['kbs'],
+                kb_context=dialogue_data['kb_context'],
+                num_context=num_context,
+            )
         return one_batch
 
     def generate(self):
