@@ -300,9 +300,7 @@ class Trainer(object):
                               'item': item_title,
                               'prev': previous_turns}
 
-            batch.print_sample()
             self.model.zero_grad()
-
             # running forward() method in the NegotiationModel
             outputs, attns, dec_state = self.model(combined_inputs,
                   decoder_inputs, lengths, dec_state)

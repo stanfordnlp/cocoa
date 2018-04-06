@@ -196,7 +196,6 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
     decoder = make_decoder(model_opt, tgt_embeddings)
 
-    # Make NegotiationModel(= encoder + decoder + context_embedder).
     if model_opt.decoder_type == "rnn":
       model = NMTModel(encoder, decoder)
     elif model_opt.decoder_type == "multibank":

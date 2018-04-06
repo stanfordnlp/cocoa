@@ -49,10 +49,6 @@ class Batch(object):
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
 
-    def print_sample(self):
-        sample = " ".join([self.vocab.to_word(i) for i in self.prev_turns[7]])
-        print("sample: {}".format(sample) )
-
     @classmethod
     def to_tensor(cls, data, dtype, cuda=False):
         if type(data) == np.ndarray:
