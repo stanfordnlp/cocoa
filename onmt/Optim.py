@@ -32,18 +32,16 @@ class Optim(object):
     # was used there however, beta2=0.999 is still arguably the more
     # established value, so we use that here as well
     def __init__(self, method, lr, max_grad_norm,
-                 lr_decay=1, start_decay_at=None,
-                 beta1=0.9, beta2=0.999,
-                 adagrad_accum=0.0,
-                 decay_method=None,
-                 warmup_steps=4000,
-                 model_size=None):
+                 lr_decay=0.9, weight_decay=0.003, start_decay_at=None,
+                 beta1=0.9, beta2=0.999, adagrad_accum=0.0,
+                 decay_method=None, warmup_steps=4000, model_size=None):
         self.last_ppl = None
         self.lr = lr
         self.original_lr = lr
         self.max_grad_norm = max_grad_norm
         self.method = method
         self.lr_decay = lr_decay
+        self.weight_decay = weight_decay
         self.start_decay_at = start_decay_at
         self.start_decay = False
         self._step = 0
@@ -58,7 +56,8 @@ class Optim(object):
         if self.method == 'sgd':
             self.optimizer = optim.SGD(self.params, lr=self.lr)
         elif self.method == 'adagrad':
-            self.optimizer = optim.Adagrad(self.params, lr=self.lr)
+            self.optimizer = optim.Adagrad(self.params, lr=self.lr,
+                weight_decay=self.weight_decay)
             for group in self.optimizer.param_groups:
                 for p in group['params']:
                     self.optimizer.state[p]['sum'] = self.optimizer\
