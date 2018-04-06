@@ -187,10 +187,12 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
     # Make context embedder.
+    original_enc_type = model_opt.encoder_type
     model_opt.encoder_type = "mean"
     context_dict = mappings['vocab']
     context_embeddings = make_embeddings(model_opt, context_dict)
     context_embedder = make_encoder(model_opt, context_embeddings)
+    model_opt.encoder_type = original_enc_type
     # Make decoder.
     tgt_dict = mappings['vocab']
     tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
