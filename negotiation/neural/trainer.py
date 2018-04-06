@@ -235,7 +235,13 @@ class Trainer(object):
             targets = batch.targets
             lengths = batch.lengths
 
-            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+            item_title = batch.item_title
+            previous_turns = batch.prev_turns
+            combined_inputs = {'enc': encoder_inputs,
+                              'item': item_title,
+                              'prev': previous_turns}
+
+            outputs, attns, _ = self.model(combined_inputs, decoder_inputs, lengths)
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 
