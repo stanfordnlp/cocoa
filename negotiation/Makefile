@@ -16,14 +16,14 @@ num_items=5
 seed=1
 max_epochs=100
 min_epochs=10
-num_epochs=50
+num_epochs=12
 batch_size=128
 entity_form=type
 data=negotiation
 port=5040
 cat=furniture
 # cat = category
-ckpt_file=$(checkpoint)/model_loss3.02_e13.pt
+ckpt_file=$(checkpoint)/model_loss4.34_e11.pt
 # path to checkpoint of a trained model
 
 tensorboard:

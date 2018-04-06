@@ -304,8 +304,8 @@ class RNNDecoderBase(nn.Module):
         # Check
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
-        one_memory = memory_banks[0] if isinstance(memory_banks, list) else memory_banks
-        _, memory_batch, _ = one_memory.size()
+        memory_batch = memory_banks[0].shape[0] if isinstance(memory_banks, list) else memory_banks
+        # _, memory_batch, _ = one_memory.size()
         aeq(tgt_batch, memory_batch)
         # END
 

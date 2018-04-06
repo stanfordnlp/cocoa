@@ -107,7 +107,7 @@ class Generator(object):
             item_title = batch.item_title
             previous_turns = batch.prev_turns
             prev_states, prev_memory_bank = self.model.cbow_embedder(previous_turns)
-            memory_bank = [enc_memory_bank, prev_memory_bank]
+            memory_bank = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
             predict_with_context = True
         else:
             memory_bank = enc_memory_bank.data
@@ -126,15 +126,11 @@ class Generator(object):
         #src_map = rvar(batch.src_map.data) \
         #    if data_type == 'text' and self.copy_attn else None
         if predict_with_context:
-            memory_bank = [rvar(mem_bank.transpose(0,1).data) for mem_bank in memory_bank]
+            memory_bank = [rvar(mem_bank.data).transpose(0,1) for mem_bank in memory_bank]
         else:
             memory_bank = rvar(memory_bank.data)
         memory_lengths = lengths.repeat(beam_size)
         dec_states.repeat_beam_size_times(beam_size)
-
-        print("enc now: {}".format(memory_bank[0].shape))
-        print("prev now: {}".format(memory_bank[1].shape))
-        pdb.set_trace()
 
         # (3) run the decoder to generate sentences, using beam search.
         for i in range(self.max_length):
