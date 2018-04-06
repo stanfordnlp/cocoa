@@ -7,7 +7,7 @@ from onmt.Utils import aeq
 from preprocess import markers
 from neural.beam import Beam
 from cocoa.pt_model.util import smart_variable
-
+import pdb
 
 class Generator(object):
     """
@@ -113,6 +113,9 @@ class Generator(object):
             memory_bank = enc_memory_bank.data
         # enc/dec_states: (seq_len, batch_size, rnn_size)
 
+        print("enc: {}".format(enc_memory_bank.shape))
+        print("prev: {}".format(prev_memory_bank.shape))
+
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:
             inp = batch.targets[:gt_prefix-1]
@@ -128,6 +131,10 @@ class Generator(object):
             memory_bank = rvar(memory_bank.data)
         memory_lengths = lengths.repeat(beam_size)
         dec_states.repeat_beam_size_times(beam_size)
+
+        print("enc now: {}".format(memory_bank[0].shape))
+        print("prev now: {}".format(memory_bank[1].shape))
+        pdb.set_trace()
 
         # (3) run the decoder to generate sentences, using beam search.
         for i in range(self.max_length):

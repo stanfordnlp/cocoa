@@ -130,7 +130,6 @@ class GlobalAttention(nn.Module):
         else:
             one_step = False
 
-        memory_bank = memory_bank.transpose(0, 1)
         batch, sourceL, dim = memory_bank.size()
         batch_, targetL, dim_ = input.size()
         aeq(batch, batch_)
@@ -222,6 +221,9 @@ class MultibankGlobalAttention(GlobalAttention):
         alignment_vectors = []
 
         for idx, memory_bank in enumerate(memory_banks):
+            print("memory: {0} for bank {1}".format(memory_bank.shape, idx))
+            print("input: {}".format(input.shape))
+            pdb.set_trace()
             batch, sourceL, dim = memory_bank.size()
             batch_, targetL, dim_ = input.size()
             aeq(batch, batch_)

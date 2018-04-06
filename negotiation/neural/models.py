@@ -586,7 +586,7 @@ class NMTModel(nn.Module):
         enc_state = \
             self.decoder.init_decoder_state(src, memory_bank, enc_final)
         decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank,
+            self.decoder(tgt, memory_bank.transpose(0,1),
                          enc_state if dec_state is None
                          else dec_state,
                          memory_lengths=lengths)
@@ -607,7 +607,7 @@ class NegotiationModel(NMTModel):
         # item_final, item_memory_bank = self.cbow_embedder(sources['item'])
         prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
         # memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
-        memory_banks = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
+        memory_banks = [enc_memory_bank.transpose(0,1), prev_memory_bank]
 
         enc_state = self.decoder.init_decoder_state(sources['enc'], enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
