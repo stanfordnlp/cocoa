@@ -24,7 +24,7 @@ class Batch(object):
         self.item_title = decoder_args['context']['title']
         # self.item_desc = decoder_args['context']['description']
         self.prev_turns = encoder_args['context'][0]
-        
+
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
         self.context_data = context_data
@@ -33,8 +33,9 @@ class Batch(object):
         if sort_by_length:
             for k, v in self.context_data.iteritems():
                 self.context_data[k] = self.order_by_id(v, sorted_ids)
-            for attr in ('encoder_inputs', 'decoder_inputs', 'targets', 'lengths'):
-                setattr(self, attr, self.order_by_id(getattr(self, attr), sorted_ids))
+            for attr in ('encoder_inputs', 'decoder_inputs', 'item_title', 'prev_turns', 'targets', 'lengths'):
+                sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
+                setattr(self, attr, sorted_attrs)
 
         if time_major:
             for attr in ('encoder_inputs', 'decoder_inputs', 'targets'):
@@ -43,6 +44,8 @@ class Batch(object):
         # To tensor/variable
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
+        self.item_title = self.to_variable(self.item_title, 'long', cuda)
+        self.prev_turns = self.to_variable(self.prev_turns, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
 

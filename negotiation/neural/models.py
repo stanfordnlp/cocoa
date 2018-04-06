@@ -604,10 +604,10 @@ class NegotiationModel(NMTModel):
 
     def forward(self, sources, tgt, lengths, dec_state=None):
         enc_final, enc_memory_bank = self.encoder(sources['enc'], lengths)
-	# item_final, item_memory_bank = self.cbow_embedder(sources['item'])
-	prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
-	# memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
-	memory_banks = [enc_memory_bank, prev_memory_bank]
+        # item_final, item_memory_bank = self.cbow_embedder(sources['item'])
+        prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
+        # memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
+        memory_banks = [enc_memory_bank, prev_memory_bank]
 
         enc_state = self.decoder.init_decoder_state(sources['enc'], enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
