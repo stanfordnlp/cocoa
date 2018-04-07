@@ -195,8 +195,8 @@ class GlobalAttention(nn.Module):
         return attn_h, align_vectors
 
 class MultibankGlobalAttention(nn.Module):
-    def __init__(self, dim, coverage=False, attn_type="multibank_dot"):
-        self.attention = GlobalAttention(dim, coverage, attn_type[10:])
+    def __init__(self, dim, coverage=False, attn_type="dot"):
+        self.attention = GlobalAttention(dim, coverage, attn_type)
 
     def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
         # memory_banks have shape (batch_size, seq_len, hidden_dim)

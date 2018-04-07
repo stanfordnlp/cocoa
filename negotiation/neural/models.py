@@ -556,7 +556,6 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         """
         return self.embeddings.embedding_size + self.hidden_size
 
-
 class NMTModel(nn.Module):
     """
     Core trainable object in OpenNMT. Implements a trainable interface
@@ -700,12 +699,11 @@ class MultiAttnDecoder(StdRNNDecoder):
             hidden_size, attn_type="general", coverage_attn=False,
             context_gate=None, copy_attn=False, dropout=0.0,
             embeddings=None, reuse_copy_attn=False):
+        attn_type = attn_type[10:]
         super(MultiAttnDecoder, self).__init__(rnn_type, bidirectional_encoder,
               num_layers, hidden_size, attn_type, coverage_attn,
               context_gate, copy_attn, dropout, embeddings, reuse_copy_attn)
 
         self.attn = MultibankGlobalAttention(
-            hidden_size, coverage=coverage_attn,
-            attn_type=attn_type
-        )
+            hidden_size, coverage=coverage_attn, attn_type=attn_type)
 
