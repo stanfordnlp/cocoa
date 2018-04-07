@@ -156,6 +156,8 @@ class Generator(object):
             #inp = inp.unsqueeze(2)
 
             # Run one step.
+            print("run 0: {}".format(memory_bank[0].shape))
+            print("run 1: {}".format(memory_bank[1].shape))
             dec_out, dec_states, attn = self.model.decoder(inp, memory_bank,
                         dec_states, memory_lengths=memory_lengths)
             dec_out = dec_out.squeeze(0)

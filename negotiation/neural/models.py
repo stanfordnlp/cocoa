@@ -303,6 +303,9 @@ class RNNDecoderBase(nn.Module):
         """
         # Check
         assert isinstance(state, RNNDecoderState)
+        print("forward 0: {}".format(memory_bank[0].shape))
+        print("forward 1: {}".format(memory_bank[1].shape))
+
         tgt_len, tgt_batch = tgt.size()
         if isinstance(memory_banks, list):
             _, memory_batch, _ = memory_banks[0].shape
