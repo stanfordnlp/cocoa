@@ -107,8 +107,8 @@ class Generator(object):
             item_inputs = batch.item_inputs
             context_inputs = batch.context_inputs
 
-            _, item_memory_bank = self.model.cbow_embedder(item_inputs)
-            _, context_memory_bank = self.model.cbow_embedder(context_inputs)
+            _, item_memory_bank = self.model.context_embedder(item_inputs)
+            _, context_memory_bank = self.model.context_embedder(context_inputs)
             enc_memory_bank = memory_bank
             memory_bank = [enc_memory_bank, context_memory_bank]
         # encoder_mem_bank: (seq_len, batch_size, rnn_size)
