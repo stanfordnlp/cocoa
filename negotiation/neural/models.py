@@ -305,14 +305,11 @@ class RNNDecoderBase(nn.Module):
         assert isinstance(state, RNNDecoderState)
         tgt_len, tgt_batch = tgt.size()
         if isinstance(memory_banks, list):
-            memory_bank = memory_banks[0]
+            _, memory_batch, _ = memory_banks[0].shape
+            print("check 0: {} (seq_len, batch_size, hidden_dim)".format(memory_banks[0].shape))
+            print("check 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
         else:
-            # We transpose since the code originally did so when calculating
-            # attention in StdRNNDecoder._run_forward_pass(), but we can no
-            # longer do that anymore because memory_banks is sometimes a list
-            memory_banks = memory_banks.transpose(0, 1)
-            memory_bank = memory_banks
-        memory_batch, _, _ = memory_bank.shape
+            _, memory_batch, _ = memory_banks.shape
         aeq(tgt_batch, memory_batch)
         # END
 
@@ -366,15 +363,16 @@ class StdRNNDecoder(RNNDecoderBase):
     Implemented without input_feeding and currently with no `coverage_attn`
     or `copy_attn` support.
     """
-    def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths=None):
+    def _run_forward_pass(self, tgt, memory_banks, state, memory_lengths=None):
         """
         Private helper for running the specific RNN forward pass.
         Must be overriden by all subclasses.
         Args:
             tgt (LongTensor): a sequence of input tokens tensors
                                  [len x batch].
-            memory_bank (FloatTensor): output(tensor sequence) from the encoder
-                        RNN of size (batch x src_len x hidden_size).
+            memory_banks (FloatTensor): output(tensor sequence) from the encoder
+                        RNN of size (src_len x batch_size x hidden_size).
+                        Alternatively, we have a list of memory banks.
             state (FloatTensor): hidden state from the encoder RNN for
                                  initializing the decoder.
             memory_lengths (LongTensor): the source memory_bank lengths.
@@ -407,8 +405,18 @@ class StdRNNDecoder(RNNDecoderBase):
         # END
 
         # Calculate the attention.
+        if isinstance(memory_banks, list):
+            memory_banks[0] = memory_banks[0].transpose(0,1)
+            # mb[0] = enc_memory_bank is now (batch_size, seq_len, hidden_dim)
+            # mb[1] = prev_context was already (batch_size, seq_len, hidden_dim)
+            # mb[2] = item_title will come in the future
+            print("mem 0: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[0].shape))
+            print("mem 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
+        else:
+            memory_banks = memory_banks.transpose(0,1)
+
         decoder_outputs, p_attn = self.attn(
-            rnn_output.transpose(0, 1).contiguous(), memory_bank,
+            rnn_output.transpose(0, 1).contiguous(), memory_banks,
             memory_lengths=memory_lengths
         )
         attns["std"] = p_attn
@@ -605,18 +613,20 @@ class NMTModel(nn.Module):
 
 class NegotiationModel(NMTModel):
 
-    def __init__(self, encoder, decoder, cbow_embedder):
+    def __init__(self, encoder, decoder, context_embedder):
         super(NegotiationModel, self).__init__(encoder, decoder)
-        self.cbow_embedder = cbow_embedder
+        self.context_embedder = context_embedder
 
-    def forward(self, sources, tgt, lengths, dec_state=None):
-        enc_final, enc_memory_bank = self.encoder(sources['enc'], lengths)
-        # item_final, item_memory_bank = self.cbow_embedder(sources['item'])
-        prev_final, prev_memory_bank = self.cbow_embedder(sources['prev'])
+    def forward(self, src, tgt, context, lengths, dec_state=None):
+        enc_final, enc_memory_bank = self.encoder(src, lengths)
+        _, context_memory_bank = self.context_embedder(context)
+        # _, item_memory_bank = self.context_embedder(sources['item'])
         # memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
-        memory_banks = [enc_memory_bank.transpose(0,1), prev_memory_bank]
+        memory_banks = [enc_memory_bank, context_memory_bank]
+        print("model 0: {} (seq_len, batch_size, hidden_dim)".format(memory_banks[0].shape))
+        print("model 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
 
-        enc_state = self.decoder.init_decoder_state(sources['enc'], enc_memory_bank, enc_final)
+        enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
                 dec_state, memory_lengths=lengths)

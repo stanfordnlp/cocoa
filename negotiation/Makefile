@@ -1,6 +1,6 @@
 model=encdec
-exp=decay
-lr=0.031
+exp=basic
+lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
 mappings=scr/mappings-10k
@@ -16,7 +16,7 @@ num_items=5
 seed=1
 max_epochs=100
 min_epochs=10
-num_epochs=12
+num_epochs=50
 batch_size=128
 entity_form=type
 data=negotiation

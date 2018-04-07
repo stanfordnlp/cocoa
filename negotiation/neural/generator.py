@@ -103,16 +103,14 @@ class Generator(object):
         dec_states = self.model.decoder.init_decoder_state(
                                         encoder_inputs, memory_bank, enc_states)
 
-        if hasattr(batch, 'prev_turns'):
+        if batch.num_context > 1:
             item_title = batch.item_title
             previous_turns = batch.prev_turns
 
             _, item_memory_bank = self.model.cbow_embedder(item_title)
             _, prev_memory_bank = self.model.cbow_embedder(previous_turns)
             enc_memory_bank = memory_bank
-
             memory_bank = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
-            predict_with_context = True
         # enc/dec_states: (seq_len, batch_size, rnn_size)
 
         # (1.1) Go over forced prefix.
@@ -124,7 +122,7 @@ class Generator(object):
         # (2) Repeat src objects `beam_size` times.
         #src_map = rvar(batch.src_map.data) \
         #    if data_type == 'text' and self.copy_attn else None
-        if predict_with_context:
+        if batch.num_context > 1:
             memory_bank = [rvar(mem_bank.data).transpose(0,1) for mem_bank in memory_bank]
         else:
             memory_bank = rvar(memory_bank.data)

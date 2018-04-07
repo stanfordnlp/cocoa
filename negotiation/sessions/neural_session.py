@@ -204,6 +204,8 @@ class PytorchNeuralSession(NeuralSession):
         self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
+        # self.dialogue = env.Dialogue
+        # self.num_context = env.Dialogue.num_context
 
         self.encoder_state = None
         self.decoder_state = None
@@ -219,34 +221,34 @@ class PytorchNeuralSession(NeuralSession):
         # inputs = inputs[:, :self.model.decoder.prompt_len]
         return inputs
 
-    def old_create_batch(self):
-        num_context = Dialogue.num_context
-        # All turns up to now
-        self.convert_to_int()
-        encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
+    # def first_create_batch(self):
+    #     num_context = Dialogue.num_context
+    #     # All turns up to now
+    #     self.convert_to_int()
+    #     encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
-        encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
-        encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
-        encoder_args = {
-                        'inputs': encoder_inputs,
-                        'context': encoder_context
-                    }
-        decoder_args = {
-                        'inputs': self.get_decoder_inputs(),
-                        'context': self.kb_context_batch,
-                        'targets': np.copy(encoder_turns[0]),
-                    }
+    #     encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
+    #     encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
+    #     encoder_args = {
+    #                     'inputs': encoder_inputs,
+    #                     'context': encoder_context
+    #                 }
+    #     decoder_args = {
+    #                     'inputs': self.get_decoder_inputs(),
+    #                     'context': self.kb_context_batch,
+    #                     'targets': np.copy(encoder_turns[0]),
+    #                 }
 
-        context_data = {
-                'encoder_tokens': [None],
-                'decoder_tokens': [None],
-                'agents': [self.agent, 1-self.agent],
-                'kbs': [self.kb],
-                'uuids': [None],
-                }
+    #     context_data = {
+    #             'encoder_tokens': [None],
+    #             'decoder_tokens': [None],
+    #             'agents': [self.agent, 1-self.agent],
+    #             'kbs': [self.kb],
+    #             'uuids': [None],
+    #             }
 
-        return Batch(encoder_args, decoder_args, context_data,
-                self.vocab, sort_by_length=False) #, cuda=self.cuda)
+    #     return Batch(encoder_args, decoder_args, context_data,
+    #             self.vocab, sort_by_length=False) #, cuda=self.cuda)
 
     # def second_create_batch(self):
     #     pad_marker = self.batcher.int_markers.PAD

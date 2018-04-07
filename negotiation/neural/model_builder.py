@@ -31,11 +31,10 @@ def add_model_arguments(parser):
                        help="""Type of encoder layer to use. Non-RNN layers
                        are experimental. Options are
                        [rnn|brnn|mean|transformer|cnn].""")
-    group.add_argument('--decoder-type', type=str, default='multibank',
-                       choices=['rnn', 'transformer', 'cnn', 'multibank'],
+    group.add_argument('--decoder-type', type=str, default='rnn',
+                       choices=['rnn', 'transformer', 'cnn'],
                        help="""Type of decoder layer to use. Non-RNN layers
-                       are experimental. Options are
-                       [rnn|transformer|cnn].""")
+                       are experimental. Options are [rnn|transformer|cnn].""")
     group.add_argument('-copy_attn', action="store_true",
                        help='Train copy attention layer.')
     group.add_argument('--layers', type=int, default=-1,
@@ -47,21 +46,21 @@ def add_model_arguments(parser):
     group.add_argument('--rnn-size', type=int, default=500,
                        help='Size of rnn hidden states')
     group.add_argument('--rnn-type', type=str, default='LSTM',
-                       choices=['LSTM', 'GRU', 'SRU'],
-                       action=CheckSRU,
+                       choices=['LSTM', 'GRU', 'SRU'], action=CheckSRU,
                        help="""The gate type to use in the RNNs""")
     group.add_argument('--input-feed', action='store_true',
                        help="""Feed the context vector at each time step as
                        additional input (via concatenation with the word
                        embeddings) to the decoder.""")
-    group.add_argument('--global-attention', type=str, default='general',
-                       choices=['dot', 'general', 'mlp'],
-                       help="""The attention type to use:
-                       dotprod or general (Luong) or MLP (Bahdanau)""")
+    group.add_argument('--global-attention', type=str, default='multibank_general',
+                       choices=['dot', 'general', 'mlp',
+                       'multibank_dot', 'multibank_general', 'multibank_mlp'],
+                       help="""The attention type to use: dotprod or general (Luong)
+                       or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
                        help='Model type')
-    group.add_argument('--num-context', type=int, default=1,
-                       help='Number of utterances in the prior context')
+    group.add_argument('--num-context', type=int, default=2,
+                       help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
@@ -170,7 +169,6 @@ def load_test_model(opt, dummy_opt):
     model.generator.eval()
     return mappings, model, model_opt
 
-
 def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     """
     Args:
@@ -187,21 +185,24 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
     # Make context embedder.
-    original_enc_type = model_opt.encoder_type
-    model_opt.encoder_type = "mean"
-    context_dict = mappings['vocab']
-    context_embeddings = make_embeddings(model_opt, context_dict)
-    context_embedder = make_encoder(model_opt, context_embeddings)
-    model_opt.encoder_type = original_enc_type
+    if model_opt.num_context > 1:
+      original_enc_type = model_opt.encoder_type
+      model_opt.encoder_type = "mean"
+      context_dict = mappings['vocab']
+      context_embeddings = make_embeddings(model_opt, context_dict)
+      context_embedder = make_encoder(model_opt, context_embeddings)
+      model_opt.encoder_type = original_enc_type
     # Make decoder.
     tgt_dict = mappings['vocab']
     tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
     decoder = make_decoder(model_opt, tgt_embeddings)
 
-    if model_opt.decoder_type == "rnn":
-      model = NMTModel(encoder, decoder)
-    elif model_opt.decoder_type == "multibank":
+    if "multibank" in model_opt.global_attention:
       model = NegotiationModel(encoder, decoder, context_embedder)
+    else:
+      print model_opt
+      print("should not come here")
+      model = NMTModel(encoder, decoder)
     model.model_type = 'text'
 
     # Make Generator.

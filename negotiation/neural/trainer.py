@@ -234,14 +234,10 @@ class Trainer(object):
             decoder_inputs = batch.decoder_inputs
             targets = batch.targets
             lengths = batch.lengths
+            # item_title = batch.item_title
+            context_inputs = batch.context_inputs
 
-            item_title = batch.item_title
-            previous_turns = batch.prev_turns
-            combined_inputs = {'enc': encoder_inputs,
-                              'item': item_title,
-                              'prev': previous_turns}
-
-            outputs, attns, _ = self.model(combined_inputs, decoder_inputs, lengths)
+            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, context_inputs, lengths)
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 
@@ -297,19 +293,15 @@ class Trainer(object):
 
             encoder_inputs = batch.encoder_inputs
             decoder_inputs = batch.decoder_inputs
+            context_inputs = batch.context_inputs
+            # item_inputs = batch.item_inputs
             targets = batch.targets
             lengths = batch.lengths
 
-            item_title = batch.item_title
-            previous_turns = batch.prev_turns
-            combined_inputs = {'enc': encoder_inputs,
-                              'item': item_title,
-                              'prev': previous_turns}
-
             self.model.zero_grad()
             # running forward() method in the NegotiationModel
-            outputs, attns, dec_state = self.model(combined_inputs,
-                  decoder_inputs, lengths, dec_state)
+            outputs, attns, dec_state = self.model(encoder_inputs,
+                  decoder_inputs, context_inputs, lengths, dec_state)
 
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()

@@ -137,7 +137,6 @@ class Dialogue(object):
     DEC = 1
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
-    num_context = 1
 
     def __init__(self, agent, kb, uuid):
         '''
@@ -164,6 +163,7 @@ class Dialogue(object):
         self.agents = []
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
+        self.num_context = None
 
         self.token_candidates = None
         self.candidates = None
@@ -469,6 +469,7 @@ class DataGenerator(object):
             trie_path=None, model_config={}, add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
+        self.num_context = num_context
 
         # Build retriever given training dialogues
         self.retriever = retriever
@@ -503,7 +504,9 @@ class DataGenerator(object):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
-        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
+                                    int_markers=int_markers, slot_filling=self.slot_filling,
+                                    kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), num_context=num_context)
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
 
         self.trie = None
@@ -630,7 +633,7 @@ class DataGenerator(object):
                             batch['decoder_args'],
                             batch['context_data'],
                             self.mappings['vocab'],
-                            cuda=cuda)
+                            num_context=self.num_context, cuda=cuda)
 
     def create_trie(self, batches, path):
         if path is None:

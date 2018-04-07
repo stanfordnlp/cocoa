@@ -15,15 +15,13 @@ def pad_list_to_array(l, fillvalue, dtype):
 
 class Batch(object):
     def __init__(self, encoder_args, decoder_args, context_data, vocab,
-                        time_major=True, sort_by_length=True, cuda=False):
-        # TODO: context
+                time_major=True, sort_by_length=True, num_context=None, cuda=False):
         self.vocab = vocab
+        self.num_context = num_context
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
-
-        self.item_title = decoder_args['context']['title']
-        # self.item_desc = decoder_args['context']['description']
-        self.prev_turns = encoder_args['context'][0]
+        self.context_inputs = encoder_args['context'][0]
+        self.item_inputs = decoder_args['context']['title']
 
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
@@ -33,7 +31,7 @@ class Batch(object):
         if sort_by_length:
             for k, v in self.context_data.iteritems():
                 self.context_data[k] = self.order_by_id(v, sorted_ids)
-            for attr in ('encoder_inputs', 'decoder_inputs', 'item_title', 'prev_turns', 'targets', 'lengths'):
+            for attr in ('encoder_inputs', 'decoder_inputs', 'item_inputs', 'context_inputs', 'targets', 'lengths'):
                 sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
                 setattr(self, attr, sorted_attrs)
 
@@ -44,8 +42,8 @@ class Batch(object):
         # To tensor/variable
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
-        self.item_title = self.to_variable(self.item_title, 'long', cuda)
-        self.prev_turns = self.to_variable(self.prev_turns, 'long', cuda)
+        self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
+        self.item_inputs = self.to_variable(self.item_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
 
@@ -96,10 +94,11 @@ class Batch(object):
                 raise ValueError
 
 class DialogueBatcher(object):
-    def __init__(self, int_markers=None, slot_filling=None, kb_pad=None):
+    def __init__(self, int_markers=None, slot_filling=None, kb_pad=None, num_context=None):
         self.slot_filling = slot_filling
         self.int_markers = int_markers
         self.kb_pad = kb_pad
+        self.num_context = num_context
 
     def _normalize_dialogue(self, dialogues):
         '''
@@ -333,7 +332,6 @@ class DialogueBatcher(object):
 
         dialogue_class = type(dialogues[0])
         ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
-        num_context = dialogue_class.num_context
 
         encode_turn_ids = self.get_encoding_turn_ids(num_turns)
         encoder_turns_all = self._get_turn_batch_at(dialogues, ENC, None)
@@ -351,7 +349,7 @@ class DialogueBatcher(object):
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
                 kb_context=dialogue_data['kb_context'],
-                num_context=num_context,
+                num_context=self.num_context,
                 )
             for i in encode_turn_ids
             ]
