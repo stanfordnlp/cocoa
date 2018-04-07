@@ -272,13 +272,14 @@ class PytorchNeuralSession(NeuralSession):
 
     def output_to_tokens(self, data):
         pred = data["predictions"][0][0]
-        entity_tokens = self.builder._build_target_tokens(pred)
-        print("entity: {}".format(entity_tokens.shape))
-        priced_tokens = self.dialogue.original_price(entity_tokens)
-        if len(entity_tokens) > 1:
-            # we remove first token, which is always just the category
-            return entity_tokens[1:]
-        else:
-            print("length of entity tokens was just one word, investigate.")
-            return []
-
+        entity_tokens = []
+        for tok in pred:
+            entity_tokens.append(vocab.ind_to_word[tok])
+            if entity_tokens[-1] == markers.EOS:
+                entity_tokens = entity_tokens[:-1]
+                break
+        print("entity: {}".format(entity_tokens))
+        clean_tokens = self.dialogue.original_price(self.kb, entity_tokens[1:])
+        print("clean: {}".format(clean_tokens))
+        pdb.set_trace()
+        return clean_tokens
