@@ -221,34 +221,35 @@ class PytorchNeuralSession(NeuralSession):
         # inputs = inputs[:, :self.model.decoder.prompt_len]
         return inputs
 
-    # def first_create_batch(self):
-    #     num_context = Dialogue.num_context
-    #     # All turns up to now
-    #     self.convert_to_int()
-    #     encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
+    def _create_batch(self):
+        num_context = Dialogue.num_context
+        print("num_context: {}".format(num_context))
+        # All turns up to now
+        self.convert_to_int()
+        encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
-    #     encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
-    #     encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
-    #     encoder_args = {
-    #                     'inputs': encoder_inputs,
-    #                     'context': encoder_context
-    #                 }
-    #     decoder_args = {
-    #                     'inputs': self.get_decoder_inputs(),
-    #                     'context': self.kb_context_batch,
-    #                     'targets': np.copy(encoder_turns[0]),
-    #                 }
+        encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
+        encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)
+        encoder_args = {
+                        'inputs': encoder_inputs,
+                        'context': encoder_context
+                    }
+        decoder_args = {
+                        'inputs': self.get_decoder_inputs(),
+                        'context': self.kb_context_batch,
+                        'targets': np.copy(encoder_turns[0]),
+                    }
 
-    #     context_data = {
-    #             'encoder_tokens': [None],
-    #             'decoder_tokens': [None],
-    #             'agents': [self.agent, 1-self.agent],
-    #             'kbs': [self.kb],
-    #             'uuids': [None],
-    #             }
+        context_data = {
+                'encoder_tokens': [None],
+                'decoder_tokens': [None],
+                'agents': [self.agent, 1-self.agent],
+                'kbs': [self.kb],
+                'uuids': [None],
+                }
 
-    #     return Batch(encoder_args, decoder_args, context_data,
-    #             self.vocab, sort_by_length=False) #, cuda=self.cuda)
+        return Batch(encoder_args, decoder_args, context_data,
+                self.vocab, sort_by_length=False, num_context=num_context) #, cuda=self.cuda)
 
     # def second_create_batch(self):
     #     pad_marker = self.batcher.int_markers.PAD
@@ -257,28 +258,35 @@ class PytorchNeuralSession(NeuralSession):
     #     batch_seq = self.batcher.create_batch([self.dialogue])
     #     return batch_seq[0]
 
-    def _create_batch(self):
-        btr = self.batcher
-        dialog = [self.dialogue]
-        dialogue_class = type(self.dialogue)
-        ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
-        num_context = dialogue_class.num_context + 1
-        self.dialogue.agents.insert(0,0)
-        print("num_context: {}".format(num_context))
+    # def third_create_batch(self):
+    #     btr = self.batcher
+    #     dialog = [self.dialogue]
+    #     dialogue_class = type(self.dialogue)
+    #     ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
+    #     num_context = dialogue_class.num_context
+    #     self.dialogue.agents.insert(0,0)
 
-        one_batch = btr._create_one_batch(
-                encoder_turns=btr._get_turn_batch_at(dialog, ENC, None),
-                decoder_turns=btr._get_turn_batch_at(dialog, DEC, None),
-                target_turns=btr._get_turn_batch_at(dialog, TARGET, None),
-                encoder_tokens=btr._get_token_turns_at(dialog, 0),
-                decoder_tokens=btr._get_token_turns_at(dialog, 1),
-                agents=self.dialogue.agents,
-                uuids=[self.dialogue.uuid],
-                kbs=btr._get_kb_batch(dialog),
-                kb_context=btr.create_context_batch(dialog, btr.kb_pad),
-                num_context=num_context,
-            )
-        return one_batch
+    #     one_batch = btr._create_one_batch(
+    #             encoder_turns=btr._get_turn_batch_at(dialog, ENC, None),
+    #             decoder_turns=btr._get_turn_batch_at(dialog, DEC, None),
+    #             target_turns=btr._get_turn_batch_at(dialog, TARGET, None),
+    #             encoder_tokens=btr._get_token_turns_at(dialog, 0),
+    #             decoder_tokens=btr._get_token_turns_at(dialog, 1),
+    #             agents=self.dialogue.agents,
+    #             uuids=[self.dialogue.uuid],
+    #             kbs=btr._get_kb_batch(dialog),
+    #             kb_context=btr.create_context_batch(dialog, btr.kb_pad),
+    #             num_context=num_context
+    #         )
+    #     return one_batch
+
+    #     encoder_args, decoder_args, context_data, vocab,
+    #     time_major=True, sort_by_length=True, num_context=None, cuda=False
+
+    #     encoder_turns=None, decoder_turns=None, target_turns=None,
+    #     agents=None, uuids=None, kbs=None, kb_context=None,
+    #     num_context=None, encoder_tokens=None, decoder_tokens=None):
+
 
     def generate(self):
         if len(self.dialogue.agents) == 0:
