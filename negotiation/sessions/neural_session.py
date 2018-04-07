@@ -74,7 +74,6 @@ class NeuralSession(Session):
                 break
         if tokens is None:
             return None
-
         self.dialogue.add_utterance(self.agent, list(tokens))
         tokens = self.map_prices(tokens)
 
@@ -129,6 +128,7 @@ class GeneratorNeuralSession(NeuralSession):
                 'encoder_args': encoder_args,
                 'decoder_args': decoder_args,
                 }
+        pdb.set_trace()
         return batch
 
     def _decoder_args(self, entity_tokens):
@@ -247,7 +247,6 @@ class PytorchNeuralSession(NeuralSession):
                 'kbs': [self.kb],
                 'uuids': [None],
                 }
-
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, num_context=num_context) #, cuda=self.cuda)
 
@@ -274,4 +273,10 @@ class PytorchNeuralSession(NeuralSession):
     def output_to_tokens(self, data):
         pred = data["predictions"][0][0]
         entity_tokens = self.builder._build_target_tokens(pred)
-        return entity_tokens
+        if len(entity_tokens) > 1:
+            # we remove first token, which is always just the category
+            return entity_tokens[1:]
+        else:
+            print("length of entity tokens was just one word, investigate.")
+            return []
+
