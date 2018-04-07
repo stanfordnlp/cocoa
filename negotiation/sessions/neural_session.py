@@ -273,6 +273,8 @@ class PytorchNeuralSession(NeuralSession):
     def output_to_tokens(self, data):
         pred = data["predictions"][0][0]
         entity_tokens = self.builder._build_target_tokens(pred)
+        print("entity: {}".format(entity_tokens.shape))
+        priced_tokens = self.dialogue.original_price(entity_tokens)
         if len(entity_tokens) > 1:
             # we remove first token, which is always just the category
             return entity_tokens[1:]
