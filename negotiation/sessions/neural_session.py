@@ -223,7 +223,7 @@ class PytorchNeuralSession(NeuralSession):
 
     def _create_batch(self):
         num_context = Dialogue.num_context
-        print("num_context: {}".format(num_context))
+
         # All turns up to now
         self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
@@ -250,43 +250,6 @@ class PytorchNeuralSession(NeuralSession):
 
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, num_context=num_context) #, cuda=self.cuda)
-
-    # def second_create_batch(self):
-    #     pad_marker = self.batcher.int_markers.PAD
-    #     self.dialogue.agents.insert(0,0)
-    #     self.dialogue.convert_to_int(pad_marker)
-    #     batch_seq = self.batcher.create_batch([self.dialogue])
-    #     return batch_seq[0]
-
-    # def third_create_batch(self):
-    #     btr = self.batcher
-    #     dialog = [self.dialogue]
-    #     dialogue_class = type(self.dialogue)
-    #     ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
-    #     num_context = dialogue_class.num_context
-    #     self.dialogue.agents.insert(0,0)
-
-    #     one_batch = btr._create_one_batch(
-    #             encoder_turns=btr._get_turn_batch_at(dialog, ENC, None),
-    #             decoder_turns=btr._get_turn_batch_at(dialog, DEC, None),
-    #             target_turns=btr._get_turn_batch_at(dialog, TARGET, None),
-    #             encoder_tokens=btr._get_token_turns_at(dialog, 0),
-    #             decoder_tokens=btr._get_token_turns_at(dialog, 1),
-    #             agents=self.dialogue.agents,
-    #             uuids=[self.dialogue.uuid],
-    #             kbs=btr._get_kb_batch(dialog),
-    #             kb_context=btr.create_context_batch(dialog, btr.kb_pad),
-    #             num_context=num_context
-    #         )
-    #     return one_batch
-
-    #     encoder_args, decoder_args, context_data, vocab,
-    #     time_major=True, sort_by_length=True, num_context=None, cuda=False
-
-    #     encoder_turns=None, decoder_turns=None, target_turns=None,
-    #     agents=None, uuids=None, kbs=None, kb_context=None,
-    #     num_context=None, encoder_tokens=None, decoder_tokens=None):
-
 
     def generate(self):
         if len(self.dialogue.agents) == 0:
