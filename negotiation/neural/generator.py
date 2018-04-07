@@ -154,7 +154,6 @@ class Generator(object):
             # Run one step.
             dec_out, dec_states, attn = self.model.decoder(inp, memory_bank,
                         dec_states, memory_lengths=memory_lengths)
-            memory_bank[0] = memory_bank[0].transpose(0,1)
             dec_out = dec_out.squeeze(0)
             # dec_out: beam x rnn_size
 
