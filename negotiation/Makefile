@@ -23,7 +23,7 @@ data=negotiation
 port=5040
 cat=furniture
 # cat = category
-ckpt_file=$(checkpoint)/model_loss4.34_e11.pt
+ckpt_file=$(checkpoint)/model_loss4.23_e6.pt
 # path to checkpoint of a trained model
 
 tensorboard:

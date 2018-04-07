@@ -303,8 +303,6 @@ class RNNDecoderBase(nn.Module):
         """
         # Check
         assert isinstance(state, RNNDecoderState)
-        print("forward 0: {}".format(memory_bank[0].shape))
-        print("forward 1: {}".format(memory_bank[1].shape))
 
         tgt_len, tgt_batch = tgt.size()
         if isinstance(memory_banks, list):
@@ -317,7 +315,6 @@ class RNNDecoderBase(nn.Module):
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
             tgt, memory_banks, state, memory_lengths=memory_lengths)
-
         # Update the state with the result.
         final_output = decoder_outputs[-1]
         coverage = None
