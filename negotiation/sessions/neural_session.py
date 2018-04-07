@@ -271,15 +271,14 @@ class PytorchNeuralSession(NeuralSession):
         return True
 
     def output_to_tokens(self, data):
-        pred = data["predictions"][0][0]
-        entity_tokens = []
-        for tok in pred:
-            entity_tokens.append(vocab.ind_to_word[tok])
-            if entity_tokens[-1] == markers.EOS:
-                entity_tokens = entity_tokens[:-1]
+        predictions = data["predictions"][0][0]
+        clean_tokens = []
+        for pred in predictions:
+            token = vocab.ind_to_word[pred]
+            if is_entity(token):
+                token = self.dialogue.entity_to_price(self.kb, token)
+            clean_tokens.append(token)
+            if clean_tokens[-1] == markers.EOS:
+                clean_tokens = clean_tokens[:-1]
                 break
-        print("entity: {}".format(entity_tokens))
-        clean_tokens = self.dialogue.original_price(self.kb, entity_tokens[1:])
-        print("clean: {}".format(clean_tokens))
-        pdb.set_trace()
         return clean_tokens

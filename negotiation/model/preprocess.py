@@ -223,6 +223,12 @@ class Dialogue(object):
         s = [PriceScaler.unscale_price(kb, x) if is_entity(x) else x for x in utterance]
         return s
 
+    @classmethod
+    def entity_to_price(cls, kb, entity_token):
+        raw_price = PriceScaler.unscale_price(kb, entity_tokens)
+        human_readable_price = "${:.2f}".format(raw_price.canonical.value)
+        return human_readable_price
+
     def _insert_markers(self, agent, utterance, new_turn):
         # Mark end of sentence
         utterance.append(markers.EOS)
