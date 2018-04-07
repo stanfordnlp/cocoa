@@ -10,7 +10,7 @@ import onmt.io
 import onmt.Models
 import onmt.modules
 from models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
-              MultiAttnDecoder, NegotiationModel
+              MultiAttnDecoder, NegotiationModel, NMTModel
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.io.utils import read_pickle
