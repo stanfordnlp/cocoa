@@ -306,8 +306,6 @@ class RNNDecoderBase(nn.Module):
         tgt_len, tgt_batch = tgt.size()
         if isinstance(memory_banks, list):
             _, memory_batch, _ = memory_banks[0].shape
-            print("check 0: {} (seq_len, batch_size, hidden_dim)".format(memory_banks[0].shape))
-            print("check 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
         else:
             _, memory_batch, _ = memory_banks.shape
         aeq(tgt_batch, memory_batch)
@@ -410,8 +408,6 @@ class StdRNNDecoder(RNNDecoderBase):
             # mb[0] = enc_memory_bank is now (batch_size, seq_len, hidden_dim)
             # mb[1] = prev_context was already (batch_size, seq_len, hidden_dim)
             # mb[2] = item_title will come in the future
-            print("mem 0: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[0].shape))
-            print("mem 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
         else:
             memory_banks = memory_banks.transpose(0,1)
 
@@ -622,8 +618,6 @@ class NegotiationModel(NMTModel):
         # _, item_memory_bank = self.context_embedder(sources['item'])
         # memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
         memory_banks = [enc_memory_bank, context_memory_bank]
-        print("model 0: {} (seq_len, batch_size, hidden_dim)".format(memory_banks[0].shape))
-        print("model 1: {} (batch_size, seq_len, hidden_dim)".format(memory_banks[1].shape))
 
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state

@@ -196,6 +196,7 @@ class GlobalAttention(nn.Module):
 
 class MultibankGlobalAttention(nn.Module):
     def __init__(self, dim, coverage=False, attn_type="dot"):
+        super(MultibankGlobalAttention, self).__init__()
         self.attention = GlobalAttention(dim, coverage, attn_type)
 
     def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
