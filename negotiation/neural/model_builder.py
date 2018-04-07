@@ -125,7 +125,13 @@ def make_decoder(opt, embeddings):
         embeddings (Embeddings): vocab embeddings for this decoder.
     """
     bidirectional = True if opt.encoder_type == 'brnn' else False
-    if opt.decoder_type == "transformer":
+    if "multibank" in opt.global_attention:
+        return MultiAttnDecoder(opt.rnn_type, bidirectional,
+                             opt.dec_layers, opt.rnn_size,
+                             attn_type=opt.global_attention,
+                             dropout=opt.dropout,
+                             embeddings=embeddings)
+    elif opt.decoder_type == "transformer":
         return TransformerDecoder(opt.dec_layers, opt.rnn_size,
                                   opt.global_attention, opt.copy_attn,
                                   opt.dropout, embeddings)
@@ -140,14 +146,8 @@ def make_decoder(opt, embeddings):
                                    attn_type=opt.global_attention,
                                    dropout=opt.dropout,
                                    embeddings=embeddings)
-    elif opt.decoder_type == "rnn":
-        return StdRNNDecoder(opt.rnn_type, bidirectional,
-                             opt.dec_layers, opt.rnn_size,
-                             attn_type=opt.global_attention,
-                             dropout=opt.dropout,
-                             embeddings=embeddings)
     else:
-        return MultiAttnDecoder(opt.rnn_type, bidirectional,
+        return StdRNNDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
