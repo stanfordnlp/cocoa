@@ -104,14 +104,15 @@ class Generator(object):
                                         encoder_inputs, memory_bank, enc_states)
 
         if batch.num_context > 1:
-            item_title = batch.item_title
-            previous_turns = batch.prev_turns
+            item_inputs = batch.item_inputs
+            context_inputs = batch.context_inputs
 
-            _, item_memory_bank = self.model.cbow_embedder(item_title)
-            _, prev_memory_bank = self.model.cbow_embedder(previous_turns)
+            _, item_memory_bank = self.model.cbow_embedder(item_inputs)
+            _, context_memory_bank = self.model.cbow_embedder(context_inputs)
             enc_memory_bank = memory_bank
-            memory_bank = [enc_memory_bank, prev_memory_bank.transpose(0,1)]
-        # enc/dec_states: (seq_len, batch_size, rnn_size)
+            memory_bank = [enc_memory_bank, context_memory_bank]
+        # encoder_mem_bank: (seq_len, batch_size, rnn_size)
+        # context_mem_bank: (batch_size, seq_len, rnn_size)
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:
@@ -123,7 +124,8 @@ class Generator(object):
         #src_map = rvar(batch.src_map.data) \
         #    if data_type == 'text' and self.copy_attn else None
         if batch.num_context > 1:
-            memory_bank = [rvar(mem_bank.data).transpose(0,1) for mem_bank in memory_bank]
+            memory_bank[0] = rvar(memory_bank[0].data)
+            memory_bank[1] = rvar(memory_bank[1].transpose(0,1).data).transpose(0,1)
         else:
             memory_bank = rvar(memory_bank.data)
         memory_lengths = lengths.repeat(beam_size)
