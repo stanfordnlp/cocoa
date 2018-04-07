@@ -274,7 +274,7 @@ class PytorchNeuralSession(NeuralSession):
         predictions = data["predictions"][0][0]
         clean_tokens = []
         for pred in predictions:
-            token = vocab.ind_to_word[pred]
+            token = self.vocab.ind_to_word[pred]
             if is_entity(token):
                 token = self.dialogue.entity_to_price(self.kb, token)
             clean_tokens.append(token)
