@@ -113,8 +113,6 @@ class Generator(object):
             memory_bank = [enc_memory_bank, context_memory_bank]
         # encoder_mem_bank: (seq_len, batch_size, rnn_size)
         # context_mem_bank: (batch_size, seq_len, rnn_size)
-        print("top 0: {}".format(memory_bank[0].shape))
-        print("top 1: {}".format(memory_bank[1].shape))
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:
@@ -128,8 +126,6 @@ class Generator(object):
         if batch.num_context > 1:
             memory_bank[0] = rvar(memory_bank[0].data)
             memory_bank[1] = rvar(memory_bank[1].transpose(0,1).data).transpose(0,1)
-            print("inside 0: {}".format(memory_bank[0].shape))
-            print("inside 1: {}".format(memory_bank[1].shape))
         else:
             memory_bank = rvar(memory_bank.data)
         memory_lengths = lengths.repeat(beam_size)
@@ -156,10 +152,9 @@ class Generator(object):
             #inp = inp.unsqueeze(2)
 
             # Run one step.
-            print("run 0: {}".format(memory_bank[0].shape))
-            print("run 1: {}".format(memory_bank[1].shape))
             dec_out, dec_states, attn = self.model.decoder(inp, memory_bank,
                         dec_states, memory_lengths=memory_lengths)
+            memory_banks[0] = memory_banks[0].transpose(0,1)
             dec_out = dec_out.squeeze(0)
             # dec_out: beam x rnn_size
 
