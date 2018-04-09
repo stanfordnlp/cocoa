@@ -89,7 +89,6 @@ class NeuralSession(Session):
                 return self.reject()
 
         s = self.attach_punct(' '.join(tokens))
-        print 'send:', s
         return self.message(s)
 
 class GeneratorNeuralSession(NeuralSession):
@@ -281,4 +280,4 @@ class PytorchNeuralSession(NeuralSession):
             if clean_tokens[-1] == markers.EOS:
                 clean_tokens = clean_tokens[:-1]
                 break
-        return clean_tokens
+        return clean_tokens[1:]
