@@ -255,8 +255,8 @@ class PytorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        entity_tokens = self.output_to_tokens(batch_data)
+        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        entity_tokens = self.output_to_tokens(output_data)
 
         if not self._is_valid(entity_tokens):
             return None

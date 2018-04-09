@@ -27,10 +27,13 @@ def add_model_arguments(parser):
                        help="""Use a shared weight matrix for the input and
                        output word  embeddings in the decoder.""")
     group.add_argument('--encoder-type', type=str, default='rnn',
-                       choices=['rnn', 'brnn', 'mean', 'transformer', 'cnn'],
+                       choices=['rnn', 'brnn', 'transformer', 'cnn'],
                        help="""Type of encoder layer to use. Non-RNN layers
                        are experimental. Options are
                        [rnn|brnn|mean|transformer|cnn].""")
+    group.add_argument('--context-embedder-type', type=str, default='mean',
+                       choices=['rnn', 'mean', 'brnn'],
+                       help="Encoder to use for embedding prev turns context")
     group.add_argument('--decoder-type', type=str, default='rnn',
                        choices=['rnn', 'transformer', 'cnn'],
                        help="""Type of decoder layer to use. Non-RNN layers
@@ -116,6 +119,17 @@ def make_encoder(opt, embeddings):
                           opt.rnn_size, opt.dropout, embeddings,
                           False)
 
+def make_context_embedder(opt, embeddings):
+    """
+    Various context embedder dispatcher function. See make_encoder for options
+    """
+    if opt.context_embedder_type == "mean":
+        return MeanEncoder(opt.enc_layers, embeddings)
+    else:
+        # "rnn" or "brnn"
+        bidirectional = True if opt.context_embedder_type == 'brnn' else False
+        return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
+                          opt.rnn_size, opt.dropout, embeddings, False)
 
 def make_decoder(opt, embeddings):
     """
@@ -186,12 +200,9 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     encoder = make_encoder(model_opt, src_embeddings)
     # Make context embedder.
     if model_opt.num_context > 1:
-      original_enc_type = model_opt.encoder_type
-      model_opt.encoder_type = "mean"
       context_dict = mappings['vocab']
       context_embeddings = make_embeddings(model_opt, context_dict)
-      context_embedder = make_encoder(model_opt, context_embeddings)
-      model_opt.encoder_type = original_enc_type
+      context_embedder = make_context_embedder(model_opt, context_embeddings)
     # Make decoder.
     tgt_dict = mappings['vocab']
     tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)

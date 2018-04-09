@@ -404,10 +404,9 @@ class StdRNNDecoder(RNNDecoderBase):
 
         # Calculate the attention.
         if isinstance(memory_banks, list):
-            memory_banks[0] = memory_banks[0].transpose(0,1)
-            # mb[0] = enc_memory_bank is now (batch_size, seq_len, hidden_dim)
-            # mb[1] = prev_context was already (batch_size, seq_len, hidden_dim)
-            # mb[2] = item_title will come in the future
+            memory_banks = [bank.transpose(0,1) for bank in memory_banks]
+            # encoder_memory_bank and prev_context_memory_bank are both
+            # (seq_len, batch_size, hidden) --> (batch_size, seq_len, hidden)
         else:
             memory_banks = memory_banks.transpose(0,1)
 
@@ -415,9 +414,9 @@ class StdRNNDecoder(RNNDecoderBase):
             rnn_output.transpose(0, 1).contiguous(), memory_banks,
             memory_lengths=memory_lengths
         )
+        # revert the dimensions back so generator can run
         if isinstance(memory_banks, list):
-            # change the dimensions back so generator can run
-            memory_banks[0] = memory_banks[0].transpose(0,1)
+            memory_banks = [bank.transpose(0,1) for bank in memory_banks]
 
         attns["std"] = p_attn
 

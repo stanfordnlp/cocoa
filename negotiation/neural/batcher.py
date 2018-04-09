@@ -36,7 +36,7 @@ class Batch(object):
                 setattr(self, attr, sorted_attrs)
 
         if time_major:
-            for attr in ('encoder_inputs', 'decoder_inputs', 'targets'):
+            for attr in ('encoder_inputs', 'decoder_inputs', 'context_inputs', 'targets'):
                 setattr(self, attr, np.swapaxes(getattr(self, attr), 0, 1))
 
         # To tensor/variable

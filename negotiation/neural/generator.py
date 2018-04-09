@@ -103,16 +103,15 @@ class Generator(object):
         dec_states = self.model.decoder.init_decoder_state(
                                         encoder_inputs, memory_bank, enc_states)
 
-        if batch.num_context > 1:
+        if batch.num_context > 0:
             item_inputs = batch.item_inputs
             context_inputs = batch.context_inputs
 
             _, item_memory_bank = self.model.context_embedder(item_inputs)
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             enc_memory_bank = memory_bank
+            # all memory_bank items are (seq_len, batch_size, rnn_size)
             memory_bank = [enc_memory_bank, context_memory_bank]
-        # encoder_mem_bank: (seq_len, batch_size, rnn_size)
-        # context_mem_bank: (batch_size, seq_len, rnn_size)
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:
@@ -123,9 +122,8 @@ class Generator(object):
         # (2) Repeat src objects `beam_size` times.
         #src_map = rvar(batch.src_map.data) \
         #    if data_type == 'text' and self.copy_attn else None
-        if batch.num_context > 1:
-            memory_bank[0] = rvar(memory_bank[0].data)
-            memory_bank[1] = rvar(memory_bank[1].transpose(0,1).data).transpose(0,1)
+        if batch.num_context > 0:
+            memory_bank = [rvar(bank.data) for bank in memory_bank]
         else:
             memory_bank = rvar(memory_bank.data)
         memory_lengths = lengths.repeat(beam_size)

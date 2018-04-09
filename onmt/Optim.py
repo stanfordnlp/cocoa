@@ -31,7 +31,7 @@ class Optim(object):
     # https://arxiv.org/pdf/1706.03762.pdf, particularly the value beta2=0.98
     # was used there however, beta2=0.999 is still arguably the more
     # established value, so we use that here as well
-    def __init__(self, method, lr, max_grad_norm, lr_decay=0.9, start_decay_at=None,
+    def __init__(self, method, lr, max_grad_norm, lr_decay=1, start_decay_at=None,
                  beta1=0.9, beta2=0.999, adagrad_accum=0.0,
                  decay_method=None, warmup_steps=4000, model_size=None):
         self.last_ppl = None
