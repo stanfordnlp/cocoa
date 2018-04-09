@@ -414,10 +414,6 @@ class StdRNNDecoder(RNNDecoderBase):
             rnn_output.transpose(0, 1).contiguous(), memory_banks,
             memory_lengths=memory_lengths
         )
-        # revert the dimensions back so generator can run
-        if isinstance(memory_banks, list):
-            memory_banks = [bank.transpose(0,1) for bank in memory_banks]
-
         attns["std"] = p_attn
 
         # Calculate the context gate.
