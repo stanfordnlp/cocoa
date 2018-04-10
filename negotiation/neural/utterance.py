@@ -49,8 +49,8 @@ class UtteranceBuilder(object):
         self.n_best = n_best
         self.has_tgt = has_tgt
 
-    def _build_target_tokens(self, pred):
-        vocab = self.vocab
+    ''' --- Original Version ---
+    def _build_target_tokens(self, predictions):
         tokens = []
         for tok in pred:
             # str() to convert Entity
@@ -59,6 +59,20 @@ class UtteranceBuilder(object):
                 tokens = tokens[:-1]
                 break
         return tokens
+    '''
+
+    def _build_target_tokens(self, predictions, entity_to_price=None):
+        clean_tokens = []
+        for pred in predictions:
+            token = self.vocab.ind_to_word[pred]
+            if is_entity(token) and entity_to_price is not None:
+                token = entity_to_price(token)
+            clean_tokens.append(token)
+            if clean_tokens[-1] == markers.EOS:
+                clean_tokens = clean_tokens[:-1]
+                break
+        return tokens
+
 
     def from_batch(self, translation_batch):
         batch = translation_batch["batch"]

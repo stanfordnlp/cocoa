@@ -269,6 +269,7 @@ class PytorchNeuralSession(NeuralSession):
             return False
         return True
 
+    ''' --- Original Version ---
     def output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
         clean_tokens = []
@@ -281,3 +282,10 @@ class PytorchNeuralSession(NeuralSession):
                 clean_tokens = clean_tokens[:-1]
                 break
         return clean_tokens[1:]
+    '''
+
+    def output_to_tokens(self, data):
+        preds = data["predictions"][0][0]
+        entity_to_price = self.dialogue.get_ent_to_price(self.kb)
+        tokens = self.builder._build_target_tokens(preds, entity_to_price)
+        return tokens[1:]
