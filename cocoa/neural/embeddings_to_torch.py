@@ -13,19 +13,26 @@ from cocoa.io.utils import read_pickle
 
 parser = argparse.ArgumentParser(description='embeddings_to_torch.py')
 parser.add_argument('--emb-file', required=True,
-                    help="Embeddings from this file")
+                help="Embeddings from this file, will often be Glove or Word2Vec")
 parser.add_argument('--output-file', required=True,
-                    help="Output file for the prepared data")
+                help="Pytorch embeddings into this file for the prepared data")
 parser.add_argument('--vocab-file', required=True,
-                    help="Dictionary file")
+                    help="Dictionary that maps a word to its embedding index")
 parser.add_argument('--verbose', action="store_true", default=False)
 opt = parser.parse_args()
 
 
-def get_vocabs(vocab_path):
+def get_dialogue_vocabs(vocab_path):
     mappings = read_pickle(vocab_path)
     vocab = mappings['vocab']
-    print('Vocab size: %d' % len(vocab))
+    print('Dialogue vocab size: %d' % len(vocab))
+    return vocab
+
+# Used for embedding item title and item description
+def get_kb_vocabs(vocab_path):
+    mappings = read_pickle(vocab_path)
+    vocab = mappings['kb_vocab']
+    print('KB vocab size: %d' % len(vocab))
     return vocab
 
 
@@ -57,7 +64,8 @@ def match_embeddings(vocab, emb):
 
 
 def main():
-    vocab = get_vocabs(opt.vocab_file)
+    # vocab = get_dialogue_vocabs(opt.vocab_file)
+    vocab = get_kb_vocabs(opt.vocab_file)
     embeddings = get_embeddings(opt.emb_file)
 
     filtered_embeddings, count = match_embeddings(vocab, embeddings)

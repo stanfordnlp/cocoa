@@ -54,7 +54,7 @@ real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/$(data)/
 
 glove-pt:
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab.pkl --output-file scr/glove
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab_mappings.pkl --output-file scr/kb_glove
 
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
