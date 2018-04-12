@@ -199,7 +199,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
     # Make context embedder.
-    if model_opt.num_context > 1:
+    if model_opt.num_context > 0:
       context_dict = mappings['vocab']
       context_embeddings = make_embeddings(model_opt, context_dict)
       context_embedder = make_context_embedder(model_opt, context_embeddings)
