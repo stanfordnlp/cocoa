@@ -321,16 +321,6 @@ class Dialogue(object):
         prices = [[to_float_price(entity) if entity else pad for entity in entities] for entities in self.entities]
         return prices
 
-    def get_ent_to_price(self, kb):
-
-        def entity_to_price(entity_token):
-            raw_price = PriceScaler.unscale_price(kb, entity_token)
-            human_readable_price = "${}".format(raw_price.canonical.value)
-            return human_readable_price
-
-        return entity_to_price
-
-
 class Preprocessor(object):
     '''
     Preprocess raw utterances: tokenize, entity linking.

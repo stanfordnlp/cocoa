@@ -1,4 +1,6 @@
 from preprocess import markers
+from core.price_tracker import PriceScaler
+from cocoa.core.entity import is_entity
 
 class Utterance(object):
     """
@@ -49,30 +51,22 @@ class UtteranceBuilder(object):
         self.n_best = n_best
         self.has_tgt = has_tgt
 
-    ''' --- Original Version ---
-    def _build_target_tokens(self, predictions):
-        tokens = []
-        for tok in pred:
-            # str() to convert Entity
-            tokens.append(str(vocab.ind_to_word[tok]))
-            if tokens[-1] == markers.EOS:
-                tokens = tokens[:-1]
-                break
-        return tokens
-    '''
-
-    def _build_target_tokens(self, predictions, entity_to_price=None):
+    def build_target_tokens(self, predictions, kb=None):
         clean_tokens = []
         for pred in predictions:
             token = self.vocab.ind_to_word[pred]
-            if is_entity(token) and entity_to_price is not None:
-                token = entity_to_price(token)
+            if is_entity(token):
+                token = self.entity_to_price(token, kb)
             clean_tokens.append(token)
             if clean_tokens[-1] == markers.EOS:
                 clean_tokens = clean_tokens[:-1]
                 break
         return tokens
 
+    def entity_to_price(self, entity_token, kb):
+        raw_price = PriceScaler.unscale_price(kb, entity_token)
+        human_readable_price = "${}".format(raw_price.canonical.value)
+        return human_readable_price
 
     def from_batch(self, translation_batch):
         batch = translation_batch["batch"]
@@ -96,11 +90,11 @@ class UtteranceBuilder(object):
             src_raw = batch.context_data['encoder_tokens'][b]
             if not batch.context_data['decoder_tokens'][b]:
                 continue
-            pred_sents = [self._build_target_tokens(preds[b][n])
+            pred_sents = [self.build_target_tokens(preds[b][n])
                           for n in range(self.n_best)]
             gold_sent = None
             if tgt is not None:
-                gold_sent = self._build_target_tokens(tgt[:, b])
+                gold_sent = self.build_target_tokens(tgt[:, b])
 
             utterance = Utterance(src_raw, pred_sents,
                                   attn[b], pred_score[b], gold_sent,

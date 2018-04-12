@@ -68,10 +68,7 @@ class NeuralSession(Session):
         return tokens
 
     def send(self):
-        for i in xrange(1):
-            tokens = self.generate()
-            if tokens is not None:
-                break
+        tokens = self.generate()
         if tokens is None:
             return None
         self.dialogue.add_utterance(self.agent, list(tokens))
@@ -269,23 +266,7 @@ class PytorchNeuralSession(NeuralSession):
             return False
         return True
 
-    ''' --- Original Version ---
     def output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
-        clean_tokens = []
-        for pred in predictions:
-            token = self.vocab.ind_to_word[pred]
-            if is_entity(token):
-                token = self.dialogue.entity_to_price(self.kb, token)
-            clean_tokens.append(token)
-            if clean_tokens[-1] == markers.EOS:
-                clean_tokens = clean_tokens[:-1]
-                break
-        return clean_tokens[1:]
-    '''
-
-    def output_to_tokens(self, data):
-        preds = data["predictions"][0][0]
-        entity_to_price = self.dialogue.get_ent_to_price(self.kb)
-        tokens = self.builder._build_target_tokens(preds, entity_to_price)
+        tokens = self.builder.build_target_tokens(predictions, self.kb)
         return tokens[1:]
