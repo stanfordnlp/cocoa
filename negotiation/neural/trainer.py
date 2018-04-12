@@ -18,9 +18,10 @@ def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
 
     # Initialization
-    group.add_argument('--pretrained-wordvec',
+    group.add_argument('--pretrained-wordvec', nargs='+', required=True,
                        help="""If a valid path is specified, then this will load
-                       pretrained word embeddings""")
+                       pretrained word embeddings, if list contains two embeddings,
+                       then the second one is for item title and description""")
     group.add_argument('--param-init', type=float, default=0.1,
                        help="""Parameters are initialized over uniform distribution
                        with support (-param_init, param_init).

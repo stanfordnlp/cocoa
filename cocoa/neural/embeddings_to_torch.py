@@ -17,24 +17,23 @@ parser.add_argument('--emb-file', required=True,
 parser.add_argument('--output-file', required=True,
                 help="Pytorch embeddings into this file for the prepared data")
 parser.add_argument('--vocab-file', required=True,
-                    help="Dictionary that maps a word to its embedding index")
+                help="Dictionary that maps a word to its embedding index")
+parser.add_argument('--vocab-type', default='dialogue', choices=['dialogue', 'kb', 'cat'],
+                help='type of mapping being embedded into pytorch')
 parser.add_argument('--verbose', action="store_true", default=False)
 opt = parser.parse_args()
 
 
-def get_dialogue_vocabs(vocab_path):
+def get_vocabs(vocab_path, vocab_type):
     mappings = read_pickle(vocab_path)
-    vocab = mappings['vocab']
-    print('Dialogue vocab size: %d' % len(vocab))
+    mapping_key = "{}_vocab".format(vocab_type)
+    try:
+        vocab = mappings[mapping_key]
+    except(KeyError):
+        # under older versions, we called "dialogue_vocab" just "vocab"
+        vocab = mappings["vocab"]
+    print('{0} vocab size: {1}'.format(vocab_type, len(vocab)) )
     return vocab
-
-# Used for embedding item title and item description
-def get_kb_vocabs(vocab_path):
-    mappings = read_pickle(vocab_path)
-    vocab = mappings['kb_vocab']
-    print('KB vocab size: %d' % len(vocab))
-    return vocab
-
 
 def get_embeddings(file_):
     embs = dict()
@@ -64,8 +63,7 @@ def match_embeddings(vocab, emb):
 
 
 def main():
-    # vocab = get_dialogue_vocabs(opt.vocab_file)
-    vocab = get_kb_vocabs(opt.vocab_file)
+    vocab = get_vocabs(opt.vocab_file)
     embeddings = get_embeddings(opt.emb_file)
 
     filtered_embeddings, count = match_embeddings(vocab, embeddings)
@@ -80,7 +78,7 @@ def main():
     print("\nFiltered embeddings:")
     print("\t* vocab: ", filtered_embeddings.size())
 
-    output_file = opt.output_file + ".pt"
+    output_file = opt.output_file + opt.vocab_type + "_glove.pt"
     print("\nSaving embedding as:\n\t%s"
           % (output_file,))
     torch.save(filtered_embeddings, output_file)

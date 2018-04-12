@@ -54,11 +54,11 @@ real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/$(data)/
 
 glove-pt:
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab_mappings.pkl --output-file scr/kb_glove
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab_mappings.pkl --output-file scr/  --vocab-type kb
 
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
-	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) \
+	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/dialogue_glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) \
 	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--report-every 500 --epochs $(num_epochs) --global-attention multibank_general --ignore-cache \
         --verbose  # --train-max-examples 250 --test-max-examples 250
