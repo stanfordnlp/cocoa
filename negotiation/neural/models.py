@@ -611,12 +611,12 @@ class NegotiationModel(NMTModel):
         super(NegotiationModel, self).__init__(encoder, decoder)
         self.context_embedder = context_embedder
 
-    def forward(self, src, tgt, context, lengths, dec_state=None):
+    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None):
         enc_final, enc_memory_bank = self.encoder(src, lengths)
         _, context_memory_bank = self.context_embedder(context)
-        # _, item_memory_bank = self.context_embedder(sources['item'])
-        # memory_banks = [enc_memory_bank, item_memory_bank, prev_memory_bank]
-        memory_banks = [enc_memory_bank, context_memory_bank]
+        _, title_memory_bank = self.context_embedder(title)
+        _, desc_memory_bank = self.context_embedder(desc)
+        memory_banks = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
 
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state

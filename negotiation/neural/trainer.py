@@ -234,10 +234,12 @@ class Trainer(object):
             decoder_inputs = batch.decoder_inputs
             targets = batch.targets
             lengths = batch.lengths
-            # item_title = batch.item_title
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
 
-            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, context_inputs, lengths)
+            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs,
+                  context_inputs, title_inputs, desc_inputs, lengths)
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 

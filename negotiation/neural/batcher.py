@@ -21,7 +21,8 @@ class Batch(object):
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
         self.context_inputs = encoder_args['context'][0]
-        self.item_inputs = decoder_args['context']['title']
+        self.title_inputs = decoder_args['context']['title']
+        self.desc_inputs = decoder_args['context']['description']
 
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
@@ -31,19 +32,24 @@ class Batch(object):
         if sort_by_length:
             for k, v in self.context_data.iteritems():
                 self.context_data[k] = self.order_by_id(v, sorted_ids)
-            for attr in ('encoder_inputs', 'decoder_inputs', 'item_inputs', 'context_inputs', 'targets', 'lengths'):
+            unsorted_attributes = ('encoder_inputs', 'decoder_inputs', 'lengths',
+                'title_inputs', 'desc_inputs' 'context_inputs', 'targets')
+            for attr in unsorted_attributes:
                 sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
                 setattr(self, attr, sorted_attrs)
 
         if time_major:
-            for attr in ('encoder_inputs', 'decoder_inputs', 'context_inputs', 'targets'):
+            batch_major_attributes = ('encoder_inputs', 'decoder_inputs',
+                    'title_inputs', 'desc_inputs', 'context_inputs', 'targets')
+            for attr in batch_major_attributes:
                 setattr(self, attr, np.swapaxes(getattr(self, attr), 0, 1))
 
         # To tensor/variable
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
         self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
-        self.item_inputs = self.to_variable(self.item_inputs, 'long', cuda)
+        self.title_inputs = self.to_variable(self.title_inputs, 'long', cuda)
+        self.desc_inputs = self.to_variable(self.desc_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
 
