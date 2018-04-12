@@ -211,8 +211,6 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     if "multibank" in model_opt.global_attention:
       model = NegotiationModel(encoder, decoder, context_embedder)
     else:
-      print model_opt
-      print("should not come here")
       model = NMTModel(encoder, decoder)
     model.model_type = 'text'
 
