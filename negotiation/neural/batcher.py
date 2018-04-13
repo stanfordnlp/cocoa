@@ -33,7 +33,7 @@ class Batch(object):
             for k, v in self.context_data.iteritems():
                 self.context_data[k] = self.order_by_id(v, sorted_ids)
             unsorted_attributes = ('encoder_inputs', 'decoder_inputs', 'lengths',
-                'title_inputs', 'desc_inputs' 'context_inputs', 'targets')
+                'title_inputs', 'desc_inputs', 'context_inputs', 'targets')
             for attr in unsorted_attributes:
                 sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
                 setattr(self, attr, sorted_attrs)
