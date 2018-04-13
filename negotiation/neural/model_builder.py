@@ -262,14 +262,14 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
                     dialogue_wordvec, model_opt.fix_pretrained_wordvec)
             elif model.context_embedder.embed_type == 'kb':
               model.context_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
         if hasattr(model.kb_embedder, 'embeddings'):
             if model.kb_embedder.embed_type == 'dialogue':
               model.kb_embedder.embeddings.load_pretrained_vectors(
                     dialogue_wordvec, model_opt.fix_pretrained_wordvec)
             elif model.kb_embedder.embed_type == 'kb':
               model.kb_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
         if hasattr(model.decoder, 'embeddings'):
             model.decoder.embeddings.load_pretrained_vectors(
                     dialogue_wordvec, model_opt.fix_pretrained_wordvec)
