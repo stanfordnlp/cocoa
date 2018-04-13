@@ -116,20 +116,20 @@ def make_encoder(opt, embeddings):
         # "rnn" or "brnn"
         bidirectional = True if opt.encoder_type == 'brnn' else False
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
-                          opt.rnn_size, opt.dropout, embeddings,
-                          False)
+                        opt.rnn_size, opt.dropout, embeddings)
 
-def make_context_embedder(opt, embeddings):
+def make_context_embedder(opt, embeddings, embed_type='dialogue'):
     """
     Various context embedder dispatcher function. See make_encoder for options
+    embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
     if opt.context_embedder_type == "mean":
-        return MeanEncoder(opt.enc_layers, embeddings)
+        return MeanEncoder(opt.enc_layers, embeddings, embed_type)
     else:
         # "rnn" or "brnn"
         bidirectional = True if opt.context_embedder_type == 'brnn' else False
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
-                          opt.rnn_size, opt.dropout, embeddings, False)
+                        opt.rnn_size, opt.dropout, embeddings, embed_type, False)
 
 def make_decoder(opt, embeddings):
     """
@@ -203,13 +203,17 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
       context_dict = mappings['vocab']
       context_embeddings = make_embeddings(model_opt, context_dict)
       context_embedder = make_context_embedder(model_opt, context_embeddings)
+
+    kb_dict = mappings['kb_vocab']
+    kb_embeddings = make_embeddings(model_opt, kb_dict)
+    kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
     # Make decoder.
     tgt_dict = mappings['vocab']
     tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
     decoder = make_decoder(model_opt, tgt_embeddings)
 
     if "multibank" in model_opt.global_attention:
-      model = NegotiationModel(encoder, decoder, context_embedder)
+      model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder)
     else:
       model = NMTModel(encoder, decoder)
     model.model_type = 'text'
@@ -238,12 +242,26 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
             for p in generator.parameters():
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
+
+        if isinstance(model_opt.pretrained_wordvec, list):
+          dialogue_wordvec = model_opt.pretrained_wordvec[0]
+          kb_wordvec = model_opt.pretrained_wordvec[1]
+        else:
+          dialogue_wordvec = model_opt.pretrained_wordvec
+
         if hasattr(model.encoder, 'embeddings'):
-            model.encoder.embeddings.load_pretrained_vectors(
-                    model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
+            if model.encoder.embed_type == 'dialogue':
+              model.encoder.embeddings.load_pretrained_vectors(
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+            elif model.encoder.embed_type == 'kb':
+              model.encoder.embeddings.load_pretrained_vectors(
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
+            elif model.encoder.embed_type == 'category':
+              model.encoder.embeddings.load_pretrained_vectors(
+                    cat_wordvec, model_opt.fix_pretrained_wordvec)
         if hasattr(model.decoder, 'embeddings'):
             model.decoder.embeddings.load_pretrained_vectors(
-                    model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator

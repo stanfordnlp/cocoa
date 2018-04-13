@@ -77,11 +77,13 @@ class MeanEncoder(EncoderBase):
     Args:
        num_layers (int): number of replicated layers
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
+       embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
-    def __init__(self, num_layers, embeddings):
+    def __init__(self, num_layers, embeddings, embed_type='dialogue'):
         super(MeanEncoder, self).__init__()
         self.num_layers = num_layers
         self.embeddings = embeddings
+        self.embed_type = embed_type
 
     def forward(self, src, lengths=None, encoder_state=None):
         "See :obj:`EncoderBase.forward()`"
@@ -105,9 +107,10 @@ class StdRNNEncoder(EncoderBase):
        hidden_size (int) : hidden size of each layer
        dropout (float) : dropout value for :obj:`nn.Dropout`
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
+       embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
-    def __init__(self, rnn_type, bidirectional, num_layers,
-                 hidden_size, dropout=0.0, embeddings=None,
+    def __init__(self, rnn_type, bidirectional, num_layers, hidden_size,
+                 dropout=0.0, embeddings=None, embed_type='dialogue',
                  use_bridge=False):
         super(StdRNNEncoder, self).__init__()
         assert embeddings is not None
@@ -116,6 +119,7 @@ class StdRNNEncoder(EncoderBase):
         assert hidden_size % num_directions == 0
         hidden_size = hidden_size // num_directions
         self.embeddings = embeddings
+        self.embed_type = embed_type
 
         self.rnn, self.no_pack_padded_seq = \
             rnn_factory(rnn_type,
@@ -607,15 +611,16 @@ class NMTModel(nn.Module):
 
 class NegotiationModel(NMTModel):
 
-    def __init__(self, encoder, decoder, context_embedder):
+    def __init__(self, encoder, decoder, context_embedder, kb_embedder):
         super(NegotiationModel, self).__init__(encoder, decoder)
         self.context_embedder = context_embedder
+        self.kb_embedder = kb_embedder
 
     def forward(self, src, tgt, context, title, desc, lengths, dec_state=None):
         enc_final, enc_memory_bank = self.encoder(src, lengths)
         _, context_memory_bank = self.context_embedder(context)
-        _, title_memory_bank = self.context_embedder(title)
-        _, desc_memory_bank = self.context_embedder(desc)
+        _, title_memory_bank = self.kb_embedder(title)
+        _, desc_memory_bank = self.kb_embedder(desc)
         memory_banks = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
 
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
