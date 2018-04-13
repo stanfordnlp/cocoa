@@ -198,6 +198,7 @@ class MultibankGlobalAttention(nn.Module):
     def __init__(self, dim, coverage=False, attn_type="dot"):
         super(MultibankGlobalAttention, self).__init__()
         self.attention = GlobalAttention(dim, coverage, attn_type)
+        self.out = nn.Linear(dim * 4, dim)
 
     def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
         # memory_banks have shape (batch_size, seq_len, hidden_dim)
@@ -210,6 +211,9 @@ class MultibankGlobalAttention(nn.Module):
             attention_hidden_states.append(attn_h)
             alignment_vectors.append(align_vectors)
 
-        final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=0)
+        joined = torch.cat(attention_hidden_states, dim=2)
+        final_attn_h = self.out(joined)
+        
+        # final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=0)
         final_align_v = torch.cat(alignment_vectors, dim=2)
         return final_attn_h, final_align_v
