@@ -256,9 +256,6 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             elif model.encoder.embed_type == 'kb':
               model.encoder.embeddings.load_pretrained_vectors(
                     kb_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.encoder.embed_type == 'category':
-              model.encoder.embeddings.load_pretrained_vectors(
-                    cat_wordvec, model_opt.fix_pretrained_wordvec)
         if hasattr(model.decoder, 'embeddings'):
             model.decoder.embeddings.load_pretrained_vectors(
                     dialogue_wordvec, model_opt.fix_pretrained_wordvec)

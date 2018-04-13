@@ -124,7 +124,6 @@ class GeneratorNeuralSession(NeuralSession):
                 'encoder_args': encoder_args,
                 'decoder_args': decoder_args,
                 }
-        pdb.set_trace()
         return batch
 
     def _decoder_args(self, entity_tokens):
