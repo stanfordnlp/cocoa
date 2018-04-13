@@ -60,8 +60,8 @@ train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json \
 	--mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/dialogue_glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) \
 	--price-tracker $(price_tracker) --batch-size $(batch_size) --gpuid 0 --rnn-size $(rnn_size) --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
-	--report-every 500 --epochs $(num_epochs) --global-attention multibank_general --ignore-cache \
-        --verbose  # --train-max-examples 250 --test-max-examples 250
+	--report-every 500 --epochs $(num_epochs) --global-attention multibank_general \
+        --verbose  # --ignore-cache --train-max-examples 250 --test-max-examples 250
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --checkpoint-file $(ckpt_file) \

@@ -235,9 +235,9 @@ class Trainer(object):
             decoder_inputs = batch.decoder_inputs
             targets = batch.targets
             lengths = batch.lengths
+            context_inputs = batch.context_inputs
             title_inputs = batch.title_inputs
             desc_inputs = batch.desc_inputs
-            context_inputs = batch.context_inputs
 
             outputs, attns, _ = self.model(encoder_inputs, decoder_inputs,
                   context_inputs, title_inputs, desc_inputs, lengths)
@@ -297,14 +297,20 @@ class Trainer(object):
             encoder_inputs = batch.encoder_inputs
             decoder_inputs = batch.decoder_inputs
             context_inputs = batch.context_inputs
-            # item_inputs = batch.item_inputs
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
             targets = batch.targets
             lengths = batch.lengths
 
             self.model.zero_grad()
             # running forward() method in the NegotiationModel
-            outputs, attns, dec_state = self.model(encoder_inputs,
-                  decoder_inputs, context_inputs, lengths, dec_state)
+            if hasattr(self.model, 'context_embedder'):
+              outputs, attns, dec_state = self.model(encoder_inputs,
+                      decoder_inputs, context_inputs, title_inputs,
+                      desc_inputs, lengths, dec_state)
+            else:  # running forward() method in NMT Model
+              outputs, attns, dec_state = self.model(encoder_inputs,
+                      decoder_inputs, lengths, dec_state)
 
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()
