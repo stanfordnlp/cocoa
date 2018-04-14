@@ -104,14 +104,17 @@ class Generator(object):
                                         encoder_inputs, memory_bank, enc_states)
 
         if batch.num_context > 0:
-            item_inputs = batch.item_inputs
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
 
-            _, item_memory_bank = self.model.context_embedder(item_inputs)
+            _, title_memory_bank = self.model.kb_embedder(title_inputs)
+            _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             enc_memory_bank = memory_bank
+
             # all memory_bank items are (seq_len, batch_size, rnn_size)
-            memory_bank = [enc_memory_bank, context_memory_bank]
+            memory_bank = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:

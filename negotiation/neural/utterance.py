@@ -61,7 +61,7 @@ class UtteranceBuilder(object):
             if clean_tokens[-1] == markers.EOS:
                 clean_tokens = clean_tokens[:-1]
                 break
-        return tokens
+        return clean_tokens
 
     def entity_to_price(self, entity_token, kb):
         raw_price = PriceScaler.unscale_price(kb, entity_token)
