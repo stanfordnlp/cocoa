@@ -70,19 +70,21 @@ class Evaluator(object):
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
 
-            for trans in utterances:
-                pred_score_total += trans.pred_scores[0]
-                pred_words_total += len(trans.pred_sents[0])
-                gold_score_total += trans.gold_score
-                gold_words_total += len(trans.gold_sent)
+            for response in utterances:
+                pred_score_total += response.pred_scores[0]
+                pred_words_total += len(response.pred_sents[0])
+                gold_score_total += response.gold_score
+                gold_words_total += len(response.gold_sent)
 
-                n_best_preds = [" ".join(pred)
-                                for pred in trans.pred_sents[:opt.n_best]]
+                # Not needed because Utterance instance already logs results to screen
+                # n_best_preds = [" ".join(pred) for pred in response.pred_sents[:opt.n_best]]
+
                 out_file.write('\n'.join(n_best_preds))
                 out_file.write('\n')
                 out_file.flush()
 
                 if opt.verbose:
                     sent_number = next(counter)
-                    output = trans.log(sent_number)
+                    # batch
+                    output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))
