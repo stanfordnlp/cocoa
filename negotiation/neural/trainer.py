@@ -235,12 +235,16 @@ class Trainer(object):
             decoder_inputs = batch.decoder_inputs
             targets = batch.targets
             lengths = batch.lengths
-            context_inputs = batch.context_inputs
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
 
-            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs,
+            if hasattr(self.model, 'context_embedder'):
+              context_inputs = batch.context_inputs
+              title_inputs = batch.title_inputs
+              desc_inputs = batch.desc_inputs
+              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, 
                   context_inputs, title_inputs, desc_inputs, lengths)
+            else:
+              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 
@@ -296,15 +300,16 @@ class Trainer(object):
 
             encoder_inputs = batch.encoder_inputs
             decoder_inputs = batch.decoder_inputs
-            context_inputs = batch.context_inputs
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
             targets = batch.targets
             lengths = batch.lengths
 
             self.model.zero_grad()
             # running forward() method in the NegotiationModel
             if hasattr(self.model, 'context_embedder'):
+              context_inputs = batch.context_inputs
+              title_inputs = batch.title_inputs
+              desc_inputs = batch.desc_inputs
+
               outputs, attns, dec_state = self.model(encoder_inputs,
                       decoder_inputs, context_inputs, title_inputs,
                       desc_inputs, lengths, dec_state)
