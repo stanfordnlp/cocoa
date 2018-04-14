@@ -20,9 +20,6 @@ class Batch(object):
         self.num_context = num_context
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
-
-	if num_context > 0:
-            self.context_inputs = encoder_args['context'][0]
         self.title_inputs = decoder_args['context']['title']
         self.desc_inputs = decoder_args['context']['description']
 
@@ -30,35 +27,35 @@ class Batch(object):
         self.size = self.targets.shape[0]
         self.context_data = context_data
 
+        unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths', 'title_inputs', 'desc_inputs', 'targets']
+        batch_major_attributes = ['encoder_inputs', 'decoder_inputs', 'title_inputs', 'desc_inputs', 'targets']
+
+        if num_context > 0:
+            self.context_inputs = encoder_args['context'][0]
+            unsorted_attributes.append('context_inputs')
+            batch_major_attributes.append('context_inputs')
+
         self.lengths, sorted_ids = self.sort_by_length(self.encoder_inputs)
         if sort_by_length:
             for k, v in self.context_data.iteritems():
                 self.context_data[k] = self.order_by_id(v, sorted_ids)
-            unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths',
-                'title_inputs', 'desc_inputs', 'targets']
-            if num_context > 0:
-                 unsorted_attributes.append('context_inputs')
             for attr in unsorted_attributes:
                 sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
                 setattr(self, attr, sorted_attrs)
 
         if time_major:
-            batch_major_attributes = ['encoder_inputs', 'decoder_inputs',
-                    'title_inputs', 'desc_inputs', 'targets']
-            if num_context > 0:
-                    batch_major_attributes.append('context_inputs')
             for attr in batch_major_attributes:
                 setattr(self, attr, np.swapaxes(getattr(self, attr), 0, 1))
 
         # To tensor/variable
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
-        if num_context > 0:
-            self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
         self.title_inputs = self.to_variable(self.title_inputs, 'long', cuda)
         self.desc_inputs = self.to_variable(self.desc_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
+        if num_context > 0:
+            self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
 
     @classmethod
     def to_tensor(cls, data, dtype, cuda=False):
