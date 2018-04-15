@@ -39,7 +39,7 @@ def add_evaluator_arguments(parser):
 
 
 class Evaluator(object):
-    def __init__(self, model, vocab, gt_prefix=1):
+    def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
 
@@ -47,7 +47,7 @@ class Evaluator(object):
             self.vocab = mappings['vocab']
             self.kb_vocab = mappings['kb_vocab']
         else:
-            self.vocab = vocab
+            self.vocab = mappings
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
@@ -74,14 +74,10 @@ class Evaluator(object):
         for batch in data_iter:
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
+            titles = batch.title_inputs.transpose(0,1)
+            pad_id = self.kb_vocab.word_to_ind["<pad>"]
 
-            for title in batch.title_inputs:
-                extracted_words = title.data.cpu().numpy()
-                raw_sent = [self.kb_vocab.ind_to_word[x] for x in extracted_words]
-                readable_sent = ' '.join(raw_sent)
-                print("Item Title: {}".format(readable_sent))
-
-            for response in utterances:
+            for i, response in enumerate(utterances):
                 pred_score_total += response.pred_scores[0]
                 pred_words_total += len(response.pred_sents[0])
                 gold_score_total += response.gold_score
@@ -95,6 +91,9 @@ class Evaluator(object):
 
                 if opt.verbose:
                     sent_number = next(counter)
-                    # batch
+                    sent_ids = titles[i].data.cpu().numpy()
+                    sent_words = [self.kb_vocab.ind_to_word[x] for x in sent_ids if x != pad_id]
+                    readable_sent = ' '.join(sent_words)
+                    print("--------- Item {0}: {1} -----------".format(sent_number, readable_sent))
                     output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))

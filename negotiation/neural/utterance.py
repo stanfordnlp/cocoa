@@ -20,17 +20,17 @@ class Utterance(object):
         Log translation to stdout.
         """
         user_utterance = ' '.join(map(str, self.src_raw))
-        output = '\nUSER INPUT {}: {}\n'.format(sent_number, user_utterance)
+        output = 'USER INPUT: {}\n'.format(user_utterance)
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
         pred_sent = ' '.join(best_pred)
-        output += 'PRED OUTPUT {}: {}\n'.format(sent_number, pred_sent)
+        output += 'PRED OUTPUT: {}\n'.format(pred_sent)
         output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
             tgt_sent = ' '.join(self.gold_sent)
-            output += 'GOLD {}: {}\n'.format(sent_number, tgt_sent)
+            output += 'GOLD: {}\n'.format(tgt_sent)
             # gold score is always 0 because that is the highest possible
             # output += "GOLD SCORE: {:.4f}\n".format(self.gold_score)
 
