@@ -41,8 +41,13 @@ def add_evaluator_arguments(parser):
 class Evaluator(object):
     def __init__(self, model, vocab, gt_prefix=1):
         self.model = model
-        self.vocab = vocab
         self.gt_prefix = gt_prefix
+
+        if isinstance(mappings, dict):
+            self.vocab = mappings['vocab']
+            self.kb_vocab = mappings['kb_vocab']
+        else:
+            self.vocab = vocab
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
@@ -70,6 +75,12 @@ class Evaluator(object):
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
 
+            for title in batch.title_inputs:
+                extracted_words = title.data.cpu().numpy()
+                raw_sent = [self.kb_vocab.ind_to_word[x] for x in extracted_words]
+                readable_sent = ' '.join(raw_sent)
+                print("Item Title: {}".format(readable_sent))
+
             for response in utterances:
                 pred_score_total += response.pred_scores[0]
                 pred_words_total += len(response.pred_sents[0])
@@ -78,9 +89,8 @@ class Evaluator(object):
 
                 # Not needed because Utterance instance already logs results to screen
                 # n_best_preds = [" ".join(pred) for pred in response.pred_sents[:opt.n_best]]
-
-                out_file.write('\n'.join(n_best_preds))
-                out_file.write('\n')
+                # out_file.write('\n'.join(n_best_preds))
+                # out_file.write('\n')
                 out_file.flush()
 
                 if opt.verbose:
