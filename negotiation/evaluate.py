@@ -53,13 +53,8 @@ if __name__ == '__main__':
 
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
-    
-    # if the pretrained words are a list, then it means there are two vocabs
-    if isinstance(model_args.pretrained_wordvec, list):
-        # so we pass in the entire mappings, which include 'kb_vocab'
-        evaluator = Evaluator(model, mappings, gt_prefix=1)
-    else:
-        # Prefix: [GO, CATEGORY]
-        # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
-        evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
+
+    # Prefix: [GO, CATEGORY]
+    # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
+    evaluator = Evaluator(model, mappings, gt_prefix=1)
     evaluator.evaluate(args, model_args, data_generator)

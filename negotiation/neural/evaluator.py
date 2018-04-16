@@ -42,12 +42,8 @@ class Evaluator(object):
     def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
-
-        if isinstance(mappings, dict):
-            self.vocab = mappings['vocab']
-            self.kb_vocab = mappings['kb_vocab']
-        else:
-            self.vocab = mappings
+        self.vocab = mappings['vocab']
+        self.kb_vocab = mappings['kb_vocab']
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
