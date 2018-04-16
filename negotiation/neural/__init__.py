@@ -72,7 +72,11 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
 
 def check_model_args(args):
     if args.pretrained_wordvec:
-        with open(args.pretrained_wordvec, 'r') as fin:
+        if isinstance(args.pretrained_wordvec, list):
+            pretrained = args.pretrained_wordvec[0]
+        else:
+            pretrained = args.pretrained_wordvec
+        with open(pretrained, 'r') as fin:
             pretrained_word_embed_size = len(fin.readline().strip().split()) - 1
         assert pretrained_word_embed_size == args.word_embed_size
 

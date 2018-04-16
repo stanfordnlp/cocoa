@@ -56,5 +56,5 @@ if __name__ == '__main__':
 
     # Prefix: [GO, CATEGORY]
     # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
-    evaluator = Evaluator(model, mappings['vocab'], gt_prefix=1)
+    evaluator = Evaluator(model, mappings, gt_prefix=1)
     evaluator.evaluate(args, model_args, data_generator)

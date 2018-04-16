@@ -193,3 +193,23 @@ class GlobalAttention(nn.Module):
             aeq(sourceL, sourceL_)
 
         return attn_h, align_vectors
+
+class MultibankGlobalAttention(nn.Module):
+    def __init__(self, dim, coverage=False, attn_type="dot"):
+        super(MultibankGlobalAttention, self).__init__()
+        self.attention = GlobalAttention(dim, coverage, attn_type)
+
+    def forward(self, input, memory_banks, memory_lengths=None, coverage=None):
+        # memory_banks have shape (batch_size, seq_len, hidden_dim)
+        attention_hidden_states = []
+        alignment_vectors = []
+
+        for idx, memory_bank in enumerate(memory_banks):
+            memory_lengths = None if idx > 0 else memory_lengths
+            attn_h, align_vectors = self.attention(input, memory_bank, memory_lengths, coverage)
+            attention_hidden_states.append(attn_h)
+            alignment_vectors.append(align_vectors)
+
+        final_attn_h = torch.sum(torch.stack(attention_hidden_states), dim=0)
+        final_align_v = torch.cat(alignment_vectors, dim=2)
+        return final_attn_h, final_align_v

@@ -39,10 +39,11 @@ def add_evaluator_arguments(parser):
 
 
 class Evaluator(object):
-    def __init__(self, model, vocab, gt_prefix=1):
+    def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
-        self.vocab = vocab
         self.gt_prefix = gt_prefix
+        self.vocab = mappings['vocab']
+        self.kb_vocab = mappings['kb_vocab']
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
@@ -69,20 +70,26 @@ class Evaluator(object):
         for batch in data_iter:
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
+            titles = batch.title_inputs.transpose(0,1)
+            pad_id = self.kb_vocab.word_to_ind["<pad>"]
 
-            for trans in utterances:
-                pred_score_total += trans.pred_scores[0]
-                pred_words_total += len(trans.pred_sents[0])
-                gold_score_total += trans.gold_score
-                gold_words_total += len(trans.gold_sent)
+            for i, response in enumerate(utterances):
+                pred_score_total += response.pred_scores[0]
+                pred_words_total += len(response.pred_sents[0])
+                gold_score_total += response.gold_score
+                gold_words_total += len(response.gold_sent)
 
-                n_best_preds = [" ".join(pred)
-                                for pred in trans.pred_sents[:opt.n_best]]
-                out_file.write('\n'.join(n_best_preds))
-                out_file.write('\n')
+                # Not needed because Utterance instance already logs results to screen
+                # n_best_preds = [" ".join(pred) for pred in response.pred_sents[:opt.n_best]]
+                # out_file.write('\n'.join(n_best_preds))
+                # out_file.write('\n')
                 out_file.flush()
 
                 if opt.verbose:
                     sent_number = next(counter)
-                    output = trans.log(sent_number)
+                    sent_ids = titles[i].data.cpu().numpy()
+                    sent_words = [self.kb_vocab.ind_to_word[x] for x in sent_ids if x != pad_id]
+                    readable_sent = ' '.join(sent_words)
+                    print("--------- Item {0}: {1} -----------".format(sent_number, readable_sent))
+                    output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))

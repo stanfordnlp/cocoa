@@ -68,13 +68,9 @@ class NeuralSession(Session):
         return tokens
 
     def send(self):
-        for i in xrange(1):
-            tokens = self.generate()
-            if tokens is not None:
-                break
+        tokens = self.generate()
         if tokens is None:
             return None
-
         self.dialogue.add_utterance(self.agent, list(tokens))
         tokens = self.map_prices(tokens)
 
@@ -90,7 +86,6 @@ class NeuralSession(Session):
                 return self.reject()
 
         s = self.attach_punct(' '.join(tokens))
-        print 'send:', s
         return self.message(s)
 
 class GeneratorNeuralSession(NeuralSession):
@@ -204,6 +199,8 @@ class PytorchNeuralSession(NeuralSession):
         self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
+        # self.dialogue = env.Dialogue
+        # self.num_context = env.Dialogue.num_context
 
         self.encoder_state = None
         self.decoder_state = None
@@ -221,6 +218,7 @@ class PytorchNeuralSession(NeuralSession):
 
     def _create_batch(self):
         num_context = Dialogue.num_context
+
         # All turns up to now
         self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
@@ -244,9 +242,8 @@ class PytorchNeuralSession(NeuralSession):
                 'kbs': [self.kb],
                 'uuids': [None],
                 }
-
         return Batch(encoder_args, decoder_args, context_data,
-                self.vocab, sort_by_length=False) #, cuda=self.cuda)
+                self.vocab, sort_by_length=False, num_context=num_context) #, cuda=self.cuda)
 
     def generate(self):
         if len(self.dialogue.agents) == 0:
@@ -254,8 +251,8 @@ class PytorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         encoder_init_state = None
 
-        batch_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        entity_tokens = self.output_to_tokens(batch_data)
+        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        entity_tokens = self.output_to_tokens(output_data)
 
         if not self._is_valid(entity_tokens):
             return None
@@ -269,6 +266,6 @@ class PytorchNeuralSession(NeuralSession):
         return True
 
     def output_to_tokens(self, data):
-        pred = data["predictions"][0][0]
-        entity_tokens = self.builder._build_target_tokens(pred)
-        return entity_tokens
+        predictions = data["predictions"][0][0]
+        tokens = self.builder.build_target_tokens(predictions, self.kb)
+        return tokens[1:]

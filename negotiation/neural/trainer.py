@@ -18,9 +18,10 @@ def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
 
     # Initialization
-    group.add_argument('--pretrained-wordvec',
+    group.add_argument('--pretrained-wordvec', nargs='+', required=True,
                        help="""If a valid path is specified, then this will load
-                       pretrained word embeddings""")
+                       pretrained word embeddings, if list contains two embeddings,
+                       then the second one is for item title and description""")
     group.add_argument('--param-init', type=float, default=0.1,
                        help="""Parameters are initialized over uniform distribution
                        with support (-param_init, param_init).
@@ -235,7 +236,15 @@ class Trainer(object):
             targets = batch.targets
             lengths = batch.lengths
 
-            outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+            if hasattr(self.model, 'context_embedder'):
+              context_inputs = batch.context_inputs
+              title_inputs = batch.title_inputs
+              desc_inputs = batch.desc_inputs
+              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, 
+                  context_inputs, title_inputs, desc_inputs, lengths)
+            else:
+              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
+
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
 
@@ -295,9 +304,18 @@ class Trainer(object):
             lengths = batch.lengths
 
             self.model.zero_grad()
+            # running forward() method in the NegotiationModel
+            if hasattr(self.model, 'context_embedder'):
+              context_inputs = batch.context_inputs
+              title_inputs = batch.title_inputs
+              desc_inputs = batch.desc_inputs
 
-            outputs, attns, dec_state = \
-                self.model(encoder_inputs, decoder_inputs, lengths, dec_state)
+              outputs, attns, dec_state = self.model(encoder_inputs,
+                      decoder_inputs, context_inputs, title_inputs,
+                      desc_inputs, lengths, dec_state)
+            else:  # running forward() method in NMT Model
+              outputs, attns, dec_state = self.model(encoder_inputs,
+                      decoder_inputs, lengths, dec_state)
 
             loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
             loss.backward()

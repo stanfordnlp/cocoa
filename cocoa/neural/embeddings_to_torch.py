@@ -13,21 +13,27 @@ from cocoa.io.utils import read_pickle
 
 parser = argparse.ArgumentParser(description='embeddings_to_torch.py')
 parser.add_argument('--emb-file', required=True,
-                    help="Embeddings from this file")
+                help="Embeddings from this file, will often be Glove or Word2Vec")
 parser.add_argument('--output-file', required=True,
-                    help="Output file for the prepared data")
+                help="Pytorch embeddings into this file for the prepared data")
 parser.add_argument('--vocab-file', required=True,
-                    help="Dictionary file")
+                help="Dictionary that maps a word to its embedding index")
+parser.add_argument('--vocab-type', default='dialogue', choices=['dialogue', 'kb', 'cat'],
+                help='type of mapping being embedded into pytorch')
 parser.add_argument('--verbose', action="store_true", default=False)
 opt = parser.parse_args()
 
 
-def get_vocabs(vocab_path):
+def get_vocabs(vocab_path, vocab_type):
     mappings = read_pickle(vocab_path)
-    vocab = mappings['vocab']
-    print('Vocab size: %d' % len(vocab))
+    mapping_key = "{}_vocab".format(vocab_type)
+    try:
+        vocab = mappings[mapping_key]
+    except(KeyError):
+        # under older versions, we called "dialogue_vocab" just "vocab"
+        vocab = mappings["vocab"]
+    print('{0} vocab size: {1}'.format(vocab_type, len(vocab)) )
     return vocab
-
 
 def get_embeddings(file_):
     embs = dict()
@@ -72,7 +78,7 @@ def main():
     print("\nFiltered embeddings:")
     print("\t* vocab: ", filtered_embeddings.size())
 
-    output_file = opt.output_file + ".pt"
+    output_file = opt.output_file + opt.vocab_type + "_glove.pt"
     print("\nSaving embedding as:\n\t%s"
           % (output_file,))
     torch.save(filtered_embeddings, output_file)

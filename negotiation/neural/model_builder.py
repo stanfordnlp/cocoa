@@ -9,9 +9,9 @@ import onmt
 import onmt.io
 import onmt.Models
 import onmt.modules
-from models import NMTModel, MeanEncoder, RNNEncoder, StdRNNDecoder
-from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, TransformerEncoder, \
-              TransformerDecoder, CNNEncoder, CNNDecoder, AudioEncoder
+from models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
+              MultiAttnDecoder, NegotiationModel, NMTModel
+from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
@@ -27,15 +27,17 @@ def add_model_arguments(parser):
                        help="""Use a shared weight matrix for the input and
                        output word  embeddings in the decoder.""")
     group.add_argument('--encoder-type', type=str, default='rnn',
-                       choices=['rnn', 'brnn', 'mean', 'transformer', 'cnn'],
+                       choices=['rnn', 'brnn', 'transformer', 'cnn'],
                        help="""Type of encoder layer to use. Non-RNN layers
                        are experimental. Options are
                        [rnn|brnn|mean|transformer|cnn].""")
+    group.add_argument('--context-embedder-type', type=str, default='mean',
+                       choices=['rnn', 'mean', 'brnn'],
+                       help="Encoder to use for embedding prev turns context")
     group.add_argument('--decoder-type', type=str, default='rnn',
                        choices=['rnn', 'transformer', 'cnn'],
                        help="""Type of decoder layer to use. Non-RNN layers
-                       are experimental. Options are
-                       [rnn|transformer|cnn].""")
+                       are experimental. Options are [rnn|transformer|cnn].""")
     group.add_argument('-copy_attn', action="store_true",
                        help='Train copy attention layer.')
     group.add_argument('--layers', type=int, default=-1,
@@ -47,21 +49,21 @@ def add_model_arguments(parser):
     group.add_argument('--rnn-size', type=int, default=500,
                        help='Size of rnn hidden states')
     group.add_argument('--rnn-type', type=str, default='LSTM',
-                       choices=['LSTM', 'GRU', 'SRU'],
-                       action=CheckSRU,
+                       choices=['LSTM', 'GRU', 'SRU'], action=CheckSRU,
                        help="""The gate type to use in the RNNs""")
     group.add_argument('--input-feed', action='store_true',
                        help="""Feed the context vector at each time step as
                        additional input (via concatenation with the word
                        embeddings) to the decoder.""")
-    group.add_argument('--global-attention', type=str, default='general',
-                       choices=['dot', 'general', 'mlp'],
-                       help="""The attention type to use:
-                       dotprod or general (Luong) or MLP (Bahdanau)""")
+    group.add_argument('--global-attention', type=str, default='multibank_general',
+                       choices=['dot', 'general', 'mlp',
+                       'multibank_dot', 'multibank_general', 'multibank_mlp'],
+                       help="""The attention type to use: dotprod or general (Luong)
+                       or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
                        help='Model type')
-    group.add_argument('--num-context', type=int, default=1,
-                       help='Number of utterances in the prior context')
+    group.add_argument('--num-context', type=int, default=2,
+                       help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
@@ -113,10 +115,21 @@ def make_encoder(opt, embeddings):
     else:
         # "rnn" or "brnn"
         bidirectional = True if opt.encoder_type == 'brnn' else False
-        return RNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
-                          opt.rnn_size, opt.dropout, embeddings,
-                          False)
+        return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
+                        opt.rnn_size, opt.dropout, embeddings)
 
+def make_context_embedder(opt, embeddings, embed_type='dialogue'):
+    """
+    Various context embedder dispatcher function. See make_encoder for options
+    embed_type (:str:): either dialogue, kb (for title and desc) or category
+    """
+    if opt.context_embedder_type == "mean":
+        return MeanEncoder(opt.enc_layers, embeddings, embed_type)
+    else:
+        # "rnn" or "brnn"
+        bidirectional = True if opt.context_embedder_type == 'brnn' else False
+        return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
+                        opt.rnn_size, opt.dropout, embeddings, embed_type, False)
 
 def make_decoder(opt, embeddings):
     """
@@ -126,7 +139,13 @@ def make_decoder(opt, embeddings):
         embeddings (Embeddings): vocab embeddings for this decoder.
     """
     bidirectional = True if opt.encoder_type == 'brnn' else False
-    if opt.decoder_type == "transformer":
+    if "multibank" in opt.global_attention:
+        return MultiAttnDecoder(opt.rnn_type, bidirectional,
+                             opt.dec_layers, opt.rnn_size,
+                             attn_type=opt.global_attention,
+                             dropout=opt.dropout,
+                             embeddings=embeddings)
+    elif opt.decoder_type == "transformer":
         return TransformerDecoder(opt.dec_layers, opt.rnn_size,
                                   opt.global_attention, opt.copy_attn,
                                   opt.dropout, embeddings)
@@ -148,7 +167,6 @@ def make_decoder(opt, embeddings):
                              dropout=opt.dropout,
                              embeddings=embeddings)
 
-
 def load_test_model(opt, dummy_opt):
     checkpoint = torch.load(opt.checkpoint_file,
                               map_location=lambda storage, loc: storage)
@@ -165,7 +183,6 @@ def load_test_model(opt, dummy_opt):
     model.generator.eval()
     return mappings, model, model_opt
 
-
 def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     """
     Args:
@@ -180,26 +197,25 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     # Make encoder.
     src_dict = mappings['vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
-
     encoder = make_encoder(model_opt, src_embeddings)
+    # Make context embedder.
+    if model_opt.num_context > 0:
+      context_dict = mappings['vocab']
+      context_embeddings = make_embeddings(model_opt, context_dict)
+      context_embedder = make_context_embedder(model_opt, context_embeddings)
 
+    kb_dict = mappings['kb_vocab']
+    kb_embeddings = make_embeddings(model_opt, kb_dict)
+    kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
     # Make decoder.
     tgt_dict = mappings['vocab']
-    tgt_embeddings = make_embeddings(model_opt, tgt_dict)
-
-    # Share the embedding matrix - preprocess with share_vocab required.
-    #if model_opt.share_embeddings:
-    #    # src/tgt vocab should be the same if `-share_vocab` is specified.
-    #    if src_dict != tgt_dict:
-    #        raise AssertionError('The `-share_vocab` should be set during '
-    #                             'preprocess if you use share_embeddings!')
-
-    #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
-
+    tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
     decoder = make_decoder(model_opt, tgt_embeddings)
 
-    # Make NMTModel(= encoder + decoder).
-    model = NMTModel(encoder, decoder)
+    if "multibank" in model_opt.global_attention:
+      model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder)
+    else:
+      model = NMTModel(encoder, decoder)
     model.model_type = 'text'
 
     # Make Generator.
@@ -226,12 +242,37 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
             for p in generator.parameters():
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
+
+        if isinstance(model_opt.pretrained_wordvec, list):
+          dialogue_wordvec = model_opt.pretrained_wordvec[0]
+          kb_wordvec = model_opt.pretrained_wordvec[1]
+        else:
+          dialogue_wordvec = model_opt.pretrained_wordvec
+
         if hasattr(model.encoder, 'embeddings'):
-            model.encoder.embeddings.load_pretrained_vectors(
-                    model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
+            if model.encoder.embed_type == 'dialogue':
+              model.encoder.embeddings.load_pretrained_vectors(
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+            elif model.encoder.embed_type == 'kb':
+              model.encoder.embeddings.load_pretrained_vectors(
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
+        if hasattr(model, 'context_embedder') and hasattr(model.context_embedder, 'embeddings'):
+            if model.context_embedder.embed_type == 'dialogue':
+              model.context_embedder.embeddings.load_pretrained_vectors(
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+            elif model.context_embedder.embed_type == 'kb':
+              model.context_embedder.embeddings.load_pretrained_vectors(
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
+        if hasattr(model, 'kb_embedder') and hasattr(model.kb_embedder, 'embeddings'):
+            if model.kb_embedder.embed_type == 'dialogue':
+              model.kb_embedder.embeddings.load_pretrained_vectors(
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+            elif model.kb_embedder.embed_type == 'kb':
+              model.kb_embedder.embeddings.load_pretrained_vectors(
+                    kb_wordvec, model_opt.fix_pretrained_wordvec)
         if hasattr(model.decoder, 'embeddings'):
             model.decoder.embeddings.load_pretrained_vectors(
-                    model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
+                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator

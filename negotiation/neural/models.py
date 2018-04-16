@@ -6,10 +6,11 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence as pack
 from torch.nn.utils.rnn import pad_packed_sequence as unpack
+from attention import MultibankGlobalAttention, GlobalAttention
 
 import onmt
 from onmt.Utils import aeq
-
+import pdb
 
 def rnn_factory(rnn_type, **kwargs):
     # Use pytorch version when available.
@@ -76,11 +77,13 @@ class MeanEncoder(EncoderBase):
     Args:
        num_layers (int): number of replicated layers
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
+       embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
-    def __init__(self, num_layers, embeddings):
+    def __init__(self, num_layers, embeddings, embed_type='dialogue'):
         super(MeanEncoder, self).__init__()
         self.num_layers = num_layers
         self.embeddings = embeddings
+        self.embed_type = embed_type
 
     def forward(self, src, lengths=None, encoder_state=None):
         "See :obj:`EncoderBase.forward()`"
@@ -93,8 +96,7 @@ class MeanEncoder(EncoderBase):
         encoder_final = (mean, mean)
         return encoder_final, memory_bank
 
-
-class RNNEncoder(EncoderBase):
+class StdRNNEncoder(EncoderBase):
     """ A generic recurrent neural network encoder.
 
     Args:
@@ -105,17 +107,19 @@ class RNNEncoder(EncoderBase):
        hidden_size (int) : hidden size of each layer
        dropout (float) : dropout value for :obj:`nn.Dropout`
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
+       embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
-    def __init__(self, rnn_type, bidirectional, num_layers,
-                 hidden_size, dropout=0.0, embeddings=None,
+    def __init__(self, rnn_type, bidirectional, num_layers, hidden_size,
+                 dropout=0.0, embeddings=None, embed_type='dialogue',
                  use_bridge=False):
-        super(RNNEncoder, self).__init__()
+        super(StdRNNEncoder, self).__init__()
         assert embeddings is not None
 
         num_directions = 2 if bidirectional else 1
         assert hidden_size % num_directions == 0
         hidden_size = hidden_size // num_directions
         self.embeddings = embeddings
+        self.embed_type = embed_type
 
         self.rnn, self.no_pack_padded_seq = \
             rnn_factory(rnn_type,
@@ -282,13 +286,13 @@ class RNNDecoderBase(nn.Module):
             self._copy = True
         self._reuse_copy_attn = reuse_copy_attn
 
-    def forward(self, tgt, memory_bank, state, memory_lengths=None):
+    def forward(self, tgt, memory_banks, state, memory_lengths=None):
         """
         Args:
             tgt (`LongTensor`): sequences of padded tokens
                                 `[tgt_len x batch]`.
-            memory_bank (`FloatTensor`): vectors from the encoder
-                 `[src_len x batch x hidden]`.
+            memory_bank(s) (`FloatTensor`): vectors from the encoder
+                 `[src_len x batch x hidden]`. possibly a list of vectors
             state (:obj:`onmt.Models.DecoderState`):
                  decoder state object to initialize the decoder
             memory_lengths (`LongTensor`): the padded source lengths
@@ -303,15 +307,18 @@ class RNNDecoderBase(nn.Module):
         """
         # Check
         assert isinstance(state, RNNDecoderState)
+
         tgt_len, tgt_batch = tgt.size()
-        _, memory_batch, _ = memory_bank.size()
+        if isinstance(memory_banks, list):
+            _, memory_batch, _ = memory_banks[0].shape
+        else:
+            _, memory_batch, _ = memory_banks.shape
         aeq(tgt_batch, memory_batch)
         # END
 
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
-            tgt, memory_bank, state, memory_lengths=memory_lengths)
-
+            tgt, memory_banks, state, memory_lengths=memory_lengths)
         # Update the state with the result.
         final_output = decoder_outputs[-1]
         coverage = None
@@ -358,15 +365,16 @@ class StdRNNDecoder(RNNDecoderBase):
     Implemented without input_feeding and currently with no `coverage_attn`
     or `copy_attn` support.
     """
-    def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths=None):
+    def _run_forward_pass(self, tgt, memory_banks, state, memory_lengths=None):
         """
         Private helper for running the specific RNN forward pass.
         Must be overriden by all subclasses.
         Args:
             tgt (LongTensor): a sequence of input tokens tensors
                                  [len x batch].
-            memory_bank (FloatTensor): output(tensor sequence) from the encoder
-                        RNN of size (src_len x batch x hidden_size).
+            memory_banks (FloatTensor): output(tensor sequence) from the encoder
+                        RNN of size (src_len x batch_size x hidden_size).
+                        Alternatively, we have a list of memory banks.
             state (FloatTensor): hidden state from the encoder RNN for
                                  initializing the decoder.
             memory_lengths (LongTensor): the source memory_bank lengths.
@@ -399,9 +407,15 @@ class StdRNNDecoder(RNNDecoderBase):
         # END
 
         # Calculate the attention.
+        if isinstance(memory_banks, list):
+            memory_banks = [bank.transpose(0,1) for bank in memory_banks]
+            # encoder_memory_bank and prev_context_memory_bank are both
+            # (seq_len, batch_size, hidden) --> (batch_size, seq_len, hidden)
+        else:
+            memory_banks = memory_banks.transpose(0,1)
+
         decoder_outputs, p_attn = self.attn(
-            rnn_output.transpose(0, 1).contiguous(),
-            memory_bank.transpose(0, 1),
+            rnn_output.transpose(0, 1).contiguous(), memory_banks,
             memory_lengths=memory_lengths
         )
         attns["std"] = p_attn
@@ -541,7 +555,6 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         """
         return self.embeddings.embedding_size + self.hidden_size
 
-
 class NMTModel(nn.Module):
     """
     Core trainable object in OpenNMT. Implements a trainable interface
@@ -594,6 +607,27 @@ class NMTModel(nn.Module):
             # Not yet supported on multi-gpu
             dec_state = None
             attns = None
+        return decoder_outputs, attns, dec_state
+
+class NegotiationModel(NMTModel):
+
+    def __init__(self, encoder, decoder, context_embedder, kb_embedder):
+        super(NegotiationModel, self).__init__(encoder, decoder)
+        self.context_embedder = context_embedder
+        self.kb_embedder = kb_embedder
+
+    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None):
+        enc_final, enc_memory_bank = self.encoder(src, lengths)
+        _, context_memory_bank = self.context_embedder(context)
+        _, title_memory_bank = self.kb_embedder(title)
+        _, desc_memory_bank = self.kb_embedder(desc)
+        memory_banks = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
+
+        enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
+        dec_state = enc_state if dec_state is None else dec_state
+        decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
+                dec_state, memory_lengths=lengths)
+
         return decoder_outputs, attns, dec_state
 
 
@@ -656,3 +690,18 @@ class RNNDecoderState(DecoderState):
                 for e in self._all]
         self.hidden = tuple(vars[:-1])
         self.input_feed = vars[-1]
+
+class MultiAttnDecoder(StdRNNDecoder):
+
+    def __init__(self, rnn_type, bidirectional_encoder, num_layers,
+            hidden_size, attn_type="general", coverage_attn=False,
+            context_gate=None, copy_attn=False, dropout=0.0,
+            embeddings=None, reuse_copy_attn=False):
+        attn_type = attn_type[10:]
+        super(MultiAttnDecoder, self).__init__(rnn_type, bidirectional_encoder,
+              num_layers, hidden_size, attn_type, coverage_attn,
+              context_gate, copy_attn, dropout, embeddings, reuse_copy_attn)
+
+        self.attn = MultibankGlobalAttention(
+            hidden_size, coverage=coverage_attn, attn_type=attn_type)
+
