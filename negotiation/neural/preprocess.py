@@ -20,6 +20,7 @@ from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch
 from symbols import markers, SpecialSymbols
+from vocab_builder import create_mappings
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -44,53 +45,6 @@ category_to_marker = {
 def price_filler(x):
     return x == '<price>'
 
-def build_vocab(dialogues, special_symbols=[], entity_forms=[]):
-    vocab = Vocabulary(offset=0, unk=True)
-
-    def _add_entity(entity):
-        for entity_form in entity_forms:
-            word = Preprocessor.get_entity_form(entity, entity_form)
-            vocab.add_word(word)
-
-    # Add words
-    for dialogue in dialogues:
-        assert dialogue.is_int is False
-        for turn in dialogue.token_turns:
-            for token in turn:
-                if is_entity(token):
-                    _add_entity(token)
-                else:
-                    vocab.add_word(token)
-
-    # Add special symbols
-    vocab.add_words(special_symbols, special=True)
-    vocab.finish(size_threshold=10000)
-    print 'Utterance vocabulary size:', vocab.size
-    return vocab
-
-def build_kb_vocab(dialogues, special_symbols=[]):
-    vocab = Vocabulary(offset=0, unk=True)
-    cat_vocab = Vocabulary(offset=0, unk=False)
-    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'], special=True)
-    for dialogue in dialogues:
-        assert dialogue.is_int is False
-        vocab.add_words(dialogue.title)
-        vocab.add_words(dialogue.description)
-        cat_vocab.add_word(dialogue.category)
-    vocab.add_words(special_symbols, special=True)
-    vocab.finish(freq_threshold=5)
-    cat_vocab.finish()
-    print 'KB vocabulary size:', vocab.size
-    print 'Category size:', cat_vocab.size
-    return vocab, cat_vocab
-
-def create_mappings(dialogues, schema, entity_forms):
-    vocab = build_vocab(dialogues, markers, entity_forms)
-    kb_vocab, cat_vocab = build_kb_vocab(dialogues, [markers.PAD])
-    return {'vocab': vocab,
-            'kb_vocab': kb_vocab,
-            'cat_vocab': cat_vocab,
-            }
 
 class TextIntMap(object):
     '''
@@ -157,6 +111,8 @@ class Dialogue(object):
         self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
         # token_turns: tokens and entitys (output of entitylink)
         self.token_turns = []
+        # parsed logical forms
+        self.lfs = []
         # turns: input tokens of encoder, decoder input and target, later converted to integers
         self.turns = [[], [], []]
         # entities: has the same structure as turns, non-entity tokens are None
@@ -208,11 +164,11 @@ class Dialogue(object):
             candidates, self.true_candidate_inds = self.add_ground_truth(candidates, self.token_turns)
         self.token_candidates = candidates
 
-    def add_utterance(self, agent, utterances):
+    def add_utterance(self, agent, utterance, lf=None):
         # Always start from the partner agent
         if len(self.agents) == 0 and agent == self.agent:
-            self._add_utterance(1 - self.agent, [])
-        self._add_utterance(agent, utterances)
+            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
+        self._add_utterance(agent, utterance, lf=lf)
 
     @classmethod
     def scale_price(cls, kb, utterance):
@@ -222,6 +178,14 @@ class Dialogue(object):
     def original_price(cls, kb, utterance):
         s = [PriceScaler.unscale_price(kb, x) if is_entity(x) else x for x in utterance]
         return s
+
+    def lf_to_tokens(self, kb, lf):
+        tokens = [lf['intent']]
+        if lf.get('price') is not None:
+            p = lf['price']
+            price = Entity.from_elements(surface=p, value=p, type='price')
+            tokens.append(PriceScaler.scale_price(kb, price).canonical)
+        return tokens
 
     def _insert_markers(self, agent, utterance, new_turn):
         # Mark end of sentence
@@ -238,7 +202,7 @@ class Dialogue(object):
 
         return utterance
 
-    def _add_utterance(self, agent, utterance):
+    def _add_utterance(self, agent, utterance, lf=None):
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
             new_turn = False
@@ -247,9 +211,14 @@ class Dialogue(object):
 
         utterance = self._insert_markers(agent, utterance, new_turn)
         entities = [x if is_entity(x) else None for x in utterance]
+        if lf:
+            lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
+        else:
+            lf = []
 
         if not new_turn:
             self.token_turns[-1].extend(utterance)
+            self.lfs[-1].extend(lf)
             self.entities[-1].extend(entities)
         else:
             self.agents.append(agent)
@@ -258,6 +227,7 @@ class Dialogue(object):
 
             self.token_turns.append(utterance)
             self.entities.append(entities)
+            self.lfs.append(lf)
 
     def candidates_to_int(self):
         def remove_slot(tokens):
@@ -277,6 +247,10 @@ class Dialogue(object):
         self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
 
+    def lf_to_int(self):
+        for i, lf in enumerate(self.lfs):
+            self.lfs[i] = map(self.mappings['lf_vocab'].to_ind, lf)
+
     def convert_to_int(self):
         if self.is_int:
             return
@@ -290,6 +264,7 @@ class Dialogue(object):
 
         self.price_turns = self.get_price_turns(int_markers.PAD)
         self.kb_context_to_int()
+        self.lf_to_int()
 
         self.is_int = True
 
@@ -307,6 +282,7 @@ class Dialogue(object):
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
         self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+        self.lfs = self._pad_list(self.lfs, num_turns, [])
         if self.candidates:
             self.candidates = self._pad_list(self.candidates, num_turns, [])
         assert len(self.price_turns) == len(self.turns[0])
@@ -371,7 +347,7 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    dialogue.add_utterance(e.agent, utterance)
+                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
     @classmethod
@@ -466,7 +442,7 @@ class DataGenerator(object):
     def __init__(self, train_examples, dev_examples, test_examples, preprocessor,
             args, schema, mappings=None, retriever=None, cache='.cache',
             ignore_cache=False, candidates_path=[], num_context=1, batch_size=1,
-            trie_path=None, model_config={}, add_ground_truth=True):
+            trie_path=None, model='seq2seq', add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
 
@@ -503,7 +479,7 @@ class DataGenerator(object):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
-        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings)
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
 
         self.trie = None

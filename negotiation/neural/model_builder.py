@@ -16,7 +16,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator, TransformerEnc
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
 
-from preprocess import markers
+from symbols import markers
 
 def add_model_arguments(parser):
     from onmt.modules.SRU import CheckSRU
@@ -59,9 +59,11 @@ def add_model_arguments(parser):
                        help="""The attention type to use:
                        dotprod or general (Luong) or MLP (Bahdanau)""")
     group.add_argument('--model', type=str, default='seq2seq',
+                       choices=['seq2seq', 'seq2lf'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=1,
                        help='Number of utterances in the prior context')
+
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
@@ -73,6 +75,7 @@ def build_model(model_opt, opt, fields, checkpoint):
     print(model)
 
     return model
+
 
 def make_embeddings(opt, word_dict, for_encoder=True):
     """
@@ -184,7 +187,12 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     encoder = make_encoder(model_opt, src_embeddings)
 
     # Make decoder.
-    tgt_dict = mappings['vocab']
+    if model_opt.model == 'seq2seq':
+        tgt_dict = mappings['vocab']
+    elif model_opt.model == 'seq2lf':
+        tgt_dict = mappings['lf_vocab']
+    else:
+        raise ValueError
     tgt_embeddings = make_embeddings(model_opt, tgt_dict)
 
     # Share the embedding matrix - preprocess with share_vocab required.
@@ -203,7 +211,6 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     model.model_type = 'text'
 
     # Make Generator.
-    print model_opt.rnn_size
     if not model_opt.copy_attn:
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, len(tgt_dict)),
@@ -229,9 +236,10 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         if hasattr(model.encoder, 'embeddings'):
             model.encoder.embeddings.load_pretrained_vectors(
                     model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model.decoder, 'embeddings'):
-            model.decoder.embeddings.load_pretrained_vectors(
-                    model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
+        if model_opt.model == 'seq2seq':
+            if hasattr(model.decoder, 'embeddings'):
+                model.decoder.embeddings.load_pretrained_vectors(
+                        model_opt.pretrained_wordvec, model_opt.fix_pretrained_wordvec)
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator

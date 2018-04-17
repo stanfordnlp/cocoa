@@ -6,7 +6,6 @@ import argparse
 import random
 import os
 import time
-import pdb
 from itertools import chain
 import torch
 import torch.nn as nn
@@ -24,10 +23,6 @@ from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator
 from neural import model_builder
 from neural.loss import SimpleLossCompute
-
-#from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
-#from model.learner import add_learner_arguments, get_learner
-#from model.evaluate import get_evaluator
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -72,11 +67,9 @@ def build_optim(opt, model, checkpoint):
     return optim
 
 def build_trainer(opt, model, vocab, optim):
-    # TODO: globals PAD
-    pad_id = vocab.word_to_ind["<pad>"]
     train_loss = make_loss(opt, model, vocab)
     valid_loss = make_loss(opt, model, vocab)
-    trainer = Trainer(model, train_loss, valid_loss, optim, pad_id, opt.batch_size)
+    trainer = Trainer(model, train_loss, valid_loss, optim)
     return trainer
 
 def make_loss(opt, model, tgt_vocab):
@@ -159,8 +152,8 @@ if __name__ == '__main__':
         mappings = data_generator.mappings
         vocab_path = os.path.join(args.mappings, 'vocab.pkl')
         write_pickle(mappings, vocab_path, ensure_path=True)
-    for name, m in mappings.iteritems():
-        logstats.add('mappings', name, 'size', m.size)
+        print 'Write mappings to', vocab_path
+        import sys; sys.exit()
 
     # Preview a batch of data
     # train_data = data_generator.generator('train')
@@ -182,8 +175,17 @@ if __name__ == '__main__':
     config_path = os.path.join(args.model_path, 'config.json')
     write_json(vars(args), config_path)
 
+    # Figure out src and tgt vocab
+    if args.model == 'seq2lf':
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['lf_vocab']
+    else:
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['vocab']
+
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
-    trainer = build_trainer(args, model, mappings['vocab'], optim)
+    # vocab is used to make_loss, so use target vocab
+    trainer = build_trainer(args, model, mappings['tgt_vocab'], optim)
     # Perform actual training
     trainer.learn(args, data_generator, report_func)

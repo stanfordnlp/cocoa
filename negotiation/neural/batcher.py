@@ -87,11 +87,15 @@ class Batch(object):
             else:
                 raise ValueError
 
+
 class DialogueBatcher(object):
-    def __init__(self, int_markers=None, slot_filling=None, kb_pad=None):
+    # TODO: given mappings, we don't need int_markers and kb_pad
+    def __init__(self, int_markers=None, slot_filling=None, kb_pad=None, mappings=None, model='seq2seq'):
         self.slot_filling = slot_filling
         self.int_markers = int_markers
         self.kb_pad = kb_pad
+        self.mappings = mappings
+        self.model = model
 
     def _normalize_dialogue(self, dialogues):
         '''
@@ -114,8 +118,7 @@ class DialogueBatcher(object):
 
     def _create_turn_batches(self):
         turn_batches = []
-        #for i in xrange(Dialogue.num_stages):
-        for i in xrange(3):
+        for i in xrange(Dialogue.num_stages):
             try:
                 for j in xrange(self.num_turns):
                     one_turn = [d.turns[i][j] for d in self.dialogues]
@@ -198,12 +201,12 @@ class DialogueBatcher(object):
         targets[mask == 0] = self.int_markers.PAD
         return targets
 
-    def _remove_last(self, array, value):
+    def _remove_last(self, array, value, pad):
         nrows, ncols = array.shape
         for i in xrange(nrows):
             for j in xrange(ncols-1, -1, -1):
                 if array[i][j] == value:
-                    array[i][j] = self.int_markers.PAD
+                    array[i][j] = pad
                     break
         return array
 
@@ -230,21 +233,34 @@ class DialogueBatcher(object):
                 encoder_context.insert(0, empty_context)
         return encoder_context
 
+    def make_decoder_inputs_and_targets(self, decoder_turns, target_turns=None):
+        if target_turns is not None:
+            # Decoder inputs: start from <go> to generate, i.e. <go> <token>
+            assert decoder_turns.shape == target_turns.shape
+
+        # NOTE: For each row, replace the last <eos> to <pad> to be consistent:
+        # 1) The longest sequence does not have </s> as input.
+        # 2) At inference time, decoder stops at </s>.
+        # 3) Only matters when the model is stateful (decoder state is passed on).
+        decoder_turns_copy = np.copy(decoder_turns)
+        eos = self.mappings['tgt_vocab'].to_ind(markers.EOS)
+        pad = self.mappings['tgt_vocab'].to_ind(markers.PAD)
+        decoder_inputs = self._remove_last(decoder_turns_copy, eos, pad)[:, :-1]
+
+        if target_turns is not None:
+            decoder_targets = target_turns[:, 1:]
+        else:
+            decoder_targets = decoder_turns_copy[:, 1:]
+
+        return decoder_inputs, decoder_targets
+
     def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
             target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
             num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
 
-        # Decoder inputs: start from <go> to generate, i.e. <go> <token>
-        assert decoder_turns.shape == target_turns.shape
-        decoder_inputs = np.copy(decoder_turns)
-        # NOTE: For each row, replace the last <eos> to <pad> to be consistent:
-        # 1) The longest sequence does not have </s> as input.
-        # 2) At inference time, decoder stops at </s>.
-        # 3) Only matters when the model is stateful (decoder state is passed on).
-        decoder_inputs = self._remove_last(decoder_inputs, self.int_markers.EOS)[:, :-1]
-        decoder_targets = target_turns[:, 1:]
+        decoder_inputs, decoder_targets = self.make_decoder_inputs_and_targets(decoder_turns, target_turns)
 
         encoder_args = {
                 'inputs': encoder_inputs,
@@ -319,6 +335,10 @@ class DialogueBatcher(object):
         encode_turn_ids = range(0, num_turns-1, 2)
         return encode_turn_ids
 
+    def _get_lf_batch_at(self, dialogues, i):
+        pad = self.mappings['lf_vocab'].to_ind(markers.PAD)
+        return pad_list_to_array([d.lfs[i] for d in dialogues], pad, np.int32)
+
     def create_batch(self, dialogues):
         num_turns = self._normalize_dialogue(dialogues)
         dialogue_data = self._get_dialogue_data(dialogues)
@@ -337,6 +357,39 @@ class DialogueBatcher(object):
                 encoder_turns=encoder_turns_all[:i+1],
                 decoder_turns=self._get_turn_batch_at(dialogues, DEC, i+1),
                 target_turns=self._get_turn_batch_at(dialogues, TARGET, i+1),
+                encoder_tokens=self._get_token_turns_at(dialogues, i),
+                decoder_tokens=self._get_token_turns_at(dialogues, i+1),
+                agents=dialogue_data['agents'],
+                uuids=dialogue_data['uuids'],
+                kbs=dialogue_data['kbs'],
+                kb_context=dialogue_data['kb_context'],
+                num_context=num_context,
+                )
+            for i in encode_turn_ids
+            ]
+
+        # bath_seq: A sequence of batches that can be processed in turn where
+        # the state of each batch is passed on to the next batch
+        return batch_seq
+
+class DialogueParserBatcher(DialogueBatcher):
+    def create_batch(self, dialogues):
+        num_turns = self._normalize_dialogue(dialogues)
+        dialogue_data = self._get_dialogue_data(dialogues)
+
+        dialogue_class = type(dialogues[0])
+        ENC, DEC, TARGET = dialogue_class.ENC, dialogue_class.DEC, dialogue_class.TARGET
+        num_context = dialogue_class.num_context
+
+        encode_turn_ids = self.get_encoding_turn_ids(num_turns)
+        encoder_turns_all = self._get_turn_batch_at(dialogues, ENC, None)
+
+        # NOTE: encoder_turns contains all previous dialogue context, |num_context|
+        # decides how many turns to use
+        batch_seq = [
+            self._create_one_batch(
+                encoder_turns=encoder_turns_all[:i+1],
+                decoder_turns=self._get_lf_batch_at(dialogues, i+1),
                 encoder_tokens=self._get_token_turns_at(dialogues, i),
                 decoder_tokens=self._get_token_turns_at(dialogues, i+1),
                 agents=dialogue_data['agents'],
@@ -629,10 +682,11 @@ class EvalDialogueBatcher(DialogueBatcher):
 
 class DialogueBatcherFactory(object):
     @classmethod
-    def get_dialogue_batcher(cls, model_config, **kwargs):
-        batcher = DialogueBatcher(**kwargs)
-        if 'price' in model_config:
-            batcher = PriceWrapper(batcher)
-        if 'retrieve' in model_config:
-            batcher = RetrievalWrapper(batcher)
+    def get_dialogue_batcher(cls, model, **kwargs):
+        if model == 'seq2seq':
+            batcher = DialogueBatcher(**kwargs)
+        elif model == 'seq2lf':
+            batcher = DialogueParserBatcher(**kwargs)
+        else:
+            raise ValueError
         return batcher

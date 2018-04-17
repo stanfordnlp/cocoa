@@ -108,22 +108,19 @@ class Trainer(object):
                training loss computation
             optim(:obj:`onmt.Optim.Optim`):
                the optimizer responsible for update
-            shard_size(int): compute loss in shards of this size for efficiency
             data_type(string): type of the source input: [text|img|audio]
             norm_method(string): normalization methods: [sents|tokens]
             grad_accum_count(int): accumulate gradients this many times.
     """
 
-    def __init__(self, model, train_loss, valid_loss, optim, pad_id,
-                 shard_size=32, data_type='text', norm_method="sents",
+    def __init__(self, model, train_loss, valid_loss, optim,
+                 data_type='text', norm_method="sents",
                  grad_accum_count=1):
         # Basic attributes.
         self.model = model
-        self.pad_id = pad_id
         self.train_loss = train_loss
         self.valid_loss = valid_loss
         self.optim = optim
-        self.shard_size = shard_size  # same as batch size, so no sharding occurs
         self.data_type = data_type
         self.norm_method = norm_method # by sentences vs. by tokens
         self.grad_accum_count = grad_accum_count

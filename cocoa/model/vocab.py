@@ -67,8 +67,10 @@ class Vocabulary(object):
         return self.ind_to_word[ind]
 
     def dump(self):
-        for i, w in self.ind_to_word.iteritems():
+        for i, w in enumerate(self.ind_to_word):
             print '{:<8}{:<}'.format(i, w)
+            if i > 100:
+                break
 
     def load_embeddings(self, wordvec_file, dim):
         print 'Loading pretrained word vectors:', wordvec_file

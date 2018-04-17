@@ -53,17 +53,19 @@ real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/$(data)/
 
 glove-pt:
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab.pkl --output-file scr/glove 
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/glove 
 
 train:
-	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev.json --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
+	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--report-every 500 \
-	--epochs 50
+	--epochs 15 \
+	--model seq2seq \
+	--cache scr/cache/tmp \
 	#--ignore-cache \
- 	#--train-max-examples 250 --test-max-examples 250 
+ 	#--train-max-examples 100 --test-max-examples 100 
 
 test:
-	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --verbose --checkpoint-file $(ckpt_file) \
+	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-file $(ckpt_file) \
 	--test-max-examples 10 \
 	--ignore-cache \
 
@@ -144,7 +146,7 @@ templates:
 
 parse:
 	#PYTHONPATH=. python model/parser.py --transcripts data/train.json --price-tracker $(price_tracker) --max-examples -1
-	PYTHONPATH=. python parse_dialogue.py --transcripts data/train.json --price-tracker $(price_tracker) --max-examples -1 --templates-output scr/templates.pkl --model-output scr/model.pkl --model scr/model.pkl
+	PYTHONPATH=. python parse_dialogue.py --transcripts data/dev.json --price-tracker $(price_tracker) --max-examples -1 --templates-output scr/templates.pkl --model-output scr/model.pkl --model scr/model.pkl --transcripts-output scr/data/dev-parsed.json
 
 outdir=tmp
 config=app_params.json

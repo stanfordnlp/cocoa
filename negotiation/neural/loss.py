@@ -7,7 +7,7 @@ import math
 import sys
 
 from onmt.Loss import LossComputeBase
-from preprocess import markers
+from symbols import markers
 
 class SimpleLossCompute(LossComputeBase):
     """
