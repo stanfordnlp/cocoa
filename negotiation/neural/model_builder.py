@@ -121,7 +121,7 @@ def make_encoder(opt, embeddings):
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                         opt.rnn_size, opt.dropout, embeddings)
 
-def make_context_embedder(opt, embeddings, embed_type='dialogue'):
+def make_context_embedder(opt, embeddings, embed_type='utterance'):
     """
     Various context embedder dispatcher function. See make_encoder for options
     embed_type (:str:): either dialogue, kb (for title and desc) or category
@@ -260,37 +260,22 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             for p in generator.parameters():
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
 
-        if isinstance(model_opt.pretrained_wordvec, list):
-          dialogue_wordvec = model_opt.pretrained_wordvec[0]
-          kb_wordvec = model_opt.pretrained_wordvec[1]
-        else:
-          dialogue_wordvec = model_opt.pretrained_wordvec
+        wordvec = {'utterance': model_opt.pretrained_wordvec[0]}
+        if len(model_opt.pretrained_wordvec) > 1:
+            wordvec['kb'] = model_opt.pretrained_wordvec[1]
 
-        if hasattr(model.encoder, 'embeddings'):
-            if model.encoder.embed_type == 'dialogue':
-              model.encoder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.encoder.embed_type == 'kb':
-              model.encoder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model, 'context_embedder') and hasattr(model.context_embedder, 'embeddings'):
-            if model.context_embedder.embed_type == 'dialogue':
-              model.context_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.context_embedder.embed_type == 'kb':
-              model.context_embedder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model, 'kb_embedder') and hasattr(model.kb_embedder, 'embeddings'):
-            if model.kb_embedder.embed_type == 'dialogue':
-              model.kb_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.kb_embedder.embed_type == 'kb':
-              model.kb_embedder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
+        def load_wordvec(embeddings, name):
+            embeddings.load_pretrained_vectors(
+                    wordvec[name], model_opt.fix_pretrained_wordvec)
+
+        load_wordvec(model.encoder.embeddings, 'utterance')
+        if hasattr(model, 'context_embedder'):
+            load_wordvec(model.context_embedder.embeddings, 'utterance')
+        if hasattr(model, 'kb_embedder'):
+            load_wordvec(model.kb_embedder.embeddings, 'kb')
+
         if model_opt.model == 'seq2seq':
-            if hasattr(model.decoder, 'embeddings'):
-                model.decoder.embeddings.load_pretrained_vectors(
-                        dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+            load_wordvec(model.decoder.embeddings, 'utterance')
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator
