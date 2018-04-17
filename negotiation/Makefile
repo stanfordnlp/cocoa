@@ -63,7 +63,7 @@ train:
 	--epochs 15 \
 	--model seq2seq \
 	--cache scr/cache/tmp \
-	--verbose
+	--verbose \
 	#--ignore-cache \
  	#--train-max-examples 100 --test-max-examples 100 
 
