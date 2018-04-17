@@ -60,9 +60,11 @@ class PriceScaler(object):
 
     @classmethod
     def scale_price(cls, kb, price):
-        '''
-        Scale the price such that bottomline=0 and target=1.
-        '''
+        """Scale the price such that bottomline=0 and target=1.
+
+        Args:
+            price (Entity)
+        """
         p = PriceTracker.get_price(price)
         p = cls._scale_price(kb, p)
         return price._replace(canonical=price.canonical._replace(value=p))
