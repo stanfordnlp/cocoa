@@ -79,7 +79,7 @@ class MeanEncoder(EncoderBase):
        embeddings (:obj:`onmt.modules.Embeddings`): embedding module to use
        embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
-    def __init__(self, num_layers, embeddings, embed_type='dialogue'):
+    def __init__(self, num_layers, embeddings, embed_type='utterance'):
         super(MeanEncoder, self).__init__()
         self.num_layers = num_layers
         self.embeddings = embeddings
@@ -110,7 +110,7 @@ class StdRNNEncoder(EncoderBase):
        embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
     def __init__(self, rnn_type, bidirectional, num_layers, hidden_size,
-                 dropout=0.0, embeddings=None, embed_type='dialogue',
+                 dropout=0.0, embeddings=None, embed_type='utterance',
                  use_bridge=False):
         super(StdRNNEncoder, self).__init__()
         assert embeddings is not None

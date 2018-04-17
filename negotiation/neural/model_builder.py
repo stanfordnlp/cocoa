@@ -16,7 +16,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
 
-from preprocess import markers
+from symbols import markers
 
 def add_model_arguments(parser):
     from onmt.modules.SRU import CheckSRU
@@ -61,9 +61,11 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
+                       choices=['seq2seq', 'seq2lf'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
+
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
@@ -75,6 +77,7 @@ def build_model(model_opt, opt, fields, checkpoint):
     print(model)
 
     return model
+
 
 def make_embeddings(opt, word_dict, for_encoder=True):
     """
@@ -118,7 +121,7 @@ def make_encoder(opt, embeddings):
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                         opt.rnn_size, opt.dropout, embeddings)
 
-def make_context_embedder(opt, embeddings, embed_type='dialogue'):
+def make_context_embedder(opt, embeddings, embed_type='utterance'):
     """
     Various context embedder dispatcher function. See make_encoder for options
     embed_type (:str:): either dialogue, kb (for title and desc) or category
@@ -208,8 +211,23 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     kb_embeddings = make_embeddings(model_opt, kb_dict)
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
     # Make decoder.
-    tgt_dict = mappings['vocab']
-    tgt_embeddings = make_embeddings(model_opt, tgt_dict, for_encoder=False)
+    if model_opt.model == 'seq2seq':
+        tgt_dict = mappings['vocab']
+    elif model_opt.model == 'seq2lf':
+        tgt_dict = mappings['lf_vocab']
+    else:
+        raise ValueError
+    tgt_embeddings = make_embeddings(model_opt, tgt_dict)
+
+    # Share the embedding matrix - preprocess with share_vocab required.
+    #if model_opt.share_embeddings:
+    #    # src/tgt vocab should be the same if `-share_vocab` is specified.
+    #    if src_dict != tgt_dict:
+    #        raise AssertionError('The `-share_vocab` should be set during '
+    #                             'preprocess if you use share_embeddings!')
+
+    #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
+
     decoder = make_decoder(model_opt, tgt_embeddings)
 
     if "multibank" in model_opt.global_attention:
@@ -219,7 +237,6 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     model.model_type = 'text'
 
     # Make Generator.
-    print model_opt.rnn_size
     if not model_opt.copy_attn:
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, len(tgt_dict)),
@@ -243,36 +260,22 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             for p in generator.parameters():
                 p.data.uniform_(-model_opt.param_init, model_opt.param_init)
 
-        if isinstance(model_opt.pretrained_wordvec, list):
-          dialogue_wordvec = model_opt.pretrained_wordvec[0]
-          kb_wordvec = model_opt.pretrained_wordvec[1]
-        else:
-          dialogue_wordvec = model_opt.pretrained_wordvec
+        wordvec = {'utterance': model_opt.pretrained_wordvec[0]}
+        if len(model_opt.pretrained_wordvec) > 1:
+            wordvec['kb'] = model_opt.pretrained_wordvec[1]
 
-        if hasattr(model.encoder, 'embeddings'):
-            if model.encoder.embed_type == 'dialogue':
-              model.encoder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.encoder.embed_type == 'kb':
-              model.encoder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model, 'context_embedder') and hasattr(model.context_embedder, 'embeddings'):
-            if model.context_embedder.embed_type == 'dialogue':
-              model.context_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.context_embedder.embed_type == 'kb':
-              model.context_embedder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model, 'kb_embedder') and hasattr(model.kb_embedder, 'embeddings'):
-            if model.kb_embedder.embed_type == 'dialogue':
-              model.kb_embedder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
-            elif model.kb_embedder.embed_type == 'kb':
-              model.kb_embedder.embeddings.load_pretrained_vectors(
-                    kb_wordvec, model_opt.fix_pretrained_wordvec)
-        if hasattr(model.decoder, 'embeddings'):
-            model.decoder.embeddings.load_pretrained_vectors(
-                    dialogue_wordvec, model_opt.fix_pretrained_wordvec)
+        def load_wordvec(embeddings, name):
+            embeddings.load_pretrained_vectors(
+                    wordvec[name], model_opt.fix_pretrained_wordvec)
+
+        load_wordvec(model.encoder.embeddings, 'utterance')
+        if hasattr(model, 'context_embedder'):
+            load_wordvec(model.context_embedder.embeddings, 'utterance')
+        if hasattr(model, 'kb_embedder'):
+            load_wordvec(model.kb_embedder.embeddings, 'kb')
+
+        if model_opt.model == 'seq2seq':
+            load_wordvec(model.decoder.embeddings, 'utterance')
 
     # Add generator to model (this registers it as parameter of model).
     model.generator = generator
