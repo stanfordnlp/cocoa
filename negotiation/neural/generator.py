@@ -11,9 +11,7 @@ from cocoa.pt_model.util import smart_variable
 
 class Generator(object):
     """
-    Uses a model to generate a batch of response.
-    Adapted from onmt.translate.Translator.
-
+    Uses a model to generate a batch of response. Adapted from onmt.translate.Translator.
 
     Args:
        model (:obj:`onmt.modules.NMTModel`):

@@ -9,8 +9,13 @@ from core.controller import Controller
 def add_rl_arguments(parser):
     group = parser.add_argument_group('REINFORCE')
     parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
-    parser.add_argument('--num-dialogues', default=10000, type=int, help='Number of dialogues to generate/train')
-    parser.add_argument('--verbose', default=False, action='store_true', help='Whether or not to have verbose prints')
+    parser.add_argument('--num-dialogues', default=10000, type=int,
+            help='Number of dialogues to generate/train')
+    parser.add_argument('--discount_factor', default=0.95, type=float,
+            help='Amount to discount the reward for each timestep when \
+            calculating the value, usually written as gamma')
+    parser.add_argument('--verbose', default=False, action='store_true',
+            help='Whether or not to have verbose prints')
 
 
 class Reinforce(object):
@@ -34,7 +39,6 @@ class Reinforce(object):
         outcome = get_outcome()
         reward = outcome['reward']
         offer = outcome['offer']
-
         # reward = reward if agree else 0
         # self.all_rewards.append(reward)
         # standardize the reward
