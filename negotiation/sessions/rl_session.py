@@ -14,11 +14,12 @@ from neural.evaluator import Evaluator, add_evaluator_arguments
 from sessions.neural_session import NeuralSession
 
 class RLSession(NeuralSession):
-    def __init__(self, agent, kb, env, session):
+    def __init__(self, agent, kb, env, session, trainable=True):
         super(NeuralSession, self).__init__(agent)
         self.env = env
         self.model = env.model
         self.session = session  # likely PytorchSession, but could anything
+        self.trainable = trainable
         self.kb = kb
         self.rewards = []
 
@@ -74,7 +75,7 @@ class RLSession(NeuralSession):
         self.logprob = something
 
     @classmethod
-    def get_gradient(cls, update(self, agree, reward):
+    def apply_update(cls, update(self, agree, reward):
         self.t += 1
         # reward = reward if agree else 0
         # self.all_rewards.append(reward)
@@ -92,6 +93,8 @@ class RLSession(NeuralSession):
         for lp, r in zip(self.logprobs, rewards):
             loss -= lp * r
 
+        if self.trainable == False:
+            param.requires_grad = False
 
         ''' ---- Move into reinforce.py controller ----
         self.opt.zero_grad()

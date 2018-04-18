@@ -30,7 +30,12 @@ class Reinforce(object):
         return controller
 
     def get_reward(self, ex):
-        raise NotImplementedError
+        outcome = get_outcome()
+        reward = outcome['reward']
+        offer = outcome['offer']
+
+        # more calculations
+
 
     def learn(self, opt):
         for i in xrange(opt.num_dialogues):

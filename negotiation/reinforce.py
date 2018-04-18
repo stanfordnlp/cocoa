@@ -16,7 +16,7 @@ from cocoa.core.dataset import add_dataset_arguments
 from core.scenario import Scenario
 from core.controller import Controller
 from systems import add_system_arguments, get_system
-
+from neural.rl import Reinforce, add_rl_arguments
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(conflict_handler='resolve')
@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', default=False, action='store_true', help='Whether or not to have verbose prints')
     add_scenario_arguments(parser)
     add_system_arguments(parser)
+    add_rl_arguments(parser)
     args = parser.parse_args()
 
     if args.random_seed:

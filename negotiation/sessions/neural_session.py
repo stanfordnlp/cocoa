@@ -29,7 +29,7 @@ class NeuralSession(Session):
         self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
         self.max_len = 100
 
-    def convert_to_int(self):
+    def convert_to_int(self):k
         for i, turn in enumerate(self.dialogue.token_turns):
             curr_turns = self.dialogue.turns[Dialogue.ENC]
             if i >= len(curr_turns):
