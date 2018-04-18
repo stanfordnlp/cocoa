@@ -1,0 +1,43 @@
+import argparse
+import random
+import json
+import numpy as np
+
+from core.controller import Controller
+
+
+def add_rl_arguments(parser):
+    group = parser.add_argument_group('REINFORCE')
+    parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
+    parser.add_argument('--num-dialogues', default=10000, type=int, help='Number of dialogues to generate/train')
+    parser.add_argument('--verbose', default=False, action='store_true', help='Whether or not to have verbose prints')
+
+
+class Reinforce(object):
+    def __init__(self, agents, scenarios):
+        self.agents = agents
+        self.scenarios = scenarios
+
+    def _get_controller(self):
+        scenario = random.choice(self.scenarios)
+        # Randomize because kb[0] is always seller
+        if random.random() < 0.5:
+            kbs = (scenario.kbs[0], scenario.kbs[1])
+        else:
+            kbs = (scenario.kbs[1], scenario.kbs[0])
+        sessions = [self.agents[i].new_session(i, kbs[i]) for i in (0, 1)]
+        controller = Controller(scenario, sessions)
+        return controller
+
+    def get_reward(self, ex):
+        raise NotImplementedError
+
+    def learn(self, opt):
+        for i in xrange(opt.num_dialogues):
+            controller = self._get_controller()
+            ex = controller.simulate(max_turns, verbose=args.verbose)
+            rewards = self.get_reward(ex)
+            for session in controller.sessions:
+                if hasattr(session, 'trainable') and session.trainable:
+                    session.update(reward)
+            # TODO: logging
