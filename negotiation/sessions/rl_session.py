@@ -29,6 +29,30 @@ class RLSession(NeuralSession):
         # self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
         # self.max_len = 100
 
+    def write(self):
+        # TODO: make new batch creation method that plays nicely with RL
+        batch = self._create_batch()
+        encoder_init_state = None
+
+        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+        entity_tokens = self.output_to_tokens(output_data)
+        log_probability = self.calculate_logprob(output_data)
+
+        if not self._is_valid(entity_tokens):
+            return None
+        return entity_tokens, log_probability
+
+    def calculate_logprob(self, data):
+        # generator._from_beam() method already calculated scores
+        prob = F.softmax(data['scores'][0])
+        logprob = F.log_softmax(data['scores'][0])
+
+        word = prob.multinomial().detach()
+        logprob = logprob.gather(0, word)
+
+        return logprob
+
+
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
@@ -44,7 +68,7 @@ class RLSession(NeuralSession):
     def send(self):
         # created new session method called write(), which behaves similar
         # to generate() except it also calculates logprob
-        tokens, logprob = self.session.write(self.dialogue)
+        tokens, logprob = self.write()
         self.logprobs.append(logprob)
 
         if tokens is None:

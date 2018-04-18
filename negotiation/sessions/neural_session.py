@@ -258,29 +258,6 @@ class PytorchNeuralSession(NeuralSession):
             return None
         return entity_tokens
 
-    def write(self, dialogue):
-        # TODO: make new batch creation method that plays nicely with RL
-        batch = self._create_batch()
-        encoder_init_state = None
-
-        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-        entity_tokens = self.output_to_tokens(output_data)
-        log_probability = self.calculate_logprob(output_data)
-
-        if not self._is_valid(entity_tokens):
-            return None
-        return entity_tokens, log_probability
-
-    def calculate_logprob(self, data):
-        # generator._from_beam() method already calculated scores
-        prob = F.softmax(data['scores'][0])
-        logprob = F.log_softmax(data['scores'][0])
-
-        word = prob.multinomial().detach()
-        logprob = logprob.gather(0, word)
-
-        return logprob
-
     def _is_valid(self, tokens):
         if not tokens:
             return False
