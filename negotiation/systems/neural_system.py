@@ -202,18 +202,11 @@ class PytorchNeuralSystem(System):
     def name(cls):
         return 'pt-neural'
 
-    def new_session(self, agent, kb):
-        if self.model_name in ['encdec', 'seq2seq']:
+    def new_session(self, agent, kb, rl=False):
+        if self.model_name in ('seq2seq', 'seq2lf'):
             session = PytorchNeuralSession(agent , kb, self.env)
-        elif self.model_name in ['learning_rl']:
-            pt_agent = PytorchNeuralSession(agent , kb, self.env)
-            session = RLSession(agent, kb, env, pt_agent, trainable=True)
-        elif self.model_name in ['fixed_rl']:
-            pt_agent = PytorchNeuralSession(agent , kb, self.env)
-            session = RLSession(agent, kb, env, pt_agent, trainable=False)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))
-        if self.timed_session:
-            session = TimedSessionWrapper(session)
-
+        if rl:
+            session = RLSession(agent, kb, env, session, trainable=True)
         return session

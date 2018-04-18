@@ -25,7 +25,8 @@ class Reinforce(object):
             kbs = (scenario.kbs[0], scenario.kbs[1])
         else:
             kbs = (scenario.kbs[1], scenario.kbs[0])
-        sessions = [self.agents[i].new_session(i, kbs[i]) for i in (0, 1)]
+        sessions = [self.agents[0].new_session(0, kbs[0], rl=True),
+                    self.agents[1].new_session(1, kbs[1], rl=False)]
         controller = Controller(scenario, sessions)
         return controller
 
