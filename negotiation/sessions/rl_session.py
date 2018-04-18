@@ -21,7 +21,7 @@ class RLSession(NeuralSession):
         self.session = session  # likely PytorchSession, but could anything
         self.trainable = trainable
         self.kb = kb
-        self.rewards = []
+        self.logprobs = []
 
         self.dialogue = Dialogue(agent, kb, None)
         self.dialogue.kb_context_to_int()
@@ -42,12 +42,15 @@ class RLSession(NeuralSession):
         self.dialogue.add_utterance(event.agent, utterance)
 
     def send(self):
-        tokens = self.generate()
+        # created new session method called write(), which behaves similar
+        # to generate() except it also calculates logprob
+        tokens, logprob = self.session.write(self.dialogue)
+        self.logprobs.append(logprob)
+
         if tokens is None:
             return None
         self.dialogue.add_utterance(self.agent, list(tokens))
         tokens = self.map_prices(tokens)
-        accepted = False
 
         if len(tokens) > 0:
             if tokens[0] == markers.OFFER:
@@ -56,52 +59,36 @@ class RLSession(NeuralSession):
                 except ValueError:
                     return None
             elif tokens[0] == markers.ACCEPT:
-                self.update_reward(agree=True, self.offer)
                 return self.accept()
             elif tokens[0] == markers.REJECT:
-                self.update_reward(agree=False, self.offer)
                 return self.reject()
 
 
         s = self.attach_punct(' '.join(tokens))
         return self.message(s)
 
-    def update_reward(self, agree, new_reward):
-        self.reward.append(new_reward)
-        reward calculation is difference between normalized price offers
-        if offers do not match, reward = 0
-        if agent is buyer = any amount below 1.0 of value entity
-        if agent is seller = any amount above 1.0 of value entity
-        self.logprob = something
-
     @classmethod
-    def apply_update(cls, update(self, agree, reward):
+    def apply_update(cls, reward):
         self.t += 1
-        # reward = reward if agree else 0
-        # self.all_rewards.append(reward)
-        # standardize the reward
-        # r = (reward - np.mean(self.all_rewards)) / max(1e-4, np.std(self.all_rewards))
         # compute accumulated discounted reward
         g = Variable(torch.zeros(1, 1).fill_(self.reward))
-        rewards = []
+        reward_collector = []
         for _ in self.logprobs:
-            rewards.insert(0, g)
-            g = g * self.args.gamma
+            reward_collector.insert(0, g)
+            g = g * self.model_args.gamma
 
         loss = 0
         # estimate the loss using one MonteCarlo rollout
-        for lp, r in zip(self.logprobs, rewards):
-            loss -= lp * r
+        for lp, rc in zip(self.logprobs, reward_collector):
+            loss -= lp * rc
 
         if self.trainable == False:
             param.requires_grad = False
 
-        ''' ---- Move into reinforce.py controller ----
-        self.opt.zero_grad()
+        self.model.optim.zero_grad()
         loss.backward()
-        nn.utils.clip_grad_norm(self.model.parameters(), self.args.rl_clip)
-        self.opt.step()
-        '''
+        # nn.utils.clip_grad_norm(self.model.parameters(), self.model_args.rl_clip)
+        self.model.optim.step()
 
 
 

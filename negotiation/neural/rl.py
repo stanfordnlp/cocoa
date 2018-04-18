@@ -34,7 +34,11 @@ class Reinforce(object):
         reward = outcome['reward']
         offer = outcome['offer']
 
-        # more calculations
+        # reward = reward if agree else 0
+        # self.all_rewards.append(reward)
+        # standardize the reward
+        # r = (reward - np.mean(self.all_rewards)) / max(1e-4, np.std(self.all_rewards))
+
 
 
     def learn(self, opt):
