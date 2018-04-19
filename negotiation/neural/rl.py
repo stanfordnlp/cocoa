@@ -66,11 +66,11 @@ class Reinforce(object):
         # reward = example.outcome['reward']
         # offer = example.outcome['offer']
 
-        agent_id = {'seller': 0, 'buyer': 1}
+        agent_ids = {'seller': 0, 'buyer': 1}
         reward = {'seller': 0, 'buyer': 0}
         targets = {}
         for role in ('seller', 'buyer'):
-            agent_id = agent_id[role]
+            agent_id = agent_ids[role]
             targets[role] = self.scenarios[agent_id].kbs[agent_id].facts["personal"]["Target"]
         midpoint = (targets['seller'] + targets['buyer']) / 2.
         price = example.outcome['offer']['price']
