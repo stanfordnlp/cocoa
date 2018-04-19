@@ -49,7 +49,7 @@ if __name__ == '__main__':
 
     # Load the model.
     mappings, model, model_args = \
-        model_builder.load_test_model(args, dummy_args.__dict__)
+        model_builder.load_test_model(args.checkpoint_files, args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
     if model_args.model == 'seq2lf':

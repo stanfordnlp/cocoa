@@ -170,9 +170,8 @@ def make_decoder(opt, embeddings):
                              dropout=opt.dropout,
                              embeddings=embeddings)
 
-def load_test_model(opt, dummy_opt):
-    checkpoint = torch.load(opt.checkpoint_file,
-                              map_location=lambda storage, loc: storage)
+def load_test_model(model_path, opt, dummy_opt):
+    checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
 
     model_opt = checkpoint['opt']
     for arg in dummy_opt:

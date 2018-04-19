@@ -23,7 +23,7 @@ data=negotiation
 port=5040
 cat=furniture
 # cat = category
-ckpt_file=$(checkpoint)/model_loss2.90_e49.pt
+ckpt_files=$(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt
 # path to checkpoint of a trained model
 
 tensorboard:
@@ -57,13 +57,12 @@ glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
 
 train-rl:
-	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json \
-	--mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) \
-	--batch-size 128 --gpuid 3 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM --discount-rate 0.95 --model pt-neural \
-	--global-attention multibank_general \
-	--report-every 500 \
-	--epochs 15 \
-	--cache scr/cache/tmp
+	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path data/sample-scenarios.json --checkpoint $(checkpoint) \
+	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt --price-tracker $(price_tracker) \
+	--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
+	--report-every 500 --epochs 15
+	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
+	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
 model=seq2seq
 train:

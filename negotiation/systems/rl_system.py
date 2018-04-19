@@ -13,15 +13,17 @@ class RLSystem(System):
     def name(cls):
         return 'RL-{}'.format(self.system.name())
 
-    def build_optimzer(self, args):
+    def build_optimizer(self, args):
         print('Making optimizer for training.')
         optim = Optim(args.optim, args.learning_rate, args.max_grad_norm,
             model_size=args.rnn_size)
         return optim
 
-    def new_session(self, agent, kb):
-        session = self.system.new_session(agent, kb, rl=True)
-        self.optim.set_parameters(self.session.model.parameters())
-        rl_session = RLSession(session, self.optim)
+    def new_session(self, agent, kb, use_rl=True):
+        session = self.system.new_session(agent, kb, use_rl)
+        self.optim.set_parameters(session.model.parameters())
+        rl_session = RLSession(agent, session, self.optim)
+        self.session = rl_session
+
         return rl_session
 

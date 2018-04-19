@@ -131,7 +131,7 @@ class PytorchNeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, args, schema, price_tracker, timed):
+    def __init__(self, args, schema, price_tracker, model_path, timed):
         super(PytorchNeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
@@ -154,8 +154,8 @@ class PytorchNeuralSystem(System):
         # includes all the args we need, so no need to create dummy_parser
 
         # Load the model.
-        model_path = config_args.checkpoint_file
-        mappings, model, model_args = model_builder.load_test_model(args, config_args.__dict__)
+        mappings, model, model_args = model_builder.load_test_model(
+                model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         vocab = mappings['vocab']
@@ -175,10 +175,9 @@ class PytorchNeuralSystem(System):
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
         use_cuda = use_gpu(model_args)
 
-        model_config = {} # since we are not doing 'retrieve' or 'price' at this time,
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
             int_markers=int_markers, slot_filling=False, kb_pad=kb_padding)
         # data_batcher = get_data_generator(args, model_args, mappings, schema, test=True)
         # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
@@ -202,12 +201,9 @@ class PytorchNeuralSystem(System):
     def name(cls):
         return 'pt-neural'
 
-    def new_session(self, agent, kb, rl=False):
+    def new_session(self, agent, kb, use_rl=False):
         if self.model_name in ('seq2seq', 'seq2lf'):
-            # should this be called trainable?  maybe call it reinforce or rl?
-            session = PytorchNeuralSession(agent, kb, self.env, trainable=rl)
+            session = PytorchNeuralSession(agent, kb, self.env, use_rl)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))
-        if rl:
-            session = RLSession(agent, kb, env, session)
         return session

@@ -50,6 +50,6 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         return NeuralSystem(schema, lexicon, model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len, timed_session=timed)
     elif name == 'pt-neural':
         assert model_path
-        return PytorchNeuralSystem(args, schema, lexicon, timed)
+        return PytorchNeuralSystem(args, schema, lexicon, model_path, timed)
     else:
         raise ValueError('Unknown system %s' % name)
