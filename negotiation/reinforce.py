@@ -38,16 +38,9 @@ if __name__ == '__main__':
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
-    # Match checkpoints with agents
     assert len(args.checkpoint_files) <= len(args.agents)
-
-    rl_agents = []
-    for i, name in enumerate(args.agents):
-        agent = get_system(name, args, schema, False, args.checkpoint_files[i])
-        # TODO: hacky
-        if i == 0:
-            agent = RLSystem(agent, args)
-        rl_agents.append(agent)
+    systems = [get_system(name, args, schema, False, args.checkpoint_files[i]) for i, name in enumerate(args.agents)]
+    systems[0] = RLSystem(systems[0], args)
 
     trainer = Reinforce(rl_agents, scenario_db.scenarios_list)
     trainer.learn(args)
