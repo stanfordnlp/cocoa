@@ -112,10 +112,11 @@ class Beam(object):
         for i in range(self.next_ys[-1].size(0)):
             if self.next_ys[-1][i] == self._eos:
                 s = self.scores[i]
+                logprob = s
                 if self.global_scorer is not None:
                     global_scores = self.global_scorer.score(self, self.scores)
                     s = global_scores[i]
-                self.finished.append((s, len(self.next_ys) - 1, i))
+                self.finished.append((s, logprob, len(self.next_ys) - 1, i))
 
         # End condition is when top-of-beam is EOS and no global score.
         if self.next_ys[-1][0] == self._eos:
@@ -131,15 +132,17 @@ class Beam(object):
             # Add from beam until we have minimum outputs.
             while len(self.finished) < minimum:
                 s = self.scores[i]
+                logprob = s
                 if self.global_scorer is not None:
                     global_scores = self.global_scorer.score(self, self.scores)
                     s = global_scores[i]
-                self.finished.append((s, len(self.next_ys) - 1, i))
+                self.finished.append((s, logprob, len(self.next_ys) - 1, i))
 
         self.finished.sort(key=lambda a: -a[0])
-        scores = [sc for sc, _, _ in self.finished]
-        ks = [(t, k) for _, t, k in self.finished]
-        return scores, ks
+        scores = [sc for sc, _,  _, _ in self.finished]
+        ks = [(t, k) for _, _, t, k in self.finished]
+        logprobs = [lp for _, lp, _, _ in self.finished]
+        return scores, ks, logprobs
 
     def get_hyp(self, timestep, k):
         """

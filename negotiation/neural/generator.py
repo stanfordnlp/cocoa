@@ -195,10 +195,12 @@ class Generator(object):
     def _from_beam(self, beam):
         ret = {"predictions": [],
                "scores": [],
-               "attention": []}
+               "attention": [],
+               "logprobs": [],
+               }
         for b in beam:
             n_best = self.n_best
-            scores, ks = b.sort_finished(minimum=n_best)
+            scores, ks, logprobs = b.sort_finished(minimum=n_best)
             hyps, attn = [], []
             for i, (times, k) in enumerate(ks[:n_best]):
                 hyp, att = b.get_hyp(times, k)
@@ -207,6 +209,7 @@ class Generator(object):
             ret["predictions"].append(hyps)
             ret["scores"].append(scores)
             ret["attention"].append(attn)
+            ret["logprobs"].append(logprobs)
         return ret
 
     def _run_target(self, batch, data):
