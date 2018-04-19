@@ -44,7 +44,10 @@ if __name__ == '__main__':
     rl_agents = []
     for i, name in enumerate(args.agents):
         agent = get_system(name, args, schema, False, args.checkpoint_files[i])
-        rl_agents.append(RLSystem(agent, args))
+        # TODO: hacky
+        if i == 0:
+            agent = RLSystem(agent, args)
+        rl_agents.append(agent)
 
     trainer = Reinforce(rl_agents, scenario_db.scenarios_list)
     trainer.learn(args)
