@@ -192,13 +192,15 @@ class SelectorNeuralSession(GeneratorNeuralSession):
         return entity_tokens
 
 class PytorchNeuralSession(NeuralSession):
-    def __init__(self, agent, kb, env):
+    def __init__(self, agent, kb, env, trainable):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.generator = env.dialogue_generator
         self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
+        self.logprobs = []
+        self.trainable = trainable
         # self.dialogue = env.Dialogue
         # self.num_context = env.Dialogue.num_context
 
@@ -253,10 +255,23 @@ class PytorchNeuralSession(NeuralSession):
 
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(output_data)
+        if self.trainable:
+            log_probability = self.calculate_logprob(output_data)
+            self.logprobs.append(log_probability)
 
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
+
+    def calculate_logprob(self, data):
+        # generator._from_beam() method already calculated scores
+        prob = F.softmax(data['scores'][0])
+        logprob = F.log_softmax(data['scores'][0])
+
+        word = prob.multinomial().detach()
+        logprob = logprob.gather(0, word)
+
+        return logprob
 
     def _is_valid(self, tokens):
         if not tokens:
