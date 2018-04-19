@@ -310,9 +310,9 @@ class RNNDecoderBase(nn.Module):
 
         tgt_len, tgt_batch = tgt.size()
         if isinstance(memory_banks, list):
-            _, memory_batch, _ = memory_banks[0].shape
+            _, memory_batch, _ = memory_banks[0].size()
         else:
-            _, memory_batch, _ = memory_banks.shape
+            _, memory_batch, _ = memory_banks.size()
         aeq(tgt_batch, memory_batch)
         # END
 

@@ -63,7 +63,7 @@ def match_embeddings(vocab, emb):
 
 
 def main():
-    vocab = get_vocabs(opt.vocab_file)
+    vocab = get_vocabs(opt.vocab_file, opt.vocab_type)
     embeddings = get_embeddings(opt.emb_file)
 
     filtered_embeddings, count = match_embeddings(vocab, embeddings)
