@@ -58,28 +58,28 @@ class Reinforce(object):
         # self.all_rewards.append(reward)
         # standardize the reward
         # r = (reward - np.mean(self.all_rewards)) / max(1e-4, np.std(self.all_rewards))
-        pdb.set_trace()
+        # pdb.set_trace()
         # check what is in agents, and what is in scenario
 
-        if not self.agent.has_deal(example.outcome):
-            return 0   # there is no reward if there is no valid outcome
-        reward = example.outcome['reward']
-        offer = example.outcome['offer']
+        # if not self.agent.has_deal(example.outcome):
+        #     return 0   # there is no reward if there is no valid outcome
+        # reward = example.outcome['reward']
+        # offer = example.outcome['offer']
 
-        margins = {'seller': 0, 'buyer': 0}
+        agent_id = {'seller': 0, 'buyer': 1}
+        reward = {'seller': 0, 'buyer': 0}
         targets = {}
-        # for agent in agents?
         for role in ('seller', 'buyer'):
-            # kb comes from scenario?
-            targets[role] = self.kb_by_role[role].facts["personal"]["Target"]
+            agent_id = agent_id[role]
+            targets[role] = self.scenarios[agent_id].kbs[agent_id].facts["personal"]["Target"]
         midpoint = (targets['seller'] + targets['buyer']) / 2.
-        price = self.outcome['offer']['price']
+        price = example.outcome['offer']['price']
 
         norm_factor = abs(midpoint - targets['seller'])
-        margins['seller'] = (price - midpoint) / norm_factor
+        reward['seller'] = (price - midpoint) / norm_factor
         # Zero sum
-        margins['buyer'] = -1. * margins['seller']
-        return margins
+        reward['buyer'] = -1. * reward['seller']
+        return reward
 
     def learn(self, args):
         for i in xrange(args.num_dialogues):
