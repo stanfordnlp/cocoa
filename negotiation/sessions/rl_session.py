@@ -7,7 +7,7 @@ from session import Session
 from torch.autograd import Variable
 
 class RLSession(Session):
-    def __init__(self, session, optim):
+    def __init__(self, agent, session, optim):
         super(RLSession, self).__init__(agent)
         assert hasattr(session, 'logprobs')
         self.session = session  # likely PytorchSession, but could anything

@@ -84,7 +84,7 @@ class Reinforce(object):
     def learn(self, args):
         for i in xrange(args.num_dialogues):
             controller = self._get_controller()
-            example = controller.simulate(max_turns, verbose=args.verbose)
+            example = controller.simulate(args.max_turns, verbose=args.verbose)
             rewards = self.get_reward(example)
             for session in controller.sessions:
                 if hasattr(session, 'use_rl') and session.use_rl:

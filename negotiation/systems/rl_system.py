@@ -21,7 +21,9 @@ class RLSystem(System):
 
     def new_session(self, agent, kb, use_rl=True):
         session = self.system.new_session(agent, kb, use_rl)
-        self.optim.set_parameters(self.session.model.parameters())
-        rl_session = RLSession(session, self.optim)
+        self.optim.set_parameters(session.model.parameters())
+        rl_session = RLSession(agent, session, self.optim)
+        self.session = rl_session
+
         return rl_session
 
