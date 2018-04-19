@@ -257,6 +257,7 @@ class PytorchNeuralSession(NeuralSession):
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(output_data)
         if self.use_rl:
+            # logprobs: (batch_size, n_best)
             log_probability = output_data['logprobs'][0][0]
             self.logprobs.append(log_probability)
 

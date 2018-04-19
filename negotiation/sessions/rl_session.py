@@ -31,7 +31,7 @@ class RLSession(Session):
             g = g * self.model.discount_factor
 
         loss = 0
-        for lp, rc in zip(self.logprobs, reward_collector):
+        for lp, rc in zip(self.session.logprobs, reward_collector):
             loss -= lp * rc
 
         self.model.zero_grad()
