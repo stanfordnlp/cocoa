@@ -15,10 +15,11 @@ from session import Session
 from torch.autograd import Variable
 
 class RLSession(Session):
-    def __init__(self, agent, kb, env, session):
+    def __init__(self, session, opt):
         super(RLSession, self).__init__(agent)
         assert hasattr(session, 'logprobs')
         self.session = session  # likely PytorchSession, but could anything
+        self.opt = opt
 
     def receive(self, event):
         return self.session.receive(event)
