@@ -81,12 +81,12 @@ class Reinforce(object):
         margins['buyer'] = -1. * margins['seller']
         return margins
 
-    def learn(self, opt):
-        for i in xrange(opt.num_dialogues):
+    def learn(self, args):
+        for i in xrange(args.num_dialogues):
             controller = self._get_controller()
             example = controller.simulate(max_turns, verbose=args.verbose)
             rewards = self.get_reward(example)
             for session in controller.sessions:
-                if hasattr(session, 'trainable') and session.trainable:
+                if hasattr(session, 'use_rl') and session.use_rl:
                     session.update(reward)
             # TODO: logging

@@ -201,12 +201,9 @@ class PytorchNeuralSystem(System):
     def name(cls):
         return 'pt-neural'
 
-    def new_session(self, agent, kb, rl=False):
+    def new_session(self, agent, kb, use_rl=False):
         if self.model_name in ('seq2seq', 'seq2lf'):
-            # should this be called trainable?  maybe call it reinforce or rl?
-            session = PytorchNeuralSession(agent, kb, self.env, trainable=rl)
+            session = PytorchNeuralSession(agent, kb, self.env, use_rl)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))
-        if rl:
-            session = RLSession(agent, kb, env, session)
         return session

@@ -192,7 +192,7 @@ class SelectorNeuralSession(GeneratorNeuralSession):
         return entity_tokens
 
 class PytorchNeuralSession(NeuralSession):
-    def __init__(self, agent, kb, env, trainable):
+    def __init__(self, agent, kb, env, use_rl):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.generator = env.dialogue_generator
@@ -200,7 +200,7 @@ class PytorchNeuralSession(NeuralSession):
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
         self.logprobs = []
-        self.trainable = trainable
+        self.use_rl = use_rl
         # self.dialogue = env.Dialogue
         # self.num_context = env.Dialogue.num_context
 
@@ -255,7 +255,7 @@ class PytorchNeuralSession(NeuralSession):
 
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(output_data)
-        if self.trainable:
+        if self.use_rl:
             log_probability = self.calculate_logprob(output_data)
             self.logprobs.append(log_probability)
 
