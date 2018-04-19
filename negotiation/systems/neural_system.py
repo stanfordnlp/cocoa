@@ -154,7 +154,8 @@ class PytorchNeuralSystem(System):
         # includes all the args we need, so no need to create dummy_parser
 
         # Load the model.
-        mappings, model, model_args = model_builder.load_test_model(args, config_args.__dict__)
+        mappings, model, model_args = model_builder.load_test_model(
+                model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         vocab = mappings['vocab']
