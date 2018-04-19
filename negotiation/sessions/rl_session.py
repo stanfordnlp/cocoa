@@ -15,11 +15,12 @@ from session import Session
 from torch.autograd import Variable
 
 class RLSession(Session):
-    def __init__(self, session, opt):
+    def __init__(self, session, optim):
         super(RLSession, self).__init__(agent)
         assert hasattr(session, 'logprobs')
         self.session = session  # likely PytorchSession, but could anything
-        self.opt = opt
+        self.optim = optim
+        self.model = session.model
 
     def receive(self, event):
         return self.session.receive(event)
@@ -35,7 +36,7 @@ class RLSession(Session):
         reward_collector = []
         for _ in self.session.logprobs:
             reward_collector.insert(0, g)
-            g = g * self.model_args.discount_factor
+            g = g * self.model.discount_factor
 
         loss = 0
         for lp, rc in zip(self.logprobs, reward_collector):

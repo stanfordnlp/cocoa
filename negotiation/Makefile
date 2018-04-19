@@ -56,6 +56,15 @@ real-dataset:
 glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
 
+train-rl:
+	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json \
+	--mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) \
+	--batch-size 128 --gpuid 3 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM --discount-rate 0.95 --model pt-neural \
+	--global-attention multibank_general \
+	--report-every 500 \
+	--epochs 15 \
+	--cache scr/cache/tmp \
+
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--report-every 500 \
