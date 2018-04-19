@@ -111,8 +111,9 @@ class Beam(object):
 
         for i in range(self.next_ys[-1].size(0)):
             if self.next_ys[-1][i] == self._eos:
+                # TODO: fix the slicing
                 s = self.scores[i]
-                logprob = s
+                logprob = self.scores[i:i+1]
                 if self.global_scorer is not None:
                     global_scores = self.global_scorer.score(self, self.scores)
                     s = global_scores[i]
