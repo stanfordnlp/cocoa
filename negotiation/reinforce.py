@@ -17,6 +17,7 @@ from core.scenario import Scenario
 from core.controller import Controller
 from systems import add_system_arguments, get_system
 from neural.rl import Reinforce, add_rl_arguments
+from neural.model_builder import add_model_arguments
 from systems.rl_system import RLSystem
 
 if __name__ == '__main__':
@@ -27,6 +28,7 @@ if __name__ == '__main__':
     add_scenario_arguments(parser)
     add_system_arguments(parser)
     add_rl_arguments(parser)
+    add_model_arguments(parser)
     args = parser.parse_args()
 
     if args.random_seed:
@@ -45,4 +47,4 @@ if __name__ == '__main__':
         rl_agents.append(RLSystem(agent, args))
 
     trainer = Reinforce(rl_agents, scenario_db.scenarios_list)
-    trainer.learn()
+    trainer.learn(args)

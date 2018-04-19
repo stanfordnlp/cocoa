@@ -13,7 +13,7 @@ class RLSystem(System):
     def name(cls):
         return 'RL-{}'.format(self.system.name())
 
-    def build_optimzer(self, args):
+    def build_optimizer(self, args):
         print('Making optimizer for training.')
         optim = Optim(args.optim, args.learning_rate, args.max_grad_norm,
             model_size=args.rnn_size)

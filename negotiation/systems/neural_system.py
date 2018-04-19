@@ -175,10 +175,9 @@ class PytorchNeuralSystem(System):
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
         use_cuda = use_gpu(model_args)
 
-        model_config = {} # since we are not doing 'retrieve' or 'price' at this time,
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config,
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
             int_markers=int_markers, slot_filling=False, kb_pad=kb_padding)
         # data_batcher = get_data_generator(args, model_args, mappings, schema, test=True)
         # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
