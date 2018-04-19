@@ -15,6 +15,7 @@ from session import Session
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
 from neural.batcher import Batch
+import torch.nn.functional as F
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -245,14 +246,14 @@ class PytorchNeuralSession(NeuralSession):
                 'uuids': [None],
                 }
         return Batch(encoder_args, decoder_args, context_data,
-                self.vocab, sort_by_length=False, num_context=num_context) #, cuda=self.cuda)
+                self.vocab, sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
         encoder_init_state = None
-
+        # pdb.set_trace()
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(output_data)
         if self.use_rl:
