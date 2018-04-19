@@ -11,7 +11,7 @@ def add_rl_arguments(parser):
     group.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
     group.add_argument('--num-dialogues', default=10000, type=int,
             help='Number of dialogues to generate/train')
-    group.add_argument('--discount_factor', default=0.95, type=float,
+    group.add_argument('--discount-factor', default=0.95, type=float,
             help='Amount to discount the reward for each timestep when \
             calculating the value, usually written as gamma')
     group.add_argument('--verbose', default=False, action='store_true',
@@ -20,6 +20,35 @@ def add_rl_arguments(parser):
     group = parser.add_argument_group('Training')
     group.add_argument('--optim', default='sgd', help="""Optimization method.""",
                        choices=['sgd', 'adagrad', 'adadelta', 'adam'])
+    group.add_argument('--report-every', type=int, default=5,
+                       help="Print stats at this many batch intervals")
+    group.add_argument('--epochs', type=int, default=14,
+                       help='Number of training epochs')
+
+    group.add_argument('--batch-size', type=int, default=64,
+                       help='Maximum batch size for training')
+    group.add_argument('--optim', default='sgd', help="""Optimization method.""",
+                       choices=['sgd', 'adagrad', 'adadelta', 'adam'])
+    group.add_argument('--max-grad-norm', type=float, default=5,
+                       help="""If the norm of the gradient vector exceeds this,
+                       renormalize it to have the norm equal to max_grad_norm""")
+    group.add_argument('--dropout', type=float, default=0.3,
+                       help="Dropout probability; applied in LSTM stacks.")
+    group.add_argument('--learning-rate', type=float, default=1.0,
+                       help="""Starting learning rate. Recommended settings:
+                       sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
+    group.add_argument('--gpuid', default=[], nargs='+', type=int,
+                       help="Use CUDA on the listed devices.")
+    group.add_argument('-seed', type=int, default=-1,
+                       help="""Random seed used for the experiments reproducibility.""")
+    group.add_argument('--label-smoothing', type=float, default=0.0,
+                       help="""Label smoothing value epsilon.
+                       Probabilities of all non-true labels will be smoothed
+                       by epsilon / (vocab_size - 1). Set to zero to turn off
+                       label smoothing. For more detailed information, see:
+                       https://arxiv.org/abs/1512.00567""")
+
+
 
 
 class Reinforce(object):

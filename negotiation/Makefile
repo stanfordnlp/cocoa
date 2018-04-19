@@ -57,13 +57,12 @@ glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
 
 train-rl:
-	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json \
-	--mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300 --checkpoint-files $(ckpt_files) --price-tracker $(price_tracker) \
-	--batch-size 128 --gpuid 3 --rnn-size 200 --optim adagrad --learning-rate 0.01 --rnn-type LSTM --discount-rate 0.95 --agents pt-neural pt-neural \
-	--global-attention multibank_general \
-	--report-every 500 \
-	--epochs 15 \
-	--cache scr/cache/tmp
+	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  \
+	--mappings scr/mappings --checkpoint-files $(ckpt_files) --price-tracker $(price_tracker) \
+	--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
+	--report-every 500 --epochs 15
+	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
+	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
 model=seq2seq
 train:
