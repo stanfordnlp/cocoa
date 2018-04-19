@@ -19,8 +19,8 @@ class Utterance(object):
         """
         Log translation to stdout.
         """
-        user_utterance = ' '.join(map(str, self.src_raw))
-        output = 'USER INPUT: {}\n'.format(user_utterance)
+        user_utterance = ' '.join([str(x) if is_entity(x) else x for x in self.src_raw])
+        output = u'USER INPUT: {}\n'.format(user_utterance)
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
@@ -30,7 +30,7 @@ class Utterance(object):
 
         if self.gold_sent is not None:
             tgt_sent = ' '.join(self.gold_sent)
-            output += 'GOLD: {}\n'.format(tgt_sent)
+            output += u'GOLD: {}\n'.format(tgt_sent)
             # gold score is always 0 because that is the highest possible
             # output += "GOLD SCORE: {:.4f}\n".format(self.gold_score)
 
