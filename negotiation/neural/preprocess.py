@@ -248,7 +248,9 @@ class Dialogue(object):
         self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
 
     def lf_to_int(self):
+        self.lf_token_turns = []
         for i, lf in enumerate(self.lfs):
+            self.lf_token_turns.append(lf)
             self.lfs[i] = map(self.mappings['lf_vocab'].to_ind, lf)
 
     def convert_to_int(self):
