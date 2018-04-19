@@ -4,9 +4,10 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
-from neural.generator import Generator
-from neural.utterance import UtteranceBuilder
-from neural.beam import Scorer
+from generator import Generator
+from utterance import UtteranceBuilder
+from beam import Scorer
+from symbols import markers
 
 
 def add_evaluator_arguments(parser):
@@ -42,7 +43,7 @@ class Evaluator(object):
     def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
-        self.vocab = mappings['vocab']
+        self.vocab = mappings['tgt_vocab']
         self.kb_vocab = mappings['kb_vocab']
 
     def evaluate(self, opt, model_opt, data, split='test'):
@@ -71,7 +72,7 @@ class Evaluator(object):
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
             titles = batch.title_inputs.transpose(0,1)
-            pad_id = self.kb_vocab.word_to_ind["<pad>"]
+            kb_pad_id = self.kb_vocab.to_ind(markers.PAD)
 
             for i, response in enumerate(utterances):
                 pred_score_total += response.pred_scores[0]
@@ -88,8 +89,8 @@ class Evaluator(object):
                 if opt.verbose:
                     sent_number = next(counter)
                     sent_ids = titles[i].data.cpu().numpy()
-                    sent_words = [self.kb_vocab.ind_to_word[x] for x in sent_ids if x != pad_id]
+                    sent_words = [self.kb_vocab.to_word(x) for x in sent_ids if x != kb_pad_id]
                     readable_sent = ' '.join(sent_words)
-                    print("--------- Item {0}: {1} -----------".format(sent_number, readable_sent))
+                    print("--------- {0}: {1} -----------".format(sent_number, readable_sent))
                     output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))

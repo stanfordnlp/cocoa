@@ -220,6 +220,7 @@ class DialogueBatcher(object):
         return targets
 
     def _remove_last(self, array, value, pad):
+        array = np.copy(array)
         nrows, ncols = array.shape
         for i in xrange(nrows):
             for j in xrange(ncols-1, -1, -1):
@@ -260,15 +261,14 @@ class DialogueBatcher(object):
         # 1) The longest sequence does not have </s> as input.
         # 2) At inference time, decoder stops at </s>.
         # 3) Only matters when the model is stateful (decoder state is passed on).
-        decoder_turns_copy = np.copy(decoder_turns)
         eos = self.mappings['tgt_vocab'].to_ind(markers.EOS)
         pad = self.mappings['tgt_vocab'].to_ind(markers.PAD)
-        decoder_inputs = self._remove_last(decoder_turns_copy, eos, pad)[:, :-1]
+        decoder_inputs = self._remove_last(decoder_turns, eos, pad)[:, :-1]
 
         if target_turns is not None:
             decoder_targets = target_turns[:, 1:]
         else:
-            decoder_targets = decoder_turns_copy[:, 1:]
+            decoder_targets = decoder_turns[:, 1:]
 
         return decoder_inputs, decoder_targets
 
@@ -394,6 +394,13 @@ class UtteranceParserBatcher(DialogueBatcher):
     """Given a dialogue context, predict the dialogue act (logical form)
     of the current utterance.
     """
+    def _get_lf_token_turns_at(self, dialogues, i):
+        if not hasattr(dialogues[0], 'lf_token_turns'):
+            return None
+        # Return None for padded turns
+        return [dialogue.lf_token_turns[i] if i < len(dialogue.lf_token_turns) else ''
+                for dialogue in dialogues]
+
     def create_batch(self, dialogues):
         num_turns = self._normalize_dialogue(dialogues)
         dialogue_data = self._get_dialogue_data(dialogues)
@@ -412,6 +419,7 @@ class UtteranceParserBatcher(DialogueBatcher):
                 encoder_turns=encoder_turns_all[:i+1],
                 decoder_turns=self._get_lf_batch_at(dialogues, i),
                 encoder_tokens=self._get_token_turns_at(dialogues, i),
+                decoder_tokens=self._get_lf_token_turns_at(dialogues, i),
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],

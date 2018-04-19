@@ -71,10 +71,10 @@ train:
 	--report-every 500 \
 	--epochs 15 \
 	--model $(model) \
-	--cache scr/cache/tmp/$(model) \
+	--cache scr/cache/all/$(model) \
 	--verbose \
-	--ignore-cache \
- 	--train-max-examples 100 --test-max-examples 100 
+	#--ignore-cache \
+ 	#--train-max-examples 100 --test-max-examples 100 
 	#--global-attention multibank_general \
 
 test:
