@@ -88,5 +88,5 @@ class Reinforce(object):
             rewards = self.get_reward(example)
             for session in controller.sessions:
                 if hasattr(session, 'use_rl') and session.use_rl:
-                    session.update(reward)
+                    session.update(rewards[session.kb.role])
             # TODO: logging
