@@ -19,8 +19,8 @@ class RLSystem(System):
             model_size=args.rnn_size)
         return optim
 
-    def new_session(self, agent, kb):
-        session = self.system.new_session(agent, kb, rl=True)
+    def new_session(self, agent, kb, use_rl=True):
+        session = self.system.new_session(agent, kb, use_rl)
         self.optim.set_parameters(self.session.model.parameters())
         rl_session = RLSession(session, self.optim)
         return rl_session

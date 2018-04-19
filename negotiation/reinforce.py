@@ -22,7 +22,6 @@ from systems.rl_system import RLSystem
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(conflict_handler='resolve')
     parser.add_argument('--agents', help='What kind of agent to use', nargs='*', required=True)
-    group.add_argument('--checkpoint-paths', nargs='*', required=True, help='Path to model .pt file')
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--verbose', default=False, action='store_true', help='Whether or not to have verbose prints')
     add_scenario_arguments(parser)
@@ -38,13 +37,13 @@ if __name__ == '__main__':
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
     # Match checkpoints with agents
-    ckpt_paths = args.checkpoint_paths
-    assert len(ckpt_paths) <= len(args.agents)
+    ckpt_files = args.checkpoint_files
+    assert len(ckpt_files) <= len(args.agents)
 
     rl_agents = []
     for i, name in enumerate(args.agents):
-        checkpoint_path = ckpt_paths[i] if i < len(ckpt_paths) else None
-        agent = get_system(name, args, schema, checkpoint_path)
+        checkpoint_file = ckpt_files[i] if i < len(ckpt_files) else None
+        agent = get_system(name, args, schema, checkpoint_file)
         rl_agents.append(RLSystem(agent, args))
 
     trainer = Reinforce(rl_agents, scenario_db.scenarios_list)

@@ -131,7 +131,7 @@ class PytorchNeuralSystem(System):
     NeuralSystem loads a neural model from disk and provides a function instantiate a new dialogue agent (NeuralSession
     object) that makes use of this underlying model to send and receive messages in a dialogue.
     """
-    def __init__(self, args, schema, price_tracker, timed):
+    def __init__(self, args, schema, price_tracker, model_path, timed):
         super(PytorchNeuralSystem, self).__init__()
         self.schema = schema
         self.price_tracker = price_tracker
@@ -154,7 +154,6 @@ class PytorchNeuralSystem(System):
         # includes all the args we need, so no need to create dummy_parser
 
         # Load the model.
-        model_path = config_args.checkpoint_file
         mappings, model, model_args = model_builder.load_test_model(args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model

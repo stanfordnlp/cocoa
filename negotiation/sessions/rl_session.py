@@ -1,16 +1,8 @@
 import random
-import re
-from itertools import izip
 import numpy as np
 import pdb
 
-from cocoa.model.vocab import Vocabulary
-from cocoa.core.entity import is_entity, Entity
-from cocoa.pt_model.util import use_gpu
-
-from core.event import Event
 from neural.preprocess import markers, Dialogue
-from neural.evaluator import Evaluator, add_evaluator_arguments
 from session import Session
 from torch.autograd import Variable
 

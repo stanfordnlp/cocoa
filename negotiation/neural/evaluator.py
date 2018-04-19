@@ -11,8 +11,8 @@ from neural.beam import Scorer
 
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
-    group.add_argument('--checkpoint-file', required=True,
-          help='Path to model .pt file')
+    group.add_argument('--checkpoint-files', nargs='*', required=True,
+          help='Path to model .pt file, can be multiple files')
 
     group = parser.add_argument_group('Beam')
     group.add_argument('--beam-size',  type=int, default=5,
