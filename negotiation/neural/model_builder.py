@@ -230,6 +230,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
     decoder = make_decoder(model_opt, tgt_embeddings)
 
+    # TODO: always use multibank since this covers the single attention case too
     if "multibank" in model_opt.global_attention:
       model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder)
     else:

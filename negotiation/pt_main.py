@@ -140,6 +140,14 @@ if __name__ == '__main__':
         for k, v in mappings.iteritems():
             print k, v.size
 
+    # Figure out src and tgt vocab
+    if args.model == 'seq2lf':
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['lf_vocab']
+    else:
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['vocab']
+
     schema = Schema(model_args.schema_path, None)
 
     data_generator = get_data_generator(args, model_args, mappings, schema)
@@ -174,14 +182,6 @@ if __name__ == '__main__':
     create_path(args.model_path)
     config_path = os.path.join(args.model_path, 'config.json')
     write_json(vars(args), config_path)
-
-    # Figure out src and tgt vocab
-    if args.model == 'seq2lf':
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['lf_vocab']
-    else:
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['vocab']
 
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)

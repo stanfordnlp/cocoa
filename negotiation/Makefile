@@ -63,18 +63,19 @@ train-rl:
 	--global-attention multibank_general \
 	--report-every 500 \
 	--epochs 15 \
-	--cache scr/cache/tmp \
+	--cache scr/cache/tmp
 
+model=seq2seq
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--report-every 500 \
 	--epochs 15 \
-	--model seq2lf \
-	--cache scr/cache/tmp \
+	--model $(model) \
+	--cache scr/cache/tmp/$(model) \
 	--verbose \
-	--global-attention multibank_general \
-	#--ignore-cache \
- 	#--train-max-examples 100 --test-max-examples 100 
+	--ignore-cache \
+ 	--train-max-examples 100 --test-max-examples 100 
+	#--global-attention multibank_general \
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-file $(ckpt_file) \

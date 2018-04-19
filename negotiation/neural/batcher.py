@@ -38,7 +38,8 @@ class Batch(object):
         self.lengths, sorted_ids = self.sort_by_length(self.encoder_inputs)
         if sort_by_length:
             for k, v in self.context_data.iteritems():
-                self.context_data[k] = self.order_by_id(v, sorted_ids)
+                if v is not None:
+                    self.context_data[k] = self.order_by_id(v, sorted_ids)
             for attr in unsorted_attributes:
                 sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
                 setattr(self, attr, sorted_attrs)
@@ -101,7 +102,7 @@ class Batch(object):
             elif type(inputs) is list:
                 return [inputs[i] for i in ids]
             else:
-                raise ValueError
+                raise ValueError('Unknown input type {}'.format(type(inputs)))
 
 
 class DialogueBatcher(object):
