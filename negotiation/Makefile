@@ -57,8 +57,8 @@ glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
 
 train-rl:
-	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  \
-	--mappings scr/mappings --checkpoint-files $(ckpt_files) --price-tracker $(price_tracker) \
+	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path data/sample-scenarios.json --checkpoint $(checkpoint) \
+	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt --price-tracker $(price_tracker) \
 	--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
 	--report-every 500 --epochs 15
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300

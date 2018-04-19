@@ -37,13 +37,11 @@ if __name__ == '__main__':
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
     # Match checkpoints with agents
-    ckpt_files = args.checkpoint_files
-    assert len(ckpt_files) <= len(args.agents)
+    assert len(args.checkpoint_files) <= len(args.agents)
 
     rl_agents = []
     for i, name in enumerate(args.agents):
-        checkpoint_file = ckpt_files[i] if i < len(ckpt_files) else None
-        agent = get_system(name, args, schema, checkpoint_file)
+        agent = get_system(name, args, schema, False, args.checkpoint_files[i])
         rl_agents.append(RLSystem(agent, args))
 
     trainer = Reinforce(rl_agents, scenario_db.scenarios_list)
