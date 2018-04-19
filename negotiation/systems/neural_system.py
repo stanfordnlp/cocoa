@@ -173,7 +173,7 @@ class PytorchNeuralSystem(System):
                 model_args.entity_decoding_form, model_args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
-        use_cuda = use_gpu(model_args)
+        use_cuda = use_gpu(args)
 
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
