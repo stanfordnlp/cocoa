@@ -747,7 +747,7 @@ class EvalDialogueBatcher(DialogueBatcher):
 class DialogueBatcherFactory(object):
     @classmethod
     def get_dialogue_batcher(cls, model, **kwargs):
-        if model == 'seq2seq':
+        if model in ['seq2seq', 'sum2sum']:
             batcher = DialogueBatcher(**kwargs)
         elif model == 'seq2lf':
             #batcher = DialogueParserBatcher(**kwargs)

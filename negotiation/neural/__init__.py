@@ -44,8 +44,6 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
     # TODO: hacky
     if model_args.model == 'lm':
         DataGenerator = LMDataGenerator
-    elif model_args.model == 'sum2sum':
-        DataGenerator = SummaryDataGenerator
 
     #if args.retrieve or args.model in ('selector', 'ir'):
     #    retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
@@ -54,7 +52,9 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
 
     retriever = None
     lexicon = PriceTracker(model_args.price_tracker_model)
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
+        model_args.entity_decoding_form, model_args.entity_target_form,
+        model_args.model)
 
     #trie_path = os.path.join(model_args.mappings, 'trie.pkl')
     trie_path = None

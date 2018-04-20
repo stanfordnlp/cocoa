@@ -304,7 +304,8 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, 
+        entity_target_form, model, slot_filling=False, slot_detector=None):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
@@ -316,6 +317,7 @@ class Preprocessor(object):
             assert slot_detector is not None
         self.slot_filling = slot_filling
         self.slot_detector = slot_detector
+        self.model = model
 
     @classmethod
     def get_entity_form(cls, entity, form):
@@ -399,6 +401,24 @@ class Preprocessor(object):
         else:
             raise ValueError('Unknown event action.')
 
+    def is_keyword(self, token):
+        summary_keywords = ["what", "who", "when", "where", "how", "price",
+            "can", "not", "cannot", "interested", "fair", "only", "would",
+            "low", "lower", "high", "higher", "good", "bad", "?", "!"]
+        return token in summary_keywords
+
+    def summarize(self, utterance):
+        '''
+        Keep only the special, summary keywords that signify user intent. We
+        purposely keep duplicates because having repeats can be a good signal,
+        also preservers order because "can not" and "not bad" are meaningful
+        '''
+        summary = []
+        for token in utterance:
+            if is_entity(token) or self.is_keyword(token):
+                summary.append(token)
+        return summary
+
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
@@ -410,6 +430,8 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
+                    if self.model == "sum2sum":
+                        utterance = self.summarize(utterance)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
@@ -749,42 +771,5 @@ class LMDataGenerator(DataGenerator):
             dialogue_batches.append(LMDialogueBatcher(dialogue_batch).create_batch(bptt_steps))
             start = end
         return dialogue_batches
-
-
-class SummaryDialogue(Dialogue):
-    def is_keyword(token):
-        summary_keywords = ["what", "who", "when", "where", "how", "price",
-            "can", "not", "cannot", "interested", "fair", "only", "would",
-            "low", "lower", "high", "higher", "good", "bad", "?", "!"]
-        return token in summary_keywords
-
-    def add_utterance(self, agent, utterance, lf=None):
-        # keep only the special, summary keywords that signify user intent
-        # we purposely keep duplicates because having repeats can be a good signal
-        # also preservers order because "can not" and "not bad" are meaningful
-        summary = [tok for tok in utterance if is_entity(tok) or is_keyword(tok)]
-        # Always start from the partner agent
-        if len(self.agents) == 0 and agent == self.agent:
-            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
-        self._add_utterance(agent, summary, lf=lf)
-
-class SummaryDataGenerator(DataGenerator):
-    def __init__(self, examples, preprocessor, mappings, num_context=1):
-        self.dialogues = {'eval': [self.process_example(ex) for ex in examples]}
-        self.num_examples = {k: len(v) if v else 0 for k, v in self.dialogues.iteritems()}
-        print '%d eval examples' % self.num_examples['eval']
-
-        self.slot_filling = preprocessor.slot_filling
-        self.mappings = mappings
-        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
-
-        SummaryDialogue.mappings = mappings
-        SummaryDialogue.textint_map = self.textint_map
-        SummaryDialogue.preprocessor = preprocessor
-        SummaryDialogue.num_context = num_context
-
-        global int_markers
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
-
 
 
