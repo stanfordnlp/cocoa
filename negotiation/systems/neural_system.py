@@ -158,8 +158,9 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
+
         vocab = mappings['vocab']
-        self.mappings = mappings
+        self.mappings = make_model_mappings(args, mappings)
 
         generator = Generator(model, vocab,
                               beam_size=args.beam_size,
@@ -178,7 +179,6 @@ class PytorchNeuralSystem(System):
 
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
-        mappings = make_model_mappings(args, mappings)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
             int_markers=int_markers, slot_filling=False, kb_pad=kb_padding,
             mappings=mappings, num_context=model_args.num_context)

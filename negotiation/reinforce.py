@@ -52,13 +52,11 @@ if __name__ == '__main__':
 
     assert len(args.checkpoint_files) <= len(args.agents)
     systems = [get_system(name, args, schema, False, args.checkpoint_files[i]) for i, name in enumerate(args.agents)]
-    #systems[0] = RLSystem(systems[0], args)
 
     rl_agent = 0
     system = systems[rl_agent]
     model = system.env.model
-    # TODO: tgt_vocab
-    loss = make_loss(args, model, system.mappings['vocab'])
+    loss = make_loss(args, model, system.mappings['tgt_vocab'])
     optim = build_optim(args, model, None)
 
     trainer = RLTrainer(systems, scenario_db.scenarios_list, loss, optim, rl_agent)
