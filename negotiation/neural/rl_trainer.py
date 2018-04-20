@@ -55,6 +55,8 @@ class RLTrainer(Trainer):
         # Set model in training mode.
         self.model.train()
 
+        self.all_rewards = []
+
     def update(self, batch, rewards):
         outputs, _, _ = self._run_batch(batch)
         loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs, rewards)
@@ -78,14 +80,16 @@ class RLTrainer(Trainer):
         return Controller(scenario, sessions)
 
     def get_reward(self, example):
-        agent_ids = {'seller': 0, 'buyer': 1}
-        reward = {'seller': 0, 'buyer': 0}
+        reward = {}
         targets = {}
-        for role in ('seller', 'buyer'):
-            agent_id = agent_ids[role]
-            targets[role] = self.scenarios[agent_id].kbs[agent_id].facts["personal"]["Target"]
+        kbs = example.scenario.kbs
+        for agent_id in (0, 1):
+            kb = kbs[agent_id]
+            targets[kb.role] = kb.target
+
         midpoint = (targets['seller'] + targets['buyer']) / 2.
 
+        # No agreement
         if example.outcome is None or example.outcome['offer'] is None:
             return {'seller': -5., 'buyer': -5}
 
@@ -120,6 +124,10 @@ class RLTrainer(Trainer):
             # Compute reward
             rewards = self.get_reward(example)
             reward = rewards[session.kb.role]
+            # Standardize the reward
+            self.all_rewards.append(reward)
+            reward = (reward - np.mean(self.all_rewards)) / max(1e-4, np.std(self.all_rewards))
+            # Discount
             T = batch_iter.next()
             rewards = self.discount_reward(reward, args.discount_factor, T)
 
