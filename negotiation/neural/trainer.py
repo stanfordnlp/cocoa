@@ -228,21 +228,9 @@ class Trainer(object):
 
         num_val_batches = valid_iter.next()
         for batch in valid_iter:
-            encoder_inputs = batch.encoder_inputs
-            decoder_inputs = batch.decoder_inputs
-            targets = batch.targets
-            lengths = batch.lengths
-
-            if hasattr(self.model, 'context_embedder'):
-              context_inputs = batch.context_inputs
-              title_inputs = batch.title_inputs
-              desc_inputs = batch.desc_inputs
-              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, 
-                  context_inputs, title_inputs, desc_inputs, lengths)
-            else:
-              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
-
-            _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
+            dec_state = None
+            outputs, attns, _ = self._run_batch(batch, dec_state)
+            _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
             stats.update(batch_stats)
 
         # Set model back to training mode
@@ -288,6 +276,28 @@ class Trainer(object):
         print 'Save checkpoint {path}'.format(path=path)
         torch.save(checkpoint, path)
 
+    def _run_batch(self, batch, dec_state):
+        encoder_inputs = batch.encoder_inputs
+        decoder_inputs = batch.decoder_inputs
+        targets = batch.targets
+        lengths = batch.lengths
+
+        # running forward() method in the NegotiationModel
+        if hasattr(self.model, 'context_embedder'):
+            context_inputs = batch.context_inputs
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
+
+            outputs, attns, dec_state = self.model(encoder_inputs,
+                    decoder_inputs, context_inputs, title_inputs,
+                    desc_inputs, lengths, dec_state)
+        # running forward() method in NMT Model
+        else:
+            outputs, attns, dec_state = self.model(encoder_inputs,
+                  decoder_inputs, lengths, dec_state)
+
+        return outputs, attns, dec_state
+
     def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
         if self.grad_accum_count > 1:
             self.model.zero_grad()
@@ -295,26 +305,10 @@ class Trainer(object):
         for batch in true_batchs:
             dec_state = None
 
-            encoder_inputs = batch.encoder_inputs
-            decoder_inputs = batch.decoder_inputs
-            targets = batch.targets
-            lengths = batch.lengths
-
             self.model.zero_grad()
-            # running forward() method in the NegotiationModel
-            if hasattr(self.model, 'context_embedder'):
-              context_inputs = batch.context_inputs
-              title_inputs = batch.title_inputs
-              desc_inputs = batch.desc_inputs
+            outputs, attns, dec_state = self._run_batch(batch, dec_state)
 
-              outputs, attns, dec_state = self.model(encoder_inputs,
-                      decoder_inputs, context_inputs, title_inputs,
-                      desc_inputs, lengths, dec_state)
-            else:  # running forward() method in NMT Model
-              outputs, attns, dec_state = self.model(encoder_inputs,
-                      decoder_inputs, lengths, dec_state)
-
-            loss, batch_stats = self.train_loss.compute_loss(targets, outputs)
+            loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
             loss.backward()
             self.optim.step()
 
