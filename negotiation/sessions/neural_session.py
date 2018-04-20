@@ -88,6 +88,7 @@ class NeuralSession(Session):
                 return self.reject()
 
         s = self.attach_punct(' '.join(tokens))
+        print 'send:', s
         return self.message(s)
 
 class GeneratorNeuralSession(NeuralSession):
