@@ -121,6 +121,8 @@ class Dialogue(object):
         self.is_int = False  # Whether we've converted it to integers
         self.num_context = None
 
+        self.price_turns = None
+
         self.token_candidates = None
         self.candidates = None
         self.true_candidate_inds = None
@@ -283,11 +285,12 @@ class Dialogue(object):
         self.roles = self._pad_list(self.roles, num_turns, None)
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
-        self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+        if self.price_turns:
+            self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+            assert len(self.price_turns) == len(self.turns[0])
         self.lfs = self._pad_list(self.lfs, num_turns, [])
         if self.candidates:
             self.candidates = self._pad_list(self.candidates, num_turns, [])
-        assert len(self.price_turns) == len(self.turns[0])
 
     def get_price_turns(self, pad):
         '''

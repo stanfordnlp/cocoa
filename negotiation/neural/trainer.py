@@ -11,8 +11,6 @@ import torch.nn as nn
 from onmt.Trainer import Statistics as BaseStatistics
 from onmt.Utils import use_gpu
 
-from cocoa.pt_model.util import smart_variable
-
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -276,7 +274,7 @@ class Trainer(object):
         print 'Save checkpoint {path}'.format(path=path)
         torch.save(checkpoint, path)
 
-    def _run_batch(self, batch, dec_state):
+    def _run_batch(self, batch, dec_state=None):
         encoder_inputs = batch.encoder_inputs
         decoder_inputs = batch.decoder_inputs
         targets = batch.targets

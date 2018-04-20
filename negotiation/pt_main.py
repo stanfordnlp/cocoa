@@ -20,7 +20,7 @@ from onmt.Utils import use_gpu
 
 from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments, get_data_generator
+from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.loss import SimpleLossCompute
 
@@ -141,12 +141,7 @@ if __name__ == '__main__':
             print k, v.size
 
     # Figure out src and tgt vocab
-    if args.model == 'seq2lf':
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['lf_vocab']
-    else:
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['vocab']
+    make_model_mappings(args, mappings)
 
     schema = Schema(model_args.schema_path, None)
 

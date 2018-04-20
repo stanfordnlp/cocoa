@@ -58,9 +58,9 @@ glove-pt:
 
 train-rl:
 	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path data/sample-scenarios.json --checkpoint $(checkpoint) \
-	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt --price-tracker $(price_tracker) \
-	--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
-	--report-every 500 --epochs 15
+	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.86_e10.pt $(checkpoint)/model_loss2.86_e10.pt --price-tracker $(price_tracker) \
+	--optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
+	--report-every 500 --max-turns 10 --num-dialogues 100000
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
@@ -72,9 +72,9 @@ train:
 	--report-every 500 \
 	--epochs 15 \
 	--model $(model) \
-	--cache scr/cache/all/$(model) \
+	--cache scr/cache/tmp/$(model) \
 	--verbose \
-	--ignore-cache \
+	#--ignore-cache \
  	#--train-max-examples 100 --test-max-examples 100 
 
 test:

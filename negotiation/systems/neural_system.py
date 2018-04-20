@@ -15,7 +15,7 @@ from cocoa.lib import logstats
 # from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 # from tf_model.batcher import DialogueBatcherFactory
 import torch
-from neural import model_builder, get_data_generator
+from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
@@ -89,7 +89,7 @@ class NeuralSystem(System):
         preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings)
 
         # Retriever
         if args.model == 'selector':
@@ -159,6 +159,7 @@ class PytorchNeuralSystem(System):
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         vocab = mappings['vocab']
+        self.mappings = mappings
 
         generator = Generator(model, vocab,
                               beam_size=args.beam_size,
@@ -177,10 +178,10 @@ class PytorchNeuralSystem(System):
 
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
+        mappings = make_model_mappings(args, mappings)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
-            int_markers=int_markers, slot_filling=False, kb_pad=kb_padding)
-        # data_batcher = get_data_generator(args, model_args, mappings, schema, test=True)
-        # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
+            int_markers=int_markers, slot_filling=False, kb_pad=kb_padding,
+            mappings=mappings, num_context=model_args.num_context)
 
         #TODO: class variable is not a good way to do this
         Dialogue.preprocessor = preprocessor

@@ -30,14 +30,15 @@ class NeuralSession(Session):
         self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
         self.max_len = 100
 
+    # TODO: move this to preprocess?
     def convert_to_int(self):
         for i, turn in enumerate(self.dialogue.token_turns):
-            curr_turns = self.dialogue.turns[Dialogue.ENC]
-            if i >= len(curr_turns):
-                curr_turns.append(self.env.textint_map.text_to_int(turn, 'encoding'))
-            else:
-                # Already converted
-                pass
+            for curr_turns, stage in izip(self.dialogue.turns, ('encoding', 'decoding', 'target')):
+                if i >= len(curr_turns):
+                    curr_turns.append(self.env.textint_map.text_to_int(turn, stage))
+                else:
+                    # Already converted
+                    pass
 
     def receive(self, event):
         if event.action in Event.decorative_events:
@@ -200,7 +201,6 @@ class PytorchNeuralSession(NeuralSession):
         self.builder = env.utterance_builder
         self.cuda = env.cuda
         self.gt_prefix = 1 # cannot be > 1
-        self.logprobs = []
         self.use_rl = use_rl
         # self.dialogue = env.Dialogue
         # self.num_context = env.Dialogue.num_context
@@ -253,26 +253,12 @@ class PytorchNeuralSession(NeuralSession):
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
         encoder_init_state = None
-        # pdb.set_trace()
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self.output_to_tokens(output_data)
-        if self.use_rl:
-            # logprobs: (batch_size, n_best)
-            log_probability = output_data['logprobs'][0][0]
-            self.logprobs.append(log_probability)
 
         if not self._is_valid(entity_tokens):
             return None
         return entity_tokens
-
-    # def calculate_logprob(self, data):
-        # generator._from_beam() method already calculated scores
-        # prob = F.softmax(data['scores'][0])
-        # logprob = F.log_softmax(data['scores'][0])
-
-        # word = prob.multinomial().detach()
-        # logprob = logprob.gather(0, word)
-        # return logprob
 
     def _is_valid(self, tokens):
         if not tokens:
@@ -285,3 +271,21 @@ class PytorchNeuralSession(NeuralSession):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
         return tokens[1:]
+
+    # To support REINFORCE
+    # TODO: this should be in NeuralSession
+    def iter_batches(self):
+        """Compute the logprob of each generated utterance.
+        """
+        self.convert_to_int()
+        batches = self.batcher.create_batch([self.dialogue])
+        yield len(batches)
+        for batch in batches:
+            # TODO: this should be in batcher
+            batch = Batch(batch['encoder_args'],
+                          batch['decoder_args'],
+                          batch['context_data'],
+                          self.env.vocab,
+                          num_context=Dialogue.num_context, cuda=self.env.cuda)
+            yield batch
+
