@@ -216,7 +216,7 @@ class Dialogue(object):
         else:
             lf = []
 
-        if new turn:
+        if new_turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
             self.roles.append(role)
