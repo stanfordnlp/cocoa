@@ -164,6 +164,12 @@ class Dialogue(object):
             candidates, self.true_candidate_inds = self.add_ground_truth(candidates, self.token_turns)
         self.token_candidates = candidates
 
+    def add_utterance(self, agent, utterance, lf=None):
+        # Always start from the partner agent
+        if len(self.agents) == 0 and agent == self.agent:
+            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
+        self._add_utterance(agent, utterance, lf=lf)
+
     @classmethod
     def scale_price(cls, kb, utterance):
         return [PriceScaler.scale_price(kb, x) if is_entity(x) else x for x in utterance]
@@ -195,12 +201,6 @@ class Dialogue(object):
             utterance.insert(0, start_symbol)
 
         return utterance
-
-    def add_utterance(self, agent, utterance, lf=None):
-        # Always start from the partner agent
-        if len(self.agents) == 0 and agent == self.agent:
-            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
-        self._add_utterance(agent, utterance, lf=lf)
 
     def _add_utterance(self, agent, utterance, lf=None):
         # Same agent talking
