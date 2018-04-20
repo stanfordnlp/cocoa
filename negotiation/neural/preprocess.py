@@ -108,7 +108,7 @@ class Dialogue(object):
         self.category = kb.category
         self.title = tokenize(re.sub(r'[^\w0-9]', ' ', kb.facts['item']['Title']))
         self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
-        # token_turns: tokens and entitys (output of entitylink)
+        # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
         self.lfs = []
@@ -164,12 +164,6 @@ class Dialogue(object):
             candidates, self.true_candidate_inds = self.add_ground_truth(candidates, self.token_turns)
         self.token_candidates = candidates
 
-    def add_utterance(self, agent, utterance, lf=None):
-        # Always start from the partner agent
-        if len(self.agents) == 0 and agent == self.agent:
-            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
-        self._add_utterance(agent, utterance, lf=lf)
-
     @classmethod
     def scale_price(cls, kb, utterance):
         return [PriceScaler.scale_price(kb, x) if is_entity(x) else x for x in utterance]
@@ -202,6 +196,12 @@ class Dialogue(object):
 
         return utterance
 
+    def add_utterance(self, agent, utterance, lf=None):
+        # Always start from the partner agent
+        if len(self.agents) == 0 and agent == self.agent:
+            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
+        self._add_utterance(agent, utterance, lf=lf)
+
     def _add_utterance(self, agent, utterance, lf=None):
         # Same agent talking
         if len(self.agents) > 0 and agent == self.agents[-1]:
@@ -216,11 +216,7 @@ class Dialogue(object):
         else:
             lf = []
 
-        if not new_turn:
-            self.token_turns[-1].extend(utterance)
-            self.lfs[-1].extend(lf)
-            self.entities[-1].extend(entities)
-        else:
+        if new turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
             self.roles.append(role)
@@ -228,6 +224,10 @@ class Dialogue(object):
             self.token_turns.append(utterance)
             self.entities.append(entities)
             self.lfs.append(lf)
+        else:
+            self.token_turns[-1].extend(utterance)
+            self.entities[-1].extend(entities)
+            self.lfs[-1].extend(lf)
 
     def candidates_to_int(self):
         def remove_slot(tokens):
@@ -338,20 +338,6 @@ class Preprocessor(object):
         else:
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
-    def _process_example(self, ex):
-        '''
-        Convert example to turn-based dialogue from each agent's perspective
-        Create two Dialogue objects for each example
-        '''
-        kbs = ex.scenario.kbs
-        for agent in (0, 1):
-            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
-            for e in ex.events:
-                utterance = self.process_event(e, dialogue.kb)
-                if utterance:
-                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
-            yield dialogue
-
     @classmethod
     def price_to_entity(cls, price):
         return Entity(price, CanonicalEntity(price, 'price'))
@@ -412,6 +398,20 @@ class Preprocessor(object):
             return entity_tokens
         else:
             raise ValueError('Unknown event action.')
+
+    def _process_example(self, ex):
+        '''
+        Convert example to turn-based dialogue from each agent's perspective
+        Create two Dialogue objects for each example
+        '''
+        kbs = ex.scenario.kbs
+        for agent in (0, 1):
+            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
+            for e in ex.events:
+                utterance = self.process_event(e, dialogue.kb)
+                if utterance:
+                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
+            yield dialogue
 
     @classmethod
     def skip_example(cls, example):
@@ -482,7 +482,10 @@ class DataGenerator(object):
         global int_markers
         int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
 
-        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings, num_context=num_context)
+        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
+                        int_markers=int_markers, slot_filling=self.slot_filling,
+                        kb_pad=mappings['kb_vocab'].to_ind(markers.PAD),
+                        mappings=mappings, num_context=num_context)
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
 
         self.trie = None
@@ -710,7 +713,7 @@ class EvalDataGenerator(DataGenerator):
         return d
 
     def dialogue_sort_score(self, d):
-        # Sort dialogues by number o turns
+        # Sort dialogues by number of turns
         return d.context_len()
 
     def get_dialogue_batch(self, dialogues, slot_filling):
@@ -746,4 +749,42 @@ class LMDataGenerator(DataGenerator):
             dialogue_batches.append(LMDialogueBatcher(dialogue_batch).create_batch(bptt_steps))
             start = end
         return dialogue_batches
+
+
+class SummaryDialogue(Dialogue):
+    def is_keyword(token):
+        summary_keywords = ["what", "who", "when", "where", "how", "price",
+            "can", "not", "cannot", "interested", "fair", "only", "would",
+            "low", "lower", "high", "higher", "good", "bad", "?", "!"]
+        return token in summary_keywords
+
+    def add_utterance(self, agent, utterance, lf=None):
+        # keep only the special, summary keywords that signify user intent
+        # we purposely keep duplicates because having repeats can be a good signal
+        # also preservers order because "can not" and "not bad" are meaningful
+        summary = [tok for tok in utterance if is_entity(tok) or is_keyword(tok)]
+        # Always start from the partner agent
+        if len(self.agents) == 0 and agent == self.agent:
+            self._add_utterance(1 - self.agent, [], lf={'intent': 'start'})
+        self._add_utterance(agent, summary, lf=lf)
+
+class SummaryDataGenerator(DataGenerator):
+    def __init__(self, examples, preprocessor, mappings, num_context=1):
+        self.dialogues = {'eval': [self.process_example(ex) for ex in examples]}
+        self.num_examples = {k: len(v) if v else 0 for k, v in self.dialogues.iteritems()}
+        print '%d eval examples' % self.num_examples['eval']
+
+        self.slot_filling = preprocessor.slot_filling
+        self.mappings = mappings
+        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+
+        SummaryDialogue.mappings = mappings
+        SummaryDialogue.textint_map = self.textint_map
+        SummaryDialogue.preprocessor = preprocessor
+        SummaryDialogue.num_context = num_context
+
+        global int_markers
+        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+
+
 

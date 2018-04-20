@@ -44,6 +44,8 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
     # TODO: hacky
     if model_args.model == 'lm':
         DataGenerator = LMDataGenerator
+    elif model_args.model == 'sum2sum':
+        DataGenerator = SummaryDataGenerator
 
     #if args.retrieve or args.model in ('selector', 'ir'):
     #    retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
