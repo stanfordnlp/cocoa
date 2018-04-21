@@ -216,7 +216,7 @@ class Dialogue(object):
         else:
             lf = []
 
-        if new_turn:
+        if new turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
             self.roles.append(role)
@@ -432,6 +432,10 @@ class Preprocessor(object):
                 if utterance:
                     if self.model == "sum2sum":
                         utterance = self.summarize(utterance)
+                    elif self.model == "sum2seq":
+                        summary = self.summarize(utterance)
+                        # Do we want to add some EOD marker here?
+                        summary.extend(utterance)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 

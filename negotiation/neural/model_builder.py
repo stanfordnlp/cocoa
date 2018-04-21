@@ -61,7 +61,7 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf', 'sum2sum'],
+                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
@@ -210,7 +210,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     kb_embeddings = make_embeddings(model_opt, kb_dict)
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
     # Make decoder.
-    if model_opt.model in ['seq2seq', 'sum2sum']:
+    if model_opt.model in ['seq2seq', 'sum2sum', 'sum2seq']:
         tgt_dict = mappings['vocab']
     elif model_opt.model == 'seq2lf':
         tgt_dict = mappings['lf_vocab']
