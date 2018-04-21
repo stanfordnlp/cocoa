@@ -48,8 +48,9 @@ if __name__ == '__main__':
         cuda.set_device(args.gpuid[0])
 
     # Load the model.
+    ckpt_file = args.checkpoint_files[0] if isinstance(args.checkpoint_files, list) else args.checkpoint_files
     mappings, model, model_args = \
-        model_builder.load_test_model(args.checkpoint_files, args, dummy_args.__dict__)
+        model_builder.load_test_model(ckpt_file, args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
     if model_args.model == 'seq2lf':

@@ -67,7 +67,7 @@ train-rl:
 #seq2seq
 model=sum2sum
 train:
-	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
+	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--global-attention multibank_general \
 	--num-context 2 \
 	--report-every 500 \
@@ -75,15 +75,14 @@ train:
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
-	--ignore-cache \
- 	#--train-max-examples 100 --test-max-examples 100 
+ 	--train-max-examples 100 --test-max-examples 100 
+	# --ignore-cache \
 
 test:
-	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-file $(ckpt_file) \
+	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 1 --verbose --checkpoint-files $(ckpt_files) \
 	--cache scr/cache/all/$(model) \
-	#--ignore-cache \
-	#--test-max-examples 10 \
-
+	--test-max-examples 10 \
+	--ignore-cache
 
 dropout=0.0
 train-neg:
