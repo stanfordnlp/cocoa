@@ -409,7 +409,7 @@ class Preprocessor(object):
                 "high", "higher", "sound", "sounds", "price", "but", "give"],
             "bigram": [("would",  "you"), ("great", "condition"), ("i", "can"),
                 ("interested", "in"), ("willing", "to"), ("how", "about"),
-                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me")]
+                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me")],
             "trigram": [("have", "a", "deal"), ("would", "you", "be"),
                 ("i", "can", "do"), ("i", "ca", "n't"), ("pick", "it", "up")]
         }
@@ -426,38 +426,37 @@ class Preprocessor(object):
 
             if is_entity(uni):
                 summary.append(uni)
-            elif (is_keyword(tri, "trigram")):
+            elif (self.is_keyword(tri, "trigram")):
                 for token in tri:
                     summary.append(token)
                 i += 2
-            elif (is_keyword(tri, "bigram")):
+            elif (self.is_keyword(tri, "bigram")):
                 for token in bi:
                     summary.append(token)
                 i += 1
-            elif (is_keyword(uni, "unigram")):
+            elif (self.is_keyword(uni, "unigram")):
                 summary.append(uni)
 
         # handle the edge cases of last two tokens
         # out bigrams don't occur at ends of sentences
-        if is_keyword(utterance[-2], "unigram")
+        if len(utterance) > 1 and self.is_keyword(utterance[-2], "unigram"):
             summary.append(utterance[-2])
-        if is_keyword(utterance[-1], "unigram")
+        if self.is_keyword(utterance[-1], "unigram"):
             summary.append(utterance[-1])
 
         return summary
 
-
+    '''
     def summarize(self, utterance):
-        '''
         Keep only the special, summary keywords that signify user intent. We
         purposely keep duplicates because having repeats can be a good signal,
         also preservers order because "can not" and "not bad" are meaningful
-        '''
         summary = []
         for token in utterance:
             if is_entity(token) or self.is_keyword(token):
                 summary.append(token)
         return summary
+    '''
 
     def _process_example(self, ex):
         '''
@@ -470,12 +469,11 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    if self.model == "sum2sum":
-
+                    if self.model == "sum2sum" and :
                         # sanity check to see the summarizer is working properly
                         if random.random() < 0.2:
                             summary = self.summarize(utterance)
-                            print utterance
+                            print " ".join(map(str, utterance))
                             print summary
                             print " "
                             utterance = summary
