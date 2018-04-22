@@ -216,7 +216,7 @@ class Dialogue(object):
         else:
             lf = []
 
-        if new_turn:
+        if new turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
             self.roles.append(role)
@@ -401,11 +401,51 @@ class Preprocessor(object):
         else:
             raise ValueError('Unknown event action.')
 
-    def is_keyword(self, token):
-        summary_keywords = ["what", "who", "when", "where", "how", "price",
-            "can", "not", "cannot", "interested", "fair", "only", "would",
-            "low", "lower", "high", "higher", "good", "bad", "?", "!"]
-        return token in summary_keywords
+
+    def is_keyword(self, token, key_type):
+        summary_keywords = {
+            "unigram": ["you", "i", "deal", "agree", "great", "!", "?",
+                "can", "not", "have", "good", "bad", "offer", "low", "lower",
+                "high", "higher", "sound", "sounds", "price", "but", "give"],
+            "bigram": [("would",  "you"), ("great", "condition"), ("i", "can"),
+                ("interested", "in"), ("willing", "to"), ("how", "about"),
+                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me")]
+            "trigram": [("have", "a", "deal"), ("would", "you", "be"),
+                ("i", "can", "do"), ("i", "ca", "n't"), ("pick", "it", "up")]
+        }
+        return token in summary_keywords[key_type]
+
+
+    def summarize(self, utterance):
+        summary = []
+        # loop through the utterance once to check ngrams
+        for i in range(len(utterance) - 2):
+            uni = utterance[i]
+            bi = utterance[i:i+2]
+            tri = utterance[i:i+3]
+
+            if is_entity(uni):
+                summary.append(uni)
+            elif (is_keyword(tri, "trigram")):
+                for token in tri:
+                    summary.append(token)
+                i += 2
+            elif (is_keyword(tri, "bigram")):
+                for token in bi:
+                    summary.append(token)
+                i += 1
+            elif (is_keyword(uni, "unigram")):
+                summary.append(uni)
+
+        # handle the edge cases of last two tokens
+        # out bigrams don't occur at ends of sentences
+        if is_keyword(utterance[-2], "unigram")
+            summary.append(utterance[-2])
+        if is_keyword(utterance[-1], "unigram")
+            summary.append(utterance[-1])
+
+        return summary
+
 
     def summarize(self, utterance):
         '''
@@ -431,10 +471,20 @@ class Preprocessor(object):
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
                     if self.model == "sum2sum":
-                        utterance = self.summarize(utterance)
+
+                        # sanity check to see the summarizer is working properly
+                        if random.random() < 0.2:
+                            summary = self.summarize(utterance)
+                            print utterance
+                            print summary
+                            print " "
+                            utterance = summary
+                        else:
+                            utterance = self.summarize(utterance)
+
                     elif self.model == "sum2seq":
                         summary = self.summarize(utterance)
-                        # Do we want to add some EOD marker here?
+                        summary.append(markers.END_SUM)
                         summary.extend(utterance)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
