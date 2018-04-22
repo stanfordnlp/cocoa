@@ -75,8 +75,8 @@ train:
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
- 	--train-max-examples 100 --test-max-examples 100 
-	# --ignore-cache \
+	--ignore-cache
+ 	# --train-max-examples 100 --test-max-examples 100 
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 1 --verbose --checkpoint-files $(ckpt_files) \

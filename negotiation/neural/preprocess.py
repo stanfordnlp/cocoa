@@ -406,9 +406,10 @@ class Preprocessor(object):
         summary_keywords = {
             "unigram": ["you", "i", "deal", "agree", "great", "!", "?", "n't",
                 "can", "not", "have", "good", "bad", "offer", "low", "lower",
-                "high", "higher", "sound", "sounds", "price", "but", "give"],
+                "high", "higher", "sound", "sounds", "price", "but", "give",
+                "hello", "hi", "accept"],
             "bigram": [("would",  "you"), ("great", "condition"), ("ca", "n't"),
-                ("interested", "in"), ("willing", "to"), ("how", "about"),
+                ("interested", "in"), ("willing", "to"), ("how", "about"), ("how", "much"),
                 ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me"), ("brand", "new")],
             "trigram": [("have", "a", "deal"), ("would", "you", "be"),
                 ("i", "can", "do"), ("i", "ca", "n't"), ("pick", "it", "up")]
@@ -467,13 +468,6 @@ class Preprocessor(object):
 
         if self.model == "sum2sum":
             summary = self.summarize(utterance)
-
-            # sanity check to see the summarizer is working properly
-            if random.random() < 0.2:
-                print " ".join(map(str, utterance))
-                print summary
-                print " "
-
         elif self.model == "sum2seq":
             summary = self.summarize(utterance)
             summary.append(markers.END_SUM)
@@ -492,7 +486,7 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    utterance = _process_summary(utterance, e.action)
+                    utterance = self._process_summary(utterance, e.action)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
