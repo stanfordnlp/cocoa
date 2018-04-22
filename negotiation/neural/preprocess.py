@@ -458,6 +458,26 @@ class Preprocessor(object):
         return summary
     '''
 
+    def _process_summary(self, utterance, action):
+        if action != "message":
+            return utterance
+
+        if self.model == "sum2sum":
+            summary = self.summarize(utterance)
+
+            # sanity check to see the summarizer is working properly
+            if random.random() < 0.2:
+                print " ".join(map(str, utterance))
+                print summary
+                print " "
+
+        elif self.model == "sum2seq":
+            summary = self.summarize(utterance)
+            summary.append(markers.END_SUM)
+            summary.extend(utterance)
+
+        return summary
+
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
@@ -469,21 +489,7 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    if self.model == "sum2sum" and :
-                        # sanity check to see the summarizer is working properly
-                        if random.random() < 0.2:
-                            summary = self.summarize(utterance)
-                            print " ".join(map(str, utterance))
-                            print summary
-                            print " "
-                            utterance = summary
-                        else:
-                            utterance = self.summarize(utterance)
-
-                    elif self.model == "sum2seq":
-                        summary = self.summarize(utterance)
-                        summary.append(markers.END_SUM)
-                        summary.extend(utterance)
+                    utterance = _process_summary(utterance, e.action)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
