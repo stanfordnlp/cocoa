@@ -404,12 +404,12 @@ class Preprocessor(object):
 
     def is_keyword(self, token, key_type):
         summary_keywords = {
-            "unigram": ["you", "i", "deal", "agree", "great", "!", "?",
+            "unigram": ["you", "i", "deal", "agree", "great", "!", "?", "n't",
                 "can", "not", "have", "good", "bad", "offer", "low", "lower",
                 "high", "higher", "sound", "sounds", "price", "but", "give"],
-            "bigram": [("would",  "you"), ("great", "condition"), ("i", "can"),
+            "bigram": [("would",  "you"), ("great", "condition"), ("ca", "n't"),
                 ("interested", "in"), ("willing", "to"), ("how", "about"),
-                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me")],
+                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me"), ("brand", "new")],
             "trigram": [("have", "a", "deal"), ("would", "you", "be"),
                 ("i", "can", "do"), ("i", "ca", "n't"), ("pick", "it", "up")]
         }
@@ -418,30 +418,33 @@ class Preprocessor(object):
 
     def summarize(self, utterance):
         summary = []
+        # number of words possible to loop through in trigrams
+        gram_iter = iter(range(len(utterance) - 2))
         # loop through the utterance once to check ngrams
-        for i in range(len(utterance) - 2):
+        for i in gram_iter:
             uni = utterance[i]
-            bi = utterance[i:i+2]
-            tri = utterance[i:i+3]
+            bi = tuple(utterance[i:i+2])
+            tri = tuple(utterance[i:i+3])
 
             if is_entity(uni):
                 summary.append(uni)
             elif (self.is_keyword(tri, "trigram")):
                 for token in tri:
                     summary.append(token)
-                i += 2
-            elif (self.is_keyword(tri, "bigram")):
+                next(gram_iter)
+                next(gram_iter)
+            elif (self.is_keyword(bi, "bigram")):
                 for token in bi:
                     summary.append(token)
-                i += 1
+                next(gram_iter)
             elif (self.is_keyword(uni, "unigram")):
                 summary.append(uni)
 
         # handle the edge cases of last two tokens
-        # out bigrams don't occur at ends of sentences
-        if len(utterance) > 1 and self.is_keyword(utterance[-2], "unigram"):
-            summary.append(utterance[-2])
-        if self.is_keyword(utterance[-1], "unigram"):
+        if len(utterance) > 1:
+            if self.is_keyword(utterance[-2], "unigram") or is_entity(utterance[-2]):
+                summary.append(utterance[-2])
+        if self.is_keyword(utterance[-1], "unigram") or is_entity(utterance[-1]):
             summary.append(utterance[-1])
 
         return summary
