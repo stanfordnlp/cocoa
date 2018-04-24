@@ -7,6 +7,7 @@ import re
 import time
 import os
 import numpy as np
+import pdb
 from itertools import izip, izip_longest
 from collections import namedtuple, defaultdict
 
@@ -535,20 +536,20 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(mappings_path, schema, preprocessor)
-        self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
+        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
 
-        Dialogue.mappings = mappings
+        Dialogue.mappings = self.mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
                         int_markers=int_markers, slot_filling=self.slot_filling,
-                        kb_pad=mappings['kb_vocab'].to_ind(markers.PAD),
-                        mappings=mappings, num_context=num_context)
+                        kb_pad=self.mappings['kb_vocab'].to_ind(markers.PAD),
+                        mappings=self.mappings, num_context=num_context)
 
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
         self.trie = None
@@ -557,7 +558,7 @@ class DataGenerator(object):
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
         if not os.path.exists(vocab_path):
             print 'Vocab not found at', vocab_path
-            mappings = create_mappings(self.dialogues['train'], schema,
+            mappings = create_mappings(self.dialogues, schema,
                 preprocessor.entity_forms.values())
             write_pickle(mappings, vocab_path)
             print('Wrote mappings to {}, now exiting.'.format(vocab_path))
@@ -567,6 +568,7 @@ class DataGenerator(object):
             mappings = read_pickle(vocab_path)
             for k, v in mappings.iteritems():
                 print k, v.size
+            return mappings
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape

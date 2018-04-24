@@ -25,7 +25,7 @@ def build_utterance_vocab(dialogues, special_symbols=[], entity_forms=[]):
             vocab.add_word(word)
 
     # Add words
-    for split_type in ["train", "dev", "test"]:
+    for split_type in ["train", "dev"]:
         for dialogue in dialogues[split_type]:
             assert dialogue.is_int is False
             for turn in dialogue.token_turns:
@@ -45,7 +45,7 @@ def build_kb_vocab(dialogues, special_symbols=[]):
     kb_vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
 
-    for split_type in ["train", "dev", "test"]:
+    for split_type in ["train", "dev"]:
         for dialogue in dialogues[split_type]:
             assert dialogue.is_int is False
             kb_vocab.add_words(dialogue.title)
@@ -63,7 +63,7 @@ def build_kb_vocab(dialogues, special_symbols=[]):
 
 def build_lf_vocab(dialogues):
     vocab = Vocabulary(offset=0, unk=True)
-    for split_type in ["train", "dev", "test"]:
+    for split_type in ["train", "dev"]:
         for dialogue in dialogues[split_type]:
             assert dialogue.is_int is False
             for lf in dialogue.lfs:
