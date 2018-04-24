@@ -25,43 +25,49 @@ def build_utterance_vocab(dialogues, special_symbols=[], entity_forms=[]):
             vocab.add_word(word)
 
     # Add words
-    for dialogue in dialogues:
-        assert dialogue.is_int is False
-        for turn in dialogue.token_turns:
-            for token in turn:
-                if is_entity(token):
-                    _add_entity(token)
-                else:
-                    vocab.add_word(token)
+    for split_type in ["train", "dev", "test"]:
+        for dialogue in dialogues[split_type]:
+            assert dialogue.is_int is False
+            for turn in dialogue.token_turns:
+                for token in turn:
+                    if is_entity(token):
+                        _add_entity(token)
+                    else:
+                        vocab.add_word(token)
 
     # Add special symbols
     vocab.add_words(special_symbols, special=True)
     vocab.finish(size_threshold=10000)
-    print 'Utterance vocabulary size:', vocab.size
+    print 'Utterance vocab size:', vocab.size
     return vocab
 
 def build_kb_vocab(dialogues, special_symbols=[]):
-    vocab = Vocabulary(offset=0, unk=True)
+    kb_vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
+
+    for split_type in ["train", "dev", "test"]:
+        for dialogue in dialogues[split_type]:
+            assert dialogue.is_int is False
+            kb_vocab.add_words(dialogue.title)
+            kb_vocab.add_words(dialogue.description)
+            cat_vocab.add_word(dialogue.category)
+
+    kb_vocab.add_words(special_symbols, special=True)
+    kb_vocab.finish(freq_threshold=5)
     cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'], special=True)
-    for dialogue in dialogues:
-        assert dialogue.is_int is False
-        vocab.add_words(dialogue.title)
-        vocab.add_words(dialogue.description)
-        cat_vocab.add_word(dialogue.category)
-    vocab.add_words(special_symbols, special=True)
-    vocab.finish(freq_threshold=5)
     cat_vocab.finish()
-    print 'KB vocabulary size:', vocab.size
-    print 'Category size:', cat_vocab.size
-    return vocab, cat_vocab
+
+    print 'KB vocab size:', kb_vocab.size
+    print 'Category vocab size:', cat_vocab.size
+    return kb_vocab, cat_vocab
 
 def build_lf_vocab(dialogues):
     vocab = Vocabulary(offset=0, unk=True)
-    for dialogue in dialogues:
-        assert dialogue.is_int is False
-        for lf in dialogue.lfs:
-            vocab.add_words(lf)
+    for split_type in ["train", "dev", "test"]:
+        for dialogue in dialogues[split_type]:
+            assert dialogue.is_int is False
+            for lf in dialogue.lfs:
+                vocab.add_words(lf)
     vocab.add_words([markers.GO_S, markers.GO_B, markers.EOS, markers.PAD], special=True)
     vocab.finish()
     print 'LF vocabulary size:', vocab.size

@@ -559,7 +559,7 @@ class DataGenerator(object):
             print 'Vocab not found at', vocab_path
             mappings = create_mappings(self.dialogues['train'], schema,
                 preprocessor.entity_forms.values())
-            write_pickle(mappings, vocab_path, ensure_path=True)
+            write_pickle(mappings, vocab_path)
             print('Wrote mappings to {}, now exiting.'.format(vocab_path))
             import sys; sys.exit()
         else:
