@@ -3,7 +3,7 @@ exp=basic
 lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
-mappings=scr/mappings-10k
+mappings=scr/mappings
 checkpoint=scr/checkpoint/$(exp)
 summary_dir=$(checkpoint)/summary
 stats_file=$(checkpoint)/stats
@@ -40,7 +40,7 @@ scenario:
 
 scrape-craigslist:
 	if [ -f scraper/data/negotiation/craigslist_$(cat).json ]; then \
-		rm scraper/data/negotiation/craigslist_$(cat).json; \
+ls		rm scraper/data/negotiation/craigslist_$(cat).json; \
 	fi;
 	cd scraper; scrapy crawl craigslist -o data/negotiation/craigslist_$(cat).json -a cache_dir=/scr/hehe/game-dialogue/craigslist_cache -a from_cache=False -a num_result_pages=100 -a category=$(cat) -a image=1
 
@@ -54,35 +54,36 @@ real-dataset:
 	PYTHONPATH=. python src/scripts/split_dataset.py --example-paths web_output/combined/transcripts/transcripts.json --train-frac 0.8 --test-frac 0.1 --dev-frac 0.1 --output-path data/$(data)/
 
 glove-pt:
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file $(mappings)/vocab.pkl --output-file $(mappings) --vocab-type kb
 
 train-rl:
 	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path data/sample-scenarios.json --checkpoint $(checkpoint) \
-	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt --price-tracker $(price_tracker) \
+	--mappings $(mappings) --checkpoint-files $(checkpoint)/model_loss2.88_e5.pt $(checkpoint)/model_loss2.87_e8.pt --price-tracker $(price_tracker) \
 	--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
 	--report-every 500 --epochs 15
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
 #seq2seq
-model=sum2sum
+model=sum2seq
 train:
-	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json --mappings scr/mappings --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt scr/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
-	--global-attention multibank_general \
+	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json \
+        --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec $(mappings)/utterance_glove.pt $(mappings)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) \
+        --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM --global-attention multibank_general \
 	--num-context 2 \
 	--report-every 500 \
 	--epochs 15 \
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
-	--verbose \
-	--ignore-cache
+	--verbose
+	# --ignore-cache
  	# --train-max-examples 100 --test-max-examples 100 
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 1 --verbose --checkpoint-files $(ckpt_files) \
 	--cache scr/cache/all/$(model) \
-	--test-max-examples 10 \
-	--ignore-cache
+	--ignore-cache \
+	--test-max-examples 10
 
 dropout=0.0
 train-neg:

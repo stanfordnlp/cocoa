@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 import six
 import sys
+import os
 import numpy as np
 import argparse
 import torch
@@ -75,7 +76,7 @@ def main():
     print("\nFiltered embeddings:")
     print("\t* vocab: ", filtered_embeddings.size())
 
-    output_file = opt.output_file + opt.vocab_type + "_glove.pt"
+    output_file = os.path.join(opt.output_file, opt.vocab_type + "_glove.pt")
     print("\nSaving embedding as:\n\t%s"
           % (output_file,))
     torch.save(filtered_embeddings, output_file)
