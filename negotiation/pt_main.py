@@ -129,20 +129,13 @@ if __name__ == '__main__':
     loading_timer = tm.time()
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, schema)
+    mappings = data_generator.mappings
     if args.verbose:
         print("Finished loading and pre-processing data, took {:.1f} seconds".format(tm.time() - loading_timer))
 
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
 
-    # Figure out src and tgt vocab
-    mappings = data_generator.mappings
-    if args.model == 'seq2lf':
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['lf_vocab']
-    else:
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['utterance_vocab']
     # Preview a batch of data
     # train_data = data_generator.generator('train')
     # num_batches = train_data.next()

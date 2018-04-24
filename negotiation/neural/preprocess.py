@@ -535,7 +535,7 @@ class DataGenerator(object):
             self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
-        self.mappings = self.load_mappings(mappings_path, schema, preprocessor)
+        self.mappings = self.load_mappings(args, mappings_path, schema, preprocessor)
         self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
 
         Dialogue.mappings = self.mappings
@@ -554,7 +554,7 @@ class DataGenerator(object):
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
         self.trie = None
 
-    def load_mappings(self, mappings_path, schema, preprocessor):
+    def load_mappings(self, args, mappings_path, schema, preprocessor):
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
         if not os.path.exists(vocab_path):
             print 'Vocab not found at', vocab_path
@@ -568,7 +568,17 @@ class DataGenerator(object):
             mappings = read_pickle(vocab_path)
             for k, v in mappings.iteritems():
                 print k, v.size
-            return mappings
+            return self.set_src_tgt_vocab(args.model)
+
+    def set_src_tgt_vocab(self, model_type):
+        # Figure out src and tgt vocab
+        if model_type == 'seq2lf':
+            mappings['src_vocab'] = mappings['utterance_vocab']
+            mappings['tgt_vocab'] = mappings['lf_vocab']
+        else:  # seq2seq sum2sum or sum2seq
+            mappings['src_vocab'] = mappings['utterance_vocab']
+            mappings['tgt_vocab'] = mappings['utterance_vocab']
+        return mappings
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
