@@ -197,12 +197,12 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         the NMTModel.
     """
     # Make encoder.
-    src_dict = mappings['vocab']
+    src_dict = mappings['utterance_vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
     # Make context embedder.
     if model_opt.num_context > 0:
-      context_dict = mappings['vocab']
+      context_dict = mappings['utterance_vocab']
       context_embeddings = make_embeddings(model_opt, context_dict)
       context_embedder = make_context_embedder(model_opt, context_embeddings)
 
@@ -211,7 +211,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
     # Make decoder.
     if model_opt.model in ['seq2seq', 'sum2sum', 'sum2seq']:
-        tgt_dict = mappings['vocab']
+        tgt_dict = mappings['utterance_vocab']
     elif model_opt.model == 'seq2lf':
         tgt_dict = mappings['lf_vocab']
     else:

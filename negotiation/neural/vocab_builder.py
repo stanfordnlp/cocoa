@@ -68,10 +68,10 @@ def build_lf_vocab(dialogues):
     return vocab
 
 def create_mappings(dialogues, schema, entity_forms):
-    vocab = build_utterance_vocab(dialogues, markers, entity_forms)
+    utterance_vocab = build_utterance_vocab(dialogues, markers, entity_forms)
     kb_vocab, cat_vocab = build_kb_vocab(dialogues, [markers.PAD])
     lf_vocab = build_lf_vocab(dialogues)
-    return {'vocab': vocab,
+    return {'utterance_vocab': utterance_vocab,
             'kb_vocab': kb_vocab,
             'cat_vocab': cat_vocab,
             'lf_vocab': lf_vocab,

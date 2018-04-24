@@ -492,14 +492,14 @@ class DataGenerator(object):
             mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
         self.mappings = mappings
 
-        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+        self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
         Dialogue.mappings = mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
         self.batches = {k: self.create_batches(k, dialogues, batch_size, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
@@ -514,7 +514,7 @@ class DataGenerator(object):
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
-        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
+        mask = np.zeros([batch_size, seq_len, self.mappings['utterance_vocab'].size], dtype=np.bool)
         for batch_id, targets in enumerate(decoder_targets):
             for time_step, t in enumerate(targets):
                 prefix = tuple(targets[:time_step][-5:])
@@ -689,7 +689,7 @@ class EvalDataGenerator(DataGenerator):
 
         self.slot_filling = preprocessor.slot_filling
         self.mappings = mappings
-        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+        self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
 
         EvalDialogue.mappings = mappings
         EvalDialogue.textint_map = self.textint_map
@@ -697,7 +697,7 @@ class EvalDataGenerator(DataGenerator):
         EvalDialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
 
     @classmethod
     def tuple_to_entity(cls, token):

@@ -52,7 +52,7 @@ class NeuralSystem(System):
 
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
         mappings = read_pickle(vocab_path)
-        vocab = mappings['vocab']
+        vocab = mappings['utterance_vocab']
 
         # TODO: different models have the same key now
         args.dropout = 0
@@ -88,7 +88,7 @@ class NeuralSystem(System):
         self.model_name = args.model
         preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
 
         # Retriever
@@ -104,7 +104,7 @@ class NeuralSystem(System):
         Dialogue.num_context = args.num_context
 
         Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'dialogue_batcher', 'retriever'])
-        self.env = Env(model, tf_session, preprocessor, mappings['vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, dialogue_batcher=dialogue_batcher, retriever=retriever)
+        self.env = Env(model, tf_session, preprocessor, mappings['utterance_vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, dialogue_batcher=dialogue_batcher, retriever=retriever)
 
     def __exit__(self, exc_type, exc_val, traceback):
         if self.tf_session:
@@ -158,7 +158,7 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-        vocab = mappings['vocab']
+        vocab = mappings['utterance_vocab']
 
         generator = Generator(model, vocab,
                               beam_size=args.beam_size,

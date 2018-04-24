@@ -55,7 +55,7 @@ class TestPreprocess(object):
     @pytest.fixture(scope='class')
     def textint_map(self, processed_dialogues, schema, preprocessor):
         mappings = create_mappings(processed_dialogues, schema, preprocessor.entity_forms.values())
-        textint_map = TextIntMap(mappings['vocab'], preprocessor)
+        textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
         return textint_map
 
     def test_price_hist(self, processed_dialogues, textint_map, capsys):
