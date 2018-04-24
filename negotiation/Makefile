@@ -16,7 +16,7 @@ num_items=5
 seed=1
 max_epochs=100
 min_epochs=10
-num_epochs=50
+num_epochs=15
 batch_size=128
 entity_form=type
 data=negotiation
@@ -64,20 +64,19 @@ train-rl:
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
-#seq2seq
-model=sum2seq
+model=seq2seq
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json \
         --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec $(mappings)/utterance_glove.pt $(mappings)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) \
         --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM --global-attention multibank_general \
 	--num-context 2 \
 	--report-every 500 \
-	--epochs 15 \
+	--epochs $(num_epochs) \
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
-	--verbose
-	# --ignore-cache
- 	# --train-max-examples 100 --test-max-examples 100 
+	--verbose \
+	--ignore-cache \
+ 	--train-max-examples 100 --test-max-examples 100 
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 1 --verbose --checkpoint-files $(ckpt_files) \

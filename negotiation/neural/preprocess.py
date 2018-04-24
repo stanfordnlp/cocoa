@@ -461,6 +461,8 @@ class Preprocessor(object):
             summary = self.summarize(utterance)
             summary.append(markers.END_SUM)
             summary.extend(utterance)
+        else:
+            summary = utterance
 
         return summary
 
@@ -568,9 +570,9 @@ class DataGenerator(object):
             mappings = read_pickle(vocab_path)
             for k, v in mappings.iteritems():
                 print k, v.size
-            return self.set_src_tgt_vocab(args.model)
+            return self.set_src_tgt_vocab(args.model, mappings)
 
-    def set_src_tgt_vocab(self, model_type):
+    def set_src_tgt_vocab(self, model_type, mappings):
         # Figure out src and tgt vocab
         if model_type == 'seq2lf':
             mappings['src_vocab'] = mappings['utterance_vocab']
