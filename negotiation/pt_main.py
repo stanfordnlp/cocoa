@@ -140,13 +140,6 @@ if __name__ == '__main__':
         for k, v in mappings.iteritems():
             print k, v.size
 
-    # Figure out src and tgt vocab
-    if args.model == 'seq2lf':
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['lf_vocab']
-    else:
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['utterance_vocab']
 
     schema = Schema(model_args.schema_path, None)
 
@@ -163,6 +156,13 @@ if __name__ == '__main__':
         print 'Write mappings to', vocab_path
         import sys; sys.exit()
 
+    # Figure out src and tgt vocab
+    if args.model == 'seq2lf':
+        mappings['src_vocab'] = mappings['utterance_vocab']
+        mappings['tgt_vocab'] = mappings['lf_vocab']
+    else:
+        mappings['src_vocab'] = mappings['utterance_vocab']
+        mappings['tgt_vocab'] = mappings['utterance_vocab']
     # Preview a batch of data
     # train_data = data_generator.generator('train')
     # num_batches = train_data.next()
