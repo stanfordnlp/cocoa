@@ -179,7 +179,7 @@ class PytorchNeuralSystem(System):
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
             int_markers=int_markers, slot_filling=False, kb_pad=kb_padding)
-        # data_batcher = get_data_generator(args, model_args, mappings, schema, test=True)
+        # data_batcher = get_data_generator(args, model_args, schema, test=True)
         # dialogue_batcher = data_batcher.generator(name='test', shuffle=False)
 
         #TODO: class variable is not a good way to do this

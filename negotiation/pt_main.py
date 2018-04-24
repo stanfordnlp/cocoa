@@ -5,7 +5,7 @@ Load data, train model and evaluate
 import argparse
 import random
 import os
-import time
+import time as tm
 from itertools import chain
 import torch
 import torch.nn as nn
@@ -126,37 +126,17 @@ if __name__ == '__main__':
         if args.random_seed > 0:
             torch.cuda.manual_seed(args.random_seed)
 
-    # Load vocab
-    # TODO: put this in DataGenerator
-    vocab_path = os.path.join(model_args.mappings, 'vocab.pkl')
-    if not os.path.exists(vocab_path):
-        print 'Vocab not found at', vocab_path
-        mappings = None
-        args.ignore_cache = True
-    else:
-        if args.verbose:
-            print 'Load vocab from', vocab_path
-        mappings = read_pickle(vocab_path)
-        for k, v in mappings.iteritems():
-            print k, v.size
-
-
+    loading_timer = tm.time()
     schema = Schema(model_args.schema_path, None)
-
-    data_generator = get_data_generator(args, model_args, mappings, schema)
+    data_generator = get_data_generator(args, model_args, schema)
+    if args.verbose:
+        print("Finished loading and pre-processing data, took {:.1f} seconds".format(tm.time() - loading_timer))
 
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
 
-    # Save mappings
-    if not mappings:
-        mappings = data_generator.mappings
-        vocab_path = os.path.join(args.mappings, 'vocab.pkl')
-        write_pickle(mappings, vocab_path, ensure_path=True)
-        print 'Write mappings to', vocab_path
-        import sys; sys.exit()
-
     # Figure out src and tgt vocab
+    mappings = data_generator.mappings
     if args.model == 'seq2lf':
         mappings['src_vocab'] = mappings['utterance_vocab']
         mappings['tgt_vocab'] = mappings['lf_vocab']

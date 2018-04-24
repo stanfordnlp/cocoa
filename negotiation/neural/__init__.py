@@ -9,7 +9,7 @@ def add_data_generator_arguments(parser):
     add_dataset_arguments(parser)
     add_price_tracker_arguments(parser)
 
-def get_data_generator(args, model_args, mappings, schema, test=False):
+def get_data_generator(args, model_args, schema, test=False):
     from cocoa.core.scenario_db import ScenarioDB
     from cocoa.core.dataset import read_dataset, EvalExample
     from cocoa.core.util import read_json
@@ -40,6 +40,7 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
     #else:
     #    add_ground_truth = False
     add_ground_truth = False
+    mappings_path = model_args.mappings
 
     # TODO: hacky
     if model_args.model == 'lm':
@@ -64,7 +65,7 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
         train, dev, test = None, None, dataset.test_examples
     else:
         train, dev, test = dataset.train_examples, dataset.test_examples, None
-    data_generator = DataGenerator(train, dev, test, preprocessor, args, schema, mappings,
+    data_generator = DataGenerator(train, dev, test, preprocessor, args, schema, mappings_path,
         retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache,
         candidates_path=args.candidates_path, num_context=model_args.num_context,
         trie_path=trie_path, batch_size=args.batch_size,

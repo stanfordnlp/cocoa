@@ -52,6 +52,9 @@ if __name__ == '__main__':
     mappings, model, model_args = \
         model_builder.load_test_model(ckpt_file, args, dummy_args.__dict__)
 
+    schema = Schema(model_args.schema_path, None)
+    data_generator = get_data_generator(args, model_args, schema, test=True)
+
     # Figure out src and tgt vocab
     if model_args.model == 'seq2lf':
         mappings['src_vocab'] = mappings['utterance_vocab']
@@ -59,10 +62,6 @@ if __name__ == '__main__':
     else:
         mappings['src_vocab'] = mappings['utterance_vocab']
         mappings['tgt_vocab'] = mappings['utterance_vocab']
-
-    schema = Schema(model_args.schema_path, None)
-    data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
-
     # Prefix: [GO, CATEGORY]
     # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
     evaluator = Evaluator(model, mappings,  gt_prefix=1)

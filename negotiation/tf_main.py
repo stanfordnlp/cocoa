@@ -5,7 +5,7 @@ Load data, learn model and evaluate
 import argparse
 import random
 import os
-import time
+import time as tm
 import tensorflow as tf
 from itertools import chain
 
@@ -78,31 +78,15 @@ if __name__ == '__main__':
         model_args = args
         ckpt = None
 
-    # Load vocab
-    # TODO: put this in DataGenerator
-    vocab_path = os.path.join(model_args.mappings, 'vocab.pkl')
-    if not os.path.exists(vocab_path):
-        print 'Vocab not found at', vocab_path
-        mappings = None
-        args.ignore_cache = True
-    else:
-        print 'Load vocab from', vocab_path
-        mappings = read_pickle(vocab_path)
-        for k, v in mappings.iteritems():
-            print k, v.size
-
+    loading_timer = tm.time()
     schema = Schema(model_args.schema_path, None)
+    data_generator = get_data_generator(args, model_args, schema)
+    if args.verbose:
+        print("Finished loading and pre-processing data, took {:.1f} seconds".format(tm.time() - loading_timer))
 
-    data_generator = get_data_generator(args, model_args, mappings, schema)
-
+    mappings = data_generator.mappings
     for d, n in data_generator.num_examples.iteritems():
         logstats.add('data', d, 'num_dialogues', n)
-
-    # Save mappings
-    if not mappings:
-        mappings = data_generator.mappings
-        vocab_path = os.path.join(args.mappings, 'vocab.pkl')
-        write_pickle(mappings, vocab_path)
     for name, m in mappings.iteritems():
         logstats.add('mappings', name, 'size', m.size)
 

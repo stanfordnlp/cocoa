@@ -450,18 +450,6 @@ class Preprocessor(object):
 
         return summary
 
-    '''
-    def summarize(self, utterance):
-        Keep only the special, summary keywords that signify user intent. We
-        purposely keep duplicates because having repeats can be a good signal,
-        also preservers order because "can not" and "not bad" are meaningful
-        summary = []
-        for token in utterance:
-            if is_entity(token) or self.is_keyword(token):
-                summary.append(token)
-        return summary
-    '''
-
     def _process_summary(self, utterance, action):
         if action != "message":
             return utterance
@@ -519,7 +507,7 @@ class DataGenerator(object):
     trie = None
 
     def __init__(self, train_examples, dev_examples, test_examples, preprocessor,
-            args, schema, mappings=None, retriever=None, cache='.cache',
+            args, schema, mappings_path=None, retriever=None, cache='.cache',
             ignore_cache=False, candidates_path=[], num_context=1, batch_size=1,
             trie_path=None, model='seq2seq', add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
@@ -528,7 +516,6 @@ class DataGenerator(object):
 
         # Build retriever given training dialogues
         self.retriever = retriever
-
         self.slot_filling = preprocessor.slot_filling
 
         self.cache = cache
@@ -547,10 +534,9 @@ class DataGenerator(object):
             self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
-        if not mappings:
-            mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
-        self.mappings = mappings
+        self.mappings = self.load_mappings(mappings_path, schema, preprocessor)
         self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
+
         Dialogue.mappings = mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
@@ -563,15 +549,24 @@ class DataGenerator(object):
                         int_markers=int_markers, slot_filling=self.slot_filling,
                         kb_pad=mappings['kb_vocab'].to_ind(markers.PAD),
                         mappings=mappings, num_context=num_context)
-        self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
 
+        self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
         self.trie = None
-        # NOTE: Trie should be built after batches are created
-        #self.trie = self.create_trie(self.batches.get('train', None), trie_path)
-        #for name, batches in self.batches.iteritems():
-        #    for batch in batches:
-        #        for b in batch['batch_seq']:
-        #            b['mask'] = self.get_mask(b['targets'], name)
+
+    def load_mappings(self, mappings_path, schema, preprocessor):
+        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
+        if not os.path.exists(vocab_path):
+            print 'Vocab not found at', vocab_path
+            mappings = create_mappings(self.dialogues['train'], schema,
+                preprocessor.entity_forms.values())
+            write_pickle(mappings, vocab_path, ensure_path=True)
+            print('Wrote mappings to {}, now exiting.'.format(vocab_path))
+            import sys; sys.exit()
+        else:
+            print 'Loading vocab from', vocab_path
+            mappings = read_pickle(vocab_path)
+            for k, v in mappings.iteritems():
+                print k, v.size
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
