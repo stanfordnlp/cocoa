@@ -25,15 +25,14 @@ def build_utterance_vocab(dialogues, special_symbols=[], entity_forms=[]):
             vocab.add_word(word)
 
     # Add words
-    for split_type in ["train", "dev"]:
-        for dialogue in dialogues[split_type]:
-            assert dialogue.is_int is False
-            for turn in dialogue.token_turns:
-                for token in turn:
-                    if is_entity(token):
-                        _add_entity(token)
-                    else:
-                        vocab.add_word(token)
+    for dialogue in dialogues:
+        assert dialogue.is_int is False
+        for turn in dialogue.token_turns:
+            for token in turn:
+                if is_entity(token):
+                    _add_entity(token)
+                else:
+                    vocab.add_word(token)
 
     # Add special symbols
     vocab.add_words(special_symbols, special=True)
@@ -45,12 +44,11 @@ def build_kb_vocab(dialogues, special_symbols=[]):
     kb_vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
 
-    for split_type in ["train", "dev"]:
-        for dialogue in dialogues[split_type]:
-            assert dialogue.is_int is False
-            kb_vocab.add_words(dialogue.title)
-            kb_vocab.add_words(dialogue.description)
-            cat_vocab.add_word(dialogue.category)
+    for dialogue in dialogues:
+        assert dialogue.is_int is False
+        kb_vocab.add_words(dialogue.title)
+        kb_vocab.add_words(dialogue.description)
+        cat_vocab.add_word(dialogue.category)
 
     kb_vocab.add_words(special_symbols, special=True)
     kb_vocab.finish(freq_threshold=5)
@@ -63,11 +61,10 @@ def build_kb_vocab(dialogues, special_symbols=[]):
 
 def build_lf_vocab(dialogues):
     vocab = Vocabulary(offset=0, unk=True)
-    for split_type in ["train", "dev"]:
-        for dialogue in dialogues[split_type]:
-            assert dialogue.is_int is False
-            for lf in dialogue.lfs:
-                vocab.add_words(lf)
+    for dialogue in dialogues:
+        assert dialogue.is_int is False
+        for lf in dialogue.lfs:
+            vocab.add_words(lf)
     vocab.add_words([markers.GO_S, markers.GO_B, markers.EOS, markers.PAD], special=True)
     vocab.finish()
     print 'LF vocabulary size:', vocab.size

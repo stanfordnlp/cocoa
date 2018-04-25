@@ -560,7 +560,7 @@ class DataGenerator(object):
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
         if not os.path.exists(vocab_path):
             print 'Vocab not found at', vocab_path
-            mappings = create_mappings(self.dialogues, schema,
+            mappings = create_mappings(self.dialogues['train'], schema,
                 preprocessor.entity_forms.values())
             write_pickle(mappings, vocab_path)
             print('Wrote mappings to {}, now exiting.'.format(vocab_path))
