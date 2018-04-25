@@ -24,7 +24,7 @@ from symbols import markers, SpecialSymbols
 from vocab_builder import create_mappings
 
 def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
+    parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
     parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
@@ -259,8 +259,12 @@ class Dialogue(object):
             return
 
         for turn in self.token_turns:
-            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                turns.append(self.textint_map.text_to_int(turn, stage))
+            # turn is a list of tokens that an agent spoke on their turn
+            # self.turns starts out as [[], [], []], so
+            #   each portion is a list holding the tokens of either the
+            #   encoding portion, decoding portion, or the target portion
+            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+                portion.append(self.textint_map.text_to_int(turn, stage))
 
         if self.token_candidates:
             self.candidates_to_int()
@@ -305,7 +309,7 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, 
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form,
         entity_target_form, model, slot_filling=False, slot_detector=None):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
