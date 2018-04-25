@@ -76,7 +76,8 @@ class NeuralSession(Session):
                 price = self.builder.get_price_number(tokens[1], self.kb)
                 return self.offer({'price': price})
             except ValueError:
-                return None
+                #return None
+                pass
         tokens = self.builder.entity_to_str(tokens, self.kb)
 
         if len(tokens) > 0:

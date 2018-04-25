@@ -20,8 +20,11 @@ class Controller(object):
         self.session_status = {agent: 'received' for agent, _ in enumerate(self.sessions)}
 
     def describe_scenario(self):
-        for agent in (0, 1):
-            self.scenario.kbs[agent].dump()
+        print '='*50
+        for session in self.sessions:
+            print '\nAGENT={}'.format(session.agent)
+            session.kb.dump()
+        print '='*50
         return True
 
     def event_callback(self, event):
