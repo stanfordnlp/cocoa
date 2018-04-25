@@ -342,8 +342,19 @@ class Preprocessor(object):
     def process_utterance(self, utterance, stage=None):
         if stage is None:
             return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
-        else:
-            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
+       else:
+            if stage == 'encoding':
+                summary = self.summarize(utterance) if self.model in ["sum2sum", "sum2seq"] else utterance
+            elif (stage == 'decoding') or (stage == 'target'):
+                if self.model == "sum2sum":
+                    summary = self.summarize(utterance)
+                elif self.model == "sum2seq":
+                    summary = self.summarize(utterance)
+                    summary.append(markers.END_SUM)
+                    summary.extend(utterance)
+                else:
+                    summary = utterance
+            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in summary]
 
     @classmethod
     def price_to_entity(cls, price):
@@ -455,21 +466,6 @@ class Preprocessor(object):
 
         return summary
 
-    def _process_summary(self, utterance, action):
-        if action != "message":
-            return utterance
-
-        if self.model == "sum2sum":
-            summary = self.summarize(utterance)
-        elif self.model == "sum2seq":
-            summary = self.summarize(utterance)
-            summary.append(markers.END_SUM)
-            summary.extend(utterance)
-        else:
-            summary = utterance
-
-        return summary
-
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
@@ -481,7 +477,6 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    utterance = self._process_summary(utterance, e.action)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
