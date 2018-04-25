@@ -83,8 +83,8 @@ class Evaluator(object):
                     title = builder.var_to_sent(titles[i], self.kb_vocab)
                     summary = builder.var_to_sent(enc_inputs[i])
                     print("--------- {0}: {1} -----------".format(sent_number, title))
-                    # if model_opt.model in ["sum2sum", "sum2seq"]:
-                    #     print("SUMMARY: {}".format(summary) )
+                    if model_opt.model in ["sum2sum", "sum2seq"]:
+                        print("SUMMARY: {}".format(summary) )
                     output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))
 
