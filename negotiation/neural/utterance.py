@@ -65,6 +65,15 @@ class UtteranceBuilder(object):
                 break
         return clean_tokens
 
+    def var_to_sent(self, variables, index, vocab=None):
+        if not vocab:
+            vocab = self.vocab
+
+        sent_ids = variables[index].data.cpu().numpy()
+        pad_id = vocab.to_ind(markers.PAD)
+        sent_without_padding = [x for x in sent_ids if x != pad_id]
+        return self.build_target_tokens(sent_without_padding)
+
     def entity_to_price(self, entity_token, kb):
         raw_price = PriceScaler.unscale_price(kb, entity_token)
         human_readable_price = "${}".format(raw_price.canonical.value)

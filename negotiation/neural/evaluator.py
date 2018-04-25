@@ -80,18 +80,11 @@ class Evaluator(object):
 
                 if opt.verbose:
                     sent_number = next(counter)
-                    title = self.var_to_sent(titles, i, self.kb_vocab)
-                    summary = self.var_to_sent(enc_inputs, i, self.utterance_vocab)
+                    title = builder.var_to_sent(titles, i, self.kb_vocab)
+                    summary = builder.var_to_sent(enc_inputs, i)
                     print("--------- {0}: {1} -----------".format(sent_number, title))
                     if model_opt.model in ["sum2sum", "sum2seq"]:
                         print("SUMMARY: {}".format(summary) )
                     output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))
 
-    def var_to_sent(self, variables, index, vocab):
-        sent_ids = variables[index].data.cpu().numpy()
-        pad_id = vocab.to_ind(markers.PAD)
-        sent_words = [vocab.to_word(x) for x in sent_ids if x != pad_id]
-        readable_sent = ' '.join(sent_words)
-
-        return readable_sent
