@@ -340,6 +340,13 @@ class Preprocessor(object):
             raise ValueError('Unknown entity form %s' % form)
 
     def process_utterance(self, utterance, stage=None):
+        '''
+        Input: utterance is a list of tokens, stage is either encoding, decoding or target
+        Output: in most cases, stage will be declared. Based on a combination of
+             the model_type and stage, we choose whether or not to summarize the 
+             utterance.  Models with "sum" should be summarized to only include
+             selected keywords, models with "seq" will keep the full sequence.
+        '''
         if stage is None:
             return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
         else:

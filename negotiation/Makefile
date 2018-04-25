@@ -1,5 +1,5 @@
-model=encdec
-exp=basic
+model=sum2seq
+exp=debug
 lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
@@ -64,7 +64,6 @@ train-rl:
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
-model=seq2seq
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json \
         --mappings $(mappings) --stats-file $(stats_file).train --pretrained-wordvec $(mappings)/utterance_glove.pt $(mappings)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) \
@@ -75,14 +74,14 @@ train:
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
-	--ignore-cache \
- 	--train-max-examples 100 --test-max-examples 100 
+	--ignore-cache
+ 	# --train-max-examples 100 --test-max-examples 100 
 
 test:
-	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 1 --verbose --checkpoint-files $(ckpt_files) \
-	--cache scr/cache/all/$(model) \
+	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-files $(ckpt_files) \
+	--cache scr/cache/all/$(model) --random-seed $(seed) \
 	--ignore-cache \
-	--test-max-examples 10
+	--test-max-examples 40
 
 dropout=0.0
 train-neg:
