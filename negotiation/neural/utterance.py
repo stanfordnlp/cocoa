@@ -20,13 +20,13 @@ class Utterance(object):
         Log translation to stdout.
         """
         user_utterance = ' '.join([str(x) if is_entity(x) else x for x in self.src_raw])
-        output = u'USER INPUT: {}\n'.format(user_utterance)
+        output = u'RAW INPUT: {}\n'.format(user_utterance)
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
         pred_sent = ' '.join(best_pred)
         output += 'PRED OUTPUT: {}\n'.format(pred_sent)
-        output += "PRED SCORE: {:.4f}\n".format(best_score)
+        # output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
             tgt_sent = ' '.join(self.gold_sent)

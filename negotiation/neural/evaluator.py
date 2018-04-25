@@ -43,13 +43,13 @@ class Evaluator(object):
     def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
-        self.vocab = mappings['utterance_vocab']
+        self.utterance_vocab = mappings['utterance_vocab']
         self.kb_vocab = mappings['kb_vocab']
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
 
-        generator = Generator(self.model, self.vocab,
+        generator = Generator(self.model, self.utterance_vocab,
                               beam_size=opt.beam_size,
                               n_best=opt.n_best,
                               max_length=opt.max_length,
@@ -57,14 +57,12 @@ class Evaluator(object):
                               cuda=use_gpu(opt),
                               min_length=opt.min_length)
 
-        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
+        builder = UtteranceBuilder(self.utterance_vocab, opt.n_best, has_tgt=True)
 
         # Statistics
         counter = count(1)
         pred_score_total, pred_words_total = 0, 0
         gold_score_total, gold_words_total = 0, 0
-
-        out_file = sys.stdout
 
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
@@ -72,7 +70,7 @@ class Evaluator(object):
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
             utterances = builder.from_batch(batch_data)
             titles = batch.title_inputs.transpose(0,1)
-            kb_pad_id = self.kb_vocab.to_ind(markers.PAD)
+            enc_inputs = batch.encoder_inputs.transpose(0,1)
 
             for i, response in enumerate(utterances):
                 pred_score_total += response.pred_scores[0]
@@ -80,17 +78,20 @@ class Evaluator(object):
                 gold_score_total += response.gold_score
                 gold_words_total += len(response.gold_sent)
 
-                # Not needed because Utterance instance already logs results to screen
-                # n_best_preds = [" ".join(pred) for pred in response.pred_sents[:opt.n_best]]
-                # out_file.write('\n'.join(n_best_preds))
-                # out_file.write('\n')
-                out_file.flush()
-
                 if opt.verbose:
                     sent_number = next(counter)
-                    sent_ids = titles[i].data.cpu().numpy()
-                    sent_words = [self.kb_vocab.to_word(x) for x in sent_ids if x != kb_pad_id]
-                    readable_sent = ' '.join(sent_words)
-                    print("--------- {0}: {1} -----------".format(sent_number, readable_sent))
+                    title = self.var_to_sent(titles, i, self.kb_vocab)
+                    summary = self.var_to_sent(enc_inputs, i, self.utterance_vocab)
+                    print("--------- {0}: {1} -----------".format(sent_number, title))
+                    if model_opt.model in ["sum2sum", "sum2seq"]:
+                        print("SUMMARY: {}".format(summary) )
                     output = response.log(sent_number)
                     os.write(1, output.encode('utf-8'))
+
+    def var_to_sent(self, variables, index, vocab):
+        sent_ids = variables[index].data.cpu().numpy()
+        pad_id = vocab.to_ind(markers.PAD)
+        sent_words = [vocab.to_word(x) for x in sent_ids if x != pad_id]
+        readable_sent = ' '.join(sent_words)
+
+        return readable_sent
