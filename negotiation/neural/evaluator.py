@@ -43,7 +43,7 @@ class Evaluator(object):
     def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
-        self.vocab = mappings['tgt_vocab']
+        self.vocab = mappings['utterance_vocab']
         self.kb_vocab = mappings['kb_vocab']
 
     def evaluate(self, opt, model_opt, data, split='test'):

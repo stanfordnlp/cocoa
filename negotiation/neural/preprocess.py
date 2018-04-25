@@ -342,7 +342,7 @@ class Preprocessor(object):
     def process_utterance(self, utterance, stage=None):
         if stage is None:
             return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
-       else:
+        else:
             if stage == 'encoding':
                 summary = self.summarize(utterance) if self.model in ["sum2sum", "sum2seq"] else utterance
             elif (stage == 'decoding') or (stage == 'target'):
@@ -445,15 +445,17 @@ class Preprocessor(object):
 
             if is_entity(uni):
                 summary.append(uni)
+            elif uni in markers:
+                summary.append(uni)
             elif (self.is_keyword(tri, "trigram")):
                 for token in tri:
                     summary.append(token)
-                next(gram_iter)
-                next(gram_iter)
+                next(gram_iter, None)
+                next(gram_iter, None)
             elif (self.is_keyword(bi, "bigram")):
                 for token in bi:
                     summary.append(token)
-                next(gram_iter)
+                next(gram_iter, None)
             elif (self.is_keyword(uni, "unigram")):
                 summary.append(uni)
 
@@ -536,7 +538,7 @@ class DataGenerator(object):
             self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
-        self.mappings = self.load_mappings(args, mappings_path, schema, preprocessor)
+        self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
         self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
 
         Dialogue.mappings = self.mappings
@@ -555,7 +557,7 @@ class DataGenerator(object):
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
         self.trie = None
 
-    def load_mappings(self, args, mappings_path, schema, preprocessor):
+    def load_mappings(self, model_type, mappings_path, schema, preprocessor):
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
         if not os.path.exists(vocab_path):
             print 'Vocab not found at', vocab_path
@@ -569,7 +571,7 @@ class DataGenerator(object):
             mappings = read_pickle(vocab_path)
             for k, v in mappings.iteritems():
                 print k, v.size
-            return self.set_src_tgt_vocab(args.model, mappings)
+            return self.set_src_tgt_vocab(model_type, mappings)
 
     def set_src_tgt_vocab(self, model_type, mappings):
         # Figure out src and tgt vocab
