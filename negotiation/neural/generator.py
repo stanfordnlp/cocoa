@@ -4,9 +4,8 @@ from torch.autograd import Variable
 import onmt.io
 from onmt.Utils import aeq
 
-from preprocess import markers
-from neural.beam import Beam
-from cocoa.pt_model.util import smart_variable
+from symbols import markers
+from beam import Beam
 
 
 class Generator(object):
@@ -49,6 +48,32 @@ class Generator(object):
                 "scores": [],
                 "log_probs": []}
 
+    def _run_encoder(self, batch):
+        encoder_inputs = batch.encoder_inputs
+        lengths = batch.lengths
+
+        enc_states, memory_bank = self.model.encoder(encoder_inputs, lengths)
+        dec_states = self.model.decoder.init_decoder_state(
+                                        encoder_inputs, memory_bank, enc_states)
+
+        return dec_states, memory_bank
+
+    def _run_attention_memory(self, batch, enc_memory_bank):
+        if batch.num_context > 0:
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
+            context_inputs = batch.context_inputs
+
+            _, title_memory_bank = self.model.kb_embedder(title_inputs)
+            _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
+            _, context_memory_bank = self.model.context_embedder(context_inputs)
+
+            # all memory_bank items are (seq_len, batch_size, rnn_size)
+            memory_bank = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
+        else:
+            memory_bank = enc_memory_bank
+        return memory_bank
+
     def generate_batch(self, batch, gt_prefix=1):
         """
         Generate a batch of sentences.
@@ -68,10 +93,12 @@ class Generator(object):
         vocab = self.vocab
 
         def get_bos(b):
-            tgt_sent = batch.context_data['decoder_tokens'][b]
-            # Padded turn, use arbitrary start symbol
-            bos = markers.PAD if not tgt_sent else tgt_sent[gt_prefix-1]
-            return vocab.word_to_ind[bos]
+            """Get the starting symbol. If starting (enforced) prefix is longer
+            than 1, use the last symbol as the starting symbol. The rest (previous
+            ones) will be force decoded later. See (1.1) Go over forced prefix.
+            """
+            bos = batch.decoder_inputs[gt_prefix-1][b].data.cpu().numpy()[0]
+            return bos
 
         beam = [Beam(beam_size, n_best=self.n_best,
                      cuda=self.cuda,
@@ -94,29 +121,13 @@ class Generator(object):
             return m.view(beam_size, batch_size, -1)
 
         # (1) Run the encoder on the src.
-        encoder_inputs = batch.encoder_inputs
         lengths = batch.lengths
-
-        enc_states, memory_bank = self.model.encoder(encoder_inputs, lengths)
-        dec_states = self.model.decoder.init_decoder_state(
-                                        encoder_inputs, memory_bank, enc_states)
-
-        if batch.num_context > 0:
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
-            context_inputs = batch.context_inputs
-
-            _, title_memory_bank = self.model.kb_embedder(title_inputs)
-            _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
-            _, context_memory_bank = self.model.context_embedder(context_inputs)
-            enc_memory_bank = memory_bank
-
-            # all memory_bank items are (seq_len, batch_size, rnn_size)
-            memory_bank = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
+        dec_states, enc_memory_bank = self._run_encoder(batch)
+        memory_bank = self._run_attention_memory(batch, enc_memory_bank)
 
         # (1.1) Go over forced prefix.
         if gt_prefix > 1:
-            inp = batch.targets[:gt_prefix-1]
+            inp = batch.decoder_inputs[:gt_prefix-1]
             _, dec_states, _ = self.model.decoder(
                 inp, memory_bank, dec_states, memory_lengths=lengths)
 
@@ -188,7 +199,6 @@ class Generator(object):
         # (4) Extract sentences from beam.
         ret = self._from_beam(beam)
         ret["gold_score"] = [0] * batch_size
-        # TODO
         #if "tgt" in batch.__dict__:
         #    ret["gold_score"] = self._run_target(batch, data)
         ret["batch"] = batch
@@ -242,3 +252,71 @@ class Generator(object):
             scores.masked_fill_(tgt.eq(tgt_pad), 0)
             gold_scores += scores
         return gold_scores
+
+class Sampler(Generator):
+    def __init__(self, model, vocab,
+                 temperature=1, max_length=100, cuda=False):
+        self.model = model
+        self.vocab = vocab
+        self.temperature = temperature
+        self.max_length = max_length
+        self.cuda = cuda
+        self.tt = torch.cuda if cuda else torch
+        self.eos = vocab.to_ind(markers.EOS)
+
+    def generate_batch(self, batch, gt_prefix=1):
+        # (1) Run the encoder on the src.
+        lengths = batch.lengths
+        dec_states, enc_memory_bank = self._run_encoder(batch)
+        memory_bank = self._run_attention_memory(batch, enc_memory_bank)
+
+        # (1.1) Go over forced prefix.
+        inp = batch.decoder_inputs[:gt_prefix]
+        dec_out, dec_states, _ = self.model.decoder(
+            inp, memory_bank, dec_states, memory_lengths=lengths)
+
+        # (2) Sampling
+        batch_size = batch.size
+        preds = []
+        for i in xrange(self.max_length):
+            # Outputs to probs
+            dec_out = dec_out.squeeze(0)  # (batch_size, rnn_size)
+            out = self.model.generator.forward(dec_out).data  # Logprob (batch_size, vocab_size)
+            # Sample with temperature
+            scores = out.div(self.temperature)
+            scores.sub_(scores.max(1, keepdim=True)[0].expand(scores.size(0), scores.size(1)))
+            pred = torch.multinomial(scores.exp(), 1).squeeze(1)  # (batch_size,)
+            preds.append(pred)
+            # Forward step
+            inp = Variable(pred.view(1, -1))  # (seq_len=1, batch_size)
+            dec_out, dec_states, _ = self.model.decoder(
+                inp, memory_bank, dec_states, memory_lengths=lengths)
+
+        preds = torch.stack(preds).t()  # (batch_size, seq_len)
+        # Insert one dimension (n_best) so that its structure is consistent
+        # with beam search generator
+        preds = preds.unsqueeze(1)
+        # TODO: add actual scores
+        ret = {"predictions": preds,
+               "scores": [[0]] * batch_size,
+               "attention": [None] * batch_size,
+               }
+        ret["gold_score"] = [0] * batch_size
+        ret["batch"] = batch
+        return ret
+
+def get_generator(model, vocab, scorer, args):
+    from cocoa.pt_model.util import use_gpu
+    if args.sample:
+        generator = Sampler(model, vocab, args.temperature,
+                            max_length=args.max_length,
+                            cuda=use_gpu(args))
+    else:
+        generator = Generator(model, vocab,
+                              beam_size=args.beam_size,
+                              n_best=args.n_best,
+                              max_length=args.max_length,
+                              global_scorer=scorer,
+                              cuda=use_gpu(args),
+                              min_length=args.min_length)
+    return generator

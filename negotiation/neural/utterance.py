@@ -54,21 +54,26 @@ class UtteranceBuilder(object):
         self.has_tgt = has_tgt
 
     def build_target_tokens(self, predictions, kb=None):
-        clean_tokens = []
+        tokens = []
         for pred in predictions:
-            token = self.vocab.ind_to_word[pred]
-            if is_entity(token):
-                token = str(token) if kb is None else self.entity_to_price(token, kb)
-            clean_tokens.append(token)
-            if clean_tokens[-1] == markers.EOS:
-                clean_tokens = clean_tokens[:-1]
+            token = self.vocab.to_word(pred)
+            if token == markers.EOS:
                 break
-        return clean_tokens
+            tokens.append(token)
+        return tokens
 
-    def entity_to_price(self, entity_token, kb):
+    def entity_to_str(self, entity_tokens, kb):
+        return [self._entity_to_str(token, kb) if is_entity(token) else token
+                for token in entity_tokens]
+
+    def _entity_to_str(self, entity_token, kb):
         raw_price = PriceScaler.unscale_price(kb, entity_token)
         human_readable_price = "${}".format(raw_price.canonical.value)
         return human_readable_price
+
+    def get_price_number(self, entity, kb):
+        raw_price = PriceScaler.unscale_price(kb, entity)
+        return raw_price.canonical.value
 
     def from_batch(self, translation_batch):
         batch = translation_batch["batch"]

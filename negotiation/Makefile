@@ -32,8 +32,9 @@ tensorboard:
 
 slot_scores=/scr/hehe/game-dialogue/slot_scores.json
 
-test-scenarios:
-	PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/test.json --scenarios data/test-scenarios.json
+scenario_data=test
+chat-scenarios:
+	PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats scr/data/$(scenario_data).json --scenarios scr/data/$(scenario_data)-scenarios.json
 
 scenario:
 	PYTHONPATH=. python src/scripts/generate_scenarios.py --schema-path data/friends-random-large/schema.json --scenarios-path output/friends-scenarios.json --num-items $(num_items) --num-scenarios 1 --random-seed $(seed)
@@ -57,10 +58,14 @@ glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/vocab.pkl --output-file scr/  --vocab-type kb
 
 train-rl:
-	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path data/sample-scenarios.json --checkpoint $(checkpoint) \
-	--mappings scr/mappings --checkpoint-files $(checkpoint)/model_loss2.86_e10.pt $(checkpoint)/model_loss2.86_e10.pt --price-tracker $(price_tracker) \
-	--optim adagrad --learning-rate 0.01 --discount-factor 0.95 --agents pt-neural pt-neural \
-	--report-every 500 --max-turns 10 --num-dialogues 100000
+	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path scr/data/train-scenarios.json \
+	--price-tracker $(price_tracker) \
+	--mappings scr/mappings \
+	--checkpoint-files $(ckpt_file) $(ckpt_file) \
+	--optim adagrad --learning-rate 0.01 --discount-factor 0.95 \
+	--agents pt-neural pt-neural \
+	--report-every 500 --max-turns 10 --num-dialogues 100000 \
+	--sample --temperature 0.8
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
@@ -72,7 +77,7 @@ train:
 	--report-every 500 \
 	--epochs 15 \
 	--model $(model) \
-	--cache scr/cache/tmp/$(model) \
+	--cache scr/cache/all/$(model) \
 	--verbose \
 	#--ignore-cache \
  	#--train-max-examples 100 --test-max-examples 100 
@@ -80,8 +85,9 @@ train:
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-file $(ckpt_file) \
 	--cache scr/cache/all/$(model) \
-	#--ignore-cache \
 	#--test-max-examples 10 \
+	#--ignore-cache --batch-size 1 \
+	#--sample --temperature 1 \
 
 
 dropout=0.0
@@ -152,7 +158,7 @@ config-search:
 
 rule_model=scr/model.pkl
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/train.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --mappings $(mappings) --checkpoint $(checkpoint) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --verbose
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/train.json --train-max-examples 1 --test-max-examples 0 --agents pt-neural pt-neural --price-tracker $(price_tracker) --mappings scr/mappings --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) #--verbose
 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/neural_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents neural-gen cmd --max-turns 20 --checkpoint $(checkpoint) --mappings $(mappings) --price-tracker $(price_tracker) --decoding sample 0 --retrieve --index scr/index --retriever-context-len 2 --num-candidates 10

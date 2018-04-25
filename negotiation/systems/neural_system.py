@@ -1,7 +1,7 @@
 import os
 import argparse
 from collections import namedtuple
-from sessions.neural_session import GeneratorNeuralSession, SelectorNeuralSession, PytorchNeuralSession
+from sessions.neural_session import PytorchNeuralSession
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
@@ -20,7 +20,8 @@ from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols,
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
 from neural.beam import Scorer
-from neural.generator import Generator
+#from neural.generator import Generator, Sampler
+from neural.generator import get_generator
 from neural.utterance import UtteranceBuilder
 
 def add_neural_system_arguments(parser):
@@ -160,15 +161,9 @@ class PytorchNeuralSystem(System):
         self.model_name = model_args.model
 
         vocab = mappings['vocab']
-        self.mappings = make_model_mappings(args, mappings)
+        self.mappings = make_model_mappings(model_args, mappings)
 
-        generator = Generator(model, vocab,
-                              beam_size=args.beam_size,
-                              n_best=args.n_best,
-                              max_length=args.max_length,
-                              global_scorer=Scorer(args.alpha),
-                              cuda=use_gpu(args),
-                              min_length=args.min_length)
+        generator = get_generator(model, vocab, Scorer(args.alpha), args)
         builder = UtteranceBuilder(vocab, args.n_best, has_tgt=True)
 
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,
@@ -190,11 +185,12 @@ class PytorchNeuralSystem(System):
         Dialogue.num_context = model_args.num_context
 
         Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
-            'stop_symbol', 'remove_symbols',
+            'stop_symbol', 'remove_symbols', 'gt_prefix',
             'max_len', 'dialogue_batcher', 'cuda',
             'dialogue_generator', 'utterance_builder'])
         self.env = Env(model, vocab, preprocessor, textint_map,
             stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
+            gt_prefix=1,
             max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
             dialogue_generator=generator, utterance_builder=builder)
 

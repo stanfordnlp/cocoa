@@ -141,7 +141,9 @@ if __name__ == '__main__':
             print k, v.size
 
     # Figure out src and tgt vocab
-    make_model_mappings(args, mappings)
+    # TODO: separate function in data_generator to create mappings
+    if mappings:
+        make_model_mappings(args, mappings)
 
     schema = Schema(model_args.schema_path, None)
 

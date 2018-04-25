@@ -593,7 +593,6 @@ class DataGenerator(object):
             print '[%d s]' % (time.time() - start_time)
         else:
             start_time = time.time()
-            print cache_file
             dialogue_batches = read_pickle(cache_file)
             if verbose:
                 print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)

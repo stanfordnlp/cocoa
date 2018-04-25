@@ -18,7 +18,7 @@ class SimpleLossCompute(LossComputeBase):
         self.padding_idx = tgt_vocab.to_ind(markers.PAD)
         weight = torch.ones(tgt_vocab.size)
         weight[self.padding_idx] = 0
-        self.criterion = nn.NLLLoss(weight, size_average=False, reduce=False)
+        self.criterion = nn.NLLLoss(weight, size_average=False)
 
     def compute_loss(self, target, output):
         # generator: RNN outputs to vocab_size scores/logprobs
@@ -33,6 +33,14 @@ class SimpleLossCompute(LossComputeBase):
 class ReinforceLossCompute(SimpleLossCompute):
     """Compute loss/reward for REINFORCE.
     """
+    def __init__(self, generator, tgt_vocab):
+        super(LossComputeBase, self).__init__()
+        self.generator = generator
+        self.padding_idx = tgt_vocab.to_ind(markers.PAD)
+        weight = torch.ones(tgt_vocab.size)
+        weight[self.padding_idx] = 0
+        self.criterion = nn.NLLLoss(weight, size_average=False, reduce=False)
+
     def compute_loss(self, target, output, reward):
         # output: (seq_len, batch_size, rnn_size)
         # reward: (batch_size,)
