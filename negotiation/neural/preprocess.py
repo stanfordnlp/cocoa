@@ -24,7 +24,7 @@ from symbols import markers, SpecialSymbols
 from vocab_builder import create_mappings
 
 def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
+    parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
     parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
@@ -259,8 +259,12 @@ class Dialogue(object):
             return
 
         for turn in self.token_turns:
-            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                turns.append(self.textint_map.text_to_int(turn, stage))
+            # turn is a list of tokens that an agent spoke on their turn
+            # self.turns starts out as [[], [], []], so
+            #   each portion is a list holding the tokens of either the
+            #   encoding portion, decoding portion, or the target portion
+            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+                portion.append(self.textint_map.text_to_int(turn, stage))
 
         if self.token_candidates:
             self.candidates_to_int()
@@ -305,7 +309,7 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, 
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form,
         entity_target_form, model, slot_filling=False, slot_detector=None):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
@@ -338,8 +342,19 @@ class Preprocessor(object):
     def process_utterance(self, utterance, stage=None):
         if stage is None:
             return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
-        else:
-            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
+       else:
+            if stage == 'encoding':
+                summary = self.summarize(utterance) if self.model in ["sum2sum", "sum2seq"] else utterance
+            elif (stage == 'decoding') or (stage == 'target'):
+                if self.model == "sum2sum":
+                    summary = self.summarize(utterance)
+                elif self.model == "sum2seq":
+                    summary = self.summarize(utterance)
+                    summary.append(markers.END_SUM)
+                    summary.extend(utterance)
+                else:
+                    summary = utterance
+            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in summary]
 
     @classmethod
     def price_to_entity(cls, price):
@@ -451,21 +466,6 @@ class Preprocessor(object):
 
         return summary
 
-    def _process_summary(self, utterance, action):
-        if action != "message":
-            return utterance
-
-        if self.model == "sum2sum":
-            summary = self.summarize(utterance)
-        elif self.model == "sum2seq":
-            summary = self.summarize(utterance)
-            summary.append(markers.END_SUM)
-            summary.extend(utterance)
-        else:
-            summary = utterance
-
-        return summary
-
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
@@ -477,7 +477,6 @@ class Preprocessor(object):
             for e in ex.events:
                 utterance = self.process_event(e, dialogue.kb)
                 if utterance:
-                    utterance = self._process_summary(utterance, e.action)
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
