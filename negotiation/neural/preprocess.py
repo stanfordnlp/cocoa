@@ -452,7 +452,7 @@ class Preprocessor(object):
 
             if is_entity(uni):
                 summary.append(uni)
-            elif uni in markers:
+            elif (uni in markers) and (uni != "<pad>"):
                 summary.append(uni)
             elif (self.is_keyword(tri, "trigram")):
                 for token in tri:

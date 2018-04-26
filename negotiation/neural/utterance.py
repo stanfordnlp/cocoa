@@ -115,7 +115,7 @@ class UtteranceBuilder(object):
                                   attn[b], pred_score[b], gold_sent,
                                   gold_score[b])
             utterances.append(utterance)
-            lengths = self.calculate_lengths(pred_sents)
+            lengths = self.calculate_lengths(pred_sents[0])
             self.pred_lengths.append(lengths)
 
         return utterances, self.pred_lengths
