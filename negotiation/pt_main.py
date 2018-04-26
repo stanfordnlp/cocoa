@@ -143,7 +143,7 @@ if __name__ == '__main__':
     # Figure out src and tgt vocab
     # TODO: separate function in data_generator to create mappings
     if mappings:
-        make_model_mappings(args, mappings)
+        make_model_mappings(args.model, mappings)
 
     schema = Schema(model_args.schema_path, None)
 

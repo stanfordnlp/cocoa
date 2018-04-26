@@ -1,4 +1,4 @@
-from preprocess import markers
+from symbols import markers, category_markers
 from core.price_tracker import PriceScaler
 from cocoa.core.entity import is_entity
 
@@ -24,12 +24,12 @@ class Utterance(object):
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
-        pred_sent = ' '.join(best_pred)
+        pred_sent = ' '.join([str(x) for x in best_pred])
         output += 'PRED OUTPUT: {}\n'.format(pred_sent)
         output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
-            tgt_sent = ' '.join(self.gold_sent)
+            tgt_sent = ' '.join([str(x) for x in self.gold_sent])
             output += u'GOLD: {}\n'.format(tgt_sent)
             # gold score is always 0 because that is the highest possible
             # output += "GOLD SCORE: {:.4f}\n".format(self.gold_score)
@@ -59,6 +59,8 @@ class UtteranceBuilder(object):
             token = self.vocab.to_word(pred)
             if token == markers.EOS:
                 break
+            if token in category_markers:
+                continue
             tokens.append(token)
         return tokens
 

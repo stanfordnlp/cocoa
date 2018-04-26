@@ -161,7 +161,7 @@ class PytorchNeuralSystem(System):
         self.model_name = model_args.model
 
         vocab = mappings['vocab']
-        self.mappings = make_model_mappings(model_args, mappings)
+        self.mappings = mappings
 
         generator = get_generator(model, vocab, Scorer(args.alpha), args)
         builder = UtteranceBuilder(vocab, args.n_best, has_tgt=True)
@@ -199,7 +199,7 @@ class PytorchNeuralSystem(System):
         return 'pt-neural'
 
     def new_session(self, agent, kb, use_rl=False):
-        if self.model_name in ('seq2seq', 'seq2lf'):
+        if self.model_name in ('seq2seq', 'seq2lf', 'lf2lf'):
             session = PytorchNeuralSession(agent, kb, self.env, use_rl)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))

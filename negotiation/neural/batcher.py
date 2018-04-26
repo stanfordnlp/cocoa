@@ -160,7 +160,8 @@ class DialogueBatcher(object):
         # TODO: make sure pad is consistent
         #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
         title_batch = pad_list_to_array([d.title for d in dialogues], pad, np.int32)
-        description_batch = pad_list_to_array([d.description for d in dialogues], pad, np.int32)
+        # TODO: hacky: handle empty description
+        description_batch = pad_list_to_array([[pad] if not d.description else d.description for d in dialogues], pad, np.int32)
         return {
                 'category': category_batch,
                 'title': title_batch,
@@ -389,10 +390,9 @@ class DialogueBatcher(object):
         # the state of each batch is passed on to the next batch
         return batch_seq
 
-
 class UtteranceParserBatcher(DialogueBatcher):
     """Given a dialogue context, predict the dialogue act (logical form)
-    of the current utterance.
+    of the _current_ utterance, i.e. parse an utterance into a logical form.
     """
     def _get_lf_token_turns_at(self, dialogues, i):
         if not hasattr(dialogues[0], 'lf_token_turns'):
@@ -401,6 +401,43 @@ class UtteranceParserBatcher(DialogueBatcher):
         return [dialogue.lf_token_turns[i] if i < len(dialogue.lf_token_turns) else ''
                 for dialogue in dialogues]
 
+    def create_batch(self, dialogues):
+        num_turns = self._normalize_dialogue(dialogues)
+        dialogue_data = self._get_dialogue_data(dialogues)
+
+        dialogue_class = type(dialogues[0])
+        ENC = dialogue_class.ENC
+        num_context = dialogue_class.num_context
+
+        encode_turn_ids = self.get_encoding_turn_ids(num_turns)
+        encoder_turns_all = self._get_turn_batch_at(dialogues, ENC, None)
+
+        # NOTE: encoder_turns contains all previous dialogue context, |num_context|
+        # decides how many turns to use
+        batch_seq = [
+            self._create_one_batch(
+                encoder_turns=encoder_turns_all[:i+1],
+                decoder_turns=self._get_lf_batch_at(dialogues, i),
+                encoder_tokens=self._get_token_turns_at(dialogues, i),
+                decoder_tokens=self._get_lf_token_turns_at(dialogues, i),
+                agents=dialogue_data['agents'],
+                uuids=dialogue_data['uuids'],
+                kbs=dialogue_data['kbs'],
+                kb_context=dialogue_data['kb_context'],
+                num_context=num_context,
+                )
+            for i in encode_turn_ids
+            ]
+
+        # bath_seq: A sequence of batches that can be processed in turn where
+        # the state of each batch is passed on to the next batch
+        return batch_seq
+
+
+class LFPolicyBatcher(DialogueBatcher):
+    """Given the dialogue act (logical form) of an utterance, predict
+    of the dialogue act of next utterance.
+    """
     def create_batch(self, dialogues):
         num_turns = self._normalize_dialogue(dialogues)
         dialogue_data = self._get_dialogue_data(dialogues)
@@ -747,10 +784,9 @@ class EvalDialogueBatcher(DialogueBatcher):
 class DialogueBatcherFactory(object):
     @classmethod
     def get_dialogue_batcher(cls, model, **kwargs):
-        if model == 'seq2seq':
+        if model in ('seq2seq', 'lf2lf'):
             batcher = DialogueBatcher(**kwargs)
         elif model == 'seq2lf':
-            #batcher = DialogueParserBatcher(**kwargs)
             batcher = UtteranceParserBatcher(**kwargs)
         else:
             raise ValueError

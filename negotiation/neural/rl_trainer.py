@@ -4,11 +4,13 @@ import json
 import numpy as np
 
 import torch
+import torch.nn as nn
 from torch.autograd import Variable
 
 from core.controller import Controller
 from neural.trainer import Trainer
 from sessions.rl_session import RLSession
+from utterance import UtteranceBuilder
 
 def add_rl_arguments(parser):
     group = parser.add_argument_group('Reinforce')
@@ -47,21 +49,38 @@ class RLTrainer(Trainer):
         self.scenarios = scenarios
 
         self.training_agent = training_agent
-        self.model = agents[training_agent].env.model
+        #self.model = agents[training_agent].env.model
+        self.models = [agent.env.model for agent in agents]
         self.train_loss = train_loss
         self.optim = optim
         self.cuda = False
 
         # Set model in training mode.
-        self.model.train()
+        for model in self.models:
+            model.train()
 
-        self.all_rewards = []
+        self.all_rewards = [[], []]
 
-    def update(self, batch, rewards):
-        outputs, _, _ = self._run_batch(batch)
-        loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs, rewards)
+    def update(self, batch_iter, reward, model):
+        nll = []
+        for batch in batch_iter:
+            outputs, _, _ = self._run_batch(batch)  # (seq_len, batch_size, rnn_size)
+            loss, _ = self.train_loss.compute_loss(batch.targets, outputs)  # (seq_len, batch_size)
+            nll.append(loss)
+        nll = torch.cat(nll)  # (total_seq_len, batch_size)
 
+        rewards = [Variable(torch.zeros(1, 1).fill_(reward))]
+        for i in xrange(1, nll.size(0)):
+            rewards.append(rewards[-1] * 0.95)
+        rewards = rewards[::-1]
+        rewards = torch.cat(rewards)
+
+        loss = nll.dot(rewards)
+        model.zero_grad()
         loss.backward()
+        # TODO: args.rl_clip
+        #nn.utils.clip_grad_norm(self.model.parameters(), self.args.rl_clip)
+        nn.utils.clip_grad_norm(model.parameters(), 1.)
         self.optim.step()
 
         # TODO
@@ -91,7 +110,7 @@ class RLTrainer(Trainer):
 
         # No agreement
         if example.outcome is None or example.outcome['offer'] is None:
-            return {'seller': -5., 'buyer': -5}
+            return {'seller': 0, 'buyer': 0}
 
         price = example.outcome['offer']['price']
 
@@ -118,20 +137,36 @@ class RLTrainer(Trainer):
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
             # Only update one agent
-            session = controller.sessions[self.training_agent]
-            batch_iter = session.iter_batches()
+            #session = controller.sessions[self.training_agent]
+            #for session in [controller.sessions[self.training_agent]]:
+            for session in controller.sessions:
+                self.model = session.env.model
+                self.model.train()
 
-            # Compute reward
-            rewards = self.get_reward(example)
-            reward = rewards[session.kb.role]
-            # Standardize the reward
-            self.all_rewards.append(reward)
-            reward = (reward - np.mean(self.all_rewards)) / max(1e-4, np.std(self.all_rewards))
-            # Discount
-            T = batch_iter.next()
-            rewards = self.discount_reward(reward, args.discount_factor, T)
+                batch_iter = session.iter_batches()
 
-            # TODO: put all utterances in one batch?
-            for i, batch in enumerate(batch_iter):
-                r = Variable(torch.zeros(1, 1).fill_(rewards[i]))  # batch_size is 1
-                self.update(batch, r)
+                # Compute reward
+                rewards = self.get_reward(example)
+                reward = rewards[session.kb.role]
+                # Standardize the reward
+                all_rewards = self.all_rewards[session.agent]
+                all_rewards.append(reward)
+                print 'all_rewards:', all_rewards
+                reward = (reward - np.mean(all_rewards)) / max(1e-4, np.std(all_rewards))
+                print 'scaled reward:', reward
+                # Discount
+                T = batch_iter.next()
+                #rewards = self.discount_reward(reward, args.discount_factor, T)
+                #print 'discounted reward:', rewards
+
+                # TODO: put all utterances in one batch?
+                #batch_rewards = []
+                #for i, batch in enumerate(batch_iter):
+                #    r = Variable(torch.zeros(1, 1).fill_(reward))  # batch_size is 1
+                #    batch_rewards.append((batch, r))
+                #    #self.update(batch, r)
+                #self.update(batch_rewards)
+                self.update(batch_iter, reward, self.model)
+
+            # TODO: drop checkpoint
+            #if i % 1000 == 0:

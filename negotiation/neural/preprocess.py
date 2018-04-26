@@ -21,6 +21,7 @@ from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch
 from symbols import markers, SpecialSymbols
 from vocab_builder import create_mappings
+from neural import make_model_mappings
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
@@ -92,13 +93,14 @@ class Dialogue(object):
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
 
-    def __init__(self, agent, kb, uuid):
+    def __init__(self, agent, kb, uuid, model='seq2seq'):
         '''
         Dialogue data that is needed by the model.
         '''
         self.uuid = uuid
         self.agent = agent
         self.kb = kb
+        self.model = model
         self.role = kb.role
         partner_role = 'buyer' if self.role == 'seller' else 'seller'
         self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
@@ -182,7 +184,16 @@ class Dialogue(object):
         return s
 
     def lf_to_tokens(self, kb, lf):
-        tokens = [lf['intent']]
+        intent = lf['intent']
+        if intent == 'accept':
+            intent = markers.ACCEPT
+        elif intent == 'reject':
+            intent = markers.REJECT
+        elif intent == 'quit':
+            intent = markers.QUIT
+        elif intent == 'offer':
+            intent = markers.OFFER
+        tokens = [intent]
         if lf.get('price') is not None:
             p = lf['price']
             price = Entity.from_elements(surface=p, value=p, type='price')
@@ -307,7 +318,7 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None, model='seq2seq'):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
@@ -319,6 +330,7 @@ class Preprocessor(object):
             assert slot_detector is not None
         self.slot_filling = slot_filling
         self.slot_detector = slot_detector
+        self.model = model
 
     @classmethod
     def get_entity_form(cls, entity, form):
@@ -341,6 +353,23 @@ class Preprocessor(object):
         else:
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
+    def lf_to_tokens(self, kb, lf):
+        intent = lf['intent']
+        if intent == 'accept':
+            intent = markers.ACCEPT
+        elif intent == 'reject':
+            intent = markers.REJECT
+        elif intent == 'quit':
+            intent = markers.QUIT
+        elif intent == 'offer':
+            intent = markers.OFFER
+        tokens = [intent]
+        if lf.get('price') is not None:
+            p = lf['price']
+            price = Entity.from_elements(surface=p, value=p, type='price')
+            tokens.append(PriceScaler.scale_price(kb, price))
+        return tokens
+
     def _process_example(self, ex):
         '''
         Convert example to turn-based dialogue from each agent's perspective
@@ -348,9 +377,14 @@ class Preprocessor(object):
         '''
         kbs = ex.scenario.kbs
         for agent in (0, 1):
-            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
+            dialogue = Dialogue(agent, kbs[agent], ex.ex_id, model=self.model)
             for e in ex.events:
-                utterance = self.process_event(e, dialogue.kb)
+                if self.model == 'lf2lf':
+                    lf = e.metadata
+                    assert lf is not None
+                    utterance = self.lf_to_tokens(dialogue.kb, lf)
+                else:
+                    utterance = self.process_event(e, dialogue.kb)
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
@@ -451,6 +485,7 @@ class DataGenerator(object):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.num_context = num_context
+        self.model = model
 
         # Build retriever given training dialogues
         self.retriever = retriever
@@ -475,6 +510,8 @@ class DataGenerator(object):
 
         if not mappings:
             mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
+        # TODO: hacky, move mappings dump from main to here
+        mappings = make_model_mappings(self.model, mappings)
         self.mappings = mappings
         self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
         Dialogue.mappings = mappings

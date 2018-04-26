@@ -52,7 +52,7 @@ if __name__ == '__main__':
         model_builder.load_test_model(args.checkpoint_files[0], args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
-    make_model_mappings(model_args, mappings)
+    make_model_mappings(model_args.model, mappings)
 
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, mappings, schema, test=True)

@@ -54,7 +54,7 @@ def get_data_generator(args, model_args, mappings, schema, test=False):
 
     retriever = None
     lexicon = PriceTracker(model_args.price_tracker_model)
-    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form)
+    preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form, model_args.entity_decoding_form, model_args.entity_target_form, model=model_args.model)
 
     #trie_path = os.path.join(model_args.mappings, 'trie.pkl')
     trie_path = None
@@ -93,8 +93,8 @@ def check_model_args(args):
 
     assert args.temperature >= 0
 
-def make_model_mappings(args, mappings):
-    if args.model == 'seq2lf':
+def make_model_mappings(model, mappings):
+    if model == 'seq2lf':
         mappings['src_vocab'] = mappings['vocab']
         mappings['tgt_vocab'] = mappings['lf_vocab']
     else:

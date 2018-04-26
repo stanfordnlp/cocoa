@@ -18,7 +18,7 @@ parser.add_argument('--output-file', required=True,
                 help="Pytorch embeddings into this file for the prepared data")
 parser.add_argument('--vocab-file', required=True,
                 help="Dictionary that maps a word to its embedding index")
-parser.add_argument('--vocab-type', default='dialogue', choices=['dialogue', 'kb', 'cat'],
+parser.add_argument('--vocab-type', default='utterance', choices=['utterance', 'kb', 'cat'],
                 help='type of mapping being embedded into pytorch')
 parser.add_argument('--verbose', action="store_true", default=False)
 opt = parser.parse_args()

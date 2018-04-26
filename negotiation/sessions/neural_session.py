@@ -148,8 +148,8 @@ class PytorchNeuralSession(NeuralSession):
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
         entity_tokens = self._output_to_tokens(output_data)
 
-        if not self._is_valid(entity_tokens):
-            return None
+        #if not self._is_valid(entity_tokens):
+        #    return None
         return entity_tokens
 
     def _is_valid(self, tokens):
@@ -162,8 +162,7 @@ class PytorchNeuralSession(NeuralSession):
     def _output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
-        # Remove the category symbol
-        return tokens[1:]
+        return tokens
 
     # To support REINFORCE
     # TODO: this should be in NeuralSession

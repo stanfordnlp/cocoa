@@ -17,6 +17,7 @@ from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
 
 from symbols import markers
+from neural import make_model_mappings
 
 def add_model_arguments(parser):
     from onmt.modules.SRU import CheckSRU
@@ -61,7 +62,7 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf'],
+                       choices=['seq2seq', 'seq2lf', 'lf2lf'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
@@ -179,6 +180,7 @@ def load_test_model(model_path, opt, dummy_opt):
             model_opt.__dict__[arg] = dummy_opt[arg]
 
     mappings = read_pickle('{}/vocab.pkl'.format(model_opt.mappings))
+    mappings = make_model_mappings(model_opt.model, mappings)
 
     model = make_base_model(model_opt, mappings, use_gpu(opt), checkpoint)
     model.eval()
@@ -200,6 +202,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_dict = mappings['vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
+
     # Make context embedder.
     if model_opt.num_context > 0:
       context_dict = mappings['vocab']
@@ -209,13 +212,9 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     kb_dict = mappings['kb_vocab']
     kb_embeddings = make_embeddings(model_opt, kb_dict)
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
+
     # Make decoder.
-    if model_opt.model == 'seq2seq':
-        tgt_dict = mappings['vocab']
-    elif model_opt.model == 'seq2lf':
-        tgt_dict = mappings['lf_vocab']
-    else:
-        raise ValueError
+    tgt_dict = mappings['tgt_vocab']
     tgt_embeddings = make_embeddings(model_opt, tgt_dict)
 
     # Share the embedding matrix - preprocess with share_vocab required.

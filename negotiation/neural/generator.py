@@ -6,6 +6,7 @@ from onmt.Utils import aeq
 
 from symbols import markers
 from beam import Beam
+from utterance import UtteranceBuilder
 
 
 class Generator(object):
@@ -264,6 +265,9 @@ class Sampler(Generator):
         self.tt = torch.cuda if cuda else torch
         self.eos = vocab.to_ind(markers.EOS)
 
+        # For debugging
+        self.builder = UtteranceBuilder(vocab)
+
     def generate_batch(self, batch, gt_prefix=1):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
@@ -301,6 +305,7 @@ class Sampler(Generator):
                "scores": [[0]] * batch_size,
                "attention": [None] * batch_size,
                }
+
         ret["gold_score"] = [0] * batch_size
         ret["batch"] = batch
         return ret
