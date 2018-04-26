@@ -76,17 +76,6 @@ def add_trainer_arguments(parser):
 
 
 class Statistics(BaseStatistics):
-
-    def __init__(self, loss=0, n_words=0, n_correct=0):
-        super(Statistics, self).__init__(loss, n_words, n_correct)
-        '''
-        prediction_lengths is a list of tuples, each tuple has 3 elements
-        tuple[0] = total length of predicted utterance
-        tuple[1] = length of sequence tokens if applicable, otherwise -1
-        tuple[2] = length of summary token if applicable, otherwise -1
-        '''
-        self.pred_lengths = []
-
     def output(self, epoch, batch, n_batches, start):
         """Write out statistics to stdout.
 
@@ -105,24 +94,6 @@ class Statistics(BaseStatistics):
                self.n_words / (t + 1e-5),
                time.time() - start))
         sys.stdout.flush()
-
-    def track_lengths(self, utterance, opt):
-        import pdb; pdb.set_trace()
-
-        full_length = len(utterance)
-        if opt.model == "seq2seq":
-            sum_length = -1
-            seq_length = utterance_remove_markers
-        elif opt.model == "sum2sum":
-            sum_length = utterance_remove_markers
-            seq_length = -1
-        else:
-            summary = portion_before_sum_token
-            sum_length = summary_remove_markers
-            sequence = portion_after_sum_token
-            seq_length = sequence_remove_markers
-        self.pred_lengths.append((full_length, sum_length, seq_length))
-
 
 
 class Trainer(object):
@@ -182,7 +153,7 @@ class Trainer(object):
 
             # 2. Validate on the validation set.
             valid_iter = data.generator('dev', cuda=use_gpu(opt))
-            valid_stats = self.validate(valid_iter, opt)
+            valid_stats = self.validate(valid_iter)
             print('Validation loss: %g' % valid_stats.mean_loss())
 
             # 3. Log to remote server.
@@ -244,7 +215,7 @@ class Trainer(object):
 
         return total_stats
 
-    def validate(self, valid_iter, opt):
+    def validate(self, valid_iter):
         """ Validate model.
             valid_iter: validate data iterator
         Returns:
@@ -266,14 +237,13 @@ class Trainer(object):
               context_inputs = batch.context_inputs
               title_inputs = batch.title_inputs
               desc_inputs = batch.desc_inputs
-              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs,
+              outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, 
                   context_inputs, title_inputs, desc_inputs, lengths)
             else:
               outputs, attns, _ = self.model(encoder_inputs, decoder_inputs, lengths)
 
             _, batch_stats = self.valid_loss.compute_loss(targets, outputs)
             stats.update(batch_stats)
-            stats.track_lengths(output, opt)
 
         # Set model back to training mode
         self.model.train()
