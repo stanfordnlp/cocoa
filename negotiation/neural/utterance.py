@@ -52,13 +52,14 @@ class UtteranceBuilder(object):
         self.vocab = vocab
         self.n_best = n_best
         self.has_tgt = has_tgt
+        self.pred_lengths = []
 
     def build_target_tokens(self, predictions, kb=None):
         clean_tokens = []
         for pred in predictions:
             token = self.vocab.ind_to_word[pred]
-            if is_entity(token):
-                token = str(token) if kb is None else self.entity_to_price(token, kb)
+            # if is_entity(token):
+            #     token = str(token) if kb is None else self.entity_to_price(token, kb)
             clean_tokens.append(token)
             if clean_tokens[-1] == markers.EOS:
                 clean_tokens = clean_tokens[:-1]
@@ -114,5 +115,14 @@ class UtteranceBuilder(object):
                                   attn[b], pred_score[b], gold_sent,
                                   gold_score[b])
             utterances.append(utterance)
+            lengths = self.calculate_lengths(pred_sents)
+            self.pred_lengths.append(lengths)
 
-        return utterances
+        return utterances, self.pred_lengths
+
+    def calculate_lengths(self, preds):
+        total_len = len(preds)
+        marker_len = len([x for x in preds if x in markers])
+        entity_len = len([x for x in preds if is_entity(x)])
+        keyword_len = total_len - marker_len - entity_len
+        return (total_len, keyword_len, marker_len, entity_len)

@@ -1,5 +1,7 @@
 import sys
 import os
+import numpy as np
+import pdb
 from itertools import count
 
 from onmt.Utils import use_gpu
@@ -8,7 +10,6 @@ from generator import Generator
 from utterance import UtteranceBuilder
 from beam import Scorer
 from symbols import markers
-
 
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
@@ -63,28 +64,41 @@ class Evaluator(object):
         counter = count(1)
         pred_score_total, pred_words_total = 0, 0
         gold_score_total, gold_words_total = 0, 0
+        pred_lengths = []
 
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
         for batch in data_iter:
             batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
-            utterances = builder.from_batch(batch_data)
-            titles = batch.title_inputs.transpose(0,1)
-            enc_inputs = batch.encoder_inputs.transpose(0,1)
+            utterances, pred_len_batch = builder.from_batch(batch_data)
 
-            for i, response in enumerate(utterances):
-                pred_score_total += response.pred_scores[0]
-                pred_words_total += len(response.pred_sents[0])
-                gold_score_total += response.gold_score
-                gold_words_total += len(response.gold_sent)
+            pred_lengths.extend(pred_len_batch)
+            pdb.set_trace()
+            print("size of list: {}".format(len(pred_lengths)))
+            # titles = batch.title_inputs.transpose(0,1)
+            # enc_inputs = batch.encoder_inputs.transpose(0,1)
 
-                if opt.verbose:
-                    sent_number = next(counter)
-                    title = builder.var_to_sent(titles[i], self.kb_vocab)
-                    summary = builder.var_to_sent(enc_inputs[i])
-                    print("--------- {0}: {1} -----------".format(sent_number, title))
-                    if model_opt.model in ["sum2sum", "sum2seq"]:
-                        print("SUMMARY: {}".format(summary) )
-                    output = response.log(sent_number)
-                    os.write(1, output.encode('utf-8'))
+            # for i, response in enumerate(utterances):
+            #     pred_score_total += response.pred_scores[0]
+            #     pred_words_total += len(response.pred_sents[0])
+            #     gold_score_total += response.gold_score
+            #     gold_words_total += len(response.gold_sent)
 
+            #     if opt.verbose:
+            #         sent_number = next(counter)
+            #         title = builder.var_to_sent(titles[i], self.kb_vocab)
+            #         summary = builder.var_to_sent(enc_inputs[i])
+            #         print("--------- {0}: {1} -----------".format(sent_number, title))
+            #         if model_opt.model in ["sum2sum", "sum2seq"]:
+            #             print("SUMMARY: {}".format(summary) )
+            #         output = response.log(sent_number)
+            #         os.write(1, output.encode('utf-8'))
+        avg_total = np.average([t[0] for t in pred_lengths])
+        avg_keyword = np.average([k[1] for k in pred_lengths])
+        avg_marker = np.average([m[2] for m in pred_lengths])
+        avg_entity = np.average([e[3] for e in pred_lengths])
+        print("total: {}".format(avg_total))
+        print("keyword: {}".format(avg_keyword))
+        print("marker: {}".format(avg_marker))
+        print("entity: {}".format(avg_entity))
+        pdb.set_trace()
