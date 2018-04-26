@@ -116,7 +116,7 @@ class UtteranceBuilder(object):
                                   gold_score[b])
             utterances.append(utterance)
 
-        return utterances, self.pred_lengths
+        return utterances
 
     def calculate_lengths(self, preds):
         total_len = len(preds)

@@ -1,7 +1,5 @@
 import sys
 import os
-import numpy as np
-import pdb
 from itertools import count
 
 from onmt.Utils import use_gpu
@@ -10,6 +8,7 @@ from generator import Generator
 from utterance import UtteranceBuilder
 from beam import Scorer
 from symbols import markers
+
 
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
@@ -64,7 +63,6 @@ class Evaluator(object):
         counter = count(1)
         pred_score_total, pred_words_total = 0, 0
         gold_score_total, gold_words_total = 0, 0
-        pred_lengths = []
 
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
