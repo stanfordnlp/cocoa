@@ -12,7 +12,7 @@ from symbols import markers
 
 def add_evaluator_arguments(parser):
     group = parser.add_argument_group('Model')
-    group.add_argument('--checkpoint-files', nargs='*', required=True,
+    group.add_argument('--checkpoint-files', nargs='+', required=True,
           help='Path to model .pt file, can be multiple files')
 
     group = parser.add_argument_group('Beam')
