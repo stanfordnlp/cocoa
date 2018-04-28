@@ -1,4 +1,4 @@
-from preprocess import markers
+from symbols import markers, category_markers
 from core.price_tracker import PriceScaler
 from cocoa.core.entity import is_entity
 
@@ -24,12 +24,12 @@ class Utterance(object):
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
-        pred_sent = ' '.join(best_pred)
+        pred_sent = ' '.join([str(x) for x in best_pred])
         output += 'PRED OUTPUT: {}\n'.format(pred_sent)
         # output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
-            tgt_sent = ' '.join(self.gold_sent)
+            tgt_sent = ' '.join([str(x) for x in self.gold_sent])
             output += u'GOLD: {}\n'.format(tgt_sent)
             # gold score is always 0 because that is the highest possible
             # output += "GOLD SCORE: {:.4f}\n".format(self.gold_score)
@@ -55,16 +55,19 @@ class UtteranceBuilder(object):
         self.pred_lengths = []
 
     def build_target_tokens(self, predictions, kb=None):
-        clean_tokens = []
+        tokens = []
         for pred in predictions:
-            token = self.vocab.ind_to_word[pred]
-            if is_entity(token):
-                token = str(token) if kb is None else self.entity_to_price(token, kb)
-            clean_tokens.append(token)
-            if clean_tokens[-1] == markers.EOS:
-                clean_tokens = clean_tokens[:-1]
+            token = self.vocab.to_word(pred)
+            if token == markers.EOS:
                 break
-        return clean_tokens
+            if token in category_markers:
+                continue
+            tokens.append(token)
+        return tokens
+
+    def entity_to_str(self, entity_tokens, kb):
+        return [self._entity_to_str(token, kb) if is_entity(token) else token
+                for token in entity_tokens]
 
     def var_to_sent(self, variables, vocab=None):
         if not vocab:
@@ -78,10 +81,14 @@ class UtteranceBuilder(object):
 
         return readable_sent
 
-    def entity_to_price(self, entity_token, kb):
+    def _entity_to_str(self, entity_token, kb):
         raw_price = PriceScaler.unscale_price(kb, entity_token)
         human_readable_price = "${}".format(raw_price.canonical.value)
         return human_readable_price
+
+    def get_price_number(self, entity, kb):
+        raw_price = PriceScaler.unscale_price(kb, entity)
+        return raw_price.canonical.value
 
     def from_batch(self, translation_batch):
         batch = translation_batch["batch"]

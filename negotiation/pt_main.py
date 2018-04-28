@@ -20,7 +20,7 @@ from onmt.Utils import use_gpu
 
 from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments, get_data_generator
+from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.loss import SimpleLossCompute
 
@@ -127,6 +127,7 @@ if __name__ == '__main__':
             torch.cuda.manual_seed(args.random_seed)
 
     loading_timer = tm.time()
+
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, schema)
     mappings = data_generator.mappings

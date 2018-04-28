@@ -17,7 +17,7 @@ from cocoa.pt_model.util import use_gpu
 
 from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments, get_data_generator
+from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.loss import SimpleLossCompute
 from neural.evaluator import Evaluator, add_evaluator_arguments
@@ -49,7 +49,10 @@ if __name__ == '__main__':
 
     # Load the model.
     mappings, model, model_args = \
-        model_builder.load_test_model(args.checkpoint_files, args, dummy_args.__dict__)
+        model_builder.load_test_model(args.checkpoint_files[0], args, dummy_args.__dict__)
+
+    # Figure out src and tgt vocab
+    make_model_mappings(model_args.model, mappings)
 
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, schema, test=True)

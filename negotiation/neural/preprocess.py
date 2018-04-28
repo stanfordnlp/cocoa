@@ -22,6 +22,7 @@ from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch
 from symbols import markers, SpecialSymbols
 from vocab_builder import create_mappings
+from neural import make_model_mappings
 
 def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
@@ -93,13 +94,14 @@ class Dialogue(object):
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
 
-    def __init__(self, agent, kb, uuid):
+    def __init__(self, agent, kb, uuid, model='seq2seq'):
         '''
         Dialogue data that is needed by the model.
         '''
         self.uuid = uuid
         self.agent = agent
         self.kb = kb
+        self.model = model
         self.role = kb.role
         partner_role = 'buyer' if self.role == 'seller' else 'seller'
         self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
@@ -121,6 +123,8 @@ class Dialogue(object):
         self.roles = []
         self.is_int = False  # Whether we've converted it to integers
         self.num_context = None
+
+        self.price_turns = None
 
         self.token_candidates = None
         self.candidates = None
@@ -181,7 +185,16 @@ class Dialogue(object):
         return s
 
     def lf_to_tokens(self, kb, lf):
-        tokens = [lf['intent']]
+        intent = lf['intent']
+        if intent == 'accept':
+            intent = markers.ACCEPT
+        elif intent == 'reject':
+            intent = markers.REJECT
+        elif intent == 'quit':
+            intent = markers.QUIT
+        elif intent == 'offer':
+            intent = markers.OFFER
+        tokens = [intent]
         if lf.get('price') is not None:
             p = lf['price']
             price = Entity.from_elements(surface=p, value=p, type='price')
@@ -288,11 +301,12 @@ class Dialogue(object):
         self.roles = self._pad_list(self.roles, num_turns, None)
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
-        self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+        if self.price_turns:
+            self.price_turns = self._pad_list(self.price_turns, num_turns, [])
+            assert len(self.price_turns) == len(self.turns[0])
         self.lfs = self._pad_list(self.lfs, num_turns, [])
         if self.candidates:
             self.candidates = self._pad_list(self.candidates, num_turns, [])
-        assert len(self.price_turns) == len(self.turns[0])
 
     def get_price_turns(self, pad):
         '''
@@ -309,8 +323,7 @@ class Preprocessor(object):
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form,
-        entity_target_form, model, slot_filling=False, slot_detector=None):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None, model='seq2seq'):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
@@ -362,6 +375,42 @@ class Preprocessor(object):
                 else:
                     summary = utterance
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in summary]
+
+    def lf_to_tokens(self, kb, lf):
+        intent = lf['intent']
+        if intent == 'accept':
+            intent = markers.ACCEPT
+        elif intent == 'reject':
+            intent = markers.REJECT
+        elif intent == 'quit':
+            intent = markers.QUIT
+        elif intent == 'offer':
+            intent = markers.OFFER
+        tokens = [intent]
+        if lf.get('price') is not None:
+            p = lf['price']
+            price = Entity.from_elements(surface=p, value=p, type='price')
+            tokens.append(PriceScaler.scale_price(kb, price))
+        return tokens
+
+    def _process_example(self, ex):
+        '''
+        Convert example to turn-based dialogue from each agent's perspective
+        Create two Dialogue objects for each example
+        '''
+        kbs = ex.scenario.kbs
+        for agent in (0, 1):
+            dialogue = Dialogue(agent, kbs[agent], ex.ex_id, model=self.model)
+            for e in ex.events:
+                if self.model == 'lf2lf':
+                    lf = e.metadata
+                    assert lf is not None
+                    utterance = self.lf_to_tokens(dialogue.kb, lf)
+                else:
+                    utterance = self.process_event(e, dialogue.kb)
+                if utterance:
+                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
+            yield dialogue
 
     @classmethod
     def price_to_entity(cls, price):
@@ -524,6 +573,7 @@ class DataGenerator(object):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.num_context = num_context
+        self.model = model
 
         # Build retriever given training dialogues
         self.retriever = retriever
@@ -547,8 +597,9 @@ class DataGenerator(object):
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
         self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
-
+        self.mappings = make_model_mappings(self.model, mappings)
         Dialogue.mappings = self.mappings
+        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
@@ -687,7 +738,6 @@ class DataGenerator(object):
             print '[%d s]' % (time.time() - start_time)
         else:
             start_time = time.time()
-            print cache_file
             dialogue_batches = read_pickle(cache_file)
             if verbose:
                 print 'Read %d batches from cache %s' % (len(dialogue_batches), cache_file)

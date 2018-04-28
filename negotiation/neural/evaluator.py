@@ -4,7 +4,7 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
-from generator import Generator
+from generator import get_generator
 from utterance import UtteranceBuilder
 from beam import Scorer
 from symbols import markers
@@ -27,6 +27,12 @@ def add_evaluator_arguments(parser):
     group.add_argument('--alpha', type=float, default=0.5,
                 help="""length penalty parameter (higher = longer generation)""")
 
+    group = parser.add_argument_group('Beam')
+    group.add_argument('--sample', action="store_true",
+                       help='Sample instead of beam search')
+    group.add_argument('--temperature', type=float, default=1,
+                help="""Sample temperature""")
+
     group = parser.add_argument_group('Efficiency')
     group.add_argument('--batch-size', type=int, default=30,
                        help='Batch size')
@@ -48,16 +54,8 @@ class Evaluator(object):
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
-
-        generator = Generator(self.model, self.utterance_vocab,
-                              beam_size=opt.beam_size,
-                              n_best=opt.n_best,
-                              max_length=opt.max_length,
-                              global_scorer=scorer,
-                              cuda=use_gpu(opt),
-                              min_length=opt.min_length)
-
-        builder = UtteranceBuilder(self.utterance_vocab, opt.n_best, has_tgt=True)
+        generator = get_generator(self.model, self.vocab, scorer, opt)
+        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
 
         # Statistics
         counter = count(1)

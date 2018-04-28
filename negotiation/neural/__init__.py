@@ -1,3 +1,5 @@
+import onmt
+
 def add_data_generator_arguments(parser):
     from preprocess import add_preprocess_arguments
     from cocoa.core.scenario_db import add_scenario_arguments
@@ -93,3 +95,28 @@ def check_model_args(args):
         assert not args.stateful
 
     assert args.temperature >= 0
+
+def make_model_mappings(model, mappings):
+    if model == 'seq2lf':
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['lf_vocab']
+    else:
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['vocab']
+    return mappings
+
+def build_optim(opt, model, checkpoint):
+    if opt.train_from:
+        print('Loading optimizer from checkpoint.')
+        optim = checkpoint['optim']
+        optim.optimizer.load_state_dict(
+            checkpoint['optim'].optimizer.state_dict())
+    else:
+        print('Making optimizer for training.')
+        optim = onmt.Optim(
+            opt.optim, opt.learning_rate, opt.max_grad_norm,
+            model_size=opt.rnn_size)
+
+    optim.set_parameters(model.parameters())
+
+    return optim
