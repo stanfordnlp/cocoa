@@ -84,8 +84,8 @@ train:
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-files $(ckpt_file) \
-	--cache scr/cache/tmp/$(model) \
-	--test-max-examples 10 \
+	--cache scr/cache/all/$(model) \
+	#--test-max-examples 10 \
 	--ignore-cache 
 	#--sample --temperature 1 \
 
@@ -158,7 +158,7 @@ config-search:
 
 rule_model=scr/model.pkl
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json --train-max-examples 20 --test-max-examples 0 --agents pt-neural pt-neural --price-tracker $(price_tracker) --mappings scr/mappings/$(model) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 #--verbose
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json --train-max-examples 20 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --mappings scr/mappings/$(model) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 #--verbose
 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/neural_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents neural-gen cmd --max-turns 20 --checkpoint $(checkpoint) --mappings $(mappings) --price-tracker $(price_tracker) --decoding sample 0 --retrieve --index scr/index --retriever-context-len 2 --num-candidates 10

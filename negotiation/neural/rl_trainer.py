@@ -120,16 +120,6 @@ class RLTrainer(Trainer):
         reward['buyer'] = -1. * reward['seller']
         return reward
 
-    def discount_reward(self, reward, discount, T):
-        """
-        r_t = gamma^{T-t} * R
-        """
-        discounted_rewards = [reward]
-        for t in xrange(1, T):
-            discounted_rewards.append(discounted_rewards[-1] * discount)
-        assert len(discounted_rewards) == T
-        return discounted_rewards[::-1]
-
     def learn(self, args):
         for i in xrange(args.num_dialogues):
             # Rollout
@@ -137,7 +127,6 @@ class RLTrainer(Trainer):
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
             # Only update one agent
-            #session = controller.sessions[self.training_agent]
             #for session in [controller.sessions[self.training_agent]]:
             for session in controller.sessions:
                 self.model = session.env.model
@@ -151,21 +140,11 @@ class RLTrainer(Trainer):
                 # Standardize the reward
                 all_rewards = self.all_rewards[session.agent]
                 all_rewards.append(reward)
-                print 'all_rewards:', all_rewards
+                print 'reward:', reward
                 reward = (reward - np.mean(all_rewards)) / max(1e-4, np.std(all_rewards))
                 print 'scaled reward:', reward
                 # Discount
                 T = batch_iter.next()
-                #rewards = self.discount_reward(reward, args.discount_factor, T)
-                #print 'discounted reward:', rewards
-
-                # TODO: put all utterances in one batch?
-                #batch_rewards = []
-                #for i, batch in enumerate(batch_iter):
-                #    r = Variable(torch.zeros(1, 1).fill_(reward))  # batch_size is 1
-                #    batch_rewards.append((batch, r))
-                #    #self.update(batch, r)
-                #self.update(batch_rewards)
                 self.update(batch_iter, reward, self.model)
 
             # TODO: drop checkpoint
