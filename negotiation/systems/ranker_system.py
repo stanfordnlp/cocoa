@@ -57,7 +57,7 @@ class NeuralRankerSystem(System):
 
         mappings_path = os.path.join(mappings, 'vocab.pkl')
         mappings = read_pickle(mappings_path)
-        vocab = mappings['vocab']
+        vocab = mappings['utterance_vocab']
 
         logstats.add_args('model_args', args)
         model = build_model(schema, mappings, None, args)
@@ -85,7 +85,7 @@ class NeuralRankerSystem(System):
         preprocessor = Preprocessor(schema, price_tracker, 'canonical', 'canonical', 'canonical')
         textint_map = TextIntMap(vocab, preprocessor)
 
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
         model_config = {'retrieve': True}
         batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD))
 

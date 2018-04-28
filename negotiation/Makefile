@@ -1,9 +1,9 @@
-model=encdec
-exp=basic
+model=sum2seq
+exp=debug
 lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
-mappings=scr/mappings-10k
+mappings=scr/mappings
 checkpoint=scr/checkpoint/$(exp)
 summary_dir=$(checkpoint)/summary
 stats_file=$(checkpoint)/stats
@@ -16,7 +16,7 @@ num_items=5
 seed=1
 max_epochs=100
 min_epochs=10
-num_epochs=50
+num_epochs=15
 batch_size=128
 entity_form=type
 data=negotiation
@@ -41,7 +41,7 @@ scenario:
 
 scrape-craigslist:
 	if [ -f scraper/data/negotiation/craigslist_$(cat).json ]; then \
-		rm scraper/data/negotiation/craigslist_$(cat).json; \
+ls		rm scraper/data/negotiation/craigslist_$(cat).json; \
 	fi;
 	cd scraper; scrapy crawl craigslist -o data/negotiation/craigslist_$(cat).json -a cache_dir=/scr/hehe/game-dialogue/craigslist_cache -a from_cache=False -a num_result_pages=100 -a category=$(cat) -a image=1
 
@@ -69,13 +69,12 @@ train-rl:
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
-model=seq2seq
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings/$(model) --stats-file $(stats_file).train --pretrained-wordvec scr/mappings/$(model)/utterance_glove.pt scr/mappings/$(model)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--global-attention multibank_general \
 	--num-context 10 \
 	--report-every 500 \
-	--epochs 15 \
+	--epochs $(num_epochs) \
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
@@ -88,7 +87,6 @@ test:
 	--test-max-examples 10 \
 	--ignore-cache 
 	#--sample --temperature 1 \
-
 
 dropout=0.0
 train-neg:

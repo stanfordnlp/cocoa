@@ -55,7 +55,7 @@ if __name__ == '__main__':
     make_model_mappings(model_args.model, mappings)
 
     schema = Schema(model_args.schema_path, None)
-    data_generator = get_data_generator(args, model_args, mappings, schema, test=True)
+    data_generator = get_data_generator(args, model_args, schema, test=True)
 
     # Prefix: [GO, CATEGORY]
     # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
