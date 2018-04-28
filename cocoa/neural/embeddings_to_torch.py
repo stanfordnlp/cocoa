@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 import six
 import sys
+import os
 import numpy as np
 import argparse
 import torch
@@ -18,7 +19,8 @@ parser.add_argument('--output-file', required=True,
                 help="Pytorch embeddings into this file for the prepared data")
 parser.add_argument('--vocab-file', required=True,
                 help="Dictionary that maps a word to its embedding index")
-parser.add_argument('--vocab-type', default='utterance', choices=['utterance', 'kb', 'cat'],
+parser.add_argument('--vocab-type', default='utterance',
+                choices=['utterance', 'kb', 'cat', 'lf'],
                 help='type of mapping being embedded into pytorch')
 parser.add_argument('--verbose', action="store_true", default=False)
 opt = parser.parse_args()
@@ -27,11 +29,7 @@ opt = parser.parse_args()
 def get_vocabs(vocab_path, vocab_type):
     mappings = read_pickle(vocab_path)
     mapping_key = "{}_vocab".format(vocab_type)
-    try:
-        vocab = mappings[mapping_key]
-    except(KeyError):
-        # under older versions, we called "dialogue_vocab" just "vocab"
-        vocab = mappings["vocab"]
+    vocab = mappings[mapping_key]
     print('{0} vocab size: {1}'.format(vocab_type, len(vocab)) )
     return vocab
 
@@ -78,7 +76,7 @@ def main():
     print("\nFiltered embeddings:")
     print("\t* vocab: ", filtered_embeddings.size())
 
-    output_file = opt.output_file + opt.vocab_type + "_glove.pt"
+    output_file = os.path.join(opt.output_file, opt.vocab_type + "_glove.pt")
     print("\nSaving embedding as:\n\t%s"
           % (output_file,))
     torch.save(filtered_embeddings, output_file)

@@ -20,13 +20,13 @@ class Utterance(object):
         Log translation to stdout.
         """
         user_utterance = ' '.join([str(x) if is_entity(x) else x for x in self.src_raw])
-        output = u'USER INPUT: {}\n'.format(user_utterance)
+        output = u'RAW INPUT: {}\n'.format(user_utterance)
 
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
         pred_sent = ' '.join([str(x) for x in best_pred])
         output += 'PRED OUTPUT: {}\n'.format(pred_sent)
-        output += "PRED SCORE: {:.4f}\n".format(best_score)
+        # output += "PRED SCORE: {:.4f}\n".format(best_score)
 
         if self.gold_sent is not None:
             tgt_sent = ' '.join([str(x) for x in self.gold_sent])
@@ -52,6 +52,7 @@ class UtteranceBuilder(object):
         self.vocab = vocab
         self.n_best = n_best
         self.has_tgt = has_tgt
+        self.pred_lengths = []
 
     def build_target_tokens(self, predictions, kb=None):
         tokens = []
@@ -67,6 +68,18 @@ class UtteranceBuilder(object):
     def entity_to_str(self, entity_tokens, kb):
         return [self._entity_to_str(token, kb) if is_entity(token) else token
                 for token in entity_tokens]
+
+    def var_to_sent(self, variables, vocab=None):
+        if not vocab:
+            vocab = self.vocab
+
+        sent_ids = variables.data.cpu().numpy()
+        pad_id = vocab.to_ind(markers.PAD)
+        sent_words = [vocab.to_word(x) for x in sent_ids if x != pad_id]
+        sent_strings = [str(x) if is_entity(x) else x for x in sent_words]
+        readable_sent = ' '.join(sent_strings)
+
+        return readable_sent
 
     def _entity_to_str(self, entity_token, kb):
         raw_price = PriceScaler.unscale_price(kb, entity_token)
@@ -111,3 +124,10 @@ class UtteranceBuilder(object):
             utterances.append(utterance)
 
         return utterances
+
+    def calculate_lengths(self, preds):
+        total_len = len(preds)
+        marker_len = len([x for x in preds if x in markers])
+        entity_len = len([x for x in preds if is_entity(x)])
+        keyword_len = total_len - marker_len - entity_len
+        return (total_len, keyword_len, marker_len, entity_len)

@@ -62,7 +62,7 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf', 'lf2lf'],
+                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
@@ -199,13 +199,13 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         the NMTModel.
     """
     # Make encoder.
-    src_dict = mappings['vocab']
+    src_dict = mappings['utterance_vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
 
     # Make context embedder.
     if model_opt.num_context > 0:
-      context_dict = mappings['vocab']
+      context_dict = mappings['utterance_vocab']
       context_embeddings = make_embeddings(model_opt, context_dict)
       context_embedder = make_context_embedder(model_opt, context_embeddings)
 

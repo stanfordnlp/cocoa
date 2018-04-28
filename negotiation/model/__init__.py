@@ -138,7 +138,7 @@ def build_model(schema, mappings, trie, args):
             # When test on dev set, we need to feed in keep_prob = 1.0
             keep_prob = tf.placeholder_with_default(tf.constant(1. - args.dropout), shape=[], name='keep_prob')
 
-    vocab = mappings['vocab']
+    vocab = mappings['utterance_vocab']
     pad = vocab.to_ind(markers.PAD)
 
     # Word embeddings

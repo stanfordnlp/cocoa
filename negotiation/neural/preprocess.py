@@ -7,6 +7,7 @@ import re
 import time
 import os
 import numpy as np
+import pdb
 from itertools import izip, izip_longest
 from collections import namedtuple, defaultdict
 
@@ -24,7 +25,7 @@ from vocab_builder import create_mappings
 from neural import make_model_mappings
 
 def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['type', 'canonical'], default='canonical', help='Input entity form to the encoder')
+    parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
     parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
@@ -110,7 +111,7 @@ class Dialogue(object):
         self.category = kb.category
         self.title = tokenize(re.sub(r'[^\w0-9]', ' ', kb.facts['item']['Title']))
         self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
-        # token_turns: tokens and entitys (output of entitylink)
+        # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
         self.lfs = []
@@ -229,11 +230,7 @@ class Dialogue(object):
         else:
             lf = []
 
-        if not new_turn:
-            self.token_turns[-1].extend(utterance)
-            self.lfs[-1].extend(lf)
-            self.entities[-1].extend(entities)
-        else:
+        if new_turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
             self.roles.append(role)
@@ -241,6 +238,10 @@ class Dialogue(object):
             self.token_turns.append(utterance)
             self.entities.append(entities)
             self.lfs.append(lf)
+        else:
+            self.token_turns[-1].extend(utterance)
+            self.entities[-1].extend(entities)
+            self.lfs[-1].extend(lf)
 
     def candidates_to_int(self):
         def remove_slot(tokens):
@@ -271,8 +272,12 @@ class Dialogue(object):
             return
 
         for turn in self.token_turns:
-            for turns, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
-                turns.append(self.textint_map.text_to_int(turn, stage))
+            # turn is a list of tokens that an agent spoke on their turn
+            # self.turns starts out as [[], [], []], so
+            #   each portion is a list holding the tokens of either the
+            #   encoding portion, decoding portion, or the target portion
+            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+                portion.append(self.textint_map.text_to_int(turn, stage))
 
         if self.token_candidates:
             self.candidates_to_int()
@@ -348,10 +353,28 @@ class Preprocessor(object):
             raise ValueError('Unknown entity form %s' % form)
 
     def process_utterance(self, utterance, stage=None):
+        '''
+        Input: utterance is a list of tokens, stage is either encoding, decoding or target
+        Output: in most cases, stage will be declared. Based on a combination of
+             the model_type and stage, we choose whether or not to summarize the 
+             utterance.  Models with "sum" should be summarized to only include
+             selected keywords, models with "seq" will keep the full sequence.
+        '''
         if stage is None:
             return [self.get_entity_form(x, 'canonical') if is_entity(x) else x for x in utterance]
         else:
-            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
+            if stage == 'encoding':
+                summary = self.summarize(utterance) if self.model in ["sum2sum", "sum2seq"] else utterance
+            elif (stage == 'decoding') or (stage == 'target'):
+                if self.model == "sum2sum":
+                    summary = self.summarize(utterance)
+                elif self.model == "sum2seq":
+                    summary = self.summarize(utterance)
+                    summary.append(markers.END_SUM)
+                    summary.extend(utterance)
+                else:
+                    summary = utterance
+            return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in summary]
 
     def lf_to_tokens(self, kb, lf):
         intent = lf['intent']
@@ -450,6 +473,71 @@ class Preprocessor(object):
         else:
             raise ValueError('Unknown event action.')
 
+
+    def is_keyword(self, token, key_type):
+        summary_keywords = {
+            "unigram": ["you", "i", "deal", "agree", "great", "!", "?", "n't",
+                "can", "not", "have", "good", "bad", "offer", "low", "lower",
+                "high", "higher", "sound", "sounds", "price", "but", "give",
+                "hello", "hi", "accept"],
+            "bigram": [("would",  "you"), ("great", "condition"), ("ca", "n't"),
+                ("interested", "in"), ("willing", "to"), ("how", "about"), ("how", "much"),
+                ("i", "'m"), ("but", "i"), ("do", "n't"), ("tell", "me"), ("brand", "new")],
+            "trigram": [("have", "a", "deal"), ("would", "you", "be"),
+                ("i", "can", "do"), ("i", "ca", "n't"), ("pick", "it", "up")]
+        }
+        return token in summary_keywords[key_type]
+
+
+    def summarize(self, utterance):
+        summary = []
+        # number of words possible to loop through in trigrams
+        gram_iter = iter(range(len(utterance) - 2))
+        # loop through the utterance once to check ngrams
+        for i in gram_iter:
+            uni = utterance[i]
+            bi = tuple(utterance[i:i+2])
+            tri = tuple(utterance[i:i+3])
+
+            if is_entity(uni):
+                summary.append(uni)
+            elif (uni in markers) and (uni != "<pad>"):
+                summary.append(uni)
+            elif (self.is_keyword(tri, "trigram")):
+                for token in tri:
+                    summary.append(token)
+                next(gram_iter, None)
+                next(gram_iter, None)
+            elif (self.is_keyword(bi, "bigram")):
+                for token in bi:
+                    summary.append(token)
+                next(gram_iter, None)
+            elif (self.is_keyword(uni, "unigram")):
+                summary.append(uni)
+
+        # handle the edge cases of last two tokens
+        if len(utterance) > 1:
+            if self.is_keyword(utterance[-2], "unigram") or is_entity(utterance[-2]):
+                summary.append(utterance[-2])
+        if self.is_keyword(utterance[-1], "unigram") or is_entity(utterance[-1]):
+            summary.append(utterance[-1])
+
+        return summary
+
+    def _process_example(self, ex):
+        '''
+        Convert example to turn-based dialogue from each agent's perspective
+        Create two Dialogue objects for each example
+        '''
+        kbs = ex.scenario.kbs
+        for agent in (0, 1):
+            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
+            for e in ex.events:
+                utterance = self.process_event(e, dialogue.kb)
+                if utterance:
+                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
+            yield dialogue
+
     @classmethod
     def skip_example(cls, example):
         tokens = {0: 0, 1: 0}
@@ -479,7 +567,7 @@ class DataGenerator(object):
     trie = None
 
     def __init__(self, train_examples, dev_examples, test_examples, preprocessor,
-            args, schema, mappings=None, retriever=None, cache='.cache',
+            args, schema, mappings_path=None, retriever=None, cache='.cache',
             ignore_cache=False, candidates_path=[], num_context=1, batch_size=1,
             trie_path=None, model='seq2seq', add_ground_truth=True):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
@@ -489,7 +577,6 @@ class DataGenerator(object):
 
         # Build retriever given training dialogues
         self.retriever = retriever
-
         self.slot_filling = preprocessor.slot_filling
 
         self.cache = cache
@@ -508,34 +595,55 @@ class DataGenerator(object):
             self.dialogues = {k: None  for k, v in examples.iteritems() if v}
             print 'Using cached data from', cache
 
-        if not mappings:
-            mappings = create_mappings(self.dialogues['train'], schema, preprocessor.entity_forms.values())
-        # TODO: hacky, move mappings dump from main to here
-        mappings = make_model_mappings(self.model, mappings)
-        self.mappings = mappings
+        self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
+        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
+        self.mappings = make_model_mappings(self.model, mappings)
+        Dialogue.mappings = self.mappings
         self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
-        Dialogue.mappings = mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
 
-        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model, int_markers=int_markers, slot_filling=self.slot_filling, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings, num_context=num_context)
+        self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
+                        int_markers=int_markers, slot_filling=self.slot_filling,
+                        kb_pad=self.mappings['kb_vocab'].to_ind(markers.PAD),
+                        mappings=self.mappings, num_context=num_context)
+
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
-
         self.trie = None
-        # NOTE: Trie should be built after batches are created
-        #self.trie = self.create_trie(self.batches.get('train', None), trie_path)
-        #for name, batches in self.batches.iteritems():
-        #    for batch in batches:
-        #        for b in batch['batch_seq']:
-        #            b['mask'] = self.get_mask(b['targets'], name)
+
+    def load_mappings(self, model_type, mappings_path, schema, preprocessor):
+        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
+        if not os.path.exists(vocab_path):
+            print 'Vocab not found at', vocab_path
+            mappings = create_mappings(self.dialogues['train'], schema,
+                preprocessor.entity_forms.values())
+            write_pickle(mappings, vocab_path)
+            print('Wrote mappings to {}, now exiting.'.format(vocab_path))
+            import sys; sys.exit()
+        else:
+            print 'Loading vocab from', vocab_path
+            mappings = read_pickle(vocab_path)
+            for k, v in mappings.iteritems():
+                print k, v.size
+            return self.set_src_tgt_vocab(model_type, mappings)
+
+    def set_src_tgt_vocab(self, model_type, mappings):
+        # Figure out src and tgt vocab
+        if model_type == 'seq2lf':
+            mappings['src_vocab'] = mappings['utterance_vocab']
+            mappings['tgt_vocab'] = mappings['lf_vocab']
+        else:  # seq2seq sum2sum or sum2seq
+            mappings['src_vocab'] = mappings['utterance_vocab']
+            mappings['tgt_vocab'] = mappings['utterance_vocab']
+        return mappings
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
-        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
+        mask = np.zeros([batch_size, seq_len, self.mappings['utterance_vocab'].size], dtype=np.bool)
         for batch_id, targets in enumerate(decoder_targets):
             for time_step, t in enumerate(targets):
                 prefix = tuple(targets[:time_step][-5:])
@@ -647,7 +755,7 @@ class DataGenerator(object):
                 yield Batch(batch['encoder_args'],
                             batch['decoder_args'],
                             batch['context_data'],
-                            self.mappings['vocab'],
+                            self.mappings['utterance_vocab'],
                             num_context=self.num_context, cuda=cuda)
 
     def create_trie(self, batches, path):
@@ -705,7 +813,7 @@ class EvalDataGenerator(DataGenerator):
 
         self.slot_filling = preprocessor.slot_filling
         self.mappings = mappings
-        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+        self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
 
         EvalDialogue.mappings = mappings
         EvalDialogue.textint_map = self.textint_map
@@ -713,7 +821,7 @@ class EvalDataGenerator(DataGenerator):
         EvalDialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[mappings['vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
 
     @classmethod
     def tuple_to_entity(cls, token):
@@ -749,7 +857,7 @@ class EvalDataGenerator(DataGenerator):
         return d
 
     def dialogue_sort_score(self, d):
-        # Sort dialogues by number o turns
+        # Sort dialogues by number of turns
         return d.context_len()
 
     def get_dialogue_batch(self, dialogues, slot_filling):
@@ -785,4 +893,5 @@ class LMDataGenerator(DataGenerator):
             dialogue_batches.append(LMDialogueBatcher(dialogue_batch).create_batch(bptt_steps))
             start = end
         return dialogue_batches
+
 

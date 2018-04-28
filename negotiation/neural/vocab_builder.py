@@ -37,24 +37,27 @@ def build_utterance_vocab(dialogues, special_symbols=[], entity_forms=[]):
     # Add special symbols
     vocab.add_words(special_symbols, special=True)
     vocab.finish(size_threshold=10000)
-    print 'Utterance vocabulary size:', vocab.size
+    print 'Utterance vocab size:', vocab.size
     return vocab
 
 def build_kb_vocab(dialogues, special_symbols=[]):
-    vocab = Vocabulary(offset=0, unk=True)
+    kb_vocab = Vocabulary(offset=0, unk=True)
     cat_vocab = Vocabulary(offset=0, unk=False)
-    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'], special=True)
+
     for dialogue in dialogues:
         assert dialogue.is_int is False
-        vocab.add_words(dialogue.title)
-        vocab.add_words(dialogue.description)
+        kb_vocab.add_words(dialogue.title)
+        kb_vocab.add_words(dialogue.description)
         cat_vocab.add_word(dialogue.category)
-    vocab.add_words(special_symbols, special=True)
-    vocab.finish(freq_threshold=5)
+
+    kb_vocab.add_words(special_symbols, special=True)
+    kb_vocab.finish(freq_threshold=5)
+    cat_vocab.add_words(['bike', 'car', 'electronics', 'furniture', 'housing', 'phone'], special=True)
     cat_vocab.finish()
-    print 'KB vocabulary size:', vocab.size
-    print 'Category size:', cat_vocab.size
-    return vocab, cat_vocab
+
+    print 'KB vocab size:', kb_vocab.size
+    print 'Category vocab size:', cat_vocab.size
+    return kb_vocab, cat_vocab
 
 def build_lf_vocab(dialogues):
     vocab = Vocabulary(offset=0, unk=True)
@@ -68,10 +71,10 @@ def build_lf_vocab(dialogues):
     return vocab
 
 def create_mappings(dialogues, schema, entity_forms):
-    vocab = build_utterance_vocab(dialogues, markers, entity_forms)
+    utterance_vocab = build_utterance_vocab(dialogues, markers, entity_forms)
     kb_vocab, cat_vocab = build_kb_vocab(dialogues, [markers.PAD])
     lf_vocab = build_lf_vocab(dialogues)
-    return {'vocab': vocab,
+    return {'utterance_vocab': utterance_vocab,
             'kb_vocab': kb_vocab,
             'cat_vocab': cat_vocab,
             'lf_vocab': lf_vocab,

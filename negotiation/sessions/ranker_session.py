@@ -133,8 +133,8 @@ class EncDecRankerSession(IRRankerSession):
         super(EncDecRankerSession, self).__init__(agent, kb, env)
         self.encoder_state = None
         self.context_batch = self._get_int_context()
-        self.GO = env.mappings['vocab'].to_ind(markers.GO_S if self.role == 'seller' else markers.GO_B)
-        self.PAD = env.mappings['vocab'].to_ind(markers.PAD)
+        self.GO = env.mappings['utterance_vocab'].to_ind(markers.GO_S if self.role == 'seller' else markers.GO_B)
+        self.PAD = env.mappings['utterance_vocab'].to_ind(markers.PAD)
 
     def _get_int_context(self):
         category = self.env.mappings['cat_vocab'].to_ind(self.category)
