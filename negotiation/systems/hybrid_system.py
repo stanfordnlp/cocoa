@@ -28,12 +28,9 @@ def add_hybrid_arguments(parser):
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
     add_evaluator_arguments(parser)
 
-def add_neural_system_arguments(parser):
-
-
-class RulebasedSystem(BaseRulebasedSystem):
+class HybridSystem(BaseRulebasedSystem):
     def __init__(self, lexicon, generator, timed_session):
-        super(System, self).__init__()
+        super(HybridSystem, self).__init__()
         self.timed_session = timed_session
         self.lexicon = lexicon
         self.generator = generator
