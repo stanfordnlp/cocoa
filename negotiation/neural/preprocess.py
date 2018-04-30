@@ -102,9 +102,7 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.role = kb.role
-        partner_role = 'buyer' if self.role == 'seller' else 'seller'
-        self.agent_to_role = {self.agent: self.role, 1 - self.agent: partner_role}
+        self.agent_to_role = self.agent_to_role(agent, kb)
         # KB context
         # TODO: context_to_int will change category, title, description to integers
         self.category_str = kb.category
@@ -142,6 +140,16 @@ class Dialogue(object):
             all_turns.append([start_symbol] + turn)
         all_tokens = [x for turn in all_turns for x in turn]
         return all_tokens, all_turns
+
+    @staticmethod
+    def get_role_mapping(agent, kb):
+        my_id = agent
+        my_role = kb.role
+
+        partner_id = 1 - agent
+        partner_role = 'buyer' if role == 'seller' else 'seller'
+
+        return {my_id: my_role, partner_id: partner_role}
 
     def num_tokens(self):
         return sum([len(t) for t in self.token_turns])
