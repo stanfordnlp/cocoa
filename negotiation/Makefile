@@ -42,7 +42,11 @@ train:
 bot-chat:
 	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json \
 	--train-max-examples 20 --test-max-examples 0 --agents hybrid cmd --price-tracker $(price_tracker) --mappings scr/mappings/$(model) \
+<<<<<<< HEAD
 	--checkpoint-files $(ckpt_files) --templates $(template_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 --verbose --checkpoint $(checkpoint)
+=======
+	--checkpoint-file $(ckpt_file) --templates $(template_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 --verbose --model $(model)
+>>>>>>> c32f39cbe55b39bc5349c1730370864df5bad2a9
 
 # rule_model=scr/model.pkl
 # PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
