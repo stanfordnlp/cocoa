@@ -5,7 +5,7 @@ from negotiation.sessions.rulebased_session import CraigslistRulebasedSession
 
 class HybridSession(object):
     @classmethod
-    def get_session(cls, agent, kb, lexicon, config, generator, manager):
+    def get_session(cls, agent, kb, lexicon, generator, manager, config=None):
         if kb.role == 'buyer':
             return BuyerHybridSession(agent, kb, lexicon, config, generator, manager)
         elif kb.role == 'seller':

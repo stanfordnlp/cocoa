@@ -5,7 +5,7 @@ from rulebased_system import RulebasedSystem, add_rulebased_arguments
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from neural_system import NeuralSystem, add_neural_system_arguments, PytorchNeuralSystem
 from cmd_system import CmdSystem
-from hybrid_system import HybridSystem
+from hybrid_system import HybridSystem, add_hybrid_arguments
 
 # from ranker_system import IRRankerSystem, NeuralRankerSystem
 # from model.retriever import Retriever, add_retriever_arguments
@@ -13,9 +13,10 @@ from hybrid_system import HybridSystem
 # from model.manager import Manager
 
 def add_system_arguments(parser):
+    add_hybrid_arguments(parser)
     add_price_tracker_arguments(parser)
     add_neural_system_arguments(parser)
-    add_rulebased_arguments(parser)
+    # add_rulebased_arguments(parser)
     # add_retriever_arguments(parser)
     # add_configurable_rulebased_arguments(parser)
 
