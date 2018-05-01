@@ -5,6 +5,7 @@ from rulebased_system import RulebasedSystem, add_rulebased_arguments
 from configurable_rulebased_system import ConfigurableRulebasedSystem, add_configurable_rulebased_arguments
 from neural_system import NeuralSystem, add_neural_system_arguments, PytorchNeuralSystem
 from cmd_system import CmdSystem
+from hybrid_system import HybridSystem
 
 # from ranker_system import IRRankerSystem, NeuralRankerSystem
 # from model.retriever import Retriever, add_retriever_arguments
@@ -12,11 +13,11 @@ from cmd_system import CmdSystem
 # from model.manager import Manager
 
 def add_system_arguments(parser):
-    add_neural_system_arguments(parser)
-    # add_retriever_arguments(parser)
-    # add_rulebased_arguments(parser)
-    add_configurable_rulebased_arguments(parser)
     add_price_tracker_arguments(parser)
+    add_neural_system_arguments(parser)
+    add_rulebased_arguments(parser)
+    # add_retriever_arguments(parser)
+    # add_configurable_rulebased_arguments(parser)
 
 def get_system(name, args, schema=None, timed=False, model_path=None):
     lexicon = PriceTracker(args.price_tracker_model)
@@ -27,11 +28,12 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         return RulebasedSystem(lexicon, generator, manager, timed)
     elif name = 'hybrid':
         templates = Templates.from_pickle(args.templates)
+        manager = PytorchNeuralSystem(args, schema, lexicon, model_path, timed)
         generator = Generator(templates)
-        return HybridSystem(lexicon, generator, timed)
-    #elif name == 'config-rulebased':
-    #    configs = read_json(args.rulebased_configs)
-    #    return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db, templates=templates)
+        return HybridSystem(lexicon, generator, manager, timed)
+    elif name == 'config-rulebased':
+       configs = read_json(args.rulebased_configs)
+       return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db, templates=templates)
     elif name == 'cmd':
         return CmdSystem()
     elif name.startswith('ranker'):
