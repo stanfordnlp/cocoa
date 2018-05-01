@@ -1,7 +1,7 @@
 import random
 import numpy as np
 import pdb
-from negotiation.sessions.rulebased_session import CraigslistRulebasedSession
+from sessions.rulebased_session import CraigslistRulebasedSession
 
 class HybridSession(object):
     @classmethod

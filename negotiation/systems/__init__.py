@@ -9,7 +9,7 @@ from hybrid_system import HybridSystem, add_hybrid_arguments
 
 # from ranker_system import IRRankerSystem, NeuralRankerSystem
 # from model.retriever import Retriever, add_retriever_arguments
-# from model.generator import Templates, Generator
+from model.generator import Templates, Generator
 # from model.manager import Manager
 
 def add_system_arguments(parser):
@@ -27,7 +27,7 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         generator = Generator(templates)
         manager = Manager.from_pickle(args.policy)
         return RulebasedSystem(lexicon, generator, manager, timed)
-    elif name = 'hybrid':
+    elif name == 'hybrid':
         templates = Templates.from_pickle(args.templates)
         manager = PytorchNeuralSystem(args, schema, lexicon, model_path, timed)
         generator = Generator(templates)
