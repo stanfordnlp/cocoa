@@ -61,7 +61,8 @@ def generate_examples(description, examples_path, max_examples, remove_fail, max
     random.shuffle(scenarios)
     for i in range(max_examples):
         scenario = scenarios[num_examples % len(scenario_db.scenarios_list)]
-        sessions = [agents[0].new_session(0, scenario.kbs[0]), agents[1].new_session(1, scenario.kbs[1])]
+        sessions = [agents[0].new_session(0, scenario.kbs[0], args.use_rl),
+                    agents[1].new_session(1, scenario.kbs[1], args.use_rl)]
         controller = Controller(scenario, sessions)
         ex = controller.simulate(max_turns, verbose=args.verbose)
         if not controller.complete():
