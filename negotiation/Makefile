@@ -1,9 +1,10 @@
-model=sum2seq
+model=lf2lf
 exp=debug
 lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
 mappings=scr/mappings
+data_path=scr/data
 checkpoint=scr/checkpoint/$(exp)
 summary_dir=$(checkpoint)/summary
 stats_file=$(checkpoint)/stats
@@ -70,7 +71,7 @@ train-rl:
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
 train:
-	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings/$(model) --stats-file $(stats_file).train --pretrained-wordvec scr/mappings/$(model)/utterance_glove.pt scr/mappings/$(model)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
+	PYTHONPATH=. python pt_main.py --schema-path $(data_path)/craigslist-schema.json --train-examples-paths $(data_path)/train-parsed.json --test-examples-paths $(data_path)/dev-parsed.json --mappings scr/mappings/$(model) --stats-file $(stats_file).train --pretrained-wordvec $(mappings)/$(model)/utterance_glove.pt scr/mappings/$(model)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--global-attention multibank_general \
 	--num-context 10 \
 	--report-every 500 \
@@ -79,7 +80,7 @@ train:
 	--cache scr/cache/all/$(model) \
 	--verbose \
 	--ignore-cache \
- 	#--train-max-examples 100 --test-max-examples 100 \
+ 	--train-max-examples 100 --test-max-examples 100
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-files $(ckpt_file) \
