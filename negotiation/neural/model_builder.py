@@ -204,7 +204,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         the NMTModel.
     """
     # Make encoder.
-    src_dict = mappings['vocab']
+    src_dict = mappings['utterance_vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
 
