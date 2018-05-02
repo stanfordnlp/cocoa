@@ -1,12 +1,11 @@
 from itertools import izip
 import numpy as np
-from tensorflow.python.util import nest
-from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
-import tensorflow as tf
+# from tensorflow.python.util import nest
+# from tensorflow.contrib.rnn.python.ops.rnn_cell import _linear
+# import tensorflow as tf
 
 EPS = 1e-12
-
-linear = _linear
+# linear = _linear
 
 def safe_div(numerator, denominator):
     return numerator / (denominator + EPS)

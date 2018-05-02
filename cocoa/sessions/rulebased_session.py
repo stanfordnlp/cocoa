@@ -17,7 +17,7 @@ class RulebasedSession(Session):
 
     def receive(self, event):
         utterance = self.parser.parse(event, self.state)
-        print 'receive:'
+        print 'rulebased receive:'
         print utterance
         self.state.update(self.partner, utterance)
 
