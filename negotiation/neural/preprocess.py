@@ -524,20 +524,6 @@ class Preprocessor(object):
 
         return summary
 
-    def _process_example(self, ex):
-        '''
-        Convert example to turn-based dialogue from each agent's perspective
-        Create two Dialogue objects for each example
-        '''
-        kbs = ex.scenario.kbs
-        for agent in (0, 1):
-            dialogue = Dialogue(agent, kbs[agent], ex.ex_id)
-            for e in ex.events:
-                utterance = self.process_event(e, dialogue.kb)
-                if utterance:
-                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
-            yield dialogue
-
     @classmethod
     def skip_example(cls, example):
         tokens = {0: 0, 1: 0}

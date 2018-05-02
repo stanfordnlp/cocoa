@@ -209,6 +209,10 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
       context_embeddings = make_embeddings(model_opt, context_dict)
       context_embedder = make_context_embedder(model_opt, context_embeddings)
 
+    # TODO: no kb_embedder for lf2lf
+    #if model_opt.model == 'lf2lf':
+    #    kb_embedder = None
+    #else:
     kb_dict = mappings['kb_vocab']
     kb_embeddings = make_embeddings(model_opt, kb_dict)
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
@@ -267,9 +271,11 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             embeddings.load_pretrained_vectors(
                     wordvec[name], model_opt.fix_pretrained_wordvec)
 
-        load_wordvec(model.encoder.embeddings, 'utterance')
-        if hasattr(model, 'context_embedder'):
-            load_wordvec(model.context_embedder.embeddings, 'utterance')
+        # Don't need pretrained word vec for LFs
+        if not model_opt.model == 'lf2lf':
+            load_wordvec(model.encoder.embeddings, 'utterance')
+            if hasattr(model, 'context_embedder'):
+                load_wordvec(model.context_embedder.embeddings, 'utterance')
         if hasattr(model, 'kb_embedder'):
             load_wordvec(model.kb_embedder.embeddings, 'kb')
 

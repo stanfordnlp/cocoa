@@ -49,13 +49,12 @@ class Evaluator(object):
     def __init__(self, model, mappings, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
-        self.utterance_vocab = mappings['utterance_vocab']
-        self.kb_vocab = mappings['kb_vocab']
+        self.mappings = mappings
 
     def evaluate(self, opt, model_opt, data, split='test'):
         scorer = Scorer(opt.alpha)
-        generator = get_generator(self.model, self.vocab, scorer, opt)
-        builder = UtteranceBuilder(self.vocab, opt.n_best, has_tgt=True)
+        generator = get_generator(self.model, self.mappings['tgt_vocab'], scorer, opt)
+        builder = UtteranceBuilder(self.mappings['tgt_vocab'], opt.n_best, has_tgt=True)
 
         # Statistics
         counter = count(1)
@@ -78,7 +77,7 @@ class Evaluator(object):
 
                 if opt.verbose:
                     sent_number = next(counter)
-                    title = builder.var_to_sent(titles[i], self.kb_vocab)
+                    title = builder.var_to_sent(titles[i], self.mappings['kb_vocab'])
                     summary = builder.var_to_sent(enc_inputs[i])
                     print("--------- {0}: {1} -----------".format(sent_number, title))
                     if model_opt.model in ["sum2sum", "sum2seq"]:

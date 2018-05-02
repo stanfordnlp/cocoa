@@ -1,9 +1,9 @@
-model=sum2seq
-exp=debug
+model=encdec
+exp=basic
 lr=0.5
 scr=/scr/hehe/game-dialogue
 glove=/scr/hehe/glove/glove.840B.300d.txt
-mappings=scr/mappings
+mappings=scr/mappings-10k
 checkpoint=scr/checkpoint/$(exp)
 summary_dir=$(checkpoint)/summary
 stats_file=$(checkpoint)/stats
@@ -16,7 +16,7 @@ num_items=5
 seed=1
 max_epochs=100
 min_epochs=10
-num_epochs=15
+num_epochs=50
 batch_size=128
 entity_form=type
 data=negotiation
@@ -41,7 +41,7 @@ scenario:
 
 scrape-craigslist:
 	if [ -f scraper/data/negotiation/craigslist_$(cat).json ]; then \
-ls		rm scraper/data/negotiation/craigslist_$(cat).json; \
+		rm scraper/data/negotiation/craigslist_$(cat).json; \
 	fi;
 	cd scraper; scrapy crawl craigslist -o data/negotiation/craigslist_$(cat).json -a cache_dir=/scr/hehe/game-dialogue/craigslist_cache -a from_cache=False -a num_result_pages=100 -a category=$(cat) -a image=1
 
@@ -56,7 +56,7 @@ real-dataset:
 
 glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/$(model)/vocab.pkl --output-file scr/mappings/$(model)/ --vocab-type kb
-	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/$(model)/vocab.pkl --output-file scr/mappings/$(model)/ --vocab-type utterance
+	#PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/$(model)/vocab.pkl --output-file scr/mappings/$(model)/ --vocab-type utterance
 
 train-rl:
 	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path scr/data/train-scenarios.json \
@@ -70,24 +70,26 @@ train-rl:
 	# --stats-file $(stats_file).train --pretrained-wordvec scr/glove.pt --word-vec-size 300
 	# --cache scr/cache/tmp --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json
 
+model=seq2seq
 train:
 	PYTHONPATH=. python pt_main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train-parsed.json --test-examples-paths scr/data/dev-parsed.json --mappings scr/mappings/$(model) --stats-file $(stats_file).train --pretrained-wordvec scr/mappings/$(model)/utterance_glove.pt scr/mappings/$(model)/kb_glove.pt --word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 300 --optim adagrad --learning-rate 0.01 --rnn-type LSTM \
 	--global-attention multibank_general \
 	--num-context 10 \
 	--report-every 500 \
-	--epochs $(num_epochs) \
+	--epochs 15 \
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
 	#--ignore-cache \
- 	#--train-max-examples 100 --test-max-examples 100 \
+ 	#--train-max-examples 100 --test-max-examples 100
 
 test:
 	PYTHONPATH=. python evaluate.py --schema-path data/craigslist-schema.json --test-examples-paths scr/data/dev-parsed.json --price-tracker $(price_tracker) --batch-size 128 --gpuid 3 --verbose --checkpoint-files $(ckpt_file) \
-	--cache scr/cache/all/$(model) \
-	#--test-max-examples 10 \
+	--cache scr/cache/tmp/$(model) \
+	--test-max-examples 10 \
 	--ignore-cache 
 	#--sample --temperature 1 \
+
 
 dropout=0.0
 train-neg:
@@ -157,7 +159,7 @@ config-search:
 
 rule_model=scr/model.pkl
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json --train-max-examples 20 --test-max-examples 0 --agents pt-neural cmd --price-tracker $(price_tracker) --mappings scr/mappings/$(model) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 #--verbose
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json --train-max-examples 20 --test-max-examples 0 --agents pt-neural pt-neural --price-tracker $(price_tracker) --mappings scr/mappings/$(model) --checkpoint-file $(ckpt_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 #--verbose
 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
 	# PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/neural_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents neural-gen cmd --max-turns 20 --checkpoint $(checkpoint) --mappings $(mappings) --price-tracker $(price_tracker) --decoding sample 0 --retrieve --index scr/index --retriever-context-len 2 --num-candidates 10
