@@ -16,9 +16,9 @@ class HybridSession(object):
 class BaseHybridSession(CraigslistRulebasedSession):
     def receive(self, event):
         # process the rulebased portion
-        super(HybridSession, self).receive(event)
+        super(BaseHybridSession, self).receive(event)
         # process the neural based portion
-        self.mananger.env.preprocessor.process_event(event, self.kb)
+        self.manager.env.preprocessor.process_event(event, self.kb)
 
     # called by the send() method of the parent rulebased session
     def choose_action(self):
