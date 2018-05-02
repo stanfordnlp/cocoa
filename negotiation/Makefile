@@ -30,7 +30,7 @@ template_file=scr/templates.pkl
 train:
 	PYTHONPATH=. python pt_main.py --schema-path $(data_path)/craigslist-schema.json --train-examples-paths $(data_path)/train-parsed.json --test-examples-paths $(data_path)/dev-parsed.json \
 	--mappings $(mappings)/$(model) --stats-file $(stats_file).train --pretrained-wordvec $(mappings)/$(model)/utterance_glove.pt $(mappings)/$(model)/kb_glove.pt \
-	--word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --gpuid 0 --rnn-size 300 --optim adagrad --learning-rate 0.01 \
+	--word-vec-size 300 --model-path $(checkpoint) --price-tracker $(price_tracker) --batch-size 128 --rnn-size 300 --optim adagrad --learning-rate 0.01 \
 	--rnn-type LSTM --global-attention multibank_general --report-every 500 --cache scr/cache/all/$(model) \
 	--num-context 10 \
 	--epochs $(num_epochs) \
@@ -38,15 +38,12 @@ train:
 	--verbose \
 	--ignore-cache \
  	--train-max-examples 100 --test-max-examples 100
+	# --gpuid 1
 
 bot-chat:
-	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/sample-scenarios.json --train-examples-paths data/dev.json \
+	PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path $(data_path)/craigslist-schema.json --scenarios-path $(data_path)/sample-scenarios.json --train-examples-paths $(data_path)/train-parsed.json \
 	--train-max-examples 20 --test-max-examples 0 --agents hybrid cmd --price-tracker $(price_tracker) --mappings scr/mappings/$(model) \
-<<<<<<< HEAD
 	--checkpoint-files $(ckpt_files) --templates $(template_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 --verbose --checkpoint $(checkpoint)
-=======
-	--checkpoint-file $(ckpt_file) --templates $(template_file) --max-turns 20 --random-seed $(seed) --sample --temperature 0.5 --verbose --model $(model)
->>>>>>> c32f39cbe55b39bc5349c1730370864df5bad2a9
 
 # rule_model=scr/model.pkl
 # PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/test-scenarios.json --train-examples-paths data/rulebased_transcripts.json --train-max-examples 1 --test-max-examples 0 --agents rulebased cmd --price-tracker $(price_tracker) --max-turns 20 --templates $(tmplt) --policy $(rule_model) --random-seed $(seed) --verbose 
