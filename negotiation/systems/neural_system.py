@@ -159,7 +159,7 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-        vocab = mappings['utterance_vocab']
+        vocab = mappings['vocab']
         self.mappings = mappings
 
         generator = get_generator(model, vocab, Scorer(args.alpha), args)

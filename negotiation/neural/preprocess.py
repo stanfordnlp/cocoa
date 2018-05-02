@@ -590,7 +590,7 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
-        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
+        self.textint_map = TextIntMap(self.mappings['vocab'], preprocessor)
 
         Dialogue.mappings = self.mappings
         Dialogue.textint_map = self.textint_map
@@ -598,7 +598,7 @@ class DataGenerator(object):
         Dialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[self.mappings['vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
                         int_markers=int_markers, slot_filling=self.slot_filling,
@@ -627,7 +627,7 @@ class DataGenerator(object):
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
-        mask = np.zeros([batch_size, seq_len, self.mappings['utterance_vocab'].size], dtype=np.bool)
+        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
         for batch_id, targets in enumerate(decoder_targets):
             for time_step, t in enumerate(targets):
                 prefix = tuple(targets[:time_step][-5:])
@@ -739,7 +739,7 @@ class DataGenerator(object):
                 yield Batch(batch['encoder_args'],
                             batch['decoder_args'],
                             batch['context_data'],
-                            self.mappings['utterance_vocab'],
+                            self.mappings['vocab'],
                             num_context=self.num_context, cuda=cuda)
             # End of dialogue
             yield None

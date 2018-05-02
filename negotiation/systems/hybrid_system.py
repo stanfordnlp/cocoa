@@ -8,9 +8,8 @@ def add_hybrid_arguments(parser):
 
 class HybridSystem(BaseRulebasedSystem):
 
-    def _new_session(self, agent, kb, use_rl):
-        # use_rl is the value being passed in by config
-        manager_session = self.manager.new_session(agent, kb, use_rl)
+    def _new_session(self, agent, kb, use_rl=False):
+        manager_session = self.manager.new_session(agent, kb)
         return HybridSession.get_session(agent, kb, self.lexicon,
                 self.generator, manager_session)
 

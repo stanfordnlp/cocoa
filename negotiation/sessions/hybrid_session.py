@@ -22,9 +22,8 @@ class BaseHybridSession(CraigslistRulebasedSession):
 
     # called by the send() method of the parent rulebased session
     def choose_action(self):
-        action_tokens = self.manager.choose_action(state=self.state)
-        pdb.set_trace()
-        action = action_tokens[1]
+        action = self.manager.generate()[0]
+        print("action predicted by neural manager: {}".format(action))
         if not action:
             action = self.retrieve_action()
             if not action in self.manager.available_actions(self.state):
@@ -32,8 +31,8 @@ class BaseHybridSession(CraigslistRulebasedSession):
         return action
 
 class SellerHybridSession(BaseHybridSession):
-    def __init__(self, agent, kb, lexicon, config, generator):
-        super(SellerHybridSession, self).__init__(agent, kb, lexicon, config, generator)
+    def __init__(self, agent, kb, lexicon, config, generator, manager):
+        super(SellerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
         # Direction of desired price
         self.inc = 1.
         self.init_price()
@@ -65,8 +64,8 @@ class SellerHybridSession(BaseHybridSession):
         return random.choice(s)
 
 class BuyerHybridSession(BaseHybridSession):
-    def __init__(self, agent, kb, lexicon, config, generator):
-        super(BuyerHybridSession, self).__init__(agent, kb, lexicon, config, generator)
+    def __init__(self, agent, kb, lexicon, config, generator, manager):
+        super(BuyerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
         # Direction of desired price
         self.inc = -1.
         self.init_price()
