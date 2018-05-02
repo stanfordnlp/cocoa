@@ -57,7 +57,7 @@ def get_data_generator(args, model_args, schema, test=False):
     lexicon = PriceTracker(model_args.price_tracker_model)
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
         model_args.entity_decoding_form, model_args.entity_target_form,
-        model_args.model)
+        model=model_args.model)
 
     #trie_path = os.path.join(model_args.mappings, 'trie.pkl')
     trie_path = None
@@ -98,11 +98,11 @@ def check_model_args(args):
 
 def make_model_mappings(model, mappings):
     if model == 'seq2lf':
-        mappings['src_vocab'] = mappings['vocab']
+        mappings['src_vocab'] = mappings['utterance_vocab']
         mappings['tgt_vocab'] = mappings['lf_vocab']
     else:
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['vocab']
+        mappings['src_vocab'] = mappings['utterance_vocab']
+        mappings['tgt_vocab'] = mappings['utterance_vocab']
     return mappings
 
 def build_optim(opt, model, checkpoint):

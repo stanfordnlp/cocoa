@@ -56,6 +56,7 @@ real-dataset:
 
 glove-pt:
 	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/$(model)/vocab.pkl --output-file scr/mappings/$(model)/ --vocab-type kb
+	PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file $(glove) --vocab-file scr/mappings/$(model)/vocab.pkl --output-file scr/mappings/$(model)/ --vocab-type utterance
 
 train-rl:
 	PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json  --scenarios-path scr/data/train-scenarios.json \
@@ -78,7 +79,7 @@ train:
 	--model $(model) \
 	--cache scr/cache/all/$(model) \
 	--verbose \
-	--ignore-cache \
+	#--ignore-cache \
  	#--train-max-examples 100 --test-max-examples 100 \
 
 test:

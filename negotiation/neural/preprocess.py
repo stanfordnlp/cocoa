@@ -356,7 +356,7 @@ class Preprocessor(object):
         '''
         Input: utterance is a list of tokens, stage is either encoding, decoding or target
         Output: in most cases, stage will be declared. Based on a combination of
-             the model_type and stage, we choose whether or not to summarize the 
+             the model_type and stage, we choose whether or not to summarize the
              utterance.  Models with "sum" should be summarized to only include
              selected keywords, models with "seq" will keep the full sequence.
         '''
@@ -596,10 +596,8 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
-        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
-        self.mappings = make_model_mappings(self.model, mappings)
         Dialogue.mappings = self.mappings
-        self.textint_map = TextIntMap(mappings['vocab'], preprocessor)
+        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
@@ -629,17 +627,8 @@ class DataGenerator(object):
             mappings = read_pickle(vocab_path)
             for k, v in mappings.iteritems():
                 print k, v.size
-            return self.set_src_tgt_vocab(model_type, mappings)
-
-    def set_src_tgt_vocab(self, model_type, mappings):
-        # Figure out src and tgt vocab
-        if model_type == 'seq2lf':
-            mappings['src_vocab'] = mappings['utterance_vocab']
-            mappings['tgt_vocab'] = mappings['lf_vocab']
-        else:  # seq2seq sum2sum or sum2seq
-            mappings['src_vocab'] = mappings['utterance_vocab']
-            mappings['tgt_vocab'] = mappings['utterance_vocab']
-        return mappings
+            mappings = make_model_mappings(model_type, mappings)
+            return mappings
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
