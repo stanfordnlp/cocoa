@@ -92,17 +92,13 @@ class NeuralSession(Session):
 
 
 class PytorchNeuralSession(NeuralSession):
-    def __init__(self, agent, kb, env, use_rl):
+    def __init__(self, agent, kb, env):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
         self.vocab = env.vocab
         self.gt_prefix = env.gt_prefix
-        self.use_rl = use_rl
-        # self.dialogue = env.Dialogue
-        # self.num_context = env.Dialogue.num_context
 
-        self.encoder_state = None
-        self.decoder_state = None
-        self.encoder_output_dict = None
+        self.dec_state = None
+        self.stateful = self.env.model.stateful
 
         self.new_turn = False
         self.end_turn = False
@@ -144,8 +140,16 @@ class PytorchNeuralSession(NeuralSession):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
-        encoder_init_state = None
-        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+
+        enc_state = self.dec_state.hidden if self.dec_state is not None else None
+        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
+
+        if self.stateful:
+            # TODO: only works for Sampler for now. cannot do beam search.
+            self.dec_state = output_data['dec_states']
+        else:
+            self.dec_state = None
+
         entity_tokens = self._output_to_tokens(output_data)
 
         #if not self._is_valid(entity_tokens):

@@ -197,9 +197,9 @@ class PytorchNeuralSystem(System):
     def name(cls):
         return 'pt-neural'
 
-    def new_session(self, agent, kb, use_rl=False):
+    def new_session(self, agent, kb):
         if self.model_name in ('seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf'):
-            session = PytorchNeuralSession(agent, kb, self.env, use_rl)
+            session = PytorchNeuralSession(agent, kb, self.env)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))
         return session

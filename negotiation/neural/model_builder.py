@@ -234,9 +234,9 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
 
     if "multibank" in model_opt.global_attention:
-      model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder)
+        model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder, stateful=model_opt.stateful)
     else:
-      model = NMTModel(encoder, decoder)
+        model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
     model.model_type = 'text'
 
     # Make Generator.

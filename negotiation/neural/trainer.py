@@ -225,6 +225,7 @@ class Trainer(object):
         stats = Statistics()
 
         num_val_batches = valid_iter.next()
+        dec_state = None
         for batch in valid_iter:
             if batch is None:
                 dec_state = None
@@ -306,6 +307,7 @@ class Trainer(object):
         if self.grad_accum_count > 1:
             self.model.zero_grad()
 
+        dec_state = None
         for batch in true_batchs:
             if batch is None:
                 dec_state = None

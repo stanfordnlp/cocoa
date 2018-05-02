@@ -63,8 +63,15 @@ class Evaluator(object):
 
         data_iter = data.generator(split, shuffle=False)
         num_batches = data_iter.next()
+        dec_state = None
         for batch in data_iter:
-            batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix)
+            if batch is None:
+                dec_state = None
+                continue
+            elif not self.model.stateful:
+                dec_state = None
+            enc_state = dec_state.hidden if dec_state is not None else None
+            batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
             utterances = builder.from_batch(batch_data)
             titles = batch.title_inputs.transpose(0,1)
             enc_inputs = batch.encoder_inputs.transpose(0,1)

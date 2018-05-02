@@ -49,18 +49,18 @@ class Generator(object):
                 "scores": [],
                 "log_probs": []}
 
-    def _run_encoder(self, batch):
+    def _run_encoder(self, batch, enc_states=None):
         encoder_inputs = batch.encoder_inputs
         lengths = batch.lengths
 
-        enc_states, memory_bank = self.model.encoder(encoder_inputs, lengths)
+        enc_states, memory_bank = self.model.encoder(encoder_inputs, lengths, enc_states)
         dec_states = self.model.decoder.init_decoder_state(
                                         encoder_inputs, memory_bank, enc_states)
 
         return dec_states, memory_bank
 
     def _run_attention_memory(self, batch, enc_memory_bank):
-        if batch.num_context > 0:
+        if batch.num_context > 0 and hasattr(self.model, 'kb_embedder'):
             title_inputs = batch.title_inputs
             desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
@@ -75,7 +75,7 @@ class Generator(object):
             memory_bank = enc_memory_bank
         return memory_bank
 
-    def generate_batch(self, batch, gt_prefix=1):
+    def generate_batch(self, batch, gt_prefix=1, enc_state=None):
         """
         Generate a batch of sentences.
 
@@ -123,7 +123,7 @@ class Generator(object):
 
         # (1) Run the encoder on the src.
         lengths = batch.lengths
-        dec_states, enc_memory_bank = self._run_encoder(batch)
+        dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
         memory_bank = self._run_attention_memory(batch, enc_memory_bank)
 
         # (1.1) Go over forced prefix.
@@ -135,7 +135,8 @@ class Generator(object):
         # (2) Repeat src objects `beam_size` times.
         #src_map = rvar(batch.src_map.data) \
         #    if data_type == 'text' and self.copy_attn else None
-        if batch.num_context > 0:
+        # TODO: num_context should be a property of the model, not the data!!
+        if batch.num_context > 0 and hasattr(self.model, 'context_embedder'):
             memory_bank = [rvar(bank.data) for bank in memory_bank]
         else:
             memory_bank = rvar(memory_bank.data)
@@ -268,10 +269,10 @@ class Sampler(Generator):
         # For debugging
         self.builder = UtteranceBuilder(vocab)
 
-    def generate_batch(self, batch, gt_prefix=1):
+    def generate_batch(self, batch, gt_prefix=1, enc_state=None):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
-        dec_states, enc_memory_bank = self._run_encoder(batch)
+        dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
         memory_bank = self._run_attention_memory(batch, enc_memory_bank)
 
         # (1.1) Go over forced prefix.
@@ -304,6 +305,7 @@ class Sampler(Generator):
         ret = {"predictions": preds,
                "scores": [[0]] * batch_size,
                "attention": [None] * batch_size,
+               "dec_states": dec_states,
                }
 
         ret["gold_score"] = [0] * batch_size
