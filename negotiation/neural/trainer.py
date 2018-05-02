@@ -234,7 +234,7 @@ class Trainer(object):
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
 
-            outputs, attns, _ = self._run_batch(batch, dec_state, enc_state)
+            outputs, attns, _ = self._run_batch(batch, None, enc_state)
             _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
             stats.update(batch_stats)
 
@@ -318,7 +318,7 @@ class Trainer(object):
             enc_state = dec_state.hidden if dec_state is not None else None
 
             self.model.zero_grad()
-            outputs, attns, dec_state = self._run_batch(batch, dec_state, enc_state)
+            outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
             loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
             loss.backward()
