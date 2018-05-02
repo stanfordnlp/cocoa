@@ -243,7 +243,8 @@ class RNNDecoderBase(nn.Module):
                  hidden_size, attn_type="general",
                  coverage_attn=False, context_gate=None,
                  copy_attn=False, dropout=0.0, embeddings=None,
-                 reuse_copy_attn=False):
+                 reuse_copy_attn=False,
+                 pad=None):
         super(RNNDecoderBase, self).__init__()
 
         # Basic attributes.
@@ -253,6 +254,7 @@ class RNNDecoderBase(nn.Module):
         self.hidden_size = hidden_size
         self.embeddings = embeddings
         self.dropout = nn.Dropout(dropout)
+        self.pad = pad
 
         # Build the RNN.
         self.rnn = self._build_rnn(rnn_type,
@@ -285,6 +287,16 @@ class RNNDecoderBase(nn.Module):
         if copy_attn:
             self._copy = True
         self._reuse_copy_attn = reuse_copy_attn
+
+    def get_final_non_pad_output(self, tgt, outputs):
+        # non-pad elements are 1
+        mask = torch.eq(tgt, self.pad).long().eq(0).long()  # (seq_len, batch_size)
+        last_ind = torch.sum(mask, dim=0, keepdim=True) - 1  # (1, batch_size)
+        last_ind = torch.max(last_ind, torch.zeros_like(last_ind))  # (1, batch_size)
+        # outputs: (seq_len, batch_size, rnn_size)
+        gather_ind = last_ind.unsqueeze(2).expand(1, outputs.size(1), outputs.size(2))
+        final_output = torch.gather(outputs, 0, gather_ind).squeeze(0)  # (batch_size, rnn_size)
+        return final_output
 
     def forward(self, tgt, memory_banks, state, memory_lengths=None):
         """
@@ -319,8 +331,11 @@ class RNNDecoderBase(nn.Module):
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
             tgt, memory_banks, state, memory_lengths=memory_lengths)
+
         # Update the state with the result.
-        final_output = decoder_outputs[-1]
+        #final_output = decoder_outputs[-1]
+        final_output = self.get_final_non_pad_output(tgt, decoder_outputs)
+
         coverage = None
         if "coverage" in attns:
             coverage = attns["coverage"][-1].unsqueeze(0)
@@ -696,11 +711,11 @@ class MultiAttnDecoder(StdRNNDecoder):
     def __init__(self, rnn_type, bidirectional_encoder, num_layers,
             hidden_size, attn_type="general", coverage_attn=False,
             context_gate=None, copy_attn=False, dropout=0.0,
-            embeddings=None, reuse_copy_attn=False):
+            embeddings=None, reuse_copy_attn=False, pad=None):
         attn_type = attn_type[10:]
         super(MultiAttnDecoder, self).__init__(rnn_type, bidirectional_encoder,
               num_layers, hidden_size, attn_type, coverage_attn,
-              context_gate, copy_attn, dropout, embeddings, reuse_copy_attn)
+              context_gate, copy_attn, dropout, embeddings, reuse_copy_attn, pad)
 
         self.attn = MultibankGlobalAttention(
             hidden_size, coverage=coverage_attn, attn_type=attn_type)

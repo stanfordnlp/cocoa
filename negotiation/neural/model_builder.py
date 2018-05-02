@@ -135,7 +135,7 @@ def make_context_embedder(opt, embeddings, embed_type='utterance'):
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                         opt.rnn_size, opt.dropout, embeddings, embed_type, False)
 
-def make_decoder(opt, embeddings):
+def make_decoder(opt, embeddings, tgt_dict):
     """
     Various decoder dispatcher function.
     Args:
@@ -143,12 +143,14 @@ def make_decoder(opt, embeddings):
         embeddings (Embeddings): vocab embeddings for this decoder.
     """
     bidirectional = True if opt.encoder_type == 'brnn' else False
+    pad = tgt_dict.to_ind(markers.PAD)
     if "multibank" in opt.global_attention:
         return MultiAttnDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
-                             embeddings=embeddings)
+                             embeddings=embeddings,
+                             pad=pad)
     elif opt.decoder_type == "transformer":
         return TransformerDecoder(opt.dec_layers, opt.rnn_size,
                                   opt.global_attention, opt.copy_attn,
@@ -169,7 +171,8 @@ def make_decoder(opt, embeddings):
                              opt.dec_layers, opt.rnn_size,
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
-                             embeddings=embeddings)
+                             embeddings=embeddings,
+                             pad=pad)
 
 def load_test_model(model_path, opt, dummy_opt):
     checkpoint = torch.load(model_path, map_location=lambda storage, loc: storage)
@@ -205,14 +208,10 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
     # Make context embedder.
     if model_opt.num_context > 0:
-      context_dict = mappings['utterance_vocab']
-      context_embeddings = make_embeddings(model_opt, context_dict)
-      context_embedder = make_context_embedder(model_opt, context_embeddings)
+        context_dict = mappings['utterance_vocab']
+        context_embeddings = make_embeddings(model_opt, context_dict)
+        context_embedder = make_context_embedder(model_opt, context_embeddings)
 
-    # TODO: no kb_embedder for lf2lf
-    #if model_opt.model == 'lf2lf':
-    #    kb_embedder = None
-    #else:
     kb_dict = mappings['kb_vocab']
     kb_embeddings = make_embeddings(model_opt, kb_dict)
     kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
@@ -230,9 +229,8 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
     #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
 
-    decoder = make_decoder(model_opt, tgt_embeddings)
+    decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
 
-    # TODO: always use multibank since this covers the single attention case too
     if "multibank" in model_opt.global_attention:
       model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder)
     else:
