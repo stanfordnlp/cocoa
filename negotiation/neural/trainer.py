@@ -226,7 +226,13 @@ class Trainer(object):
 
         num_val_batches = valid_iter.next()
         for batch in valid_iter:
-            dec_state = None
+            if batch is None:
+                dec_state = None
+                continue
+            elif not self.model.stateful:
+                dec_state = None
+            enc_state = dec_state.hidden if dec_state is not None else None
+
             outputs, attns, _ = self._run_batch(batch, dec_state)
             _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
             stats.update(batch_stats)
@@ -274,7 +280,7 @@ class Trainer(object):
         print 'Save checkpoint {path}'.format(path=path)
         torch.save(checkpoint, path)
 
-    def _run_batch(self, batch, dec_state=None):
+    def _run_batch(self, batch, dec_state=None, enc_state=None):
         encoder_inputs = batch.encoder_inputs
         decoder_inputs = batch.decoder_inputs
         targets = batch.targets
@@ -288,11 +294,11 @@ class Trainer(object):
 
             outputs, attns, dec_state = self.model(encoder_inputs,
                     decoder_inputs, context_inputs, title_inputs,
-                    desc_inputs, lengths, dec_state)
+                    desc_inputs, lengths, dec_state, enc_state)
         # running forward() method in NMT Model
         else:
             outputs, attns, dec_state = self.model(encoder_inputs,
-                  decoder_inputs, lengths, dec_state)
+                  decoder_inputs, lengths, dec_state, enc_state)
 
         return outputs, attns, dec_state
 
@@ -301,10 +307,15 @@ class Trainer(object):
             self.model.zero_grad()
 
         for batch in true_batchs:
-            dec_state = None
+            if batch is None:
+                dec_state = None
+                continue
+            elif not self.model.stateful:
+                dec_state = None
+            enc_state = dec_state.hidden if dec_state is not None else None
 
             self.model.zero_grad()
-            outputs, attns, dec_state = self._run_batch(batch, dec_state)
+            outputs, attns, dec_state = self._run_batch(batch, dec_state, enc_state)
 
             loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
             loss.backward()

@@ -66,6 +66,8 @@ def add_model_arguments(parser):
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
+    group.add_argument('--stateful', action='store_true',
+                       help='Whether to pass on the hidden state throughout the dialogue encoding/decoding process')
 
 
 def build_model(model_opt, opt, fields, checkpoint):

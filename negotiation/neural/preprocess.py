@@ -733,6 +733,8 @@ class DataGenerator(object):
                             batch['context_data'],
                             self.mappings['utterance_vocab'],
                             num_context=self.num_context, cuda=cuda)
+            # End of dialogue
+            yield None
 
     def create_trie(self, batches, path):
         if path is None:

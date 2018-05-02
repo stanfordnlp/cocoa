@@ -580,13 +580,14 @@ class NMTModel(nn.Module):
       decoder (:obj:`RNNDecoderBase`): a decoder object
       multi<gpu (bool): setup for multigpu support
     """
-    def __init__(self, encoder, decoder, multigpu=False):
+    def __init__(self, encoder, decoder, multigpu=False, stateful=False):
         self.multigpu = multigpu
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.stateful = stateful
 
-    def forward(self, src, tgt, lengths, dec_state=None):
+    def forward(self, src, tgt, lengths, dec_state=None, enc_state=None):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
@@ -610,7 +611,7 @@ class NMTModel(nn.Module):
         # tgt = tgt[:-1]  originally, this exclude last target (a <EOS> token)
         # from decoder inputs, but our preprocessing already handles this
 
-        enc_final, memory_bank = self.encoder(src, lengths)
+        enc_final, memory_bank = self.encoder(src, lengths, enc_state)
         enc_state = \
             self.decoder.init_decoder_state(src, memory_bank, enc_final)
         decoder_outputs, dec_state, attns = \
@@ -626,13 +627,13 @@ class NMTModel(nn.Module):
 
 class NegotiationModel(NMTModel):
 
-    def __init__(self, encoder, decoder, context_embedder, kb_embedder):
-        super(NegotiationModel, self).__init__(encoder, decoder)
+    def __init__(self, encoder, decoder, context_embedder, kb_embedder, stateful=False):
+        super(NegotiationModel, self).__init__(encoder, decoder, stateful=stateful)
         self.context_embedder = context_embedder
         self.kb_embedder = kb_embedder
 
-    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None):
-        enc_final, enc_memory_bank = self.encoder(src, lengths)
+    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None, enc_state=None):
+        enc_final, enc_memory_bank = self.encoder(src, lengths, enc_state)
         _, context_memory_bank = self.context_embedder(context)
         _, title_memory_bank = self.kb_embedder(title)
         _, desc_memory_bank = self.kb_embedder(desc)
