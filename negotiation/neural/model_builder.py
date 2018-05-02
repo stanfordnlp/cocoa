@@ -43,9 +43,9 @@ def add_model_arguments(parser):
                        help='Train copy attention layer.')
     group.add_argument('--layers', type=int, default=-1,
                        help='Number of layers in enc/dec.')
-    group.add_argument('--enc-layers', type=int, default=2,
+    group.add_argument('--enc-layers', type=int, default=1,
                        help='Number of layers in the encoder')
-    group.add_argument('--dec-layers', type=int, default=2,
+    group.add_argument('--dec-layers', type=int, default=1,
                        help='Number of layers in the decoder')
     group.add_argument('--rnn-size', type=int, default=500,
                        help='Size of rnn hidden states')
@@ -68,6 +68,8 @@ def add_model_arguments(parser):
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
     group.add_argument('--stateful', action='store_true',
                        help='Whether to pass on the hidden state throughout the dialogue encoding/decoding process')
+    group.add_argument('--share-embeddings', action='store_true',
+                       help='Share source and target vocab embeddings')
 
 
 def build_model(model_opt, opt, fields, checkpoint):
@@ -204,7 +206,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         the NMTModel.
     """
     # Make encoder.
-    src_dict = mappings['vocab']
+    src_dict = mappings['src_vocab']
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
 
@@ -223,13 +225,13 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     tgt_embeddings = make_embeddings(model_opt, tgt_dict)
 
     # Share the embedding matrix - preprocess with share_vocab required.
-    #if model_opt.share_embeddings:
-    #    # src/tgt vocab should be the same if `-share_vocab` is specified.
-    #    if src_dict != tgt_dict:
-    #        raise AssertionError('The `-share_vocab` should be set during '
-    #                             'preprocess if you use share_embeddings!')
+    if model_opt.share_embeddings:
+        # src/tgt vocab should be the same if `-share_vocab` is specified.
+        if src_dict != tgt_dict:
+            raise AssertionError('The `-share_vocab` should be set during '
+                                 'preprocess if you use share_embeddings!')
 
-    #    tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
+        tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
 
     decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
 

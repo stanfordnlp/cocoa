@@ -36,6 +36,7 @@ class Batch(object):
             batch_major_attributes.append('context_inputs')
 
         self.lengths, sorted_ids = self.sort_by_length(self.encoder_inputs)
+        self.tgt_lengths, _ = self.sort_by_length(self.decoder_inputs)
         if sort_by_length:
             for k, v in self.context_data.iteritems():
                 if v is not None:
@@ -55,6 +56,7 @@ class Batch(object):
         self.desc_inputs = self.to_variable(self.desc_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
+        self.tgt_lengths = self.to_tensor(self.tgt_lengths, 'long', cuda)
         if num_context > 0:
             self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
 
