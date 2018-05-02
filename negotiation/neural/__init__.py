@@ -99,14 +99,11 @@ def check_model_args(args):
 
 def make_model_mappings(model, mappings):
     if model == 'seq2lf':
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['lf_vocab']
-    elif model == 'lf2lf':
-        mappings['src_vocab'] = mappings['lf_vocab']
+        mappings['src_vocab'] = mappings['vocab']
         mappings['tgt_vocab'] = mappings['lf_vocab']
     else:
-        mappings['src_vocab'] = mappings['utterance_vocab']
-        mappings['tgt_vocab'] = mappings['utterance_vocab']
+        mappings['src_vocab'] = mappings['vocab']
+        mappings['tgt_vocab'] = mappings['vocab']
     return mappings
 
 def build_optim(opt, model, checkpoint):

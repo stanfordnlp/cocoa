@@ -102,7 +102,7 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.agent_to_role = self.agent_to_role(agent, kb)
+        self.agent_to_role = self.get_role_mapping(agent, kb)
         # KB context
         # TODO: context_to_int will change category, title, description to integers
         self.category_str = kb.category
@@ -147,7 +147,7 @@ class Dialogue(object):
         my_role = kb.role
 
         partner_id = 1 - agent
-        partner_role = 'buyer' if role == 'seller' else 'seller'
+        partner_role = 'buyer' if my_role == 'seller' else 'seller'
 
         return {my_id: my_role, partner_id: partner_role}
 
