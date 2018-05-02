@@ -286,6 +286,7 @@ class Trainer(object):
         decoder_inputs = batch.decoder_inputs
         targets = batch.targets
         lengths = batch.lengths
+        #tgt_lengths = batch.tgt_lengths
 
         # running forward() method in the NegotiationModel
         if hasattr(self.model, 'context_embedder'):

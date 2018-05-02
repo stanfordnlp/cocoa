@@ -298,7 +298,7 @@ class RNNDecoderBase(nn.Module):
         final_output = torch.gather(outputs, 0, gather_ind).squeeze(0)  # (batch_size, rnn_size)
         return final_output
 
-    def forward(self, tgt, memory_banks, state, memory_lengths=None):
+    def forward(self, tgt, memory_banks, state, memory_lengths=None, lengths=None):
         """
         Args:
             tgt (`LongTensor`): sequences of padded tokens
@@ -330,7 +330,7 @@ class RNNDecoderBase(nn.Module):
 
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
-            tgt, memory_banks, state, memory_lengths=memory_lengths)
+            tgt, memory_banks, state, memory_lengths=memory_lengths, lengths=lengths)
 
         # Update the state with the result.
         #final_output = decoder_outputs[-1]
@@ -380,7 +380,7 @@ class StdRNNDecoder(RNNDecoderBase):
     Implemented without input_feeding and currently with no `coverage_attn`
     or `copy_attn` support.
     """
-    def _run_forward_pass(self, tgt, memory_banks, state, memory_lengths=None):
+    def _run_forward_pass(self, tgt, memory_banks, state, memory_lengths=None, lengths=None):
         """
         Private helper for running the specific RNN forward pass.
         Must be overriden by all subclasses.
@@ -408,11 +408,33 @@ class StdRNNDecoder(RNNDecoderBase):
         attns = {}
         emb = self.embeddings(tgt)
 
+        lengths = None
+        # TODO: Sort and pad emb
+        packed_emb = emb  # (seq_len, batch_size, emb_size)
+        #if lengths is not None:
+        #    lengths, ind = torch.sort(lengths, 0, descending=True)  # (batch_size,)
+        #    gather_inds = Variable(ind.view(1, -1, 1).expand(*emb.size()))
+        #    sorted_emb = torch.gather(emb, 1, gather_inds)
+        #    packed_emb = pack(sorted_emb, lengths.view(-1).tolist())
+
         # Run the forward pass of the RNN.
         if isinstance(self.rnn, nn.GRU):
-            rnn_output, decoder_final = self.rnn(emb, state.hidden[0])
+            rnn_output, decoder_final = self.rnn(packed_emb, state.hidden[0])
         else:
-            rnn_output, decoder_final = self.rnn(emb, state.hidden)
+            rnn_output, decoder_final = self.rnn(packed_emb, state.hidden)
+
+        ## TODO: Unsort output and final
+        #def unsort(t, ind, dim):
+        #    gather_inds = Variable(ind.view(1, -1, 1).expand(*t.size()))
+        #    t.scatter_(dim, gather_inds, t)
+        #    return t
+
+        #if lengths is not None:
+        #    rnn_output = unpack(rnn_output)[0]
+        #    rnn_output = unsort(rnn_output, ind, 1)
+        #    h = unsort(decoder_final[0], ind, 1)
+        #    c = unsort(decoder_final[1], ind, 1)
+        #    decoder_final = (h, c)
 
         # Check
         tgt_len, tgt_batch = tgt.size()
@@ -587,7 +609,7 @@ class NMTModel(nn.Module):
         self.decoder = decoder
         self.stateful = stateful
 
-    def forward(self, src, tgt, lengths, dec_state=None, enc_state=None):
+    def forward(self, src, tgt, lengths, dec_state=None, enc_state=None, tgt_lengths=None):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
@@ -618,7 +640,8 @@ class NMTModel(nn.Module):
             self.decoder(tgt, memory_bank,
                          enc_state if dec_state is None
                          else dec_state,
-                         memory_lengths=lengths)
+                         memory_lengths=lengths,
+                         lengths=tgt_lengths)
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None
@@ -632,7 +655,7 @@ class NegotiationModel(NMTModel):
         self.context_embedder = context_embedder
         self.kb_embedder = kb_embedder
 
-    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None, enc_state=None):
+    def forward(self, src, tgt, context, title, desc, lengths, dec_state=None, enc_state=None, tgt_lengths=None):
         enc_final, enc_memory_bank = self.encoder(src, lengths, enc_state)
         _, context_memory_bank = self.context_embedder(context)
         _, title_memory_bank = self.kb_embedder(title)
@@ -642,7 +665,7 @@ class NegotiationModel(NMTModel):
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
-                dec_state, memory_lengths=lengths)
+                dec_state, memory_lengths=lengths, lengths=tgt_lengths)
 
         return decoder_outputs, attns, dec_state
 
