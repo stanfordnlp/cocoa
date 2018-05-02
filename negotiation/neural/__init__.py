@@ -55,6 +55,7 @@ def get_data_generator(args, model_args, schema, test=False):
 
     retriever = None
     lexicon = PriceTracker(model_args.price_tracker_model)
+    
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
         model_args.entity_decoding_form, model_args.entity_target_form,
         model=model_args.model)

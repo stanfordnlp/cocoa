@@ -596,8 +596,9 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
-        Dialogue.mappings = self.mappings
         self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
+
+        Dialogue.mappings = self.mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
