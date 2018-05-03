@@ -276,25 +276,41 @@ class Dialogue(object):
             self.lfs[i] = map(self.mappings['lf_vocab'].to_ind, lf)
 
     def convert_to_int(self):
+        print("before turns: {}".format(self.turns))
+        print("before token turns: {}".format(self.token_turns))
+        print("before lfs: {}".format(self.lfs))
+
         if self.is_int:
             return
+
+        # pdb.set_trace()
 
         for turn in self.token_turns:
             # turn is a list of tokens that an agent spoke on their turn
             # self.turns starts out as [[], [], []], so
             #   each portion is a list holding the tokens of either the
             #   encoding portion, decoding portion, or the target portion
-            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+            stages = ('encoding', 'decoding', 'target')
+            for portion, stage in izip(self.turns, stages):
                 portion.append(self.textint_map.text_to_int(turn, stage))
+
 
         if self.token_candidates:
             self.candidates_to_int()
 
-        self.price_turns = self.get_price_turns(int_markers.PAD)
-        self.kb_context_to_int()
+        try:  # int_markers is a global, but is not called during bot-chat
+            self.price_turns = self.get_price_turns(int_markers.PAD)
+            self.kb_context_to_int()
+        except(NameError):
+            self.price_turns = [[]]
         self.lf_to_int()
 
         self.is_int = True
+
+        print("after turns: {}".format(self.turns))
+        print("after token turns: {}".format(self.token_turns))
+        print("after lfs: {}".format(self.lfs))
+        pdb.set_trace()
 
     def _pad_list(self, l, size, pad):
         for i in xrange(len(l), size):
