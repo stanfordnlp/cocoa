@@ -11,6 +11,8 @@ import torch.nn as nn
 from onmt.Trainer import Statistics as BaseStatistics
 from onmt.Utils import use_gpu
 
+from models import LM
+
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -114,7 +116,7 @@ class Trainer(object):
 
     def __init__(self, model, train_loss, valid_loss, optim,
                  data_type='text', norm_method="sents",
-                 grad_accum_count=1):
+                 grad_accum_count=1, utterance_builder=None):
         # Basic attributes.
         self.model = model
         self.train_loss = train_loss
@@ -129,6 +131,9 @@ class Trainer(object):
 
         # Set model in training mode.
         self.model.train()
+
+        # For debugging
+        self.utterance_builder = utterance_builder
 
     def learn(self, opt, data, report_func):
         """Train model.
@@ -246,7 +251,7 @@ class Trainer(object):
     def epoch_step(self, ppl, epoch):
         return self.optim.update_learning_rate(ppl, epoch)
 
-    def drop_checkpoint(self, opt, epoch, valid_stats):
+    def drop_checkpoint(self, opt, epoch, valid_stats, reward=None):
         """ Save a resumable checkpoint.
 
         Args:
@@ -276,12 +281,25 @@ class Trainer(object):
         path = '{root}/{model}_loss{loss:.2f}_e{epoch:d}.pt'.format(
                     root=opt.model_path,
                     model=opt.model_filename,
-                    loss=valid_stats.mean_loss(),
+                    loss=valid_stats.mean_loss() if valid_stats is not None else reward,
                     epoch=epoch)
         print 'Save checkpoint {path}'.format(path=path)
         torch.save(checkpoint, path)
 
     def _run_batch(self, batch, dec_state=None, enc_state=None):
+        # TODO: hack
+        if isinstance(self.model, LM):
+            return self._run_lm_batch(batch, enc_state)
+        else:
+            return self._run_seq2seq_batch(batch, dec_state, enc_state)
+
+    def _run_lm_batch(self, batch, enc_state=None):
+        outputs, enc_state = self.model(batch.inputs, enc_state)
+        #return outputs, None, enc_state
+        # TODO: enc_state does not have detach method
+        return outputs, None, None
+
+    def _run_seq2seq_batch(self, batch, dec_state=None, enc_state=None):
         encoder_inputs = batch.encoder_inputs
         decoder_inputs = batch.decoder_inputs
         targets = batch.targets

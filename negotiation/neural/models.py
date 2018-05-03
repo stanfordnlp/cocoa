@@ -592,6 +592,16 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         """
         return self.embeddings.embedding_size + self.hidden_size
 
+class LM(nn.Module):
+    def __init__(self, encoder):
+        super(LM, self).__init__()
+        self.encoder = encoder
+        self.stateful = False
+
+    def forward(self, src, lengths, enc_state=None):
+        enc_final, outputs = self.encoder(src, lengths, enc_state)
+        return outputs, enc_final
+
 class NMTModel(nn.Module):
     """
     Core trainable object in OpenNMT. Implements a trainable interface

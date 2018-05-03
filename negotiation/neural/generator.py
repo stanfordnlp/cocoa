@@ -312,9 +312,52 @@ class Sampler(Generator):
         ret["batch"] = batch
         return ret
 
+class LMSampler(Sampler):
+    def generate_batch(self, batch, gt_prefix=1, enc_state=None):
+        # (1.1) Go over forced prefix.
+        inp = batch.inputs
+        outputs, enc_state = self.model(inp, batch.lengths, enc_state)
+        dec_out = outputs[-1:]
+
+        # (2) Sampling
+        batch_size = batch.size
+        preds = []
+        for i in xrange(self.max_length):
+            # Outputs to probs
+            dec_out = dec_out.squeeze(0)  # (batch_size, rnn_size)
+            out = self.model.generator.forward(dec_out).data  # Logprob (batch_size, vocab_size)
+            # Sample with temperature
+            scores = out.div(self.temperature)
+            scores.sub_(scores.max(1, keepdim=True)[0].expand(scores.size(0), scores.size(1)))
+            pred = torch.multinomial(scores.exp(), 1).squeeze(1)  # (batch_size,)
+            preds.append(pred)
+            # Forward step
+            inp = Variable(pred.view(1, -1))  # (seq_len=1, batch_size)
+            dec_out, enc_state = self.model(inp, None, enc_state=enc_state)
+
+        preds = torch.stack(preds).t()  # (batch_size, seq_len)
+        # Insert one dimension (n_best) so that its structure is consistent
+        # with beam search generator
+        preds = preds.unsqueeze(1)
+        # TODO: add actual scores
+        ret = {"predictions": preds,
+               "scores": [[0]] * batch_size,
+               "attention": [None] * batch_size,
+               "dec_states": enc_state,
+               }
+
+        ret["gold_score"] = [0] * batch_size
+        ret["batch"] = batch
+        return ret
+
 def get_generator(model, vocab, scorer, args):
     from cocoa.pt_model.util import use_gpu
-    if args.sample:
+    from neural.models import LM
+    if isinstance(model, LM):
+        generator = LMSampler(model, vocab, args.temperature,
+                            max_length=args.max_length,
+                            cuda=use_gpu(args))
+    elif args.sample:
         generator = Sampler(model, vocab, args.temperature,
                             max_length=args.max_length,
                             cuda=use_gpu(args))

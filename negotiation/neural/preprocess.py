@@ -19,7 +19,7 @@ from cocoa.model.trie import Trie
 
 from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
-from batcher import DialogueBatcherFactory, Batch
+from batcher import DialogueBatcherFactory, Batch, LMBatch
 from symbols import markers, SpecialSymbols
 from vocab_builder import create_mappings
 from neural import make_model_mappings
@@ -133,13 +133,8 @@ class Dialogue(object):
         return len(self.turns[0])
 
     def join_turns(self):
-        all_turns = []
-        role_to_id = {'buyer': int_markers.GO_B, 'seller': int_markers.GO_S}
-        for agent, turn in izip(self.agents, self.turns[0]):
-            start_symbol = role_to_id[self.agent_to_role[agent]]
-            all_turns.append([start_symbol] + turn)
-        all_tokens = [x for turn in all_turns for x in turn]
-        return all_tokens, all_turns
+        for i, utterances in enumerate(self.turns):
+            self.turns[i] = [x for utterance in utterances for x in utterance]
 
     @staticmethod
     def get_role_mapping(agent, kb):
@@ -410,7 +405,7 @@ class Preprocessor(object):
         for agent in (0, 1):
             dialogue = Dialogue(agent, kbs[agent], ex.ex_id, model=self.model)
             for e in ex.events:
-                if self.model == 'lf2lf':
+                if self.model in ('lf2lf', 'lflm'):
                     lf = e.metadata
                     assert lf is not None
                     utterance = self.lf_to_tokens(dialogue.kb, lf)
@@ -734,15 +729,24 @@ class DataGenerator(object):
         inds = range(len(dialogue_batches))
         if shuffle:
             random.shuffle(inds)
-        for ind in inds:
-            for batch in dialogue_batches[ind]:
-                yield Batch(batch['encoder_args'],
-                            batch['decoder_args'],
-                            batch['context_data'],
-                            self.mappings['utterance_vocab'],
-                            num_context=self.num_context, cuda=cuda)
-            # End of dialogue
-            yield None
+        # TODO: hack
+        if self.model == 'lflm':
+            for ind in inds:
+                for batch in dialogue_batches[ind]:
+                    yield LMBatch(batch['inputs'],
+                                  batch['targets'],
+                                  self.mappings['utterance_vocab'],
+                                  cuda=cuda)
+        else:
+            for ind in inds:
+                for batch in dialogue_batches[ind]:
+                    yield Batch(batch['encoder_args'],
+                                batch['decoder_args'],
+                                batch['context_data'],
+                                self.mappings['utterance_vocab'],
+                                num_context=self.num_context, cuda=cuda)
+                # End of dialogue
+                yield None
 
     def create_trie(self, batches, path):
         if path is None:

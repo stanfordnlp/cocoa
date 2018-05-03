@@ -186,19 +186,19 @@ class PytorchNeuralSystem(System):
         Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
             'stop_symbol', 'remove_symbols', 'gt_prefix',
             'max_len', 'dialogue_batcher', 'cuda',
-            'dialogue_generator', 'utterance_builder'])
+            'dialogue_generator', 'utterance_builder', 'model_args'])
         self.env = Env(model, vocab, preprocessor, textint_map,
             stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols,
             gt_prefix=1,
             max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
-            dialogue_generator=generator, utterance_builder=builder)
+            dialogue_generator=generator, utterance_builder=builder, model_args=model_args)
 
     @classmethod
     def name(cls):
         return 'pt-neural'
 
     def new_session(self, agent, kb):
-        if self.model_name in ('seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf'):
+        if self.model_name in ('seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf', 'lflm'):
             session = PytorchNeuralSession(agent, kb, self.env)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))

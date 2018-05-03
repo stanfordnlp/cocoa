@@ -436,6 +436,76 @@ class UtteranceParserBatcher(DialogueBatcher):
         return batch_seq
 
 
+class LFPolicyLMBatcher(DialogueBatcher):
+    def _normalize_dialogue(self, dialogues):
+        '''
+        All dialogues in a batch should have the same number of turns.
+        '''
+        for d in dialogues:
+            d.join_turns()
+        max_len = max([len(d.turns[0]) for d in dialogues])
+        return max_len
+
+    def create_batch(self, dialogues):
+        max_len = self._normalize_dialogue(dialogues)
+
+        dialogue_class = type(dialogues[0])
+        ENC = dialogue_class.ENC
+        TARGET = dialogue_class.TARGET
+
+        input_list = [d.turns[ENC] for d in dialogues]
+        inputs = pad_list_to_array(input_list, self.mappings['src_vocab'].to_ind(markers.PAD), np.int32)
+        target_list = [d.turns[TARGET] for d in dialogues]
+        targets = pad_list_to_array(target_list, self.mappings['tgt_vocab'].to_ind(markers.PAD), np.int32)
+
+        # NOTE: encoder_turns contains all previous dialogue context, |num_context|
+        # decides how many turns to use
+        batch_seq = [
+            self._create_one_batch(
+                inputs=inputs,
+                targets=targets,
+                )
+            ]
+
+        # bath_seq: A sequence of batches that can be processed in turn where
+        # the state of each batch is passed on to the next batch
+        return batch_seq
+
+    def _create_one_batch(self, inputs=None, targets=None):
+        batch = {
+                'inputs': inputs[:, :-1],
+                'targets': targets[:, 1:],
+                }
+        return batch
+
+class LMBatch(Batch):
+    def __init__(self, inputs, targets, vocab,
+                time_major=True, sort_by_length=True, cuda=False):
+        self.vocab = vocab
+        self.inputs = inputs
+        self.targets = targets
+
+        self.size = self.targets.shape[0]
+
+        unsorted_attributes = ['inputs', 'targets']
+        batch_major_attributes = ['inputs', 'targets']
+
+        self.lengths, sorted_ids = self.sort_by_length(self.inputs)
+        if sort_by_length:
+            for attr in unsorted_attributes:
+                sorted_attrs = self.order_by_id(getattr(self, attr), sorted_ids)
+                setattr(self, attr, sorted_attrs)
+
+        if time_major:
+            for attr in batch_major_attributes:
+                setattr(self, attr, np.swapaxes(getattr(self, attr), 0, 1))
+
+        # To tensor/variable
+        self.inputs = self.to_variable(self.inputs, 'long', cuda)
+        self.targets = self.to_variable(self.targets, 'long', cuda)
+        self.lengths = self.to_tensor(self.lengths, 'long', cuda)
+
+
 class LFPolicyBatcher(DialogueBatcher):
     """Given the dialogue act (logical form) of an utterance, predict
     of the dialogue act of next utterance.
@@ -790,6 +860,8 @@ class DialogueBatcherFactory(object):
             batcher = DialogueBatcher(**kwargs)
         elif model == 'seq2lf':
             batcher = UtteranceParserBatcher(**kwargs)
+        elif model == 'lflm':
+            batcher = LFPolicyLMBatcher(**kwargs)
         else:
             raise ValueError
         return batcher

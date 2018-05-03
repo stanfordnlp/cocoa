@@ -2,7 +2,7 @@ import random
 import re
 from itertools import izip
 import numpy as np
-import pdb
+import torch
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
@@ -10,12 +10,10 @@ from cocoa.pt_model.util import use_gpu
 
 from core.event import Event
 from session import Session
-# from model.preprocess import markers, Dialogue
-# from model.evaluate import EncDecEvaluator
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
-from neural.batcher import Batch
-import torch.nn.functional as F
+from neural.batcher import Batch, LMBatch
+from neural.models import LM
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -85,6 +83,8 @@ class NeuralSession(Session):
                 return self.accept()
             elif tokens[0] == markers.REJECT:
                 return self.reject()
+            elif tokens[0] == markers.QUIT:
+                return self.quit()
 
         s = self.attach_punct(' '.join(tokens))
         #print 'send:', s
@@ -133,6 +133,15 @@ class PytorchNeuralSession(NeuralSession):
                 'agents': [self.agent],
                 'kbs': [self.kb],
                 }
+
+        # TODO: hack
+        #if isinstance(self.env.model, LM):
+        #    partner_inputs = encoder_turns[-1]
+        #    prefix = decoder_args['inputs']
+        #    inputs = np.concatenate((partner_inputs, prefix), 1)
+        #    return LMBatch(inputs, inputs, self.vocab,
+        #            sort_by_length=False, cuda=self.cuda)
+
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
