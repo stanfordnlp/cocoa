@@ -279,14 +279,17 @@ class Dialogue(object):
             # self.turns starts out as [[], [], []], so
             #   each portion is a list holding the tokens of either the
             #   encoding portion, decoding portion, or the target portion
-            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
+            stages = ('encoding', 'decoding', 'target')
+            for portion, stage in izip(self.turns, stages):
                 portion.append(self.textint_map.text_to_int(turn, stage))
 
         if self.token_candidates:
             self.candidates_to_int()
-
-        self.price_turns = self.get_price_turns(int_markers.PAD)
-        self.kb_context_to_int()
+        try: # int_markers is a global, but is not called during bot-chat
+            self.price_turns = self.get_price_turns(int_markers.PAD)
+            self.kb_context_to_int()
+        except(NameError):
+            self.price_turns = [[]]
         self.lf_to_int()
 
         self.is_int = True
@@ -585,7 +588,7 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
-        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
+        self.textint_map = TextIntMap(self.mappings['vocab'], preprocessor)
 
         Dialogue.mappings = self.mappings
         Dialogue.textint_map = self.textint_map
@@ -593,7 +596,7 @@ class DataGenerator(object):
         Dialogue.num_context = num_context
 
         global int_markers
-        int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
+        int_markers = SpecialSymbols(*[self.mappings['vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
                         int_markers=int_markers, slot_filling=self.slot_filling,
@@ -622,7 +625,7 @@ class DataGenerator(object):
 
     def get_mask(self, decoder_targets, split):
         batch_size, seq_len = decoder_targets.shape
-        mask = np.zeros([batch_size, seq_len, self.mappings['utterance_vocab'].size], dtype=np.bool)
+        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
         for batch_id, targets in enumerate(decoder_targets):
             for time_step, t in enumerate(targets):
                 prefix = tuple(targets[:time_step][-5:])

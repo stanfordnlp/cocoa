@@ -159,7 +159,7 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-        vocab = mappings['utterance_vocab']
+        vocab = mappings['vocab']
         self.mappings = mappings
 
         generator = get_generator(model, vocab, Scorer(args.alpha), args)
@@ -173,10 +173,10 @@ class PytorchNeuralSystem(System):
 
         int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(self.model_name,
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model=self.model_name,
             int_markers=int_markers, slot_filling=False, kb_pad=kb_padding,
             mappings=mappings, num_context=model_args.num_context)
-
+        
         #TODO: class variable is not a good way to do this
         Dialogue.preprocessor = preprocessor
         Dialogue.textint_map = textint_map

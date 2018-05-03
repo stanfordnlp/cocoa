@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import pdb
+from core.event import Event
 from sessions.rulebased_session import CraigslistRulebasedSession
 
 class HybridSession(object):
@@ -15,16 +16,27 @@ class HybridSession(object):
 
 class BaseHybridSession(CraigslistRulebasedSession):
     def receive(self, event):
+        if event.action in Event.decorative_events:
+            return
         # process the rulebased portion
-        super(HybridSession, self).receive(event)
+        utterance = self.parser.parse(event, self.state)
+        print('action fed into neural mananger: {}'.format(utterance.lf))
+        self.state.update(self.partner, utterance)
         # process the neural based portion
-        self.mananger.env.preprocessor.process_event(event, self.kb)
+        if event.action == "message":
+            logical_form = {"intent": utterance.lf.intent, "price": utterance.lf.price}
+            entity_tokens = self.manager.env.preprocessor.lf_to_tokens(self.kb, logical_form)
+        else:
+            logical_form = None
+            entity_tokens = self.manager.env.preprocessor.process_event(event, self.kb)
+        if entity_tokens:
+            self.manager.dialogue.add_utterance(event.agent, entity_tokens, logical_form)
 
     # called by the send() method of the parent rulebased session
     def choose_action(self):
-        action_tokens = self.manager.choose_action(state=self.state)
-        pdb.set_trace()
-        action = action_tokens[1]
+        self.manager.dialogue.is_int = False
+        action = self.manager.generate()[0]
+        print("action predicted by neural manager: {}".format(action))
         if not action:
             action = self.retrieve_action()
             if not action in self.manager.available_actions(self.state):
@@ -32,8 +44,8 @@ class BaseHybridSession(CraigslistRulebasedSession):
         return action
 
 class SellerHybridSession(BaseHybridSession):
-    def __init__(self, agent, kb, lexicon, config, generator):
-        super(SellerHybridSession, self).__init__(agent, kb, lexicon, config, generator)
+    def __init__(self, agent, kb, lexicon, config, generator, manager):
+        super(SellerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
         # Direction of desired price
         self.inc = 1.
         self.init_price()
@@ -65,8 +77,8 @@ class SellerHybridSession(BaseHybridSession):
         return random.choice(s)
 
 class BuyerHybridSession(BaseHybridSession):
-    def __init__(self, agent, kb, lexicon, config, generator):
-        super(BuyerHybridSession, self).__init__(agent, kb, lexicon, config, generator)
+    def __init__(self, agent, kb, lexicon, config, generator, manager):
+        super(BuyerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
         # Direction of desired price
         self.inc = -1.
         self.init_price()

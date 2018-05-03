@@ -246,7 +246,7 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
         else:
             return self.template_message(action)
 
-        raise Exception('Uncatched case')
+        raise Exception('Uncaught case')
 
 class SellerRulebasedSession(CraigslistRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):

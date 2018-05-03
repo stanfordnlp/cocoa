@@ -17,8 +17,7 @@ class RulebasedSession(Session):
 
     def receive(self, event):
         utterance = self.parser.parse(event, self.state)
-        print 'rulebased receive:'
-        print utterance
+        print('utterance received by rulebased agent: {}'.format(utterance))
         self.state.update(self.partner, utterance)
 
     def has_done(self, intent):
