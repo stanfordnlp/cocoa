@@ -18,6 +18,7 @@ class Controller(BaseController):
             self.outcomes[event.agent] = False
         elif event.action == 'quit':
             self.quit = True
+            self.outcomes[event.agent] = False
 
     def get_outcome(self):
         offer = None
