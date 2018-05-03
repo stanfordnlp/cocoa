@@ -6,8 +6,8 @@ class Event(BaseEvent):
         return Event(agent, time, 'offer', data, metadata=metadata)
 
     @staticmethod
-    def QuitEvent(agent, data, time=None, metadata=None):
-        return Event(agent, time, 'quit', data, metadata=metadata)
+    def QuitEvent(agent, time=None, metadata=None):
+        return Event(agent, time, 'quit', None, metadata=metadata)
 
     @staticmethod
     def AcceptEvent(agent, time=None, metadata=None):
