@@ -233,13 +233,11 @@ class Dialogue(object):
 
         utterance = self._insert_markers(agent, utterance, new_turn)
         entities = [x if is_entity(x) else None for x in utterance]
-        lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
-        if self.model == "lf2lf":
-            utterance = lf
-        # if lf:
-        # else:
-        #     lf = []
-
+        if lf:
+            lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
+        else:
+            lf = []
+        
         if new_turn:
             self.agents.append(agent)
             role = self.agent_to_role[agent]
@@ -278,14 +276,8 @@ class Dialogue(object):
             self.lfs[i] = map(self.mappings['lf_vocab'].to_ind, lf)
 
     def convert_to_int(self):
-        print("before turns: {}".format(self.turns))
-        print("before token turns: {}".format(self.token_turns))
-        print("before lfs: {}".format(self.lfs))
-
         if self.is_int:
             return
-
-        # pdb.set_trace()
 
         for turn in self.token_turns:
             # turn is a list of tokens that an agent spoke on their turn
@@ -296,11 +288,9 @@ class Dialogue(object):
             for portion, stage in izip(self.turns, stages):
                 portion.append(self.textint_map.text_to_int(turn, stage))
 
-
         if self.token_candidates:
             self.candidates_to_int()
-
-        try:  # int_markers is a global, but is not called during bot-chat
+        try: # int_markers is a global, but is not called during bot-chat
             self.price_turns = self.get_price_turns(int_markers.PAD)
             self.kb_context_to_int()
         except(NameError):
@@ -308,11 +298,6 @@ class Dialogue(object):
         self.lf_to_int()
 
         self.is_int = True
-
-        print("after turns: {}".format(self.turns))
-        print("after token turns: {}".format(self.token_turns))
-        print("after lfs: {}".format(self.lfs))
-        pdb.set_trace()
 
     def _pad_list(self, l, size, pad):
         for i in xrange(len(l), size):
