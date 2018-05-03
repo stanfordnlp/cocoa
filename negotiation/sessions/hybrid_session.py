@@ -20,7 +20,7 @@ class BaseHybridSession(CraigslistRulebasedSession):
             return
         # process the rulebased portion
         utterance = self.parser.parse(event, self.state)
-        print('utterance received by rulebased agent: {}'.format(utterance))
+        print('action fed into neural mananger: {}'.format(utterance.lf))
         self.state.update(self.partner, utterance)
         # process the neural based portion
         if event.action == "message":
@@ -36,7 +36,6 @@ class BaseHybridSession(CraigslistRulebasedSession):
     def choose_action(self):
         self.manager.dialogue.is_int = False
         action = self.manager.generate()[0]
-        # possibly token_to_lf
         print("action predicted by neural manager: {}".format(action))
         if not action:
             action = self.retrieve_action()
