@@ -1,7 +1,7 @@
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity
 
-from symbols import markers
+from symbols import markers, sequence_markers
 #from preprocess import Preprocessor
 
 # TODO: import from preprocess (require to separate datagenerator and preprocessor)
@@ -65,13 +65,13 @@ def build_lf_vocab(dialogues):
         assert dialogue.is_int is False
         for lf in dialogue.lfs:
             vocab.add_words(lf)
-    vocab.add_words([markers.GO_S, markers.GO_B, markers.EOS, markers.PAD], special=True)
+    vocab.add_words(sequence_markers, special=True)
     vocab.finish()
     print 'LF vocabulary size:', vocab.size
     return vocab
 
 def create_mappings(dialogues, schema, entity_forms):
-    utterance_vocab = build_utterance_vocab(dialogues, markers, entity_forms)
+    utterance_vocab = build_utterance_vocab(dialogues, sequence_markers, entity_forms)
     kb_vocab, cat_vocab = build_kb_vocab(dialogues, [markers.PAD])
     lf_vocab = build_lf_vocab(dialogues)
     return {'utterance_vocab': utterance_vocab,
