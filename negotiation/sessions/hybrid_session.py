@@ -20,14 +20,17 @@ class BaseHybridSession(CraigslistRulebasedSession):
         print('utterance received by rulebased agent: {}'.format(utterance))
         self.state.update(self.partner, utterance)
         # process the neural based portion
-        entity_tokens = self.manager.env.preprocessor.process_event(event, self.kb)
+        # entity_tokens = self.manager.env.preprocessor.process_event(event, self.kb)
         logical_form = {"intent": utterance.lf.intent, "price": utterance.lf.price}
-        self.manager.dialogue.add_utterance(event.agent, entity_tokens, logical_form)
+        entity_tokens = self.manager.env.preprocessor.lf_to_tokens(self.kb, utterance.lf)
+        if entity_tokens:
+            self.manager.dialogue.add_utterance(event.agent, entity_tokens, logical_form)
 
     # called by the send() method of the parent rulebased session
     def choose_action(self):
         self.manager.dialogue.is_int = False
         action = self.manager.generate()[0]
+        # possibly lf_to_token
         print("action predicted by neural manager: {}".format(action))
         if not action:
             action = self.retrieve_action()
