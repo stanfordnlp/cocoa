@@ -27,7 +27,7 @@ class NeuralSession(Session):
         self.cuda = env.cuda
 
         self.batcher = self.env.dialogue_batcher
-        self.dialogue = Dialogue(agent, kb, None)
+        self.dialogue = Dialogue(agent, kb, None, self.batcher.model)
         self.dialogue.kb_context_to_int()
         self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
         self.max_len = 100

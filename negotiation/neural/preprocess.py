@@ -233,10 +233,12 @@ class Dialogue(object):
 
         utterance = self._insert_markers(agent, utterance, new_turn)
         entities = [x if is_entity(x) else None for x in utterance]
-        if lf:
-            lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
-        else:
-            lf = []
+        lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
+        if self.model == "lf2lf":
+            utterance = lf
+        # if lf:
+        # else:
+        #     lf = []
 
         if new_turn:
             self.agents.append(agent)
