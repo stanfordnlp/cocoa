@@ -227,6 +227,7 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
                 return self.reject()
             return self.accept()
 
+        # if self.state.partner_act in ['init_price', 'counter-price']
         if self.state.partner_price is not None and self.deal(self.state.partner_price):
             return self.agree(self.state.partner_price)
 
@@ -234,15 +235,14 @@ class CraigslistRulebasedSession(BaseRulebasedSession):
             return self.offer(self.bottomline if self.compare(self.bottomline, self.state.partner_price) > 0 else self.state.partner_price)
 
         action = self.choose_action()
-        if action == 'unknown':
-            action = 'counter-price'
-
         if action in ('counter-price', 'vague-price'):
             return self.compromise()
         elif action == 'offer':
             return self.offer(self.state.curr_price)
         elif action == 'agree':
             return self.agree(self.state.curr_price)
+        elif action == 'unknown':
+            return self.compromise()
         else:
             return self.template_message(action)
 
