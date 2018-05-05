@@ -10,8 +10,6 @@ import torch.nn as nn
 from onmt.Trainer import Statistics as BaseStatistics
 from onmt.Utils import use_gpu
 
-from models import LM
-
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -73,7 +71,6 @@ def add_trainer_arguments(parser):
                        help="""Start checkpointing every epoch after and including
                        this epoch""")
 
-# TODO: Statistics for rl_trainer
 class Statistics(BaseStatistics):
     def output(self, epoch, batch, n_batches, start):
         """Write out statistics to stdout.
@@ -286,11 +283,11 @@ class Trainer(object):
         torch.save(checkpoint, path)
 
     def _run_batch(self, batch, dec_state=None, enc_state=None):
-        # TODO: hack
-        if isinstance(self.model, LM):
-            return self._run_lm_batch(batch, enc_state)
-        else:
-            return self._run_seq2seq_batch(batch, dec_state, enc_state)
+        ## TODO: hack
+        #if isinstance(self.model, LM):
+        #    return self._run_lm_batch(batch, enc_state)
+        #else:
+        return self._run_seq2seq_batch(batch, dec_state, enc_state)
 
     def _run_lm_batch(self, batch, enc_state=None):
         outputs, enc_state = self.model(batch.inputs, enc_state)
