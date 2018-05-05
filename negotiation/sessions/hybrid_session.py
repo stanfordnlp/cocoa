@@ -37,11 +37,11 @@ class BaseHybridSession(CraigslistRulebasedSession):
         self.manager.dialogue.is_int = False
         action = self.manager.generate()[0]
         print("action predicted by neural manager: {}".format(action))
-        if not action:
-            action = self.retrieve_action()
-            if not action in self.manager.available_actions(self.state):
-                action = 'unknown'
-        return action
+        p_act = self.state.partner_act
+        if action == "unknown" and (p_act == "accept" or p_act == "agree"):
+            action = "agree"
+      
+        return action if action else 'unknown'
 
 class SellerHybridSession(BaseHybridSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
