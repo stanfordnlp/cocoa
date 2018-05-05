@@ -14,6 +14,7 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
+from cocoa.neural.loss import SimpleLossCompute
 
 import onmt
 from onmt.Utils import use_gpu
@@ -22,7 +23,7 @@ from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
-from neural.loss import SimpleLossCompute
+from neural.utterance import UtteranceBuilder
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -157,9 +158,12 @@ if __name__ == '__main__':
     config_path = os.path.join(args.model_path, 'config.json')
     write_json(vars(args), config_path)
 
+    builder = UtteranceBuilder(mappings['tgt_vocab'], 1, has_tgt=True)
+
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
     # vocab is used to make_loss, so use target vocab
     trainer = build_trainer(args, model, mappings['tgt_vocab'], optim)
+    trainer.builder = builder
     # Perform actual training
     trainer.learn(args, data_generator, report_func)

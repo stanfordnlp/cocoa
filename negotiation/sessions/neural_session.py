@@ -25,7 +25,7 @@ class NeuralSession(Session):
         self.cuda = env.cuda
 
         self.batcher = self.env.dialogue_batcher
-        self.dialogue = Dialogue(agent, kb, None, self.batcher.model)
+        self.dialogue = Dialogue(agent, kb, None)
         self.dialogue.kb_context_to_int()
         self.kb_context_batch = self.batcher.create_context_batch([self.dialogue], self.batcher.kb_pad)
         self.max_len = 100
@@ -33,15 +33,12 @@ class NeuralSession(Session):
     # TODO: move this to preprocess?
     def convert_to_int(self):
         for i, turn in enumerate(self.dialogue.token_turns):
-            stages = ('encoding', 'decoding', 'target')
-            for portion, stage in izip(self.dialogue.turns, stages):
-                if i >= len(portion):
-                    portion.append(self.env.textint_map.text_to_int(turn, stage))
+            for curr_turns, stage in izip(self.dialogue.turns, ('encoding', 'decoding', 'target')):
+                if i >= len(curr_turns):
+                    curr_turns.append(self.env.textint_map.text_to_int(turn, stage))
                 else:
                     # Already converted
                     pass
-        # if len(self.dialogue.lfs) > 0:
-        #     self.dialogue.lf_to_int()
 
     def receive(self, event):
         if event.action in Event.decorative_events:
@@ -117,12 +114,8 @@ class PytorchNeuralSession(NeuralSession):
         num_context = Dialogue.num_context
 
         # All turns up to now
-        self.dialogue.convert_to_int()
+        self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
-        # encoder_turns is a list of (batch x seq_length):
-        #   1) first list is turns in the dialogue
-        #   2) then its the batch size, will be 1 for bot chat
-        #   3) second list is utterance length, ie. tokens in the turn
 
         encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
         encoder_context = self.batcher.get_encoder_context(encoder_turns, num_context)

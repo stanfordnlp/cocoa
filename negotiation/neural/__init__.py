@@ -13,12 +13,12 @@ def add_data_generator_arguments(parser):
 
 def get_data_generator(args, model_args, schema, test=False):
     from cocoa.core.scenario_db import ScenarioDB
-    from cocoa.core.dataset import read_dataset, EvalExample
+    from cocoa.core.dataset import read_dataset
     from cocoa.core.util import read_json
 
     from core.scenario import Scenario
     from core.price_tracker import PriceTracker
-    from preprocess import DataGenerator, LMDataGenerator, EvalDataGenerator, Preprocessor
+    from preprocess import DataGenerator, LMDataGenerator, Preprocessor
     import os.path
 
     # TODO: move this to dataset
@@ -99,11 +99,11 @@ def check_model_args(args):
 
 def make_model_mappings(model, mappings):
     if model == 'seq2lf':
-        mappings['src_vocab'] = mappings['vocab']
+        mappings['src_vocab'] = mappings['utterance_vocab']
         mappings['tgt_vocab'] = mappings['lf_vocab']
     else:
-        mappings['src_vocab'] = mappings['vocab']
-        mappings['tgt_vocab'] = mappings['vocab']
+        mappings['src_vocab'] = mappings['utterance_vocab']
+        mappings['tgt_vocab'] = mappings['utterance_vocab']
     return mappings
 
 def build_optim(opt, model, checkpoint):

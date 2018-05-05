@@ -9,9 +9,11 @@ import onmt
 import onmt.io
 import onmt.Models
 import onmt.modules
-from models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
-              MultiAttnDecoder, NegotiationModel, NMTModel, LM
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
+
+from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
+              MultiAttnDecoder, NMTModel
+from models import NegotiationModel, LM
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu

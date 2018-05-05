@@ -2,7 +2,6 @@ from __future__ import division
 
 import time
 import sys
-import pdb # set_trace
 import math
 import numpy as np
 import torch
@@ -74,7 +73,7 @@ def add_trainer_arguments(parser):
                        help="""Start checkpointing every epoch after and including
                        this epoch""")
 
-
+# TODO: Statistics for rl_trainer
 class Statistics(BaseStatistics):
     def output(self, epoch, batch, n_batches, start):
         """Write out statistics to stdout.

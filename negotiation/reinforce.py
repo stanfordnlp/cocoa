@@ -14,6 +14,7 @@ from cocoa.core.util import read_json
 from cocoa.core.schema import Schema
 from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
 from cocoa.core.dataset import add_dataset_arguments
+from cocoa.neural.loss import ReinforceLossCompute
 
 from core.scenario import Scenario
 from core.controller import Controller
@@ -21,7 +22,6 @@ from systems import add_system_arguments, get_system
 #from neural.rl import Reinforce, add_rl_arguments
 from neural.model_builder import add_model_arguments
 from neural.rl_trainer import RLTrainer, add_rl_arguments
-from neural.loss import ReinforceLossCompute
 from neural import build_optim
 #from systems.rl_system import RLSystem
 

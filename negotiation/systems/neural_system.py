@@ -1,27 +1,21 @@
 import os
 import argparse
 from collections import namedtuple
-from sessions.neural_session import PytorchNeuralSession
+import torch
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 from cocoa.core.util import read_pickle, read_json
 from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
+from cocoa.neural.beam import Scorer
+from cocoa.neural.generator import get_generator
 
-# import tensorflow as tf
-# from tf_model import build_model
-# from tf_model.retriever import Retriever, add_retriever_arguments
-# from tf_model.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
-# from tf_model.batcher import DialogueBatcherFactory
-import torch
+from sessions.neural_session import PytorchNeuralSession
 from neural import model_builder, get_data_generator, make_model_mappings
-from neural.preprocess import markers, TextIntMap, Preprocessor, SpecialSymbols, Dialogue
+from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
-from neural.beam import Scorer
-#from neural.generator import Generator, Sampler
-from neural.generator import get_generator
 from neural.utterance import UtteranceBuilder
 
 def add_neural_system_arguments(parser):
@@ -89,8 +83,7 @@ class NeuralSystem(System):
         self.model_name = args.model
         preprocessor = Preprocessor(schema, price_tracker, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
-        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, int_markers=int_markers, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings)
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings)
 
         # Retriever
         if args.model == 'selector':
@@ -159,7 +152,7 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-        vocab = mappings['vocab']
+        vocab = mappings['utterance_vocab']
         self.mappings = mappings
 
         generator = get_generator(model, vocab, Scorer(args.alpha), args)
@@ -171,12 +164,11 @@ class PytorchNeuralSystem(System):
         remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
         use_cuda = use_gpu(args)
 
-        int_markers = SpecialSymbols(*[vocab.to_ind(m) for m in markers])
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model=self.model_name,
-            int_markers=int_markers, slot_filling=False, kb_pad=kb_padding,
+            slot_filling=False, kb_pad=kb_padding,
             mappings=mappings, num_context=model_args.num_context)
-        
+
         #TODO: class variable is not a good way to do this
         Dialogue.preprocessor = preprocessor
         Dialogue.textint_map = textint_map

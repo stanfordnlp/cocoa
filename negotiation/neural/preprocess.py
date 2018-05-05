@@ -20,7 +20,7 @@ from cocoa.model.trie import Trie
 from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch, LMBatch
-from symbols import markers, SpecialSymbols
+from symbols import markers#, SpecialSymbols
 from vocab_builder import create_mappings
 from neural import make_model_mappings
 
@@ -279,17 +279,14 @@ class Dialogue(object):
             # self.turns starts out as [[], [], []], so
             #   each portion is a list holding the tokens of either the
             #   encoding portion, decoding portion, or the target portion
-            stages = ('encoding', 'decoding', 'target')
-            for portion, stage in izip(self.turns, stages):
+            for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
                 portion.append(self.textint_map.text_to_int(turn, stage))
 
         if self.token_candidates:
             self.candidates_to_int()
-        try: # int_markers is a global, but is not called during bot-chat
-            self.price_turns = self.get_price_turns(int_markers.PAD)
-            self.kb_context_to_int()
-        except(NameError):
-            self.price_turns = [[]]
+
+        #self.price_turns = self.get_price_turns(int_markers.PAD)
+        self.kb_context_to_int()
         self.lf_to_int()
 
         self.is_int = True
@@ -588,18 +585,18 @@ class DataGenerator(object):
             print 'Using cached data from', cache
 
         self.mappings = self.load_mappings(model, mappings_path, schema, preprocessor)
-        self.textint_map = TextIntMap(self.mappings['vocab'], preprocessor)
+        self.textint_map = TextIntMap(self.mappings['utterance_vocab'], preprocessor)
 
         Dialogue.mappings = self.mappings
         Dialogue.textint_map = self.textint_map
         Dialogue.preprocessor = preprocessor
         Dialogue.num_context = num_context
 
-        global int_markers
-        int_markers = SpecialSymbols(*[self.mappings['vocab'].to_ind(m) for m in markers])
+        #global int_markers
+        #int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
 
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
-                        int_markers=int_markers, slot_filling=self.slot_filling,
+                        slot_filling=self.slot_filling,
                         kb_pad=self.mappings['kb_vocab'].to_ind(markers.PAD),
                         mappings=self.mappings, num_context=num_context)
 
@@ -622,22 +619,6 @@ class DataGenerator(object):
                 print k, v.size
             mappings = make_model_mappings(model_type, mappings)
             return mappings
-
-    def get_mask(self, decoder_targets, split):
-        batch_size, seq_len = decoder_targets.shape
-        mask = np.zeros([batch_size, seq_len, self.mappings['vocab'].size], dtype=np.bool)
-        for batch_id, targets in enumerate(decoder_targets):
-            for time_step, t in enumerate(targets):
-                prefix = tuple(targets[:time_step][-5:])
-                try:
-                    allowed = self.trie.get_children(prefix)
-                    if split == 'train':
-                        if t != int_markers.PAD:
-                            assert t in allowed
-                    mask[batch_id, time_step, allowed] = True
-                except KeyError:
-                    mask[batch_id, time_step, :] = True
-        return mask
 
     def convert_to_int(self):
         '''
@@ -773,104 +754,6 @@ class DataGenerator(object):
             trie = read_pickle(path)
         return trie
 
-class EvalDialogue(Dialogue):
-    def __init__(self, agent, kb, uuid):
-        super(EvalDialogue, self).__init__(agent, kb, uuid)
-        self.candidate_scores = None
-
-    def context_len(self):
-        return sum([len(t) for t in self.token_turns[:-1]])
-
-    def pad_turns(self, num_turns):
-        '''
-        Pad turns to length num_turns.
-        '''
-        self.agents = self._pad_list(self.agents, num_turns, None)
-        self.roles = self._pad_list(self.roles, num_turns, None)
-        for turns in self.turns:
-            self._pad_list(turns, num_turns, [])
-        self.price_turns = self._pad_list(self.price_turns, num_turns, [])
-        assert len(self.price_turns) == len(self.turns[0])
-
-    def _pad_list(self, l, size, pad):
-        # NOTE: for dialogues without enough turns/context, we need to pad at the beginning, the last utterance is the target
-        for i in xrange(len(l), size):
-            l.insert(0, pad)
-        return l
-
-class EvalDataGenerator(DataGenerator):
-    def __init__(self, examples, preprocessor, mappings, num_context=1):
-        self.dialogues = {'eval': [self.process_example(ex) for ex in examples]}
-        self.num_examples = {k: len(v) if v else 0 for k, v in self.dialogues.iteritems()}
-        print '%d eval examples' % self.num_examples['eval']
-
-        self.slot_filling = preprocessor.slot_filling
-        self.mappings = mappings
-        self.textint_map = TextIntMap(mappings['utterance_vocab'], preprocessor)
-
-        EvalDialogue.mappings = mappings
-        EvalDialogue.textint_map = self.textint_map
-        EvalDialogue.preprocessor = preprocessor
-        EvalDialogue.num_context = num_context
-
-        global int_markers
-        int_markers = SpecialSymbols(*[mappings['utterance_vocab'].to_ind(m) for m in markers])
-
-    @classmethod
-    def tuple_to_entity(cls, token):
-        if isinstance(token, list):
-            return Entity(token[0], CanonicalEntity(*token[1]))
-        else:
-            return token
-
-    # TODO: move this to EvalExample, do it during reading
-    def _process_utterance(self, utterance):
-        '''
-        Make sure the utterance matches preprocessor processed utterance.
-        '''
-        # Convert list in json file to Entity
-        # Remove <go> at the beginning and </s> at the end
-        # because they will be added in _add_utterance
-        utterance = [self.tuple_to_entity(x) for x in utterance[1:-1]]
-        return utterance
-
-    def process_example(self, ex):
-        d = EvalDialogue(ex.agent, ex.kb, ex.ex_id)
-        for role, utterance in izip(ex.prev_roles, ex.prev_turns):
-            agent = ex.agent if role == ex.role else (1 - ex.agent)
-            d.add_utterance(agent, self._process_utterance(utterance))
-        d.add_utterance(ex.agent, self._process_utterance(ex.target))
-
-        for c in ex.candidates:
-            if 'response' in c:
-                c['response'] = self._process_utterance(c['response'])
-        d.token_candidates = [ex.candidates]
-
-        d.candidate_scores = ex.scores
-        return d
-
-    def dialogue_sort_score(self, d):
-        # Sort dialogues by number of turns
-        return d.context_len()
-
-    def get_dialogue_batch(self, dialogues, slot_filling):
-        return EvalDialogueBatcher(dialogues, slot_filling).create_batch()
-
-    # TODO: new interface: create_batches
-    def generator(self, split, batch_size, shuffle=True):
-        dialogues = self.dialogues['eval']
-
-        for dialogue in dialogues:
-            dialogue.convert_to_int()
-        dialogue_batches = self.create_dialogue_batches(dialogues, batch_size)
-
-        yield len(dialogue_batches)
-        inds = range(len(dialogue_batches))
-        while True:
-            if shuffle:
-                random.shuffle(inds)
-            for ind in inds:
-                yield dialogue_batches[ind]
 
 class LMDataGenerator(DataGenerator):
     def create_dialogue_batches(self, dialogues, batch_size, bptt_steps=35):

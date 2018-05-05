@@ -6,7 +6,7 @@ from onmt.Loss import LossComputeBase
 from onmt.Utils import aeq
 
 from symbols import markers
-from utterance import UtteranceBuilder
+#from utterance import UtteranceBuilder
 
 class SimpleLossCompute(LossComputeBase):
     """
@@ -41,7 +41,7 @@ class ReinforceLossCompute(SimpleLossCompute):
         weight = torch.ones(tgt_vocab.size)
         weight[self.padding_idx] = 0
         self.criterion = nn.NLLLoss(weight, size_average=False, reduce=False)
-        self.builder = UtteranceBuilder(tgt_vocab)
+        #self.builder = UtteranceBuilder(tgt_vocab)
 
     def compute_loss(self, target, output):
         # output: (seq_len, batch_size, rnn_size)
@@ -53,18 +53,3 @@ class ReinforceLossCompute(SimpleLossCompute):
         gtruth = target.contiguous().view(-1)
         loss = self.criterion(scores, gtruth).view(-1, batch_size)  # (seq_len, batch_size)
         return loss, None
-
-        # TODO: hacky
-        seq_len = loss.size(0)
-        discounted_rewards = [reward[0]]
-        for i in xrange(1, seq_len):
-            discounted_rewards.append(discounted_rewards[-1] * .95)
-        discounted_rewards = torch.stack(discounted_rewards[::-1])
-        print 'loss:', loss.data.cpu().numpy()
-        print 'reward:', reward.data.cpu().numpy()
-        loss = loss * reward
-
-        loss_data = loss.data.clone()
-        stats = self._stats(loss_data, scores.data, target.view(-1).data)
-        return loss, stats
-
