@@ -60,19 +60,27 @@ class Generator(object):
         return dec_states, memory_bank
 
     def _run_attention_memory(self, batch, enc_memory_bank):
-        if batch.num_context > 0 and hasattr(self.model, 'kb_embedder'):
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
+        if batch.num_context > 0:
             context_inputs = batch.context_inputs
-
-            _, title_memory_bank = self.model.kb_embedder(title_inputs)
-            _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
             _, context_memory_bank = self.model.context_embedder(context_inputs)
+            memory_bank = [enc_memory_bank, context_memory_bank]
 
-            # all memory_bank items are (seq_len, batch_size, rnn_size)
-            memory_bank = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
+            if hasattr(self.batch, 'title_inputs'):
+                title_inputs = batch.title_inputs
+                _, title_memory_bank = self.model.kb_embedder(title_inputs)
+                memory_bank.append(title_memory_bank)
+
+                desc_inputs = batch.desc_inputs
+                _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
+                memory_bank.append(desc_memory_bank)
+            elif hasattr(self.batch, 'scene_inputs'):
+                scene_inputs = batch.scene_inputs
+                _, scene_memory_bank = self.model.kb_embedder(scene_inputs)
+                memory_bank.append(scene_memory_bank)
+
         else:
             memory_bank = enc_memory_bank
+        # all memory_bank items are (seq_len, batch_size, rnn_size)
         return memory_bank
 
     def generate_batch(self, batch, gt_prefix=1, enc_state=None):
