@@ -8,12 +8,12 @@ from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
 def add_neural_system_arguments(parser):
-    parser.add_argument('--checkpoint', type=str,
-        help='model file')
+    parser.add_argument('--decoding', nargs='+', default=['sample', 0],
+        help='Decoding method describing whether or not to sample')
     parser.add_argument('--temperature', type=float, default=1.0,
-        help='temperature')
-    parser.add_argument('--gpu', action='store_true',
-        help='Use GPU or not')
+        help='a float from 0.0 to 1.0 for how to vary sampling')
+    parser.add_argument('--checkpoint', type=str, help='model file folder')
+    add_evaluator_arguments(parser)
     #parser.add_argument('--num_types', type=int, default=3,
     #    help='number of object types')
     #parser.add_argument('--num_objects', type=int, default=6,
