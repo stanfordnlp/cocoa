@@ -1,10 +1,4 @@
 import argparse
-import random
-import os
-import time
-import pdb
-from itertools import chain
-import torch
 import torch.nn as nn
 from torch import cuda
 
@@ -12,11 +6,12 @@ from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, cre
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
 
-import onmt
 from cocoa.pt_model.util import use_gpu
 from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
 from cocoa.neural.loss import SimpleLossCompute
+from cocoa.neural.beam import Scorer
 
+from neural.utterance import UtteranceBuilder
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
@@ -37,7 +32,7 @@ if __name__ == '__main__':
     add_data_generator_arguments(dummy_parser)
     dummy_args = dummy_parser.parse_known_args([])[0]
 
-    if torch.cuda.is_available() and not args.gpuid:
+    if cuda.is_available() and not args.gpuid:
         print("WARNING: You have a CUDA device, should run with --gpuid 0")
 
     if args.gpuid:
@@ -53,8 +48,7 @@ if __name__ == '__main__':
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, schema, test=True)
 
-    # Prefix: [GO, CATEGORY]
-    # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
+    # Prefix: [GO]
     scorer = Scorer(args.alpha)
     builder = UtteranceBuilder(mappings['tgt_vocab'], args.n_best, has_tgt=True)
     evaluator = Evaluator(model, mappings, scorer, builder, gt_prefix=1)
