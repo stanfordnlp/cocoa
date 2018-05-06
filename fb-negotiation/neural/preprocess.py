@@ -88,7 +88,6 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.agent_to_role = self.get_role_mapping(agent, kb)
         # KB context
         self.category_str = kb.category
         self.category = kb.category
@@ -103,7 +102,6 @@ class Dialogue(object):
         # entities: has the same structure as turns, non-entity tokens are None
         self.entities = []
         self.agents = []
-        self.roles = []
         self.is_int = False  # Whether we've converted it to integers
         self.num_context = None
 
@@ -118,16 +116,6 @@ class Dialogue(object):
     def join_turns(self):
         for i, utterances in enumerate(self.turns):
             self.turns[i] = [x for utterance in utterances for x in utterance]
-
-    @staticmethod
-    def get_role_mapping(agent, kb):
-        my_id = agent
-        my_role = kb.role
-
-        partner_id = 1 - agent
-        partner_role = 'buyer' if my_role == 'seller' else 'seller'
-
-        return {my_id: my_role, partner_id: partner_role}
 
     def num_tokens(self):
         return sum([len(t) for t in self.token_turns])
@@ -177,8 +165,6 @@ class Dialogue(object):
 
         if new_turn:
             self.agents.append(agent)
-            role = self.agent_to_role[agent]
-            self.roles.append(role)
 
             self.token_turns.append(utterance)
             self.entities.append(entities)
@@ -204,8 +190,6 @@ class Dialogue(object):
         if new_turn:
             # cat_symbol = category_to_marker[self.category_str]
             # utterance.insert(0, cat_symbol)
-            # role = self.agent_to_role[agent]
-            # start_symbol = markers.GO_S if role == 'seller' else markers.GO_B
             utterance.insert(0, markers.GO)
 
         return utterance
@@ -263,7 +247,6 @@ class Dialogue(object):
         Pad turns to length num_turns.
         '''
         self.agents = self._pad_list(self.agents, num_turns, None)
-        self.roles = self._pad_list(self.roles, num_turns, None)
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
         self.lfs = self._pad_list(self.lfs, num_turns, [])
@@ -471,14 +454,6 @@ class DataGenerator(object):
             start = end
         return dialogue_batches
 
-    def get_all_responses(self, name):
-        dialogues = self.dialogues[name]
-        responses = {'seller': [], 'buyer': []}
-        for dialogue in dialogues:
-            for turn, role in izip(dialogue.token_turns, dialogue.roles):
-                responses[role].extend(turn)
-        return responses
-
     def rewrite_candidate(self, fillers, candidate):
         rewritten = []
         tokens = candidate
@@ -503,7 +478,7 @@ class DataGenerator(object):
         if (not os.path.exists(cache_file)) or self.ignore_cache:
             if self.retriever is not None:
                 for dialogue in dialogues:
-                    k = (dialogue.uuid, dialogue.role)
+                    k = (dialogue.uuid)
                     # candidates: list of list containing num_candidates responses for each turn of the dialogue
                     # None candidates means that it is not the agent's speaking turn
                     if k in self.cached_candidates:
