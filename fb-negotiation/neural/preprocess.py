@@ -16,7 +16,6 @@ from cocoa.core.entity import Entity, CanonicalEntity, is_entity
 from cocoa.lib.bleu import compute_bleu
 from cocoa.model.vocab import Vocabulary
 
-from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch, LMBatch
 from symbols import markers
@@ -33,19 +32,11 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
     parser.add_argument('--mappings', help='Path to vocab mappings')
 
-START_PRICE = -1
 category_to_marker = {
-        'car': markers.C_car,
-        'phone': markers.C_phone,
-        'housing': markers.C_housing,
-        'bike': markers.C_bike,
-        'furniture': markers.C_furniture,
-        'electronics': markers.C_electronics,
+        'book': markers.C_book,
+        'hat': markers.C_hat,
+        'ball': markers.C_ball,
         }
-
-def price_filler(x):
-    return x == '<price>'
-
 
 class TextIntMap(object):
     '''
@@ -56,14 +47,13 @@ class TextIntMap(object):
         self.entity_forms = preprocessor.entity_forms
         self.preprocessor = preprocessor
 
-    def pred_to_input(self, preds, prices=None):
+    def pred_to_input(self, preds):
         '''
         Convert decoder outputs to decoder inputs.
         '''
         if self.entity_forms['target'] == self.entity_forms['decoding']:
             return preds
         preds_utterances = [self.int_to_text(pred) for pred in preds]
-        # TODO: fill in <price>!!
         input_utterances = [self.preprocessor.process_utterance(utterance, 'decoding') for utterance in preds_utterances]
         inputs = np.array([self.text_to_int(utterance, 'decoding') for utterance in input_utterances])
         return inputs
@@ -76,14 +66,11 @@ class TextIntMap(object):
         tokens = self.preprocessor.process_utterance(utterance, stage)
         return [self.vocab.to_ind(token) for token in tokens]
 
-    def int_to_text(self, inds, stage=None, prices=None):
+    def int_to_text(self, inds, stage=None):
         '''
         Inverse of text_to_int.
         '''
         toks = [self.vocab.to_word(ind) for ind in inds]
-        if prices is not None:
-            assert len(inds) == len(prices)
-            toks = [CanonicalEntity(value=p, type='price') if price_filler(x) else x for x, p in izip(toks, prices)]
         return toks
 
 class Dialogue(object):
@@ -337,10 +324,6 @@ class Preprocessor(object):
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
-
-    @classmethod
-    def price_to_entity(cls, price):
-        return Entity(price, CanonicalEntity(price, 'price'))
 
     '''
     # e.data[0] is just the <select> keyword, so we skip it
