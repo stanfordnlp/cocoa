@@ -79,7 +79,7 @@ class Evaluator(object):
                 gold_words_total += len(response.gold_sent)
 
             if opt.verbose:
-                self.print_results(model_opt, batch, utterances)
+                counter = self.print_results(model_opt, batch, counter, utterances)
 
     def print_results(self, model_opt, batch, utterances):
         for i, response in enumerate(utterances):

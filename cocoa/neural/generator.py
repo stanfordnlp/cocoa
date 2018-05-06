@@ -65,7 +65,7 @@ class Generator(object):
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             memory_bank = [enc_memory_bank, context_memory_bank]
 
-            if hasattr(self.batch, 'title_inputs'):
+            if hasattr(batch, 'title_inputs'):
                 title_inputs = batch.title_inputs
                 _, title_memory_bank = self.model.kb_embedder(title_inputs)
                 memory_bank.append(title_memory_bank)
@@ -73,7 +73,7 @@ class Generator(object):
                 desc_inputs = batch.desc_inputs
                 _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
                 memory_bank.append(desc_memory_bank)
-            elif hasattr(self.batch, 'scene_inputs'):
+            elif hasattr(batch, 'scene_inputs'):
                 scene_inputs = batch.scene_inputs
                 _, scene_memory_bank = self.model.kb_embedder(scene_inputs)
                 memory_bank.append(scene_memory_bank)

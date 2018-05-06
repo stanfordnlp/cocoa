@@ -8,7 +8,7 @@ from cocoa.neural.evaluator import add_evaluator_arguments, \
 
 
 class Evaluator(BaseEvaluator):
-    def print_results(self, model_opt, batch, utterances):
+    def print_results(self, model_opt, batch, counter, utterances):
         scenes = batch.scene_inputs.transpose(0,1)
         enc_inputs = batch.encoder_inputs.transpose(0,1)
         for i, response in enumerate(utterances):
@@ -23,3 +23,5 @@ class Evaluator(BaseEvaluator):
 
             output = response.log(sent_number)
             os.write(1, output.encode('utf-8'))
+
+        return counter
