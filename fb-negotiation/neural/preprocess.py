@@ -154,7 +154,7 @@ class Dialogue(object):
         utterance = self._insert_markers(agent, utterance, new_turn)
         entities = [x if is_entity(x) else None for x in utterance]
         if lf:
-            lf = self._insert_markers(agent, self.lf_to_tokens(self.kb, lf), new_turn)
+            lf = self._insert_markers(agent, self.lf_to_tokens(lf), new_turn)
         else:
             lf = []
 
@@ -315,13 +315,12 @@ class Preprocessor(object):
             entity_tokens = self.lexicon.link_entity(tokenize(e.data))
             return entity_tokens if entity_tokens else None
         elif e.action == 'select':
-            pdb.set_trace()
             '''
             e.data will be a dict of counts for each item, so we translate
             this data into a string of tokens understood by the training model
             '''
             entity_tokens = [str(e.data[item]) for item in self.lexicon.items]
-            entity_tokens.insert(markers.SELECT, 0)
+            entity_tokens.insert(0, markers.SELECT)
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
@@ -339,6 +338,10 @@ class Preprocessor(object):
                 msg_tokens = tokenize(event.data)
                 tokens[event.agent] += len(msg_tokens)
                 turns[event.agent] += 1
+            if event.action == "select":
+                # the user didn't select any items
+                if len(event.data) == 0:
+                    return True
         # each agent must speak at least 40 words total
         if tokens[0] < 40 and tokens[1] < 40:
             return True

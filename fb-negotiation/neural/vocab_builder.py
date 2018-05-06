@@ -13,7 +13,7 @@ def build_kb_vocab(select_symbol):
     kb_vocab.add_words(['book', 'hat', 'ball', select_symbol])
     kb_vocab.add_words([str(num) for num in range(20)])
     kb_vocab.add_words(sequence_markers, special=True)
-    kb_vocab.finish(freq_threshold=5)
+    kb_vocab.finish()
 
     print 'KB vocab size:', kb_vocab.size
     return kb_vocab
