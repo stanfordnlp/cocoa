@@ -88,11 +88,6 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        # KB context
-        self.category_str = kb.category
-        self.category = kb.category
-        self.title = tokenize(re.sub(r'[^\w0-9]', ' ', kb.facts['item']['Title']))
-        self.description = tokenize(re.sub(r'[^\w0-9]', ' ', ' '.join(kb.facts['item']['Description'])))
         # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
@@ -188,8 +183,6 @@ class Dialogue(object):
         utterance.append(markers.EOS)
 
         if new_turn:
-            # cat_symbol = category_to_marker[self.category_str]
-            # utterance.insert(0, cat_symbol)
             utterance.insert(0, markers.GO)
 
         return utterance
