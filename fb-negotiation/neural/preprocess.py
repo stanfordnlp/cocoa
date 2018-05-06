@@ -207,8 +207,8 @@ class Dialogue(object):
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
     def make_scenario(self, kb):
-        attributes = ["Count", "Name", "Value"]
-        return [str(fact[attr]) for attr in attributes for fact in kb]
+        attributes = ["Name", "Count", "Value"]
+        return [str(fact[attr]) for fact in kb.items for attr in attributes]
 
     def lf_to_int(self):
         self.lf_token_turns = []

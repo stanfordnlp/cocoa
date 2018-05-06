@@ -303,14 +303,23 @@ class Trainer(object):
         #tgt_lengths = batch.tgt_lengths
 
         # running forward() method in the NegotiationModel
-        if hasattr(self.model, 'context_embedder'):
+        if hasattr(batch, 'context_inputs'):
             context_inputs = batch.context_inputs
+        # for the craigslist context
+        if hasattr(batch, 'title_inputs'):
             title_inputs = batch.title_inputs
             desc_inputs = batch.desc_inputs
 
             outputs, attns, dec_state = self.model(encoder_inputs,
                     decoder_inputs, context_inputs, title_inputs,
                     desc_inputs, lengths, dec_state, enc_state)
+        # for the facebook context
+        elif hasattr(batch, 'scene_inputs'):
+            scene_inputs = batch.scene_inputs
+
+            outputs, attns, dec_state = self.model(encoder_inputs,
+                    decoder_inputs, context_inputs, scene_inputs,
+                    lengths, dec_state, enc_state)
         # running forward() method in NMT Model
         else:
             outputs, attns, dec_state = self.model(encoder_inputs,
