@@ -16,7 +16,7 @@ def get_data_generator(args, model_args, schema, test=False):
 
     from core.scenario import Scenario
     from core.lexicon import Lexicon
-    from preprocess import DataGenerator, LMDataGenerator, Preprocessor
+    from preprocess import DataGenerator, Preprocessor
     import os.path
 
     # TODO: move this to dataset
