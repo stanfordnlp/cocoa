@@ -20,15 +20,14 @@ class Batch(object):
         self.num_context = num_context
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
-        self.title_inputs = decoder_args['context']['title']
-        self.desc_inputs = decoder_args['context']['description']
+        self.scene_inputs = decoder_args['scenario']
 
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
         self.context_data = context_data
 
-        unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths', 'title_inputs', 'desc_inputs', 'targets']
-        batch_major_attributes = ['encoder_inputs', 'decoder_inputs', 'title_inputs', 'desc_inputs', 'targets']
+        unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths', 'scene_inputs', 'targets']
+        batch_major_attributes = ['encoder_inputs', 'decoder_inputs', 'scene_inputs', 'targets']
 
         if num_context > 0:
             self.context_inputs = encoder_args['context'][0]
@@ -52,8 +51,7 @@ class Batch(object):
         # To tensor/variable
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
-        self.title_inputs = self.to_variable(self.title_inputs, 'long', cuda)
-        self.desc_inputs = self.to_variable(self.desc_inputs, 'long', cuda)
+        self.scene_inputs = self.to_variable(self.scene_inputs, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
         self.tgt_lengths = self.to_tensor(self.tgt_lengths, 'long', cuda)
@@ -151,24 +149,14 @@ class DialogueBatcher(object):
                 import sys; sys.exit()
         return turn_batches
 
-    def create_context_batch(self, dialogues, pad):
-        category_batch = np.array([d.category for d in dialogues], dtype=np.int32)
-        # TODO: make sure pad is consistent
-        #pad = Dialogue.mappings['kb_vocab'].to_ind(markers.PAD)
-        title_batch = pad_list_to_array([d.title for d in dialogues], pad, np.int32)
-        # TODO: hacky: handle empty description
-        description_batch = pad_list_to_array([[pad] if not d.description else d.description for d in dialogues], pad, np.int32)
-        return {
-                'category': category_batch,
-                'title': title_batch,
-                'description': description_batch,
-                }
-
     def _get_agent_batch_at(self, dialogues, i):
         return [dialogue.agents[i] for dialogue in dialogues]
 
     def _get_kb_batch(self, dialogues):
         return [dialogue.kb for dialogue in dialogues]
+
+    def _get_scenario_batch(self, dialogues):
+        return [dialogue.scenario for dialogue in dialogues]
 
     def pick_helpers(self, token_candidates, candidates):
         helpers = []
@@ -251,7 +239,7 @@ class DialogueBatcher(object):
         return decoder_inputs, decoder_targets
 
     def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
-            target_turns=None, agents=None, uuids=None, kbs=None, kb_context=None,
+            target_turns=None, agents=None, uuids=None, kbs=None, scenario=None,
             num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
@@ -265,7 +253,7 @@ class DialogueBatcher(object):
         decoder_args = {
                 'inputs': decoder_inputs,
                 'targets': decoder_targets,
-                'context': kb_context,
+                'scenario': scenario,
                 }
         context_data = {
                 'encoder_tokens': encoder_tokens,
@@ -318,12 +306,12 @@ class DialogueBatcher(object):
         agents = self._get_agent_batch_at(dialogues, 1)  # Decoding agent
         kbs = self._get_kb_batch(dialogues)
         uuids = [d.uuid for d in dialogues]
-        kb_context_batch = self.create_context_batch(dialogues, self.kb_pad)
+        scenarios = self._get_scenario_batch(dialogues)
         return {
                 'agents': agents,
                 'kbs': kbs,
                 'uuids': uuids,
-                'kb_context': kb_context_batch,
+                'scenarios': scenarios,
                 }
 
     def get_encoding_turn_ids(self, num_turns):
@@ -357,7 +345,7 @@ class DialogueBatcher(object):
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
-                kb_context=dialogue_data['kb_context'],
+                scenario=dialogue_data['scenarios'],
                 num_context=self.num_context,
                 )
             for i in encode_turn_ids
@@ -400,7 +388,6 @@ class UtteranceParserBatcher(DialogueBatcher):
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
-                kb_context=dialogue_data['kb_context'],
                 num_context=num_context,
                 )
             for i in encode_turn_ids
@@ -507,7 +494,6 @@ class LFPolicyBatcher(DialogueBatcher):
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
-                kb_context=dialogue_data['kb_context'],
                 num_context=num_context,
                 )
             for i in encode_turn_ids
@@ -543,7 +529,6 @@ class DialogueParserBatcher(DialogueBatcher):
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
-                kb_context=dialogue_data['kb_context'],
                 num_context=num_context,
                 )
             for i in encode_turn_ids
@@ -561,9 +546,6 @@ class DialogueBatcherWrapper(object):
 
     def create_batch(self, dialogues):
         raise NotImplementedError
-
-    def create_context_batch(self, dialogues, pad):
-        return self.batcher.create_context_batch(dialogues, pad)
 
     def get_encoder_inputs(self, encoder_turns):
         return self.batcher.get_encoder_inputs(encoder_turns)

@@ -88,6 +88,7 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
+        self.scenario = self.make_scenario(kb)
         # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
@@ -200,10 +201,14 @@ class Dialogue(object):
                 c = [self.textint_map.text_to_int(remove_slot(c), 'decoding') for c in turn_candidates]
                 self.candidates.append(c)
 
-    def kb_context_to_int(self):
+    def scenario_to_int(self):
         # self.category = self.mappings['cat_vocab'].to_ind(self.category)
-        self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
-        self.description = map(self.mappings['kb_vocab'].to_ind, self.description)
+        # self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
+        self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
+
+    def make_scenario(self, kb):
+        attributes = ["Count", "Name", "Value"]
+        return [str(fact[attr]) for attr in attributes for fact in kb]
 
     def lf_to_int(self):
         self.lf_token_turns = []
@@ -225,8 +230,8 @@ class Dialogue(object):
 
         # if self.token_candidates:
         #     self.candidates_to_int()
-        self.kb_context_to_int()
-        self.lf_to_int()
+        # self.lf_to_int()
+        self.scenario_to_int()
 
         self.is_int = True
 
@@ -301,14 +306,6 @@ class Preprocessor(object):
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
 
-    '''
-    # e.data[0] is just the <select> keyword, so we skip it
-    offer = [int(count) for count in tokenize(e.data[1:])]
-    offer = {items[i]: int(count) for i, count in enumerate(tokenize(e.data[1:])) }
-    offer will be a list of counts, where each count is the
-    count of each item that the player will recieve
-    thus count of agent 0 + count of agent 1 = total item count
-    '''
     def process_event(self, e, kb):
         # Lower, tokenize, link entity
         if e.action == 'message':
