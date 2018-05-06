@@ -88,7 +88,7 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.scenario = self.make_scenario(kb)
+        self.scenario = self.embed_kb(kb)
         # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
@@ -206,9 +206,11 @@ class Dialogue(object):
         # self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
-    def make_scenario(self, kb):
-        attributes = ["Name", "Count", "Value"]
-        return [str(fact[attr]) for fact in kb.items for attr in attributes]
+    def embed_kb(self, kb):
+        attributes = ["Count", "Value"]  # "Name"
+        scenario = [str(fact[attr]) for fact in kb.items for attr in attributes]
+        assert(len(scenario) == 6)
+        return scenario
 
     def lf_to_int(self):
         self.lf_token_turns = []
