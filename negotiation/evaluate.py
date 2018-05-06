@@ -14,12 +14,12 @@ from cocoa.lib import logstats
 
 import onmt
 from cocoa.pt_model.util import use_gpu
+from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
+from cocoa.neural.loss import SimpleLossCompute
 
-from neural.trainer import add_trainer_arguments, Trainer, Statistics
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
-from neural.loss import SimpleLossCompute
 from neural.evaluator import Evaluator, add_evaluator_arguments
 
 #from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
