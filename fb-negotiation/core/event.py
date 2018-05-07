@@ -6,6 +6,6 @@ class Event(BaseEvent):
         return Event(agent, time, 'select', data, metadata=metadata)
 
     @staticmethod
-    def RejectEvent(agent, time=None, metadata=None):
-        return Event(agent, time, 'reject', None, metadata=metadata)
+    def QuitEvent(agent, time=None, metadata=None):
+        return Event(agent, time, 'quit', None, metadata=metadata)
 

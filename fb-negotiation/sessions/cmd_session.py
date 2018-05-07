@@ -25,8 +25,8 @@ class CmdSession(Session):
             t = [int(token) for idx, token in enumerate(tokens) if idx > 0]
             proposal = {'book': t[0], 'hat': t[1], 'ball': t[2]}
             return self.select(proposal)
-        elif tokens[0] == '<reject>':
-            return self.reject()
+        elif tokens[0] == '<quit>':
+            return self.quit()
         else:
             return self.message(" ".join(tokens))
 
