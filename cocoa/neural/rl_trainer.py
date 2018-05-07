@@ -204,7 +204,7 @@ class RLTrainer(Trainer):
         self.model.eval()
         total_stats = Statistics()
         print '='*20, 'VALIDATION', '='*20
-        for scenario in self.scenarios[split]:
+        for scenario in self.scenarios[split][:200]:
             controller = self._get_controller(scenario, split=split)
             example = controller.simulate(args.max_turns, verbose=args.verbose)
             rewards = self.get_reward(example)
@@ -212,7 +212,7 @@ class RLTrainer(Trainer):
             reward = rewards[session.kb.role]
             stats = Statistics(reward=reward)
             total_stats.update(stats)
-        print '='*20, 'VALIDATION', '='*20
+        print '='*20, 'END VALIDATION', '='*20
         self.model.train()
         return total_stats
 
