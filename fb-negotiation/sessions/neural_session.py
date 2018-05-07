@@ -3,6 +3,7 @@ import re
 from itertools import izip
 import numpy as np
 import torch
+import pdb
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
@@ -100,6 +101,19 @@ class NeuralSession(Session):
         self.dialogue = Dialogue(agent, kb, None)
         self.max_len = 100
 
+    # TODO: move this to preprocess?
+    def convert_to_int(self):
+        print("comes here tiht?")
+        for i, turn in enumerate(self.dialogue.token_turns):
+            for curr_turns, stage in izip(self.dialogue.turns, ('encoding', 'decoding', 'target')):
+                if i >= len(curr_turns):
+                    print("and inside")
+                    curr_turns.append(self.env.textint_map.text_to_int(turn, stage))
+                else:
+                    # Already converted
+                    pass
+        self.dialogue.scenario_to_int()
+
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
@@ -108,6 +122,8 @@ class NeuralSession(Session):
         # Empty message
         if utterance is None:
             return
+        
+        print 'receive:', utterance
         self.dialogue.add_utterance(event.agent, utterance)
 
     def _has_entity(self, tokens):
@@ -159,9 +175,8 @@ class PytorchNeuralSession(NeuralSession):
 
     def _create_batch(self):
         num_context = Dialogue.num_context
-
         # All turns up to now
-        self.dialogue.convert_to_int()
+        self.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
         encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
@@ -199,7 +214,7 @@ class PytorchNeuralSession(NeuralSession):
             self.dec_state = None
 
         entity_tokens = self._output_to_tokens(output_data)
-
+        # pdb.set_trace()
         #if not self._is_valid(entity_tokens):
         #    return None
         return entity_tokens
