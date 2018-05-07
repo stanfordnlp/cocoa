@@ -3,6 +3,7 @@ import random
 import json
 import numpy as np
 import copy
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -27,6 +28,23 @@ class RLTrainer(BaseRLTrainer):
         super(RLTrainer, self).__init__(agents, scenarios, train_loss, optim, training_agent=training_agent)
         self.reward_func = reward_func
 
+    def _is_valid_dialogue(self, example):
+        special_actions = defaultdict(int)
+        for event in example.events:
+            if event.action in ('offer', 'quit', 'accept', 'reject'):
+                special_actions[event.action] += 1
+                if special_actions[event.action] > 1:
+                    return False
+                # Cannot accept or reject before offer
+                if event.action in ('accept', 'reject') and special_actions['offer'] == 0:
+                    return False
+        return True
+
+    def _is_agreed(self, example):
+        if example.outcome['reward'] == 0 or example.outcome['offer'] is None:
+            return False
+        return True
+
     def _margin_reward(self, example):
         rewards = {}
         targets = {}
@@ -38,7 +56,8 @@ class RLTrainer(BaseRLTrainer):
         midpoint = (targets['seller'] + targets['buyer']) / 2.
 
         # No agreement
-        if example.outcome['reward'] == 0 or example.outcome['offer'] is None:
+        if not self._is_agreed(example):
+            print 'No agreement'
             return {'seller': -0.5, 'buyer': -0.5}
 
         price = example.outcome['offer']['price']
@@ -63,6 +82,9 @@ class RLTrainer(BaseRLTrainer):
         return rewards
 
     def get_reward(self, example):
+        if not self._is_valid_dialogue(example):
+            print 'Invalid'
+            return {'seller': -1., 'buyer': -1.}
         if self.reward_func == 'margin':
             return self._margin_reward(example)
         elif self.reward_func == 'fair':
