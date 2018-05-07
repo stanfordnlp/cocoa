@@ -129,8 +129,7 @@ class PytorchNeuralSystem(System):
 
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model=self.model_name,
-            slot_filling=False, kb_pad=kb_padding,
-            mappings=mappings, num_context=model_args.num_context)
+            kb_pad=kb_padding, mappings=mappings, num_context=model_args.num_context)
 
         #TODO: class variable is not a good way to do this
         Dialogue.preprocessor = preprocessor

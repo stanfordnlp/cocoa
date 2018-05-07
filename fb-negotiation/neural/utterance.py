@@ -18,3 +18,8 @@ class UtteranceBuilder(BaseUtteranceBuilder):
         hat = "Hat count: {}, value: {}".format(sent_words[2], sent_words[3])
         ball = "Ball count: {}, value: {}".format(sent_words[4], sent_words[5])
         return [book, hat, ball]
+
+    def _entity_to_str(self, entity_token, kb):
+        # there is no price scaling here, so we can just return the entity
+        return str(entity_token.canonical.value)
+

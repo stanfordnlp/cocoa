@@ -9,7 +9,7 @@ from neural_system import NeuralSystem, add_neural_system_arguments, PytorchNeur
 from hybrid_system import HybridSystem, add_hybrid_arguments
 
 def add_system_arguments(parser):
-    # parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
+    parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     # add_hybrid_arguments(parser)
     add_neural_system_arguments(parser)
     # add_rulebased_arguments(parser)

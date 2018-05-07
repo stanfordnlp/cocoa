@@ -1,4 +1,19 @@
+import random
+import re
+from itertools import izip
+import numpy as np
+import torch
+
+from cocoa.model.vocab import Vocabulary
+from cocoa.core.entity import is_entity, Entity
+from cocoa.pt_model.util import use_gpu
+
+from core.event import Event
 from session import Session
+from neural.preprocess import markers, Dialogue
+from neural.evaluator import Evaluator, add_evaluator_arguments
+from neural.batcher import Batch, LMBatch
+from neural.models import LM
 
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
@@ -158,6 +173,7 @@ class PytorchNeuralSession(NeuralSession):
         decoder_args = {
                         'inputs': self.get_decoder_inputs(),
                         'targets': np.copy(encoder_turns[0]),
+                        'scenario': np.array([self.dialogue.scenario])
                     }
 
         context_data = {
