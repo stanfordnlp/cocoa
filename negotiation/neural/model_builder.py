@@ -187,8 +187,11 @@ def load_test_model(model_path, opt, dummy_opt):
     for arg in dummy_opt:
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
+    for attribute in ["share_embeddings", "stateful"]:
+        if not hasattr(model_opt, attribute):
+            model_opt.__dict__[attribute] = False
 
-    mappings = read_pickle('{}/vocab.pkl'.format(model_opt.mappings))
+    mappings = read_pickle('{0}/{1}/vocab.pkl'.format(model_opt.mappings, model_opt.model))
     mappings = make_model_mappings(model_opt.model, mappings)
 
     model = make_base_model(model_opt, mappings, use_gpu(opt), checkpoint)
