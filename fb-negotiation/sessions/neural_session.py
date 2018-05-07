@@ -103,11 +103,9 @@ class NeuralSession(Session):
 
     # TODO: move this to preprocess?
     def convert_to_int(self):
-        print("comes here tiht?")
         for i, turn in enumerate(self.dialogue.token_turns):
             for curr_turns, stage in izip(self.dialogue.turns, ('encoding', 'decoding', 'target')):
                 if i >= len(curr_turns):
-                    print("and inside")
                     curr_turns.append(self.env.textint_map.text_to_int(turn, stage))
                 else:
                     # Already converted
