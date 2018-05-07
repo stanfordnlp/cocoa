@@ -3,7 +3,7 @@ from session import Session
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
-class NeuralSession(Session):
+class FBNeuralSession(Session):
     """A wrapper for LstmRolloutAgent.
     """
     def __init__(self, agent, kb, model, args):
@@ -19,11 +19,8 @@ class NeuralSession(Session):
 
     def kb_to_context(self, kb):
         """Convert `kb` to context used by the LstmRolloutAgent.
-
-        Returns:
-            context (list[str]):
+        Returns: context (list[str]):
                 [book_count, book_value, hat_count, hat_value, ball_count, ball_value]
-
         """
         context = []
         for item in ('book', 'hat', 'ball'):
@@ -33,15 +30,12 @@ class NeuralSession(Session):
     def parse_choice(self, choice):
         """Convert agent choice to dict.
 
-        Args:
-            choice (list[str]):
-                e.g. ['item0=1', 'item1=2', 'item2=0', 'item0=0', 'item1=0', 'item2=2'],
-                where item 0-2 are book, hat, ball.
-                The agent's choice are the first 3 elements.
+        Args: choice (list[str]):
+            e.g. ['item0=1', 'item1=2', 'item2=0', 'item0=0', 'item1=0', 'item2=2'],
+            where item 0-2 are book, hat, ball.
+            The agent's choice are the first 3 elements.
 
-        Return:
-            data (dict): {item: count}
-
+        Return: data (dict): {item: count}
         """
         try:
             return {item: int(choice[i].split('=')[1]) for i, item in enumerate(('book', 'hat', 'ball'))}
@@ -78,6 +72,57 @@ class NeuralSession(Session):
         # Omit the last <eos> symbol
         return self.message(' '.join(tokens[:-1]))
 
+class NeuralSession(Session):
+    def __init__(self, agent, kb, env):
+        super(NeuralSession, self).__init__(agent)
+        self.env = env
+        self.kb = kb
+        self.builder = env.utterance_builder
+        self.generator = env.dialogue_generator
+        self.cuda = env.cuda
+
+        self.batcher = self.env.dialogue_batcher
+        self.dialogue = Dialogue(agent, kb, None)
+        self.max_len = 100
+
+    def receive(self, event):
+        if event.action in Event.decorative_events:
+            return
+        # Parse utterance
+        utterance = self.env.preprocessor.process_event(event, self.kb)
+        # Empty message
+        if utterance is None:
+            return
+        self.dialogue.add_utterance(event.agent, utterance)
+
+    def _has_entity(self, tokens):
+        for token in tokens:
+            if is_entity(token):
+                return True
+        return False
+
+    def attach_punct(self, s):
+        s = re.sub(r' ([.,!?;])', r'\1', s)
+        s = re.sub(r'\.{3,}', r'...', s)
+        return s
+
+    def send(self):
+        tokens = self.generate()
+        if tokens is None:
+            return None
+        self.dialogue.add_utterance(self.agent, list(tokens))
+        tokens = self.builder.entity_to_str(tokens, self.kb)
+
+        if len(tokens) > 0:
+            if tokens[0] == markers.SELECT:
+                return self.select()
+            elif tokens[0] == markers.QUIT:
+                return self.quit()
+
+        s = self.attach_punct(' '.join(tokens))
+        #print 'send:', s
+        return self.message(s)
+
 class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
@@ -101,7 +146,7 @@ class PytorchNeuralSession(NeuralSession):
         num_context = Dialogue.num_context
 
         # All turns up to now
-        self.convert_to_int()
+        self.dialogue.convert_to_int()
         encoder_turns = self.batcher._get_turn_batch_at([self.dialogue], Dialogue.ENC, None)
 
         encoder_inputs = self.batcher.get_encoder_inputs(encoder_turns)
@@ -112,7 +157,6 @@ class PytorchNeuralSession(NeuralSession):
                     }
         decoder_args = {
                         'inputs': self.get_decoder_inputs(),
-                        'context': self.kb_context_batch,
                         'targets': np.copy(encoder_turns[0]),
                     }
 
@@ -121,8 +165,8 @@ class PytorchNeuralSession(NeuralSession):
                 'kbs': [self.kb],
                 }
 
-        return Batch(encoder_args, decoder_args, context_data,
-                self.vocab, sort_by_length=False, num_context=num_context, cuda=self.cuda)
+        return Batch(encoder_args, decoder_args, context_data, self.vocab,
+                sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
     def generate(self):
         if len(self.dialogue.agents) == 0:
