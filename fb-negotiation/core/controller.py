@@ -9,7 +9,7 @@ class Controller(BaseController):
     def event_callback(self, event):
         if event.action == 'select':
             self.outcomes[event.agent] = event.data
-        elif event.action == 'reject':
+        elif event.action == 'quit':
             self.quit = True
             self.outcomes[event.agent] = event.data
 
@@ -18,16 +18,19 @@ class Controller(BaseController):
             first_agent_proposal = self.outcomes[0]
             second_agent_proposal = self.outcomes[1]
         except TypeError:
+            print("Failed because at least one agent did not complete")
             return False
 
         if (first_agent_proposal is None) or (second_agent_proposal is None):
             # print("first_agent_proposal: {}".format(first_agent_proposal) )
             # print("second_agent_proposal: {}".format(second_agent_proposal) )
+            print("Failed because at least one agent did not enter a selection")
             return False
 
         for item, count in self.scenario.kbs[0].item_counts.iteritems():
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
             if int(count) != int(item_proposal):
+                print("Failed because proposed selections do not add up to actual item counts")
                 return False
 
         return True

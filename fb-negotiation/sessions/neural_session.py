@@ -30,7 +30,7 @@ class FBNeuralSession(Session):
         self.model.feed_context(context)
         self.state = {
                 'selected': False,
-                'rejected': False,
+                'quit': False,
                 }
 
     def kb_to_context(self, kb):
@@ -62,8 +62,8 @@ class FBNeuralSession(Session):
     def receive(self, event):
         if event.action == 'select':
             self.state['selected'] = True
-        elif event.action == 'reject':
-            self.state['rejected'] = True
+        elif event.action == 'quit':
+            self.state['quit'] = True
         elif event.action == 'message':
             tokens = event.data.lower().strip().split() + ['<eos>']
             self.model.read(tokens)
@@ -79,8 +79,8 @@ class FBNeuralSession(Session):
         if self.state['selected']:
             return self.select()
 
-        if self.state['rejected']:
-            return self.reject()
+        if self.state['quit']:
+            return self.quit()
 
         tokens = self.model.write()
         if self._is_selection(tokens):
@@ -122,7 +122,7 @@ class NeuralSession(Session):
         # Empty message
         if utterance is None:
             return
-        
+
         print 'receive:', utterance
         self.dialogue.add_utterance(event.agent, utterance)
 
@@ -146,7 +146,9 @@ class NeuralSession(Session):
 
         if len(tokens) > 0:
             if tokens[0] == markers.SELECT:
-                return self.select()
+                t = [int(token) for idx, token in enumerate(tokens) if idx > 0]
+                proposal = {'book': t[0], 'hat': t[1], 'ball': t[2]}
+                return self.select(proposal)
             elif tokens[0] == markers.QUIT:
                 return self.quit()
 
