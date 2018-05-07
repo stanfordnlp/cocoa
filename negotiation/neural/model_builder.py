@@ -223,9 +223,14 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             context_embeddings = make_embeddings(model_opt, context_dict)
             context_embedder = make_context_embedder(model_opt, context_embeddings)
 
-        kb_dict = mappings['kb_vocab']
-        kb_embeddings = make_embeddings(model_opt, kb_dict)
-        kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
+        # Make kb embedder.
+        if "multibank" in model_opt.global_attention:
+            if model_opt.model == 'lf2lf':
+                kb_embedder = None
+            else:
+                kb_dict = mappings['kb_vocab']
+                kb_embeddings = make_embeddings(model_opt, kb_dict)
+                kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
 
         # Make decoder.
         tgt_dict = mappings['tgt_vocab']
@@ -286,7 +291,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             load_wordvec(model.encoder.embeddings, 'utterance')
             if hasattr(model, 'context_embedder'):
                 load_wordvec(model.context_embedder.embeddings, 'utterance')
-        if hasattr(model, 'kb_embedder'):
+        if hasattr(model, 'kb_embedder') and model.kb_embedder is not None:
             load_wordvec(model.kb_embedder.embeddings, 'kb')
 
         if model_opt.model == 'seq2seq':

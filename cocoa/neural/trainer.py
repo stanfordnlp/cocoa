@@ -10,6 +10,7 @@ import torch.nn as nn
 from onmt.Trainer import Statistics as BaseStatistics
 from onmt.Utils import use_gpu
 
+from cocoa.io.utils import create_path
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
@@ -122,6 +123,7 @@ class Trainer(object):
         self.norm_method = norm_method # by sentences vs. by tokens
         self.grad_accum_count = grad_accum_count
         self.cuda = False
+        self.best_valid_loss = None
 
         assert(grad_accum_count > 0)
 
@@ -247,7 +249,7 @@ class Trainer(object):
     def epoch_step(self, ppl, epoch):
         return self.optim.update_learning_rate(ppl, epoch)
 
-    def drop_checkpoint(self, opt, epoch, valid_stats, reward=None):
+    def drop_checkpoint(self, opt, epoch, valid_stats, model_opt=None):
         """ Save a resumable checkpoint.
 
         Args:
@@ -270,17 +272,34 @@ class Trainer(object):
         checkpoint = {
             'model': model_state_dict,
             'generator': generator_state_dict,
-            'opt': opt,
+            'opt': opt if not model_opt else model_opt,
             'epoch': epoch,
             'optim': self.optim,
         }
+        path = self.checkpoint_path(epoch, opt, valid_stats)
+        create_path(path)
+        print 'Save checkpoint {path}'.format(path=path)
+        torch.save(checkpoint, path)
+
+        self.save_best_checkpoint(checkpoint, opt, valid_stats)
+
+    def save_best_checkpoint(self, checkpoint, opt, valid_stats):
+        if self.best_valid_loss is None or valid_stats.mean_loss() < self.best_valid_loss:
+            self.best_valid_loss = valid_stats.mean_loss()
+            path = '{root}/{model}_best.pt'.format(
+                        root=opt.model_path,
+                        model=opt.model_filename)
+
+            print 'Save best checkpoint {path}'.format(path=path)
+            torch.save(checkpoint, path)
+
+    def checkpoint_path(self, epoch, opt, stats):
         path = '{root}/{model}_loss{loss:.2f}_e{epoch:d}.pt'.format(
                     root=opt.model_path,
                     model=opt.model_filename,
-                    loss=valid_stats.mean_loss() if valid_stats is not None else reward,
+                    loss=stats.mean_loss(),
                     epoch=epoch)
-        print 'Save checkpoint {path}'.format(path=path)
-        torch.save(checkpoint, path)
+        return path
 
     def _run_batch(self, batch, dec_state=None, enc_state=None):
         ## TODO: hack

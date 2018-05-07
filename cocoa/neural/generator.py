@@ -65,12 +65,13 @@ class Generator(object):
             desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
 
-            _, title_memory_bank = self.model.kb_embedder(title_inputs)
-            _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
             _, context_memory_bank = self.model.context_embedder(context_inputs)
-
             # all memory_bank items are (seq_len, batch_size, rnn_size)
-            memory_bank = [enc_memory_bank, context_memory_bank, title_memory_bank, desc_memory_bank]
+            memory_bank = [enc_memory_bank, context_memory_bank]
+            if self.model.kb_embedder:
+                _, title_memory_bank = self.model.kb_embedder(title_inputs)
+                _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
+                memory_bank.extend([title_memory_bank, desc_memory_bank])
         else:
             memory_bank = enc_memory_bank
         return memory_bank
