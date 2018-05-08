@@ -60,7 +60,9 @@ class Generator(object):
         return dec_states, memory_bank
 
     def _run_attention_memory(self, batch, enc_memory_bank):
-        if batch.num_context > 0:
+        if batch.num_context > 0 and hasattr(self.model, 'kb_embedder'):
+            title_inputs = batch.title_inputs
+            desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             memory_bank = [enc_memory_bank, context_memory_bank]
@@ -80,7 +82,6 @@ class Generator(object):
 
         else:
             memory_bank = enc_memory_bank
-        # all memory_bank items are (seq_len, batch_size, rnn_size)
         return memory_bank
 
     def generate_batch(self, batch, gt_prefix=1, enc_state=None):
