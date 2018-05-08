@@ -117,6 +117,7 @@ def read_examples(paths, max_examples, Scenario):
         for raw in read_json(path):
             if max_examples >= 0 and len(examples) >= max_examples:
                 break
+            import pdb; pdb.set_trace()
             examples.append(Example.from_dict(raw, Scenario))
     return examples
 
@@ -142,6 +143,6 @@ def read_dataset(args, Scenario):
     return dataset
 
 if __name__ == "__main__":
-    raw = read_json("fb-negotiation/data/transformed_test.json")
+    raw = read_json("fb-negotiation/scr/data/transformed_test.json")
     for idx, example in enumerate(raw):
         print Example.test_dict(example)
