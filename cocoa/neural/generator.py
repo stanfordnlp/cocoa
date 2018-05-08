@@ -64,6 +64,7 @@ class Generator(object):
             title_inputs = batch.title_inputs
             desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
+
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             memory_bank = [enc_memory_bank, context_memory_bank]
 
@@ -79,7 +80,6 @@ class Generator(object):
                 scene_inputs = batch.scene_inputs
                 _, scene_memory_bank = self.model.kb_embedder(scene_inputs)
                 memory_bank.append(scene_memory_bank)
-
         else:
             memory_bank = enc_memory_bank
         return memory_bank
