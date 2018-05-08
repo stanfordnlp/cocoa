@@ -9,8 +9,8 @@ from cocoa.core.util import read_pickle, read_json
 from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
 from cocoa.neural.beam import Scorer
-from cocoa.neural.generator import get_generator
 
+from neural.generator import get_generator
 from sessions.neural_session import PytorchNeuralSession
 from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
@@ -155,7 +155,7 @@ class PytorchNeuralSystem(System):
         vocab = mappings['utterance_vocab']
         self.mappings = mappings
 
-        generator = get_generator(model, vocab, Scorer(args.alpha), args)
+        generator = get_generator(model, vocab, Scorer(args.alpha), args, model_args)
         builder = UtteranceBuilder(vocab, args.n_best, has_tgt=True)
 
         preprocessor = Preprocessor(schema, price_tracker, model_args.entity_encoding_form,

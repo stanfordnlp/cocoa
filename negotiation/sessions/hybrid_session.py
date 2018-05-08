@@ -1,6 +1,10 @@
+from __future__ import print_function
+
 import random
 import numpy as np
-import pdb
+
+from cocoa.core.entity import is_entity
+
 from core.event import Event
 from sessions.rulebased_session import CraigslistRulebasedSession
 
@@ -32,15 +36,28 @@ class BaseHybridSession(CraigslistRulebasedSession):
         if entity_tokens:
             self.manager.dialogue.add_utterance(event.agent, entity_tokens, logical_form)
 
+    def send(self):
+        pass
+
+    def is_valid_action(self, action_tokens):
+        if not action_tokens:
+            return False
+        if action_tokens[0] in ('init-price', 'counter-price') and \
+                not (len(action_tokens) > 1 and is_entity(action_tokens[1])):
+            return False
+        return True
+
     # called by the send() method of the parent rulebased session
     def choose_action(self):
-        self.manager.dialogue.is_int = False
-        action = self.manager.generate()[0]
-        print("action predicted by neural manager: {}".format(action))
+        action_tokens = self.manager.generate()
+        print("action predicted by neural manager: {}".format(action_tokens))
+        if not self.is_valid_action(action_tokens):
+            action = 'unknown'
+        import sys; sys.exit()
         p_act = self.state.partner_act
         if action == "unknown" and (p_act == "accept" or p_act == "agree"):
             action = "agree"
-      
+
         return action if action else 'unknown'
 
 class SellerHybridSession(BaseHybridSession):

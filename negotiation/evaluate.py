@@ -21,6 +21,7 @@ from neural import add_data_generator_arguments, get_data_generator, make_model_
 from neural import model_builder
 from neural.loss import SimpleLossCompute
 from neural.evaluator import Evaluator, add_evaluator_arguments
+from neural.generator import get_generator
 
 #from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
 #from model.learner import add_learner_arguments, get_learner
@@ -60,6 +61,7 @@ if __name__ == '__main__':
     # Prefix: [GO, CATEGORY]
     # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
     scorer = Scorer(args.alpha)
+    generator = get_generator(model, mappings['tgt_vocab'], scorer, args, model_args)
     builder = UtteranceBuilder(mappings['tgt_vocab'], args.n_best, has_tgt=True)
-    evaluator = Evaluator(model, mappings, scorer, builder, gt_prefix=1)
+    evaluator = Evaluator(model, mappings, generator, builder, gt_prefix=1)
     evaluator.evaluate(args, model_args, data_generator)

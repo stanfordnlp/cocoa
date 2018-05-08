@@ -4,10 +4,7 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
-from generator import get_generator
-
 from utterance import UtteranceBuilder
-from beam import Scorer
 from symbols import markers
 
 
@@ -47,15 +44,15 @@ def add_evaluator_arguments(parser):
 
 
 class Evaluator(object):
-    def __init__(self, model, mappings, scorer, builder, gt_prefix=1):
+    def __init__(self, model, mappings, generator, builder, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
         self.mappings = mappings
-        self.scorer = scorer
+        self.generator = generator
         self.builder = builder
 
     def evaluate(self, opt, model_opt, data, split='test'):
-        generator = get_generator(self.model, self.mappings['tgt_vocab'], self.scorer, opt)
+        generator = self.generator
 
         # Statistics
         counter = count(1)

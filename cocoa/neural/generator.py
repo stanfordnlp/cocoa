@@ -350,24 +350,3 @@ class LMSampler(Sampler):
         ret["gold_score"] = [0] * batch_size
         ret["batch"] = batch
         return ret
-
-def get_generator(model, vocab, scorer, args):
-    from cocoa.pt_model.util import use_gpu
-    from neural.models import LM
-    if isinstance(model, LM):
-        generator = LMSampler(model, vocab, args.temperature,
-                            max_length=args.max_length,
-                            cuda=use_gpu(args))
-    elif args.sample:
-        generator = Sampler(model, vocab, args.temperature,
-                            max_length=args.max_length,
-                            cuda=use_gpu(args))
-    else:
-        generator = Generator(model, vocab,
-                              beam_size=args.beam_size,
-                              n_best=args.n_best,
-                              max_length=args.max_length,
-                              global_scorer=scorer,
-                              cuda=use_gpu(args),
-                              min_length=args.min_length)
-    return generator
