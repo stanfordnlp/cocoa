@@ -114,11 +114,10 @@ def read_examples(paths, max_examples, Scenario):
     examples = []
     for path in paths:
         print 'read_examples: %s' % path
-        for raw in read_json(path):
+        for example in read_json(path):
             if max_examples >= 0 and len(examples) >= max_examples:
                 break
-            import pdb; pdb.set_trace()
-            examples.append(Example.from_dict(raw, Scenario))
+            examples.append(Example.from_dict(example, Scenario))
     return examples
 
 def add_dataset_arguments(parser):
@@ -139,10 +138,11 @@ def read_dataset(args, Scenario):
     '''
     train_examples = read_examples(args.train_examples_paths, args.train_max_examples, Scenario)
     test_examples = read_examples(args.test_examples_paths, args.test_max_examples, Scenario)
+    print("We found {0} train examples and {1} test examples".format(len(train_examples), len(test_examples)))
     dataset = Dataset(train_examples, test_examples)
     return dataset
 
 if __name__ == "__main__":
     raw = read_json("fb-negotiation/scr/data/transformed_test.json")
-    for idx, example in enumerate(raw):
-        print Example.test_dict(example)
+    for idx, example in enumerate(raw): 
+        print Example.from_dict(example)
