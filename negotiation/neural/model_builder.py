@@ -188,6 +188,10 @@ def load_test_model(model_path, opt, dummy_opt):
         if arg not in model_opt:
             model_opt.__dict__[arg] = dummy_opt[arg]
 
+    # TODO: fix this
+    if model_opt.stateful and not opt.sample:
+        raise ValueError('Beam search generator does not work with stateful models yet')
+
     mappings = read_pickle('{}/vocab.pkl'.format(model_opt.mappings))
     mappings = make_model_mappings(model_opt.model, mappings)
 
