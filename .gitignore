@@ -18,3 +18,4 @@ cocoa/tags
 cl*.sh
 aws_config.json
 *.DS_Store
+*.txt

@@ -32,29 +32,8 @@ def get_system(name, args, schema=None, timed=False, model_path=None):
         manager = PytorchNeuralSystem(args, schema, lexicon, model_path, timed)
         generator = Generator(templates)
         return HybridSystem(lexicon, generator, manager, timed)
-    elif name == 'config-rulebased':
-       configs = read_json(args.rulebased_configs)
-       return ConfigurableRulebasedSystem(configs, lexicon, timed_session=timed, policy=args.config_search_policy, max_chats_per_config=args.chats_per_config, db=args.trials_db, templates=templates)
     elif name == 'cmd':
         return CmdSystem()
-    elif name.startswith('ranker'):
-        # TODO: hack
-        #retriever1 = Retriever(args.index+'-1', context_size=args.retriever_context_len, num_candidates=args.num_candidates)
-        #retriever2 = Retriever(args.index+'-2', context_size=args.retriever_context_len, num_candidates=args.num_candidates)
-        retriever = Retriever(args.index, context_size=args.retriever_context_len, num_candidates=args.num_candidates)
-        if name == 'ranker-ir':
-            return IRRankerSystem(schema, lexicon, retriever)
-        elif name == 'ranker-ir1':
-            return IRRankerSystem(schema, lexicon, retriever1)
-        elif name == 'ranker-ir2':
-            return IRRankerSystem(schema, lexicon, retriever2)
-        elif name == 'ranker-neural':
-            return NeuralRankerSystem(schema, lexicon, retriever, model_path, args.mappings)
-        else:
-            raise ValueError
-    elif name in ('neural-gen', 'neural-sel'):
-        assert model_path
-        return NeuralSystem(schema, lexicon, model_path, args.mappings, args.decoding, index=args.index, num_candidates=args.num_candidates, retriever_context_len=args.retriever_context_len, timed_session=timed)
     elif name == 'pt-neural':
         assert model_path
         return PytorchNeuralSystem(args, schema, lexicon, model_path, timed)
