@@ -83,7 +83,7 @@ class RLTrainer(BaseRLTrainer):
         rewards = {}
         margin_rewards = self._margin_reward(example)
         for role in ('buyer', 'seller'):
-            rewards[role] = -1. * abs(margin_rewards[role] - 0.)
+            rewards[role] = -1. * abs(margin_rewards[role] - 0.) + 1.
         return rewards
 
     def get_reward(self, example):
