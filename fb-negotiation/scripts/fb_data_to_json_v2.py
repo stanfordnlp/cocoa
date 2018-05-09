@@ -36,8 +36,8 @@ def populate_events(dialogue, outcome):
 
   for turn in turns:
     if turn[1] == "<selection>":
-      event = create_one_event(turn[0], timestep, outcome, "select")
-    else:
+      event = create_one_event(turn[0], timestep, turn[1], "select")
+    else:  # message actions
       event = create_one_event(turn[0], timestep, turn[1:])
     events.append(event)
     timestep += 1
@@ -45,11 +45,7 @@ def populate_events(dialogue, outcome):
   return events
 
 def create_one_event(agent, timestep, data, action="message"):
-  if action == "message":
-    text = " ".join(data)
-  else:
-    text = {"book": data['book'], "hat": data['hat'], "ball": data['ball']}
-
+  text = " ".join(data) if action == "message" else data
   event = {
     "start_time": tm.time(),
     "agent": agent,
@@ -96,10 +92,10 @@ def read_file(in_filename):
       in_lines.append(line.strip())
   return in_lines
 
-def store_lines(out_filename, cleaned):
-  with open(out_filename, 'w') as outfile:
+def store_lines(outfile, cleaned):
+  with open(outfile, 'w') as outfile:
     json.dump(cleaned, outfile)
-  print("Completed saving {} lines".format(len(cleaned)) )
+  print("Completed saving {0} lines into {1}".format(len(cleaned), outfile) )
 
 def parse_lines(raw):
   parsed = []
@@ -130,31 +126,28 @@ def create_outcome(data):
   if out[0] in ["<disagree>", "<disconnect>", "<no_agreement>"]:
     outcome = {
       "valid_deal": False,
-      "item_split": {
-        0: {"book": 0, "hat": 0, "ball": 0},
-        1: {"book": 0, "hat": 0, "ball": 0}
-      },
+      "item_split": [
+        {"book": 0, "hat": 0, "ball": 0},
+        {"book": 0, "hat": 0, "ball": 0}
+      ],
       "reward": 0,
       "agreed": False
     }
     return outcome
 
-  try:
-    my_book = int(out[0].split("=")[1])
-    my_hat = int(out[1].split("=")[1])
-    my_ball = int(out[2].split("=")[1])
-    part_book = int(out[3].split("=")[1])
-    part_hat = int(out[4].split("=")[1])
-    part_ball = int(out[5].split("=")[1])
-  except(IndexError):
-    pdb.set_trace()
+  my_book = int(out[0].split("=")[1])
+  my_hat = int(out[1].split("=")[1])
+  my_ball = int(out[2].split("=")[1])
+  part_book = int(out[3].split("=")[1])
+  part_hat = int(out[4].split("=")[1])
+  part_ball = int(out[5].split("=")[1])
 
   outcome = {
     "valid_deal": determine_validity(data),
-    "item_split": {
-      0: {"book": my_book, "hat": my_hat, "ball": my_ball},
-      1: {"book": part_book, "hat": part_hat, "ball": part_ball}
-    },
+    "item_split": [
+      {"book": my_book, "hat": my_hat, "ball": my_ball},
+      {"book": part_book, "hat": part_hat, "ball": part_ball}
+    ],
     "reward": calculate_reward(data),
     "agreed": data['dialogue'][-1] == "<selection>"
   }
@@ -225,10 +218,11 @@ def process_lines(parsed):
   return cleaned
 
 if __name__ == "__main__":
-  in_filename = "train.txt"
-  out_filename = "transformed_train.json"
+  for split in ["val", "test", "train"]:
+    in_filename = "{}.txt".format(split)
+    out_filename = "transformed_{}.json".format(split)
 
-  raw_in = read_file(in_filename)
-  parsed = parse_lines(raw_in)
-  cleaned = process_lines(parsed)
-  store_lines(out_filename, cleaned)
+    raw_in = read_file(in_filename)
+    parsed = parse_lines(raw_in)
+    cleaned = process_lines(parsed)
+    store_lines(out_filename, cleaned)

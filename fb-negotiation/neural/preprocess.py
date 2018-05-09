@@ -80,7 +80,7 @@ class Dialogue(object):
     TARGET = 2
     num_stages = 3  # encoding, decoding, target
 
-    def __init__(self, agent, kb, uuid, model='seq2seq'):
+    def __init__(self, agent, kb, outcome, uuid, model='seq2seq'):
         '''
         Dialogue data that is needed by the model.
         '''
@@ -88,7 +88,8 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.scenario = self.embed_kb(kb)
+        self.scenario = self.embed_scenario(kb)
+        self.selection = self.embed_selection(outcome['item_split'])
         # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
@@ -206,11 +207,19 @@ class Dialogue(object):
         # self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
-    def embed_kb(self, kb):
+    def embed_scenario(self, kb):
         attributes = ["Count", "Value"]  # "Name"
         scenario = [str(fact[attr]) for fact in kb.items for attr in attributes]
         assert(len(scenario) == 6)
         return scenario
+
+    def embed_selection(self, outcome):
+        selection = []
+        for agent_split in item_split:
+            for item in ["book", "hat", "ball"]:
+                selection.append(str(agent_split[item]))
+        assert(len(selection) == 6)
+        return selection
 
     def lf_to_int(self):
         self.lf_token_turns = []
@@ -289,25 +298,6 @@ class Preprocessor(object):
         else:
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
-    def _process_example(self, ex):
-        '''
-        Convert example to turn-based dialogue from each agent's perspective
-        Create two Dialogue objects for each example
-        '''
-        kbs = ex.scenario.kbs
-        for agent in (0, 1):
-            dialogue = Dialogue(agent, kbs[agent], ex.ex_id, model=self.model)
-            for e in ex.events:
-                if self.model in ('lf2lf', 'lflm'):
-                    lf = e.metadata
-                    assert lf is not None
-                    utterance = dialogue.lf_to_tokens(lf)
-                else:
-                    utterance = self.process_event(e, dialogue.kb)
-                if utterance:
-                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
-            yield dialogue
-
     def process_event(self, e, kb):
         # Lower, tokenize, link entity
         if e.action == 'message':
@@ -326,6 +316,25 @@ class Preprocessor(object):
             return entity_tokens
         else:
             raise ValueError('Unknown event action.')
+
+    def _process_example(self, ex):
+        '''
+        Convert example to turn-based dialogue from each agent's perspective
+        Create two Dialogue objects for each example
+        '''
+        for agent in (0, 1):
+            dialogue = Dialogue(agent, ex.scenario.kbs[agent],
+                            ex.outcome, ex.ex_id, model=self.model)
+            for e in ex.events:
+                if self.model in ('lf2lf', 'lflm'):
+                    lf = e.metadata
+                    assert lf is not None
+                    utterance = dialogue.lf_to_tokens(lf)
+                else:
+                    utterance = self.process_event(e, dialogue.kb)
+                if utterance:
+                    dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
+            yield dialogue
 
     @classmethod
     # insure we have full dialogues with minimum number of tokens
@@ -489,6 +498,7 @@ class DataGenerator(object):
                     dialogue.add_candidates(candidates, add_ground_truth=add_ground_truth)
                 self.retriever.report_search_time()
 
+            random.shuffle(dialogues)
             for dialogue in dialogues:
                 dialogue.convert_to_int()
 

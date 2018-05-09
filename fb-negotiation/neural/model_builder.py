@@ -13,7 +13,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
               MultiAttnDecoder, NMTModel
-from models import NegotiationModel, LM
+from models import FBNegotiationModel, LM
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
@@ -24,11 +24,6 @@ from neural import make_model_mappings
 def add_model_arguments(parser):
     from onmt.modules.SRU import CheckSRU
     group = parser.add_argument_group('Model')
-    group.add_argument('--word-vec-size', type=int, default=300,
-                       help='Word embedding size for src and tgt.')
-    group.add_argument('--share-decoder-embeddings', action='store_true',
-                       help="""Use a shared weight matrix for the input and
-                       output word  embeddings in the decoder.""")
     group.add_argument('--encoder-type', type=str, default='rnn',
                        choices=['rnn', 'brnn', 'transformer', 'cnn'],
                        help="""Type of encoder layer to use. Non-RNN layers
@@ -49,11 +44,21 @@ def add_model_arguments(parser):
                        help='Number of layers in the encoder')
     group.add_argument('--dec-layers', type=int, default=1,
                        help='Number of layers in the decoder')
-    group.add_argument('--rnn-size', type=int, default=500,
-                       help='Size of rnn hidden states')
     group.add_argument('--rnn-type', type=str, default='LSTM',
                        choices=['LSTM', 'GRU', 'SRU'], action=CheckSRU,
                        help="""The gate type to use in the RNNs""")
+
+    # Hidden sizes and dimensions
+    group.add_argument('--word-vec-size', type=int, default=256,
+                       help='Word embedding size for src and tgt.')
+    group.add_argument('--sel-hid-size', type=int, default=64,
+                        help='Size of hidden state for selectors')
+    group.add_argument('--kb-embed-size', type=int, default=64,
+                        help='Size of vocab embeddings and output for kb scenario')
+    group.add_argument('--rnn-size', type=int, default=256,
+                       help='Size of rnn hidden states')
+
+    # Our custom flags
     group.add_argument('--input-feed', action='store_true',
                        help="""Feed the context vector at each time step as
                        additional input (via concatenation with the word
@@ -72,6 +77,10 @@ def add_model_arguments(parser):
                        help='Whether to pass on the hidden state throughout the dialogue encoding/decoding process')
     group.add_argument('--share-embeddings', action='store_true',
                        help='Share source and target vocab embeddings')
+    # Deprecated by custom flags above
+    # group.add_argument('--share-decoder-embeddings', action='store_true',
+    #                    help="""Use a shared weight matrix for the input and
+    #                    output word  embeddings in the decoder.""")
 
 
 def build_model(model_opt, opt, fields, checkpoint):
@@ -86,7 +95,7 @@ def build_model(model_opt, opt, fields, checkpoint):
     return model
 
 
-def make_embeddings(opt, word_dict, for_encoder=True):
+def make_embeddings(opt, word_dict, for_encoder=True, embed_type=None):
     """
     Make an Embeddings instance.
     Args:
@@ -94,7 +103,7 @@ def make_embeddings(opt, word_dict, for_encoder=True):
         word_dict(Vocabulary): words dictionary.
         for_encoder(bool): make Embeddings for encoder or decoder?
     """
-    embedding_dim = opt.word_vec_size
+    embedding_dim = opt.kb_embed_size if embed_type == "kb" else opt.word_vec_size
 
     word_padding_idx = word_dict.to_ind(markers.PAD)
     num_word_embeddings = len(word_dict)
@@ -127,6 +136,32 @@ def make_encoder(opt, embeddings):
         bidirectional = True if opt.encoder_type == 'brnn' else False
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                         opt.rnn_size, opt.dropout, embeddings)
+
+def make_selectors(opt, kb_dict):
+    selectors = {}
+    '''
+    Create selection encoder:
+        - For FB, this combines attention output and context hidden
+        - For Cocoa, this combines decoder output and kb scenario output
+    '''
+    input_size = opt.rnn_size + opt.kb_embed_size
+    selectors["enc"] = nn.Sequential(
+        torch.nn.Linear(input_size, opt.sel_hid_size),
+        nn.Tanh()
+    )
+    '''
+    Create selection decoders, one per each item. Range is 6 (and not 3)
+        because we are training the model to keep track of not only its
+        own selection but also the partner's predicted selection.
+    Items are [book, hat, ball] in exactly that order, so that we match
+        the order found in the training data. Selectors 1 to 3 are for
+        "my selection", selectors 4 to 6 are for "partner's selection".
+    '''
+    selectors["dec"] = nn.ModuleList()
+    for i in xrange(6):
+        selectors["dec"].append(nn.Linear(opt.sel_hid_size, kb_dict.size))
+
+    return selectors
 
 def make_context_embedder(opt, embeddings, embed_type='utterance'):
     """
@@ -224,7 +259,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             context_embedder = make_context_embedder(model_opt, context_embeddings)
 
         kb_dict = mappings['kb_vocab']
-        kb_embeddings = make_embeddings(model_opt, kb_dict)
+        kb_embeddings = make_embeddings(model_opt, kb_dict, 'kb')
         kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
 
         # Make decoder.
@@ -240,10 +275,13 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
             tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
 
+        selectors = make_selectors(model_opt, kb_dict)
+        dropout = nn.Dropout(model_opt.dropout)
         decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
 
         if "multibank" in model_opt.global_attention:
-            model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder, stateful=model_opt.stateful)
+            model = FBNegotiationModel(encoder, decoder, context_embedder,
+                  kb_embedder, selectors, dropout, stateful=model_opt.stateful)
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 

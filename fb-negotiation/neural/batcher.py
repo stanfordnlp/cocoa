@@ -20,8 +20,9 @@ class Batch(object):
         self.num_context = num_context
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
-        self.scene_inputs = decoder_args['scenario']
+        self.scene_inputs = decoder_args['scenarios']  # ie. KB
 
+        self.selections = decoder_args['selections']  # ie. outcome
         self.targets = decoder_args['targets']
         self.size = self.targets.shape[0]
         self.context_data = context_data
@@ -149,15 +150,6 @@ class DialogueBatcher(object):
                 import sys; sys.exit()
         return turn_batches
 
-    def _get_agent_batch_at(self, dialogues, i):
-        return [dialogue.agents[i] for dialogue in dialogues]
-
-    def _get_kb_batch(self, dialogues):
-        return [dialogue.kb for dialogue in dialogues]
-
-    def _get_scenario_batch(self, dialogues):
-        return [dialogue.scenario for dialogue in dialogues]
-
     def pick_helpers(self, token_candidates, candidates):
         helpers = []
         for b, cands in enumerate(token_candidates):
@@ -238,8 +230,8 @@ class DialogueBatcher(object):
 
         return decoder_inputs, decoder_targets
 
-    def _create_one_batch(self, encoder_turns=None, decoder_turns=None,
-            target_turns=None, agents=None, uuids=None, kbs=None, scenario=None,
+    def _create_one_batch(self, encoder_turns, decoder_turns, target_turns,
+            agents, uuids, kbs, scenarios, selections,
             num_context=None, encoder_tokens=None, decoder_tokens=None):
         encoder_inputs = self.get_encoder_inputs(encoder_turns)
         encoder_context = self.get_encoder_context(encoder_turns, num_context)
@@ -253,7 +245,8 @@ class DialogueBatcher(object):
         decoder_args = {
                 'inputs': decoder_inputs,
                 'targets': decoder_targets,
-                'scenario': scenario,
+                'scenarios': scenarios,
+                'selections': selections,
                 }
         context_data = {
                 'encoder_tokens': encoder_tokens,
@@ -303,15 +296,17 @@ class DialogueBatcher(object):
         '''
         Data at the dialogue level, i.e. same for all turns.
         '''
-        agents = self._get_agent_batch_at(dialogues, 1)  # Decoding agent
-        kbs = self._get_kb_batch(dialogues)
+        agents = [d.agents[1] for d in dialogues]  # Decoding agent
+        kbs = [d.kb for d in dialogues]
         uuids = [d.uuid for d in dialogues]
-        scenarios = self._get_scenario_batch(dialogues)
+        scenarios = [d.scenario for d in dialogues]
+        selections = [d.selection for d in dialogues]
         return {
                 'agents': agents,
                 'kbs': kbs,
                 'uuids': uuids,
                 'scenarios': scenarios,
+                'selections': selections,
                 }
 
     def get_encoding_turn_ids(self, num_turns):
@@ -345,7 +340,8 @@ class DialogueBatcher(object):
                 agents=dialogue_data['agents'],
                 uuids=dialogue_data['uuids'],
                 kbs=dialogue_data['kbs'],
-                scenario=dialogue_data['scenarios'],
+                scenarios=dialogue_data['scenarios'],
+                selections=dialogue_data['selections'],
                 num_context=self.num_context,
                 )
             for i in encode_turn_ids

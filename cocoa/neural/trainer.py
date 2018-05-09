@@ -362,7 +362,12 @@ class Trainer(object):
             self.model.zero_grad()
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
-            loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
+
+            loss, batch_stats = self.train_loss.compute_loss(batch.targets,
+                    outputs["decoder"])
+            loss += self.selection_loss.compute_loss(batch.selections,
+                    outputs["selector"])
+
             loss.backward()
             self.optim.step()
 
