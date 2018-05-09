@@ -80,10 +80,15 @@ class RLTrainer(BaseRLTrainer):
         return rewards
 
     def _fair_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {'seller': -0.5, 'buyer': -0.5}
+
         rewards = {}
         margin_rewards = self._margin_reward(example)
         for role in ('buyer', 'seller'):
-            rewards[role] = -1. * abs(margin_rewards[role] - 0.) + 1.
+            rewards[role] = -1. * abs(margin_rewards[role] - 0.) + 2.
         return rewards
 
     def get_reward(self, example):

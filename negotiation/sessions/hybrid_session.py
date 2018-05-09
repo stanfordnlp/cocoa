@@ -77,6 +77,7 @@ class BaseHybridSession(CraigslistRulebasedSession):
 class SellerHybridSession(BaseHybridSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
         super(SellerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
+        self.inc = 1.
         self.init_price()
 
     def init_price(self):
@@ -86,6 +87,7 @@ class SellerHybridSession(BaseHybridSession):
 class BuyerHybridSession(BaseHybridSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
         super(BuyerHybridSession, self).__init__(agent, kb, lexicon, config, generator, manager)
+        self.inc = -1.
         self.init_price()
 
     def init_price(self):

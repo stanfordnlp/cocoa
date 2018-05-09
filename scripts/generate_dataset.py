@@ -19,6 +19,7 @@ from systems import add_system_arguments, get_system
 parser = argparse.ArgumentParser(conflict_handler='resolve')
 parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
 parser.add_argument('--agents', help='What kind of agent to use', nargs='*')
+#parser.add_argument('--agent-checkpoints', nargs='+', help='Directory to learned models')
 parser.add_argument('--scenario-offset', default=0, type=int, help='Number of scenarios to skip at the beginning')
 parser.add_argument('--remove-fail', default=False, action='store_true', help='Remove failed dialogues')
 parser.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
@@ -41,13 +42,7 @@ if args.test_max_examples is None:
 
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
-if hasattr(args, 'checkpoint_files'):
-    if type(args.checkpoint_files) is list:
-        model_path = args.checkpoint_files[0]
-    else:
-        model_path = args.checkpoint_files
-else:
-    model_path = None
+model_path = args.checkpoint
 agents = [get_system(name, args, schema, model_path=model_path) for name in args.agents]
 num_examples = args.scenario_offset
 

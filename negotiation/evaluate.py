@@ -31,6 +31,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
+    group.add_argument('--checkpoint', required=True, help='Path to model .pt file')
     add_data_generator_arguments(parser)
     add_evaluator_arguments(parser)
     args = parser.parse_args()
@@ -50,7 +51,7 @@ if __name__ == '__main__':
 
     # Load the model.
     mappings, model, model_args = \
-        model_builder.load_test_model(args.checkpoint_files[0], args, dummy_args.__dict__)
+        model_builder.load_test_model(args.checkpoint, args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
     make_model_mappings(model_args.model, mappings)

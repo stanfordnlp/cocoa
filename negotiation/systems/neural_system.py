@@ -17,10 +17,13 @@ from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
 from neural.utterance import UtteranceBuilder
+from neural.model_builder import add_model_arguments
+from neural import add_data_generator_arguments
 
 def add_neural_system_arguments(parser):
-    parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
-    parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
+    # TODO: clean up the TF stuff
+    #parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
+    #parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
     add_evaluator_arguments(parser)
     # add_retriever_arguments(parser)
@@ -131,25 +134,15 @@ class PytorchNeuralSystem(System):
         self.price_tracker = price_tracker
         self.timed_session = timed
 
-        # Load config and set new args
-        config_path = os.path.join(args.checkpoint, 'config.json')
-        config = read_json(config_path)
-        config['batch_size'] = 1
-        config['gpu'] = 0  # Don't need GPU for batch_size=1
-        config['dropout'] = 0  # Don't want dropout during test split
-        config['decoding'] = args.decoding
-        config['pretrained_wordvec'] = None
-        # Merge config with existing options
-        config_args = argparse.Namespace(**config)
-        for arg in args.__dict__:
-            if arg not in config_args:
-                config_args.__dict__[arg] = args.__dict__[arg]
-        # Assume that original arguments + config + model_builder options
-        # includes all the args we need, so no need to create dummy_parser
+        # TODO: do we need the dummy parser?
+        dummy_parser = argparse.ArgumentParser(description='duh')
+        add_model_arguments(dummy_parser)
+        add_data_generator_arguments(dummy_parser)
+        dummy_args = dummy_parser.parse_known_args([])[0]
 
         # Load the model.
         mappings, model, model_args = model_builder.load_test_model(
-                model_path, args, config_args.__dict__)
+                model_path, args, dummy_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         vocab = mappings['utterance_vocab']
