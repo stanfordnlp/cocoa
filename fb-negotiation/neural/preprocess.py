@@ -213,6 +213,9 @@ class Dialogue(object):
         assert(len(scenario) == 6)
         return scenario
 
+    def selection_to_int(self):
+        self.selection = map(self.mappings['kb_vocab'].to_ind, self.selection)
+
     def embed_selection(self, outcome):
         selection = []
         for agent_split in item_split:
@@ -243,6 +246,7 @@ class Dialogue(object):
         #     self.candidates_to_int()
         # self.lf_to_int()
         self.scenario_to_int()
+        self.selection_to_int()
 
         self.is_int = True
 

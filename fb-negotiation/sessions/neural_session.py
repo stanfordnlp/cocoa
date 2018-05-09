@@ -111,6 +111,7 @@ class NeuralSession(Session):
                     # Already converted
                     pass
         self.dialogue.scenario_to_int()
+        self.dialogue.selection_to_int()
 
     def receive(self, event):
         if event.action in Event.decorative_events:
