@@ -70,7 +70,9 @@ class FBNegotiationModel(NMTModel):
         select_h = self.select_encoder.forward(select_h)
         # generate logits for each item separately, outs is a 6-item list
         outs = [decoder.forward(select_h) for decoder in self.select_decoders]
+        print("single selection: {} should be 1, 16, 28".format(out[0].shape))
         selector_outputs = torch.cat(outs)
+        print("joined selections: {} should be 6, 16, 28".format(selector_outputs.shape))
 
         outputs = {
             "decoder": decoder_outputs,

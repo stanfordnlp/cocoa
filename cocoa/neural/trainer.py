@@ -238,7 +238,14 @@ class Trainer(object):
             enc_state = dec_state.hidden if dec_state is not None else None
 
             outputs, attns, _ = self._run_batch(batch, None, enc_state)
-            _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
+
+            # TODO: clean up this check
+            if hasattr(batch, "selections"):
+                _, batch_stats = self.valid_loss.compute_loss(batch.targets,
+                                    batch.selections, outputs)
+            else:
+                _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
+
             stats.update(batch_stats)
 
         # Set model back to training mode
@@ -362,11 +369,14 @@ class Trainer(object):
             self.model.zero_grad()
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
+            if hasattr(batch, "selections"):
+                _, batch_stats = self.valid_loss.compute_loss(batch.targets,
+                                    batch.selections, outputs)
+            else:
+                _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
 
             loss, batch_stats = self.train_loss.compute_loss(batch.targets,
-                    outputs["decoder"])
-            loss += self.selection_loss.compute_loss(batch.selections,
-                    outputs["selector"])
+                batch.selections, outputs)
 
             loss.backward()
             self.optim.step()

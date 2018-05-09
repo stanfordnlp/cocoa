@@ -31,6 +31,47 @@ class SimpleLossCompute(LossComputeBase):
         stats = self._stats(loss_data, scores.data, target.view(-1).data)
         return loss, stats
 
+class FBnegLossCompute(SimpleLossCompute):
+    # Adds extra functionality to deal with the loss from selectors
+    def __init__(self, generator, tgt_vocab):
+        super(FBnegLossCompute, self).__init__(generator, tgt_vocab)
+        self.selector = nn.LogSoftmax()
+        self.select_criterion = nn.NLLLoss()
+
+    def compute_loss(self, targets, selections, output):
+        # generator: Log softmax outputs to utterance vocab_size scores
+        # scores output: (seq_len, batch_size, rnn_size)
+        print("output decoder: {}".format(output["decoder"].shape))
+        bd = self._bottle(output["decoder"]).shape
+        print("bottled decoder: {}".format(bd))
+        scores = self.generator(self._bottle(output["decoder"]))
+        print("scores: {}".format(scores.shape))
+        print("targets: {}".format(targets.shape))
+        gtruth = targets.contiguous().view(-1)
+        print("ground truth: {}".format(gtruth.shape))
+        loss = self.criterion(scores, gtruth)
+        loss_data = loss.data.clone()
+        stats = self._stats(loss_data, scores.data, targets.view(-1).data)
+        # selector: GRU outputs to kb vocab_size scores/logprobs
+        # selections output: (seq_len=6x28, batch_size=16, rnn_size=64)
+        print("output selector: {}".format(output["selector"].shape))
+        bs = self._bottle(output["selector"]).shape
+        print("bottled selector: {}".format(bs))
+        select_scores = self.selector(self._bottle(output["selector"]))
+        print("select scores: {}".format(select_scores.shape))
+        print("selections: {} should match (6, 16, 28)".format(selections.shape))
+        select_truth = selections.contiguous().view(-1)
+        print("select truth: {}".format(select_truth.shape))
+        select_loss = self.select_criterion(select_scores, select_truth)
+        select_data = select_loss.data.clone()
+        select_stats = self._stats(select_data, selections.data,
+                            selections.view(-1).data)
+
+        total_loss = loss + select_loss
+        total_stats = stats.update(select_stats)
+
+        return total_loss, total_stats
+
 class ReinforceLossCompute(SimpleLossCompute):
     """Compute loss/reward for REINFORCE.
     """

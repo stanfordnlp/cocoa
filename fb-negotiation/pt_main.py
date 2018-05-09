@@ -14,7 +14,7 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
-from cocoa.neural.loss import SimpleLossCompute
+from cocoa.neural.loss import FBnegLossCompute
 from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
 from cocoa.neural.utterance import UtteranceBuilder
 
@@ -74,7 +74,7 @@ def build_trainer(opt, model, vocab, optim):
     return trainer
 
 def make_loss(opt, model, tgt_vocab):
-    loss = SimpleLossCompute(model.generator, tgt_vocab)
+    loss = FBnegLossCompute(model.generator, tgt_vocab)
     if use_gpu(opt):
         loss.cuda()
     return loss

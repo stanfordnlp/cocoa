@@ -93,8 +93,8 @@ def read_file(in_filename):
   return in_lines
 
 def store_lines(outfile, cleaned):
-  with open(outfile, 'w') as outfile:
-    json.dump(cleaned, outfile)
+  with open(outfile, 'w') as file:
+    json.dump(cleaned, file)
   print("Completed saving {0} lines into {1}".format(len(cleaned), outfile) )
 
 def parse_lines(raw):
