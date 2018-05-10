@@ -41,11 +41,6 @@ if args.random_seed:
 schema = Schema(args.schema_path)
 scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
-if args.train_max_examples is None:
-    args.train_max_examples = scenario_db.size
-if args.test_max_examples is None:
-    args.test_max_examples = scenario_db.size
-
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
 if hasattr(args, 'checkpoint_files'):

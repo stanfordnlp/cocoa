@@ -61,10 +61,7 @@ class Generator(object):
 
     def _run_attention_memory(self, batch, enc_memory_bank):
         if batch.num_context > 0 and hasattr(self.model, 'kb_embedder'):
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
-
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             memory_bank = [enc_memory_bank, context_memory_bank]
 
