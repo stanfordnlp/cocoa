@@ -31,7 +31,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    visualizer.compute_effectiveness()
+    results = visualizer.compute_effectiveness()
+    visualizer.print_results(results)
 
     if args.hist:
         visualizer.hist(question_scores, args.outdir, partner=args.partner)
