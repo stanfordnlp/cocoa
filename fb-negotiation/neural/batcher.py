@@ -20,6 +20,7 @@ class Batch(object):
         self.num_context = num_context
         self.encoder_inputs = encoder_args['inputs']
         self.decoder_inputs = decoder_args['inputs']
+        self.context_inputs = encoder_args['context'][0]
         self.scene_inputs = decoder_args['scenarios']  # ie. KB
 
         self.selections = decoder_args['selections']  # ie. outcome
@@ -27,13 +28,10 @@ class Batch(object):
         self.size = self.targets.shape[0]
         self.context_data = context_data
 
-        unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths', 'scene_inputs', 'targets']
-        batch_major_attributes = ['encoder_inputs', 'decoder_inputs', 'scene_inputs', 'targets']
-
-        if num_context > 0:
-            self.context_inputs = encoder_args['context'][0]
-            unsorted_attributes.append('context_inputs')
-            batch_major_attributes.append('context_inputs')
+        unsorted_attributes = ['encoder_inputs', 'decoder_inputs', 'lengths',
+                    'scene_inputs', 'selections', 'targets', 'context_inputs']
+        batch_major_attributes = ['encoder_inputs', 'decoder_inputs',
+                    'scene_inputs', 'selections', 'targets', 'context_inputs']
 
         self.lengths, sorted_ids = self.sort_by_length(self.encoder_inputs)
         self.tgt_lengths, _ = self.sort_by_length(self.decoder_inputs)
@@ -53,11 +51,11 @@ class Batch(object):
         self.encoder_inputs = self.to_variable(self.encoder_inputs, 'long', cuda)
         self.decoder_inputs = self.to_variable(self.decoder_inputs, 'long', cuda)
         self.scene_inputs = self.to_variable(self.scene_inputs, 'long', cuda)
+        self.selections = self.to_variable(self.selections, 'long', cuda)
         self.targets = self.to_variable(self.targets, 'long', cuda)
         self.lengths = self.to_tensor(self.lengths, 'long', cuda)
         self.tgt_lengths = self.to_tensor(self.tgt_lengths, 'long', cuda)
-        if num_context > 0:
-            self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
+        self.context_inputs = self.to_variable(self.context_inputs, 'long', cuda)
 
     @classmethod
     def to_tensor(cls, data, dtype, cuda=False):
