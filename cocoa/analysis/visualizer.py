@@ -81,7 +81,11 @@ class Visualizer(object):
                         ratings = (ratings,)
                     ratings = [3 if x == 'null' else x for x in ratings]
                     question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
-        print dialogue_setting_counts
+        print '-'*50
+        print '# Dialogues for each system'
+        for k, v in dialogue_setting_counts.iteritems():
+            print k, v
+        print '-'*50
 
     def dialogues_with_survey(self):
         if not self.question_scores:
@@ -206,6 +210,9 @@ class Visualizer(object):
             print '{:10s} {:.4f} {:.4f}'.format(k, v, sent_intents.get(k, 0))
         return received_intents, sent_intents
 
+    def print_results(self, results):
+        print results
+
     def compute_effectiveness(self, with_survey=True):
         chats = defaultdict(list)
         dialogues_with_survey = self.dialogues_with_survey()
@@ -221,7 +228,7 @@ class Visualizer(object):
                 chats[ex.agents[1]].append(ex)
 
         # TODO: factor
-        self.analyze_speech_acts(chats['rulebased'], 'rulebased')
+        #self.analyze_speech_acts(chats['rulebased'], 'rulebased')
 
         results = {}
         for system, examples in chats.iteritems():
@@ -235,7 +242,7 @@ class Visualizer(object):
             question_scores = self.question_scores
         summary = defaultdict(lambda : defaultdict(lambda : defaultdict()))
         for summary_stat in summary_stats:
-            print '=========== %s ===========' % summary_stat
+            print '='*15, summary_stat, '='*15
             for question, agent_scores in question_scores.iteritems():
                 if self.question_type(question) == 'str' or question not in self.questions:
                     continue
@@ -268,13 +275,14 @@ class Visualizer(object):
                             summary[question][win_agent]['ttest'] += lose_agent[0]
             # Print
             for question, agent_stats in summary.iteritems():
-                print '============= %s ===============' % self.question_labels[question]
-                print '{:<12s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', 'error', '#score', 'win')
-                print '---------------------------------------'
-                for i, agent in enumerate(agents):
+                print '='*30, self.question_labels[question], '='*30
+                print '{:<20s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('agent', 'avg_score', 'error', '#score', 'win')
+                print '-'*80
+                sorted_agents = sorted(agents)
+                for agent in sorted_agents:
                     stats = agent_stats[agent]
                     try:
-                        print '{:<12s} {:<10.1f} {:<10.2f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], stats['ttest'])
+                        print '{:<20s} {:<10.1f} {:<10.2f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], stats['ttest'])
                     except KeyError:
                         continue
         return summary

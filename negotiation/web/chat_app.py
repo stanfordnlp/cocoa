@@ -247,7 +247,6 @@ if __name__ == "__main__":
     if 'debug' not in params:
         params['debug'] = False
 
-    print 'debug:', params['debug']
     systems, pairing_probabilities = add_systems(args, params['models'], schema, debug=params['debug'])
 
     db.add_scenarios(scenario_db, systems, update=args.reuse)
