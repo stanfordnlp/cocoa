@@ -36,7 +36,7 @@ def add_model_arguments(parser):
                        choices=['rnn', 'transformer', 'cnn'],
                        help="""Type of decoder layer to use. Non-RNN layers
                        are experimental. Options are [rnn|transformer|cnn].""")
-    group.add_argument('-copy_attn', action="store_true",
+    group.add_argument('--copy-attn', action="store_true",
                        help='Train copy attention layer.')
     group.add_argument('--layers', type=int, default=-1,
                        help='Number of layers in enc/dec.')
@@ -260,8 +260,8 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
         kb_dict = mappings['kb_vocab']
         kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
-        kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
-        
+        kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'scenario')
+
         # Make decoder.
         tgt_dict = mappings['tgt_vocab']
         tgt_embeddings = make_embeddings(model_opt, tgt_dict)

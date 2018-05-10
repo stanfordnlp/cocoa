@@ -50,6 +50,7 @@ class FBNegotiationModel(NMTModel):
         # the memory banks are the RNN hidden states
         context_output, context_memory_bank = self.context_embedder(context)
         scene_output, scene_memory_bank = self.kb_embedder(scene)
+        # memory_banks are each (batch_size x seq_len x hidden_size)
         memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
 
         # ---- DECODING PROCESS ----
@@ -61,20 +62,20 @@ class FBNegotiationModel(NMTModel):
         # ---- SELECTION PROCESS ----
         # concatenate decoder final state and output of the context embedder
         # then resize to the selector hidden state size using select_encoder
-        decoder_outputs = (13, 4, 256)
-        scene_output = (2, 4, 256)
-        # 4 is probably batch size and ok, 256 is great
-        # the tuple part is really weird 
-        import pdb; pdb.set_trace()
-
-        select_h = torch.cat([dec_state, scene_output], 2).squeeze(0)
+        dec_seq_len = decoder_outputs.size()[0]
+        print("dec_seq_len: {}".format(dec_seq_len.shape))
+        select_in = [decoder_outputs, scene_output.expand(dec_seq_len, -1, -1)]
+        print("select: {}".format(select_in[1].shape))
+        select_h = torch.cat(select_in, 2)
+        print("select_h: {}".format(select_h.shape))
         select_h = self.dropout(select_h)
         select_h = self.select_encoder.forward(select_h)
+        print("select_h again: {} should be 13 x 4 x 64".format(select_h.shape))
         # generate logits for each item separately, outs is a 6-item list
         outs = [decoder.forward(select_h) for decoder in self.select_decoders]
-        print("single selection: {} should be 1, 16, 28".format(out[0].shape))
+        print("single selection: {} should be 13, 4, 28".format(out[0].shape))
         selector_outputs = torch.cat(outs)
-        print("joined selections: {} should be 6, 16, 28".format(selector_outputs.shape))
+        print("joined selections: {} should be 78, 4, 28".format(selector_outputs.shape))
 
         outputs = {
             "decoder": decoder_outputs,
