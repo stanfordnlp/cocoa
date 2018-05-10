@@ -187,4 +187,6 @@ class PytorchNeuralSystem(System):
             session = PytorchNeuralSession(agent, kb, self.env)
         else:
             raise ValueError('Unknown model name {}'.format(self.model_name))
+        if self.timed_session:
+            session = TimedSessionWrapper(session)
         return session
