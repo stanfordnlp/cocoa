@@ -189,7 +189,8 @@ class PytorchNeuralSession(NeuralSession):
         decoder_args = {
                         'inputs': self.get_decoder_inputs(),
                         'targets': np.copy(encoder_turns[0]),
-                        'scenario': np.array([self.dialogue.scenario])
+                        'scenarios': np.array([self.dialogue.scenario]),
+                        'selections': np.array([self.dialogue.selection]),
                     }
 
         context_data = {

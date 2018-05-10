@@ -4,7 +4,7 @@ and creates each encoder and decoder accordingly.
 """
 import torch
 import torch.nn as nn
-
+import pdb
 import onmt
 import onmt.io
 import onmt.Models
@@ -259,9 +259,9 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             context_embedder = make_context_embedder(model_opt, context_embeddings)
 
         kb_dict = mappings['kb_vocab']
-        kb_embeddings = make_embeddings(model_opt, kb_dict, 'kb')
+        kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
         kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
-
+        
         # Make decoder.
         tgt_dict = mappings['tgt_vocab']
         tgt_embeddings = make_embeddings(model_opt, tgt_dict)
@@ -292,7 +292,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         generator = nn.Sequential(
             nn.Linear(model_opt.rnn_size, len(tgt_dict)),
             nn.LogSoftmax())
-        if model_opt.share_decoder_embeddings:
+        if model_opt.share_embeddings:
             generator[0].weight = decoder.embeddings.word_lut.weight
     else:
         generator = CopyGenerator(model_opt.rnn_size,

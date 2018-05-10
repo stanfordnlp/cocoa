@@ -216,7 +216,7 @@ class Dialogue(object):
     def selection_to_int(self):
         self.selection = map(self.mappings['kb_vocab'].to_ind, self.selection)
 
-    def embed_selection(self, outcome):
+    def embed_selection(self, item_split):
         selection = []
         for agent_split in item_split:
             for item in ["book", "hat", "ball"]:
@@ -311,9 +311,12 @@ class Preprocessor(object):
             '''
             e.data will be a dict of counts for each item, so we translate
             this data into a string of tokens understood by the training model
-            '''
             entity_tokens = [str(e.data[item]) for item in self.lexicon.items]
-            entity_tokens.insert(0, markers.SELECT)
+            ---- ABOVE IS OUTDATED ----
+            outcome is now handled separately with its own loss function, so e.data
+            in this case is <selection> which we replace to our own <select> marker
+            '''
+            entity_tokens = [markers.SELECT]
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]

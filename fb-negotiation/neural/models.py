@@ -37,7 +37,7 @@ class FBNegotiationModel(NMTModel):
 
     def __init__(self, encoder, decoder, context_embedder, kb_embedder,
             selectors, dropout, stateful=False):
-        super(NegotiationModel, self).__init__(encoder, decoder, stateful=stateful)
+        super(FBNegotiationModel, self).__init__(encoder, decoder, stateful=stateful)
         self.context_embedder = context_embedder
         self.kb_embedder = kb_embedder
         self.dropout = dropout
@@ -61,8 +61,10 @@ class FBNegotiationModel(NMTModel):
         # ---- SELECTION PROCESS ----
         # concatenate decoder final state and output of the context embedder
         # then resize to the selector hidden state size using select_encoder
-        print("dec: {}".format(dec_state.shape))
-        print("scene: {}".format(scene_output.shape))
+        decoder_outputs = (13, 4, 256)
+        scene_output = (2, 4, 256)
+        # 4 is probably batch size and ok, 256 is great
+        # the tuple part is really weird 
         import pdb; pdb.set_trace()
 
         select_h = torch.cat([dec_state, scene_output], 2).squeeze(0)
