@@ -370,13 +370,9 @@ class Trainer(object):
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
             if hasattr(batch, "selections"):
-                _, batch_stats = self.valid_loss.compute_loss(batch.targets,
-                                    batch.selections, outputs)
+                loss, batch_stats = self.train_loss.compute_loss(batch.targets, batch.selections, outputs)
             else:
-                _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
-
-            loss, batch_stats = self.train_loss.compute_loss(batch.targets,
-                batch.selections, outputs)
+                loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
 
             loss.backward()
             self.optim.step()
