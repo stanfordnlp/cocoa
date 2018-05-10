@@ -41,31 +41,25 @@ class FBnegLossCompute(SimpleLossCompute):
     def compute_loss(self, targets, selections, output):
         # generator: Log softmax outputs to utterance vocab_size scores
         # scores output: (seq_len, batch_size, rnn_size)
-        print("output decoder: {}".format(output["decoder"].shape))
-        bd = self._bottle(output["decoder"]).shape
-        print("bottled decoder: {}".format(bd))
+        # output_decoder (13, 4, 256), bottled = (52, 256)
         scores = self.generator(self._bottle(output["decoder"]))
-        print("scores: {}".format(scores.shape))
-        print("targets: {}".format(targets.shape))
+        # scores = (52 x 1246), since 1246 is vocab size
         gtruth = targets.contiguous().view(-1)
-        print("ground truth: {}".format(gtruth.shape))
+        # targets (13 x 4), so ground_truth = 52
         loss = self.criterion(scores, gtruth)
         loss_data = loss.data.clone()
         stats = self._stats(loss_data, scores.data, targets.view(-1).data)
+        
         # selector: GRU outputs to kb vocab_size scores/logprobs
-        # selections output: (seq_len=6x28, batch_size=16, rnn_size=64)
-        print("output selector: {}".format(output["selector"].shape))
-        bs = self._bottle(output["selector"]).shape
-        print("bottled selector: {}".format(bs))
+        # output_selector (78, 4, 28), so bottled = (312, 28)
         select_scores = self.selector(self._bottle(output["selector"]))
-        print("select scores: {}".format(select_scores.shape))
-        print("selections: {} should match (6, 16, 28)".format(selections.shape))
-        select_truth = selections.contiguous().view(-1)
-        print("select truth: {}".format(select_truth.shape))
+        # since selector is just a softmax, shape stays the same at (312, 28)
+        select_truth = selections.repeat(targets.shape[0], 1).contiguous().view(-1)
+        # selections is a (batch_size=4, item_len=6) list, so repeat then flatten
         select_loss = self.select_criterion(select_scores, select_truth)
         select_data = select_loss.data.clone()
-        select_stats = self._stats(select_data, selections.data,
-                            selections.view(-1).data)
+        select_stats = self._stats(select_data, select_scores.data,
+                            select_truth.data)
 
         total_loss = loss + select_loss
         total_stats = stats.update(select_stats)

@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 from cocoa.neural.models import NMTModel
@@ -63,26 +64,21 @@ class FBNegotiationModel(NMTModel):
         # concatenate decoder final state and output of the context embedder
         # then resize to the selector hidden state size using select_encoder
         dec_seq_len = decoder_outputs.size()[0]
-        print("dec_seq_len: {}".format(dec_seq_len.shape))
         select_in = [decoder_outputs, scene_output.expand(dec_seq_len, -1, -1)]
-        print("select: {}".format(select_in[1].shape))
         select_h = torch.cat(select_in, 2)
-        print("select_h: {}".format(select_h.shape))
+        # select_h is (decoder seq_len x batch_size x (rnn_size + kb_embed size))
         select_h = self.dropout(select_h)
         select_h = self.select_encoder.forward(select_h)
-        print("select_h again: {} should be 13 x 4 x 64".format(select_h.shape))
         # generate logits for each item separately, outs is a 6-item list
         outs = [decoder.forward(select_h) for decoder in self.select_decoders]
-        print("single selection: {} should be 13, 4, 28".format(out[0].shape))
         selector_outputs = torch.cat(outs)
-        print("joined selections: {} should be 78, 4, 28".format(selector_outputs.shape))
 
         outputs = {
             "decoder": decoder_outputs,
             "selector": selector_outputs
         }
 
-        return outputs, attns, dec_state, selector_outputs
+        return outputs, attns, dec_state
 
         '''
         Note: FB model performs these alternate steps for selection
