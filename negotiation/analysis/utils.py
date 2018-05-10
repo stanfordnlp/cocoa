@@ -1,6 +1,7 @@
 import numpy as np
 
 from cocoa.core.dataset import Example
+from cocoa.analysis.utils import get_total_tokens_per_agent
 
 from core.scenario import Scenario
 from model.preprocess import Preprocessor
@@ -12,6 +13,30 @@ ROLES = [BUYER, SELLER]
 WINNER = "winner"
 LOSER = "loser"
 OUTCOMES = [WINNER, LOSER]
+
+
+def bot_end_chat_first(transcript):
+    agent_types = transcript['agents']
+    for event in transcript["events"]:
+        if event["action"] in ('quit', 'offer'):
+            if agent_types[str(event['agent'])] == 'human':
+                return False
+            return True
+    return False
+
+
+def reject_transcript(transcript, agent_idx=None, min_tokens=40):
+    if bot_end_chat_first(transcript):
+        return False
+    total_tokens = get_total_tokens_per_agent(transcript)
+    if agent_idx is not None:
+        if total_tokens[agent_idx] < min_tokens:
+            return True
+        return False
+
+    if total_tokens[0] < min_tokens or total_tokens[1] < min_tokens:
+        return True
+    return False
 
 
 def filter_rejected_chats(transcripts):
