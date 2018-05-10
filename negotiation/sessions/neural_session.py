@@ -61,6 +61,8 @@ class NeuralSession(Session):
     def attach_punct(self, s):
         s = re.sub(r' ([.,!?;])', r'\1', s)
         s = re.sub(r'\.{3,}', r'...', s)
+        s = re.sub(r" 's ", r"'s ", s)
+        s = re.sub(r" n't ", r"n't ", s)
         return s
 
     def send(self):
