@@ -62,9 +62,9 @@ class FBnegLossCompute(SimpleLossCompute):
                             select_truth.data)
 
         total_loss = loss + select_loss
-        total_stats = stats.update(select_stats)
+        stats.update(select_stats)
 
-        return total_loss, total_stats
+        return total_loss, stats
 
 class ReinforceLossCompute(SimpleLossCompute):
     """Compute loss/reward for REINFORCE.
@@ -83,7 +83,7 @@ class ReinforceLossCompute(SimpleLossCompute):
         # reward: (batch_size,)
         batch_size = output.size(1)
         #aeq(batch_size, reward.size(0))
-
+        print("comes to reinforce")
         scores = self.generator(self._bottle(output))
         gtruth = target.contiguous().view(-1)
         loss = self.criterion(scores, gtruth).view(-1, batch_size)  # (seq_len, batch_size)
