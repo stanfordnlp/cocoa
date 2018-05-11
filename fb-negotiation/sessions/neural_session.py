@@ -216,7 +216,6 @@ class PytorchNeuralSession(NeuralSession):
             self.dec_state = None
 
         entity_tokens = self._output_to_tokens(output_data)
-        # pdb.set_trace()
         #if not self._is_valid(entity_tokens):
         #    return None
         return entity_tokens

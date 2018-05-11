@@ -14,7 +14,7 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
-from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
+from cocoa.neural.trainer import add_trainer_arguments, Statistics
 from cocoa.neural.utterance import UtteranceBuilder
 
 import onmt
@@ -24,6 +24,7 @@ from neural.loss import FBnegLossCompute
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
+from neural.trainer import FBnegTrainer
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -70,7 +71,7 @@ def build_optim(opt, model, checkpoint):
 def build_trainer(opt, model, vocab, optim):
     train_loss = make_loss(opt, model, vocab)
     valid_loss = make_loss(opt, model, vocab)
-    trainer = Trainer(model, train_loss, valid_loss, optim)
+    trainer = FBnegTrainer(model, train_loss, valid_loss, optim)
     return trainer
 
 def make_loss(opt, model, tgt_vocab):
