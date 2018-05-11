@@ -32,12 +32,6 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
     parser.add_argument('--mappings', help='Path to vocab mappings')
 
-category_to_marker = {
-        'book': markers.C_book,
-        'hat': markers.C_hat,
-        'ball': markers.C_ball,
-        }
-
 class TextIntMap(object):
     '''
     Map between text and int for visualizing results.
@@ -203,8 +197,6 @@ class Dialogue(object):
                 self.candidates.append(c)
 
     def scenario_to_int(self):
-        # self.category = self.mappings['cat_vocab'].to_ind(self.category)
-        # self.title = map(self.mappings['kb_vocab'].to_ind, self.title)
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
     def embed_scenario(self, kb):

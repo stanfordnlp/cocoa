@@ -13,7 +13,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
               MultiAttnDecoder, NMTModel
-from models import FBNegotiationModel, LM
+from models import FBNegotiationModel
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu

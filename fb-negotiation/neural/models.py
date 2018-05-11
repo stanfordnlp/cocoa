@@ -39,7 +39,8 @@ class FBNegotiationModel(NMTModel):
         enc_final, enc_memory_bank = self.encoder(src, lengths, enc_state)
         # the memory banks are the RNN hidden states
         context_output, context_memory_bank = self.context_embedder(context)
-        scene_output, scene_memory_bank = self.kb_embedder(scene)
+        scene_tuple, scene_memory_bank = self.kb_embedder(scene)
+        scene_output = scene_tuple[0]
         # memory_banks are each (batch_size x seq_len x hidden_size)
         memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
 
