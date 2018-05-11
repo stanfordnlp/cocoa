@@ -11,9 +11,7 @@ from symbols import markers
 class FBnegLossCompute(SimpleLossCompute):
     # Adds extra functionality to deal with the loss from selectors
     def __init__(self, generator, vocab):
-        self.tgt_vocab = vocab['tgt_vocab']
-        super(FBnegLossCompute, self).__init__(generator, self.tgt_vocab)
-        self.kb_vocab = vocab['kb_vocab']
+        super(FBnegLossCompute, self).__init__(generator, self.vocab)
         self.selector = nn.LogSoftmax()
         self.select_criterion = nn.NLLLoss()
 
@@ -29,6 +27,7 @@ class FBnegLossCompute(SimpleLossCompute):
         loss_data = loss.data.clone()
         stats = self._stats(loss_data, scores.data, targets.view(-1).data)
 
+        '''
         # selector: GRU outputs to kb vocab_size scores/logprobs
         # output_selector (78, 4, 28), so bottled = (312, 28)
         select_scores = self.selector(self._bottle(output["selector"]))
@@ -44,3 +43,5 @@ class FBnegLossCompute(SimpleLossCompute):
         stats.update(select_stats)
 
         return total_loss, stats
+        '''
+        return loss, stats
