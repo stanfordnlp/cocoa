@@ -5,12 +5,21 @@ from utterance import UtteranceBuilder
 from cocoa.neural.generator import Generator, Sampler
 
 class FBnegSampler(Sampler):
+    def _run_attention_memory(self, batch, enc_memory_bank):
+        context_inputs = batch.context_inputs
+        _, context_memory_bank = self.model.context_embedder(context_inputs)
+        scene_inputs = batch.scene_inputs
+        scene_output, scene_memory_bank = self.model.kb_embedder(scene_inputs)
+
+        memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
+        return (memory_bank, scene_output)
+
     def generate_batch(self, batch, gt_prefix=1, enc_state=None):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
         dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
-        memory_bank = self._run_attention_memory(batch, enc_memory_bank)
-        scene_output = memory_bank.pop()
+        memory_bank, scene_output = self._run_attention_memory(batch, enc_memory_bank)
+
         # (1.1) Go over forced prefix.
         inp = batch.decoder_inputs[:gt_prefix]
         decoder_outputs, dec_states, _ = self.model.decoder(

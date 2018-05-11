@@ -114,10 +114,10 @@ def read_examples(paths, max_examples, Scenario):
     examples = []
     for path in paths:
         print 'read_examples: %s' % path
-        for example in read_json(path):
+        for raw in read_json(path):
             if max_examples >= 0 and len(examples) >= max_examples:
                 break
-            examples.append(Example.from_dict(example, Scenario))
+            examples.append(Example.from_dict(raw, Scenario))
     return examples
 
 def add_dataset_arguments(parser):
@@ -143,6 +143,6 @@ def read_dataset(args, Scenario):
     return dataset
 
 if __name__ == "__main__":
-    raw = read_json("fb-negotiation/scr/data/transformed_test.json")
-    for idx, example in enumerate(raw): 
-        print Example.from_dict(example)
+    lines = read_json("fb-negotiation/scr/data/transformed_test.json")
+    for idx, raw in enumerate(lines):
+        print Example.from_dict(raw)

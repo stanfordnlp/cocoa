@@ -73,11 +73,6 @@ class Generator(object):
                 desc_inputs = batch.desc_inputs
                 _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
                 memory_bank.append(desc_memory_bank)
-            elif hasattr(batch, 'scene_inputs'):
-                scene_inputs = batch.scene_inputs
-                scene_output, scene_memory_bank = self.model.kb_embedder(scene_inputs)
-                memory_bank.append(scene_memory_bank)
-                memory_bank.append(scene_output)
         else:
             memory_bank = enc_memory_bank
         return memory_bank
