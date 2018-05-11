@@ -47,7 +47,7 @@ class FBnegSampler(Sampler):
         # after concat shape is 6 x 8 x 28, so now we make prediction
         selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0, 1)
         # now selections is 8 x 6   (batch_size, num_items)
-        
+
         # (4) Wrap up predictions for viewing later
         preds = torch.stack(preds).t()  # (batch_size, seq_len)
         # Insert one dimension (n_best) so that its structure is consistent

@@ -10,8 +10,10 @@ from symbols import markers
 
 class FBnegLossCompute(SimpleLossCompute):
     # Adds extra functionality to deal with the loss from selectors
-    def __init__(self, generator, tgt_vocab):
-        super(FBnegLossCompute, self).__init__(generator, tgt_vocab)
+    def __init__(self, generator, vocab):
+        self.tgt_vocab = vocab['tgt_vocab']
+        super(FBnegLossCompute, self).__init__(generator, self.tgt_vocab)
+        self.kb_vocab = vocab['kb_vocab']
         self.selector = nn.LogSoftmax()
         self.select_criterion = nn.NLLLoss()
 
@@ -27,6 +29,12 @@ class FBnegLossCompute(SimpleLossCompute):
         loss_data = loss.data.clone()
         stats = self._stats(loss_data, scores.data, targets.view(-1).data)
 
+        # temporary to help debugging
+        indexes = torch.max(scores, dim=1)[1]
+        words = [self.tgt_vocab.to_word(x) for x in indexes]
+        print words
+        import pdb; pdb.set_trace()
+
         # selector: GRU outputs to kb vocab_size scores/logprobs
         # output_selector (78, 4, 28), so bottled = (312, 28)
         select_scores = self.selector(self._bottle(output["selector"]))
@@ -37,6 +45,11 @@ class FBnegLossCompute(SimpleLossCompute):
         select_data = select_loss.data.clone()
         select_stats = self._stats(select_data, select_scores.data,
                             select_truth.data)
+
+        sel_indexes = torch.max(select_scores, dim=1)[1]
+        sel_words = [self.kb_vocab.to_word(x) for x in sel_indexes]
+        print sel_words[250:]
+        pdb.set_trace()
 
         total_loss = loss + select_loss
         stats.update(select_stats)
