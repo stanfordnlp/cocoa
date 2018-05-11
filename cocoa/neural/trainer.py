@@ -239,12 +239,7 @@ class Trainer(object):
 
             outputs, attns, _ = self._run_batch(batch, None, enc_state)
 
-            # TODO: clean up this check
-            if hasattr(batch, "selections"):
-                _, batch_stats = self.valid_loss.compute_loss(batch.targets,
-                                    batch.selections, outputs)
-            else:
-                _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
+            _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
 
             stats.update(batch_stats)
 
@@ -339,14 +334,6 @@ class Trainer(object):
             outputs, attns, dec_state = self.model(encoder_inputs,
                     decoder_inputs, context_inputs, title_inputs,
                     desc_inputs, lengths, dec_state, enc_state)
-        # for the facebook context
-        elif hasattr(batch, 'scene_inputs'):
-            scene_inputs = batch.scene_inputs
-
-            outputs, attns, dec_state = self.model(encoder_inputs,
-                    decoder_inputs, context_inputs, scene_inputs,
-                    lengths, dec_state, enc_state)
-        # running forward() method in NMT Model
         else:
             outputs, attns, dec_state = self.model(encoder_inputs,
                   decoder_inputs, lengths, dec_state, enc_state)
@@ -369,10 +356,7 @@ class Trainer(object):
             self.model.zero_grad()
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
-            if hasattr(batch, "selections"):
-                loss, batch_stats = self.train_loss.compute_loss(batch.targets, batch.selections, outputs)
-            else:
-                loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
+            loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
 
             loss.backward()
             self.optim.step()

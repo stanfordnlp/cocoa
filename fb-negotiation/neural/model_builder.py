@@ -169,7 +169,8 @@ def make_context_embedder(opt, embeddings, embed_type='utterance'):
     embed_type (:str:): either dialogue, kb (for title and desc) or category
     """
     if opt.context_embedder_type == "mean":
-        return MeanEncoder(opt.enc_layers, embeddings, embed_type)
+        num_layers = 1 if embed_type == "scenario" else opt.enc_layers
+        return MeanEncoder(num_layers, embeddings, embed_type)
     else:
         # "rnn" or "brnn"
         bidirectional = True if opt.context_embedder_type == 'brnn' else False
