@@ -19,6 +19,15 @@ class UtteranceBuilder(BaseUtteranceBuilder):
         ball = "Ball count: {}, value: {}".format(sent_words[4], sent_words[5])
         return [book, hat, ball]
 
+    def selection_to_sent(self, variables, vocab):
+        select_ids = variables.data.cpu().numpy()
+        sel = [vocab.to_word(x) for x in select_ids]
+
+        title = "Predicted Outcome Selections:"
+        mine = "  My book: {}, hat: {}, ball {}".format(sel[0], sel[1], sel[2])
+        theirs = "  Their book: {}, hat: {}, ball: {}".format(sel[3], sel[4], sel[5])
+        return [title, mine, theirs]
+
     def _entity_to_str(self, entity_token, kb):
         # there is no price scaling here, so we can just return the entity
         return str(entity_token.canonical.value)

@@ -376,7 +376,7 @@ class Trainer(object):
 
             loss.backward()
             self.optim.step()
-            
+
             total_stats.update(batch_stats)
             report_stats.update(batch_stats)
 

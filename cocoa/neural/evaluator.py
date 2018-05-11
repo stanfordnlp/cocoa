@@ -52,7 +52,9 @@ class Evaluator(object):
         self.builder = builder
 
     def evaluate(self, opt, model_opt, data, split='test'):
-        generator = get_generator(self.model, self.mappings['tgt_vocab'], self.scorer, opt)
+        # as opposed to data generator
+        text_generator = get_generator(self.model, self.mappings['tgt_vocab'],
+                     self.scorer, opt)
 
         # Statistics
         counter = count(1)
@@ -69,7 +71,8 @@ class Evaluator(object):
             elif not self.model.stateful:
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
-            batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
+            batch_data = text_generator.generate_batch(batch,
+                        gt_prefix=self.gt_prefix, enc_state=enc_state)
             utterances = self.builder.from_batch(batch_data)
 
             for i, response in enumerate(utterances):
