@@ -81,7 +81,7 @@ class MeanEncoder(EncoderBase):
     """
     def __init__(self, num_layers, embeddings, embed_type='utterance'):
         super(MeanEncoder, self).__init__()
-        self.num_layers = n_layers
+        self.num_layers = num_layers
         self.embeddings = embeddings
         self.embed_type = embed_type
 

@@ -238,9 +238,7 @@ class Trainer(object):
             enc_state = dec_state.hidden if dec_state is not None else None
 
             outputs, attns, _ = self._run_batch(batch, None, enc_state)
-
             _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
-
             stats.update(batch_stats)
 
         # Set model back to training mode
@@ -324,16 +322,15 @@ class Trainer(object):
         #tgt_lengths = batch.tgt_lengths
 
         # running forward() method in the NegotiationModel
-        if hasattr(batch, 'context_inputs'):
+        if hasattr(self.model, 'context_embedder'):
             context_inputs = batch.context_inputs
-        # for the craigslist context
-        if hasattr(batch, 'title_inputs'):
             title_inputs = batch.title_inputs
             desc_inputs = batch.desc_inputs
 
             outputs, attns, dec_state = self.model(encoder_inputs,
                     decoder_inputs, context_inputs, title_inputs,
                     desc_inputs, lengths, dec_state, enc_state)
+        # running forward() method in NMT Model
         else:
             outputs, attns, dec_state = self.model(encoder_inputs,
                   decoder_inputs, lengths, dec_state, enc_state)
@@ -357,7 +354,6 @@ class Trainer(object):
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
             loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
-
             loss.backward()
             self.optim.step()
 
