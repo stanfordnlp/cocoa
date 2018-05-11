@@ -14,13 +14,13 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
-from cocoa.neural.loss import FBnegLossCompute
 from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
 from cocoa.neural.utterance import UtteranceBuilder
 
 import onmt
 from onmt.Utils import use_gpu
 
+from neural.loss import FBnegLossCompute
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
