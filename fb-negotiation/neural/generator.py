@@ -10,9 +10,7 @@ class FBnegSampler(Sampler):
         lengths = batch.lengths
         dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
         memory_bank = self._run_attention_memory(batch, enc_memory_bank)
-        print("memory_lengths: {} should be 4".format(len(memory_bank)))
         scene_output = memory_bank.pop()
-        print("memory_lengths: {} should now be 3".format(len(memory_bank)))
         # (1.1) Go over forced prefix.
         inp = batch.decoder_inputs[:gt_prefix]
         decoder_outputs, dec_states, _ = self.model.decoder(
@@ -39,22 +37,17 @@ class FBnegSampler(Sampler):
         Since we are only doing test evaluation, we no longer need
         to output a selection every timestep, instead just once at the end.
 
-        Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 4 x 256)
+        Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 8 x 256)
         '''
-        print("decoder_outputs: {}".format(decoder_outputs.shape))
         select_h = torch.cat([decoder_outputs, scene_output], 2)
-        print("top select_h: {}".format(select_h.shape))
-        # select_h is (1 x 4 x (rnn_size + kb_embed size))
+        # select_h is (1 x 8 x (rnn_size + kb_embed size))
         select_h = self.model.select_encoder.forward(select_h)
-        print("select_h: {}".format(select_h.shape))
         # generate logits for each item separately, outs is a 6-item list
-        select_out = [decoder.forward(select_h) for decoder in self.select_decoders]
-        foo = torch.cat(select_out)
-        print("concat Outputs: {}".format(foo.shape))
-        # after concat shape is 6 x 4 x 28, so now we make prediction
-        selections = torch.cat(select_out).argmax(dim=2) # .transpose()
-        # now selections is 6 x 4   (num_items, batch_size)
-
+        select_out = [decoder.forward(select_h) for decoder in self.model.select_decoders]
+        # after concat shape is 6 x 8 x 28, so now we make prediction
+        selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0, 1)
+        # now selections is 8 x 6   (batch_size, num_items)
+        
         # (4) Wrap up predictions for viewing later
         preds = torch.stack(preds).t()  # (batch_size, seq_len)
         # Insert one dimension (n_best) so that its structure is consistent

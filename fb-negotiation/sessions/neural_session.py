@@ -98,7 +98,7 @@ class NeuralSession(Session):
         self.cuda = env.cuda
 
         self.batcher = self.env.dialogue_batcher
-        self.dialogue = Dialogue(agent, kb, None)
+        self.dialogue = Dialogue(agent, kb, None, None)
         self.max_len = 100
 
     # TODO: move this to preprocess?
