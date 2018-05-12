@@ -56,6 +56,9 @@ class FBnegTrainer(BaseTrainer):
         context_inputs = batch.context_inputs
         scene_inputs = batch.scene_inputs
 
+        print encoder_inputs.shape
+        import pdb; pdb.set_trace()
+
         outputs, attns, dec_state = self.model(encoder_inputs,
                 decoder_inputs, context_inputs, scene_inputs,
                 lengths, dec_state, enc_state)

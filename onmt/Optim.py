@@ -37,10 +37,10 @@ class Optim(object):
         self.last_ppl = None
         self.lr = lr
         self.original_lr = lr
-        self.max_grad_norm = max_grad_norm
+        self.max_grad_norm = 0.5 # max_grad_norm
         self.method = method
-        self.lr_decay = lr_decay
-        self.start_decay_at = start_decay_at
+        self.lr_decay = 0.3 # lr_decay
+        self.start_decay_at = 20 # start_decay_at
         self.start_decay = False
         self._step = 0
         self.betas = [beta1, beta2]
@@ -52,7 +52,7 @@ class Optim(object):
     def set_parameters(self, params):
         self.params = [p for p in params if p.requires_grad]
         if self.method == 'sgd':
-            self.optimizer = optim.SGD(self.params, lr=self.lr)
+            self.optimizer = optim.SGD(self.params, lr=self.lr, nesterov=True, momentum=0.9, weight_decay=0.3)
         elif self.method == 'adagrad':
             self.optimizer = optim.Adagrad(self.params, lr=self.lr)
             for group in self.optimizer.param_groups:
@@ -97,12 +97,12 @@ class Optim(object):
         or we hit the start_decay_at limit.
         """
 
-        if self.start_decay_at is not None and epoch >= self.start_decay_at:
-            self.start_decay = True
-        if self.last_ppl is not None and ppl > self.last_ppl:
-            self.start_decay = True
+        # if self.start_decay_at is not None and epoch >= self.start_decay_at:
+        #    self.start_decay = True
+        # if self.last_ppl is not None and ppl > self.last_ppl:
+        #     self.start_decay = True
 
-        if self.start_decay:
+        if epoch >= self.start_decay_at and (epoch % 2 == 0):
             self.lr = self.lr * self.lr_decay
             print("Decaying learning rate to %g" % self.lr)
 

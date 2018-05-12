@@ -164,7 +164,7 @@ if __name__ == '__main__':
     # Build optimizer and trainer
     optim = build_optim(args, model, ckpt)
     # vocab is used to make_loss, so use target vocab
-    trainer = build_trainer(args, model, mappings, optim)
+    trainer = build_trainer(args, model, mappings['tgt_vocab'], optim)
     trainer.builder = builder
     # Perform actual training
     trainer.learn(args, data_generator, report_func)

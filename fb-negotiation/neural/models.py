@@ -42,14 +42,14 @@ class FBNegotiationModel(NMTModel):
         scene_tuple, scene_memory_bank = self.kb_embedder(scene)
         scene_output = scene_tuple[0]
         # memory_banks are each (batch_size x seq_len x hidden_size)
-        memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
+        memory_banks = [enc_memory_bank] #, context_memory_bank, scene_memory_bank]
 
         # ---- DECODING PROCESS ----
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
                 dec_state, memory_lengths=lengths, lengths=tgt_lengths)
-        '''
+
         # ---- SELECTION PROCESS ----
         # concatenate decoder final state and output of the context embedder
         # then resize to the selector hidden state size using select_encoder
@@ -63,7 +63,7 @@ class FBNegotiationModel(NMTModel):
         outs = [decoder.forward(select_h) for decoder in self.select_decoders]
         selector_outputs = torch.cat(outs)
 
-
+        '''
         Note: FB model performs these alternate steps for selection
              1) concats kb scenario with decoder hidden state
              2) processes further using a separate selector GRU
@@ -73,7 +73,7 @@ class FBNegotiationModel(NMTModel):
         '''
         outputs = {
             "decoder": decoder_outputs,
-            "selector": None
+            "selector": selector_outputs
         }
 
         return outputs, attns, dec_state
