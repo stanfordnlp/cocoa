@@ -144,7 +144,7 @@ def make_selectors(opt, kb_dict):
         - For FB, this combines attention output and context hidden
         - For Cocoa, this combines decoder output and kb scenario output
     '''
-    input_size = opt.rnn_size + opt.kb_embed_size
+    input_size = opt.rnn_size + (6 * opt.kb_embed_size)
     selectors["enc"] = nn.Sequential(
         torch.nn.Linear(input_size, opt.sel_hid_size),
         nn.Tanh()
@@ -260,8 +260,9 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             context_embedder = make_context_embedder(model_opt, context_embeddings)
 
         kb_dict = mappings['kb_vocab']
-        kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
-        kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'scenario')
+        # kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
+        # kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'scenario')
+        scene_settings = (kb_dict.size, model_opt.kb_embed_size)
 
         # Make decoder.
         tgt_dict = mappings['tgt_vocab']
@@ -282,7 +283,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
         if "multibank" in model_opt.global_attention:
             model = FBNegotiationModel(encoder, decoder, context_embedder,
-                  kb_embedder, selectors, dropout, stateful=model_opt.stateful)
+                    scene_settings, selectors, dropout, stateful=model_opt.stateful)
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 
@@ -325,8 +326,8 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
             load_wordvec(model.encoder.embeddings, 'utterance')
             if hasattr(model, 'context_embedder'):
                 load_wordvec(model.context_embedder.embeddings, 'utterance')
-        if hasattr(model, 'kb_embedder'):
-            load_wordvec(model.kb_embedder.embeddings, 'kb')
+        # if hasattr(model, 'kb_embedder'):
+        #     load_wordvec(model.kb_embedder.embeddings, 'kb')
 
         if model_opt.model == 'seq2seq':
             load_wordvec(model.decoder.embeddings, 'utterance')

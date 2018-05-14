@@ -354,12 +354,13 @@ class LMSampler(Sampler):
 
 def get_generator(model, vocab, scorer, args):
     from cocoa.pt_model.util import use_gpu
-    from neural.models import LM
-    if isinstance(model, LM):
-        generator = LMSampler(model, vocab, args.temperature,
-                            max_length=args.max_length,
-                            cuda=use_gpu(args))
-    elif args.sample:
+    # LM is specific to Craigslist and should be moved
+    # from neural.models import LM
+    # if isinstance(model, LM):
+    #     generator = LMSampler(model, vocab, args.temperature,
+    #                         max_length=args.max_length,
+    #                         cuda=use_gpu(args))
+    if args.sample:
         generator = Sampler(model, vocab, args.temperature,
                             max_length=args.max_length,
                             cuda=use_gpu(args))

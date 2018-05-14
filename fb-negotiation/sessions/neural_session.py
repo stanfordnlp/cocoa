@@ -14,13 +14,13 @@ from session import Session
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
 from neural.batcher import Batch, LMBatch
-from neural.models import LM
 
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
 class FBNeuralSession(Session):
-    """A wrapper for LstmRolloutAgent.
+    """A wrapper for LstmRolloutAgent from Deal or No Deal
+    Not used by for cocoa
     """
     def __init__(self, agent, kb, model, args):
         super(NeuralSession, self).__init__(agent)
@@ -98,7 +98,11 @@ class NeuralSession(Session):
         self.cuda = env.cuda
 
         self.batcher = self.env.dialogue_batcher
-        self.dialogue = Dialogue(agent, kb, None, None)
+        fake_outcome = {"item_split": [
+                           {"book": 0, "hat": 0, "ball": 0},
+                           {"book": 0, "hat": 0, "ball": 0}]
+                       }
+        self.dialogue = Dialogue(agent, kb, fake_outcome, None)
         self.max_len = 100
 
     # TODO: move this to preprocess?
@@ -145,8 +149,7 @@ class NeuralSession(Session):
 
         if len(tokens) > 0:
             if tokens[0] == markers.SELECT:
-                t = [int(token) for idx, token in enumerate(tokens) if idx > 0]
-                proposal = {'book': t[0], 'hat': t[1], 'ball': t[2]}
+                proposal = {'book': tokens[1], 'hat': tokens[2], 'ball': tokens[3]}
                 return self.select(proposal)
             elif tokens[0] == markers.QUIT:
                 return self.quit()
@@ -158,7 +161,8 @@ class NeuralSession(Session):
 class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
         super(PytorchNeuralSession, self).__init__(agent, kb, env)
-        self.vocab = env.vocab
+        self.vocab = env.utterance_vocab
+        self.kb_vocab = env.kb_vocab
         self.gt_prefix = env.gt_prefix
 
         self.dec_state = None
@@ -205,7 +209,6 @@ class PytorchNeuralSession(NeuralSession):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
-
         enc_state = self.dec_state.hidden if self.dec_state is not None else None
         output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
 
@@ -214,7 +217,7 @@ class PytorchNeuralSession(NeuralSession):
             self.dec_state = output_data['dec_states']
         else:
             self.dec_state = None
-
+        
         entity_tokens = self._output_to_tokens(output_data)
         #if not self._is_valid(entity_tokens):
         #    return None
@@ -227,9 +230,14 @@ class PytorchNeuralSession(NeuralSession):
             return False
         return True
 
+
     def _output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
+        if (len(tokens) > 0) and (tokens[0] == markers.SELECT):
+            select_items = data["selections"].data.cpu().numpy()[0]
+            select_tokens = [self.kb_vocab.to_word(x) for x in select_items]
+            tokens.extend(select_tokens)
         return tokens
 
     # To support REINFORCE

@@ -14,16 +14,17 @@ class UtteranceBuilder(BaseUtteranceBuilder):
         pad_id = vocab.to_ind(markers.PAD)
         sent_words = [vocab.to_word(x) for x in sent_ids if x != pad_id]
 
-        book = "Book count: {}, value: {}".format(sent_words[0], sent_words[1])
-        hat = "Hat count: {}, value: {}".format(sent_words[2], sent_words[3])
-        ball = "Ball count: {}, value: {}".format(sent_words[4], sent_words[5])
-        return [book, hat, ball]
+        title = "KB SCENARIO:"
+        book = "  Book count: {}, value: {}".format(sent_words[0], sent_words[1])
+        hat = "  Hat count: {}, value: {}".format(sent_words[2], sent_words[3])
+        ball = "  Ball count: {}, value: {}".format(sent_words[4], sent_words[5])
+        return [title, book, hat, ball]
 
     def selection_to_sent(self, variables, vocab):
         select_ids = variables.data.cpu().numpy()
         sel = [vocab.to_word(x) for x in select_ids]
 
-        title = "Predicted Outcome Selections:"
+        title = "OUTCOME PRED:"
         mine = "  My book: {}, hat: {}, ball {}".format(sel[0], sel[1], sel[2])
         theirs = "  Their book: {}, hat: {}, ball: {}".format(sel[3], sel[4], sel[5])
         return [title, mine, theirs]

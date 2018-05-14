@@ -9,21 +9,21 @@ class FBnegSampler(Sampler):
         context_inputs = batch.context_inputs
         _, context_memory_bank = self.model.context_embedder(context_inputs)
         scene_inputs = batch.scene_inputs
-        scene_output, scene_memory_bank = self.model.kb_embedder(scene_inputs)
+        scene_memory_bank = self.model.kb_embedder(scene_inputs)
 
         memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
-        return (memory_bank, scene_output)
+        return memory_banks
 
     def generate_batch(self, batch, gt_prefix=1, enc_state=None):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
         dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
-        memory_bank, scene_output = self._run_attention_memory(batch, enc_memory_bank)
+        memory_banks = self._run_attention_memory(batch, enc_memory_bank)
 
         # (1.1) Go over forced prefix.
         inp = batch.decoder_inputs[:gt_prefix]
         decoder_outputs, dec_states, _ = self.model.decoder(
-            inp, memory_bank, dec_states, memory_lengths=lengths)
+            inp, memory_banks, dec_states, memory_lengths=lengths)
 
         # (2) Sampling
         batch_size = batch.size
@@ -40,7 +40,7 @@ class FBnegSampler(Sampler):
             # Forward step
             inp = Variable(pred.view(1, -1))  # (seq_len=1, batch_size)
             decoder_outputs, dec_states, _ = self.model.decoder(
-                inp, memory_bank, dec_states, memory_lengths=lengths)
+                inp, memory_banks, dec_states, memory_lengths=lengths)
 
         ''' (3) Go over selection of predicted outcome
         Since we are only doing test evaluation, we no longer need
@@ -48,15 +48,19 @@ class FBnegSampler(Sampler):
 
         Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 8 x 256)
         '''
-        select_h = torch.cat([decoder_outputs, scene_output], 2)
-        # select_h is (1 x 8 x (rnn_size + kb_embed size))
+        dec_out = decoder_outputs.transpose(0,1)
+        scene_out = memory_banks[-1].transpose(0,1).contiguous().view(batch_size, 1, -1)
+        select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
+        # select_h is (1 x batch_size x (rnn_size+(6 * kb_embed_size)) )
         select_h = self.model.select_encoder.forward(select_h)
-        # generate logits for each item separately, outs is a 6-item list
+        # now select_h is (1 x batch_size x kb_embed_size)
         select_out = [decoder.forward(select_h) for decoder in self.model.select_decoders]
-        # after concat shape is 6 x 8 x 28, so now we make prediction
+        # select_out is a list of 6 items, where each item is (1 x batch_size x kb_vocab_size)
+        # after concat shape is num_items x batch_size x kb_vocab_size
+        # taking the argmax at dimension 2 gives (6 x batch_size)
         selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0, 1)
-        # now selections is 8 x 6   (batch_size, num_items)
-
+        # Finally, after transpose we get (batch_size x num_items)
+        
         # (4) Wrap up predictions for viewing later
         preds = torch.stack(preds).t()  # (batch_size, seq_len)
         # Insert one dimension (n_best) so that its structure is consistent
@@ -64,7 +68,7 @@ class FBnegSampler(Sampler):
         preds = preds.unsqueeze(1)
         # TODO: add actual scores
         ret = {"predictions": preds,
-               "selections": selections,
+                "selections": selections,
                "scores": [[0]] * batch_size,
                "attention": [None] * batch_size,
                "dec_states": dec_states,

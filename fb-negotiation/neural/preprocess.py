@@ -340,10 +340,10 @@ class Preprocessor(object):
     def skip_example(cls, example):
         tokens = {0: 0, 1: 0}
         turns = {0: 0, 1: 0}
-        if not example.outcome['agreed']:
-            return True
-        if not example.outcome['valid_deal']:
-            return True
+        # if not example.outcome['agreed']:
+        #     return True
+        # if not example.outcome['valid_deal']:
+        #     return True
 
         for event in example.events:
             if event.action == "message":
@@ -355,7 +355,7 @@ class Preprocessor(object):
                 if len(event.data) == 0:
                     return True
         # each agent must speak at least 40 words total
-        if tokens[0] < 40 and tokens[1] < 40:
+        if tokens[0] < 30 and tokens[1] < 30:
             return True
         # each agent must have spoken at least twice
         if turns[0] < 2 or turns[1] < 2:

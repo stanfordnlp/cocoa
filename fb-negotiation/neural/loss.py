@@ -28,7 +28,7 @@ class FBnegLossCompute(SimpleLossCompute):
         loss = self.criterion(scores, gtruth)
         loss_data = loss.data.clone()
         stats = self._stats(loss_data, scores.data, targets.view(-1).data)
-
+        '''
         if random.random() < 0.003:
             seq_len, batch_size, hidden_dim = output["decoder"].shape
             print "loss:", loss.data.cpu().numpy()[0]
@@ -39,22 +39,23 @@ class FBnegLossCompute(SimpleLossCompute):
             # choose the 4th example
             print " ".join([str(self.vocab.to_word(x)) for x in bottom[:,3] if x != 1244])
             pdb.set_trace()
-
         '''
         # selector: GRU outputs to kb vocab_size scores/logprobs
-        # output_selector (78, 4, 28), so bottled = (312, 28)
+        # output.selector (6, batch_size, kb_vocab_size) = (6, 16, 28)
         select_scores = self.selector(self._bottle(output["selector"]))
-        # since selector is just a softmax, shape stays the same at (312, 28)
-        select_truth = selections.repeat(targets.shape[0], 1).contiguous().view(-1)
-        # selections is a (batch_size=4, item_len=6) list, so repeat then flatten
+        # since selector is just a softmax, after bottling is ((6x16), 28) = (96,28)    
+        select_truth = selections.contiguous().view(-1)
+        # selections is now (item_len=6, batch_size=16) = 96 
         select_loss = self.select_criterion(select_scores, select_truth)
+        # pdb.set_trace()
         select_data = select_loss.data.clone()
         select_stats = self._stats(select_data, select_scores.data,
                             select_truth.data)
 
+        # if random.random() < 0.01:
+        #     print "utterance_loss:", loss.data.cpu().numpy()[0]
+        #     print "select_loss:", select_loss.data.cpu().numpy()[0]
         total_loss = loss + select_loss
         stats.update(select_stats)
 
         return total_loss, stats
-        '''
-        return loss, stats

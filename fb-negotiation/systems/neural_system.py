@@ -8,7 +8,7 @@ from cocoa.core.util import read_pickle, read_json
 from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
 from cocoa.neural.beam import Scorer
-from cocoa.neural.generator import get_generator
+from neural.generator import FBnegSampler
 
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
@@ -115,16 +115,18 @@ class PytorchNeuralSystem(System):
                 model_path, args, config_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
-        vocab = mappings['utterance_vocab']
+        utterance_vocab = mappings['utterance_vocab']
+        kb_vocab = mappings['kb_vocab']
         self.mappings = mappings
 
-        generator = get_generator(model, vocab, Scorer(args.alpha), args)
-        builder = UtteranceBuilder(vocab, args.n_best, has_tgt=True)
+        text_generator = FBnegSampler(model, utterance_vocab, config_args.temperature, 
+                args.max_length, use_gpu(args))
+        builder = UtteranceBuilder(utterance_vocab, args.n_best, has_tgt=True)
 
         preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
                 model_args.entity_decoding_form, model_args.entity_target_form)
-        textint_map = TextIntMap(vocab, preprocessor)
-        remove_symbols = map(vocab.to_ind, (markers.EOS, markers.PAD))
+        textint_map = TextIntMap(utterance_vocab, preprocessor)
+        remove_symbols = map(utterance_vocab.to_ind, (markers.EOS, markers.PAD))
         use_cuda = use_gpu(args)
 
         kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
@@ -137,14 +139,16 @@ class PytorchNeuralSystem(System):
         Dialogue.mappings = mappings
         Dialogue.num_context = model_args.num_context
 
-        Env = namedtuple('Env', ['model', 'vocab', 'preprocessor', 'textint_map',
-            'stop_symbol', 'remove_symbols', 'gt_prefix',
+        Env = namedtuple('Env', ['model', 'utterance_vocab', 'kb_vocab', 
+            'preprocessor', 'textint_map', 'stop_symbol', 
+            'remove_symbols', 'gt_prefix',
             'max_len', 'dialogue_batcher', 'cuda',
             'dialogue_generator', 'utterance_builder', 'model_args'])
-        self.env = Env(model, vocab, preprocessor, textint_map,
-            stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=remove_symbols, gt_prefix=1,
+        self.env = Env(model, utterance_vocab, kb_vocab, 
+            preprocessor, textint_map, stop_symbol=utterance_vocab.to_ind(markers.EOS), 
+            remove_symbols=remove_symbols, gt_prefix=1,
             max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
-            dialogue_generator=generator, utterance_builder=builder, model_args=model_args)
+            dialogue_generator=text_generator, utterance_builder=builder, model_args=model_args)
 
     @classmethod
     def name(cls):
