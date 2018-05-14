@@ -10,9 +10,10 @@ def build_kb_vocab(select_symbol):
     We increase this to 20 for a small margin of safety
     '''
     kb_vocab = Vocabulary(offset=0, unk=True)
-    kb_vocab.add_words(['book', 'hat', 'ball', select_symbol])
-    kb_vocab.add_words([str(num) for num in range(20)])
-    kb_vocab.add_words(sequence_markers, special=True)
+    kb_vocab.add_words([select_symbol])
+    kb_vocab.add_words([str(num) for num in range(9)])
+    # kb_vocab.add_words(['book', 'hat', 'ball', select_symbol])
+    # kb_vocab.add_words(sequence_markers, special=True)
     kb_vocab.finish()
 
     print 'KB vocab size:', kb_vocab.size
