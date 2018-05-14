@@ -1,6 +1,7 @@
 import time
 import torch
 import torch.nn as nn
+import numpy as np
 
 from cocoa.neural.loss import SimpleLossCompute
 from onmt.Loss import LossComputeBase
@@ -12,9 +13,14 @@ import random
 class FBnegLossCompute(SimpleLossCompute):
     # Adds extra functionality to deal with the loss from selectors
     def __init__(self, generator, vocab):
-        super(FBnegLossCompute, self).__init__(generator, vocab)
+        tgt_vocab = vocab["utterance_vocab"]
+        kb_vocab = vocab["kb_vocab"]
+        super(FBnegLossCompute, self).__init__(generator, tgt_vocab)
         self.selector = nn.LogSoftmax()
-        self.select_criterion = nn.NLLLoss(size_average=False)
+        # self.utterance_criterion = nn.NLLLoss(weight*0.5, size_average=False)
+        select_weight = torch.ones(kb_vocab.size) * 2
+        select_weight[kb_vocab.to_ind(0)] = 0.5
+        self.select_criterion = nn.NLLLoss(select_weight, size_average=False)
         self.vocab = vocab
 
     def compute_loss(self, targets, selections, output):
@@ -40,12 +46,16 @@ class FBnegLossCompute(SimpleLossCompute):
         select_data = select_loss.data.clone()
         select_stats = self._stats(select_data, select_scores.data,
                             select_truth.data)
-        '''        
-        if random.random() < 0.01:
+                
+        if False:
+            # random.random() < 0.003:
             print "utterance_loss:", utterance_loss.data.cpu().numpy()[0]
             print "select_loss:", select_loss.data.cpu().numpy()[0]
-            pdb.set_trace()
-
+            
+            print "select_truth:", select_truth.view(6,-1).transpose(0,1)
+            print "select_scores:", torch.max(select_scores,1)[1].view(6,-1).transpose(0,1)
+        
+        '''
         For both losses, size_average is set to False, which means we sum
         the batch loss, rather than averaging it.  This is because the input
         of the loss function is resized from (seq_len, batch_size, vocab_size)

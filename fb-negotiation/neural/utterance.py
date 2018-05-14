@@ -11,9 +11,9 @@ class UtteranceBuilder(BaseUtteranceBuilder):
     """
     def scene_to_sent(self, variables, vocab):
         sent_ids = variables.data.cpu().numpy()
-        pad_id = vocab.to_ind(markers.PAD)
-        sent_words = [vocab.to_word(x) for x in sent_ids if x != pad_id]
-
+        # <pad> token removed from kb_vocab, so no need to check
+        # pad_id = vocab.to_ind(markers.PAD)
+        sent_words = [vocab.to_word(x) for x in sent_ids]
         title = "KB SCENARIO:"
         book = "  Book count: {}, value: {}".format(sent_words[0], sent_words[1])
         hat = "  Hat count: {}, value: {}".format(sent_words[2], sent_words[3])

@@ -340,10 +340,10 @@ class Preprocessor(object):
     def skip_example(cls, example):
         tokens = {0: 0, 1: 0}
         turns = {0: 0, 1: 0}
-        # if not example.outcome['agreed']:
-        #     return True
-        # if not example.outcome['valid_deal']:
-        #     return True
+        if not example.outcome['agreed']:
+            return True
+        if not example.outcome['valid_deal']:
+            return True
 
         for event in example.events:
             if event.action == "message":

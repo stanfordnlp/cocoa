@@ -7,11 +7,11 @@ def build_kb_vocab(select_symbol):
     '''
     Note: For any given item, the max count is 4 and the max value is 10
     With the max point available to any one player being 15
-    We increase this to 20 for a small margin of safety
+    We decrease this to 8 to get the smallest vocab possible
     '''
     kb_vocab = Vocabulary(offset=0, unk=True)
     kb_vocab.add_words([select_symbol])
-    kb_vocab.add_words([str(num) for num in range(9)])
+    kb_vocab.add_words([str(num) for num in range(8)])
     # kb_vocab.add_words(['book', 'hat', 'ball', select_symbol])
     # kb_vocab.add_words(sequence_markers, special=True)
     kb_vocab.finish()
