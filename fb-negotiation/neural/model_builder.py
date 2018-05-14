@@ -145,11 +145,13 @@ def make_selectors(opt, kb_dict):
         - For Cocoa, this combines decoder output and kb scenario output
     '''
     input_size = opt.rnn_size + (6 * opt.kb_embed_size)
-    selectors["enc"] = nn.Sequential(
+    selectors["enc"] = nn.GRU( input_size=opt.rnn_size,
+            hidden_size=opt.sel_hid_size, bias=True, bidirectional=True)
+    '''
+    nn.Sequential(
         torch.nn.Linear(input_size, opt.sel_hid_size),
         nn.Tanh()
     )
-    '''
     Create selection decoders, one per each item. Range is 6 (and not 3)
         because we are training the model to keep track of not only its
         own selection but also the partner's predicted selection.

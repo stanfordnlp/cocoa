@@ -81,7 +81,6 @@ class FBnegTrainer(BaseTrainer):
 
             self.model.zero_grad()
             loss.backward()
-            # TODO: add gradient clipping
             self.optim.step()
 
             total_stats.update(batch_stats)
