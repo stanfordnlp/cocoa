@@ -51,35 +51,39 @@ class FBNegotiationModel(NMTModel):
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
                 dec_state, memory_lengths=lengths, lengths=tgt_lengths)
 
-        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
-        sel_h = torch.cat([enc_final, scene_memory_bank], 0)
-        sel_enc_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
-        sel_out, sel_h = self.select_encoder.forward(sel_h, sel_enc_init)
+        ''' ---- SELECTION PROCESS ----
+        Old process
+        dec_out = decoder_outputs[-1].unsqueeze(0)
+        sel_h = torch.cat([enc_final, dec_out, scene_memory_bank], 0)
+        # sel_enc_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
+        sel_out, sel_h = self.select_encoder.forward(sel_h, context_output[0].contiguous())
         sel_dec_init = sel_out[-1].unsqueeze(0)
         outs = [decoder.forward(sel_dec_init) for decoder in self.select_decoders]
         selector_outputs = torch.cat(outs)
 
-        ''' ---- SELECTION PROCESS ----
-        # concatenate decoder final state and output of the context embedder
-        # then resize to the selector hidden state size using select_encoder
-        # last decoder hidden state
-        dec_out = decoder_outputs[-1].unsqueeze(1)
-        # reshaped kb scenario
-        scene_out = scene_memory_bank.transpose(0,1).contiguous().view(src.size(1), 1, -1)
-        select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
+        Old comments
         # select_h is (decoder seq_len + 6) x batch_size x (rnn_size))
-        select_h = self.select_encoder.forward(select_h)
+        # select_h = self.select_encoder.forward(select_h)
         # select_h = self.dropout(select_h)
         # generate logits for each item separately, outs is a 6-item list
-        outs = [decoder.forward(select_h) for decoder in self.select_decoders]
-
-        Note: FB model performs these alternate steps for selection
-             1) concats kb scenario with decoder hidden state
-             2) processes further using a separate selector GRU
-             3) performs attention over the inputs from part 1
-             4) concats the context hidden state and attention results
-             5) Pass the final result to the selector encoder
+        # outs = [decoder.forward(select_h) for decoder in self.select_decoders]
         '''
+
+        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape       
+        dec_out = decoder_outputs[-1].unsqueeze(0)
+        # enc_final is (2, batch_size, hidden_dim=256)
+        # dec_out is (1, batch_size, hidden_dim)
+        # context_output is (2, batch_size, hidden_dim)
+        # scene_memory_bank is (6, batch_size, kb_embed_size=256))
+        sel_hid = torch.cat([enc_final, context_output[0], dec_out, scene_memory_bank], 0)
+        # sel_hid is (11, batch_size, (5*hidden_dim + 6*kb_embed_size)
+        sel_in = sel_hid.transpose(0,1).contiguous().view(batch_size, 1, -1)
+        # sel_in = (16, 1, 11*256) = (16, 1, 2816) 
+        # no longer have a separate separate encode step, we just go straight to predicting 6 numbers
+        sel_out = self.select_decoders.forward(sel_in)
+        # sel_out is (16, 1, 60) where vocab size is 10
+        selector_outputs = sel_out.view(batch_size, 6, -1).transpose(0,1).contiguous()
+        # we end up with (6, 16, vocab_size=10)
 
         outputs = {
             "decoder": decoder_outputs,

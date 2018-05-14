@@ -51,7 +51,7 @@ def add_model_arguments(parser):
     # Hidden sizes and dimensions
     group.add_argument('--word-vec-size', type=int, default=256,
                        help='Word embedding size for src and tgt.')
-    group.add_argument('--sel-hid-size', type=int, default=64,
+    group.add_argument('--sel-hid-size', type=int, default=128,
                         help='Size of hidden state for selectors')
     group.add_argument('--kb-embed-size', type=int, default=64,
                         help='Size of vocab embeddings and output for kb scenario')
@@ -146,7 +146,7 @@ def make_selectors(opt, kb_dict):
     '''
     input_size = opt.rnn_size + (6 * opt.kb_embed_size)
     selectors["enc"] = nn.GRU( input_size=opt.rnn_size,
-            hidden_size=opt.kb_embed_size/2, bias=True, bidirectional=True)
+            hidden_size=opt.kb_embed_size, bias=True, bidirectional=True)
     '''
     nn.Sequential(
         torch.nn.Linear(input_size, opt.sel_hid_size),
@@ -159,10 +159,18 @@ def make_selectors(opt, kb_dict):
         the order found in the training data. Selectors 1 to 3 are for
         "my selection", selectors 4 to 6 are for "partner's selection".
     '''
-    selectors["dec"] = nn.ModuleList()
+    selectors["dec"] = nn.Sequential(
+       nn.Linear(11 * opt.rnn_size, opt.rnn_size),  # 2816 to 256
+       nn.Tanh(),
+       nn.Linear(opt.rnn_size, opt.sel_hid_size),   # 256 to 128
+       nn.Tanh(),
+       nn.Linear(opt.sel_hid_size, 6 * kb_dict.size)  # 128 to 60
+    )
+    '''
+    nn.ModuleList()                                        
     for i in xrange(6):
-        selectors["dec"].append(nn.Linear(opt.kb_embed_size, kb_dict.size))
-
+        selectors["dec"].append(nn.Linear(opt.kb_embed_size*2, kb_dict.size))
+    '''
     return selectors
 
 def make_context_embedder(opt, embeddings, embed_type='utterance'):

@@ -7,23 +7,23 @@ from cocoa.pt_model.util import smart_variable
 class FBnegSampler(Sampler):
     def _run_attention_memory(self, batch, enc_memory_bank):
         context_inputs = batch.context_inputs
-        _, context_memory_bank = self.model.context_embedder(context_inputs)
+        context_out, context_memory_bank = self.model.context_embedder(context_inputs)
         scene_inputs = batch.scene_inputs
         scene_memory_bank = self.model.kb_embedder(scene_inputs)
 
-        memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
+        memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank, context_out]
         return memory_banks
 
     def generate_batch(self, batch, gt_prefix=1, enc_state=None):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
-        dec_states, enc_memory_bank = self._run_encoder(batch, enc_state)
+        enc_final, enc_memory_bank = self._run_encoder(batch, enc_state)
         memory_banks = self._run_attention_memory(batch, enc_memory_bank)
-
+        context_out = memory_banks.pop()
         # (1.1) Go over forced prefix.
         inp = batch.decoder_inputs[:gt_prefix]
         decoder_outputs, dec_states, _ = self.model.decoder(
-            inp, memory_banks, dec_states, memory_lengths=lengths)
+            inp, memory_banks, enc_final, memory_lengths=lengths)
 
         # (2) Sampling
         batch_size = batch.size
@@ -52,14 +52,15 @@ class FBnegSampler(Sampler):
         scene_out = memory_banks[-1].transpose(0,1).contiguous().view(batch_size, 1, -1)
         
         select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
-        '''
-        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
-        sel_h = torch.cat([decoder_outputs, memory_banks[-1]], 0)
-        sel_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
-        sel_out, sel_h = self.model.select_encoder.forward(sel_h, sel_init)
+
+        sel_h = torch.cat([enc_final.hidden[0], dec_out, memory_banks[2]], 0)
+        # sel_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
+        sel_out, sel_h = self.model.select_encoder.forward(sel_h, context_out[0].contiguous())
         sel_init_dec = sel_out[-1].unsqueeze(0)
         select_out = [decoder.forward(sel_init_dec) for decoder in self.model.select_decoders]
-        '''
+        selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0,1)
+        # Finally, after transpose we get (batch_size x num_items)
+        
         # select_h is (1 x batch_size x (rnn_size+(6 * kb_embed_size)) )
         select_h = self.model.select_encoder.forward(select_h)
         # now select_h is (1 x batch_size x kb_embed_size)
@@ -68,8 +69,13 @@ class FBnegSampler(Sampler):
         # after concat shape is num_items x batch_size x kb_vocab_size
         # taking the argmax at dimension 2 gives (6 x batch_size)
         '''
-        selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0, 1)
-        # Finally, after transpose we get (batch_size x num_items)
+        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
+        dec_in = decoder_outputs[-1].unsqueeze(0)
+        scene_in = memory_banks[2]
+        sel_hid = torch.cat([enc_final.hidden[0], context_out[0], dec_in, scene_in], 0)
+        sel_in = sel_hid.transpose(0,1).contiguous().view(batch_size, 1, -1)
+        sel_out = self.model.select_decoders.forward(sel_in)
+        selections = torch.max(sel_out.view(batch_size, 6, -1), dim=2)[1]
         
         # (4) Wrap up predictions for viewing later
         preds = torch.stack(preds).t()  # (batch_size, seq_len)
