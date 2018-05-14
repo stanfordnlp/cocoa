@@ -69,8 +69,8 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf', 'lflm'],
-                       help='Model type')
+                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', \
+                       'lf2lf', 'lflm', 'seq_select'], help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
     group.add_argument('--stateful', action='store_true',
@@ -293,7 +293,8 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
         if "multibank" in model_opt.global_attention:
             model = FBNegotiationModel(encoder, decoder, context_embedder,
-                    scene_settings, selectors, dropout, stateful=model_opt.stateful)
+                    scene_settings, selectors, dropout,
+                    stateful=model_opt.stateful, model_type=model_opt.model)
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 

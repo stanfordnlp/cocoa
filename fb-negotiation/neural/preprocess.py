@@ -294,21 +294,21 @@ class Preprocessor(object):
         else:
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
-    def process_event(self, e, kb):
+    def process_event(self, e, kb, sel=None):
         # Lower, tokenize, link entity
         if e.action == 'message':
             entity_tokens = self.lexicon.link_entity(tokenize(e.data))
             return entity_tokens if entity_tokens else None
         elif e.action == 'select':
             '''
-            e.data will be a dict of counts for each item, so we translate
-            this data into a string of tokens understood by the training model
-            entity_tokens = [str(e.data[item]) for item in self.lexicon.items]
+            outcome is now handled separately with its own loss function
             ---- ABOVE IS OUTDATED ----
-            outcome is now handled separately with its own loss function, so e.data
-            in this case is <selection> which we replace to our own <select> marker
+            "sel" is short for selection, it will be a list of two agents
+            where each agent is a dict with 3 keys: book, hat, ball
             '''
             entity_tokens = [markers.SELECT]
+            selections = [a[item] for a in sel for item in self.lexicon.items]
+            entity_tokens.extend([str(x) for x in selections])
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
@@ -330,7 +330,8 @@ class Preprocessor(object):
                     assert lf is not None
                     utterance = dialogue.lf_to_tokens(lf)
                 else:
-                    utterance = self.process_event(e, dialogue.kb)
+                    sel = ex.outcome['item_split']
+                    utterance = self.process_event(e, dialogue.kb, sel)
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue

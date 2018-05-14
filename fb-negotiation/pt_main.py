@@ -69,13 +69,15 @@ def build_optim(opt, model, checkpoint):
     return optim
 
 def build_trainer(opt, model, vocab, optim):
+    import pdb; pdb.set_trace()
+    print("model type: {}".format(opt.model))
     train_loss = make_loss(opt, model, vocab)
     valid_loss = make_loss(opt, model, vocab)
     trainer = FBnegTrainer(model, train_loss, valid_loss, optim)
     return trainer
 
 def make_loss(opt, model, tgt_vocab):
-    loss = FBnegLossCompute(model.generator, tgt_vocab)
+    loss = FBnegLossCompute(model.generator, tgt_vocab, opt.model)
     if use_gpu(opt):
         loss.cuda()
     return loss
