@@ -146,7 +146,7 @@ def make_selectors(opt, kb_dict):
     '''
     input_size = opt.rnn_size + (6 * opt.kb_embed_size)
     selectors["enc"] = nn.GRU( input_size=opt.rnn_size,
-            hidden_size=opt.sel_hid_size, bias=True, bidirectional=True)
+            hidden_size=opt.kb_embed_size/2, bias=True, bidirectional=True)
     '''
     nn.Sequential(
         torch.nn.Linear(input_size, opt.sel_hid_size),
@@ -161,7 +161,7 @@ def make_selectors(opt, kb_dict):
     '''
     selectors["dec"] = nn.ModuleList()
     for i in xrange(6):
-        selectors["dec"].append(nn.Linear(opt.sel_hid_size, kb_dict.size))
+        selectors["dec"].append(nn.Linear(opt.kb_embed_size, kb_dict.size))
 
     return selectors
 

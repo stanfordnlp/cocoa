@@ -44,18 +44,19 @@ class FBNegotiationModel(NMTModel):
         scene_out = scene_memory_bank
         # memory_banks are each (batch_size x seq_len x hidden_size)
         memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
-
+        # pdb.set_trace()
         # ---- DECODING PROCESS ----
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
                 dec_state, memory_lengths=lengths, lengths=tgt_lengths)
 
-        pdb.set_trace()
-        sel_h = torch.cat([decoder_outputs, scene_memory_bank], 0)
-        sel_init = smart_variable(torch.zeros(2, src.size(1), src.size(2)))
-        sel_out, sel_h = self.select_encoder.forward(sel_h, sel_init)
-        outs = [decoder.forward(sel_h) for decoder in self.select_decoders]
+        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
+        sel_h = torch.cat([enc_final, scene_memory_bank], 0)
+        sel_enc_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
+        sel_out, sel_h = self.select_encoder.forward(sel_h, sel_enc_init)
+        sel_dec_init = sel_out[-1].unsqueeze(0)
+        outs = [decoder.forward(sel_dec_init) for decoder in self.select_decoders]
         selector_outputs = torch.cat(outs)
 
         ''' ---- SELECTION PROCESS ----

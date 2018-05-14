@@ -3,7 +3,7 @@ from torch.nn import LogSoftmax
 from torch.autograd import Variable
 from utterance import UtteranceBuilder
 from cocoa.neural.generator import Generator, Sampler
-
+from cocoa.pt_model.util import smart_variable
 class FBnegSampler(Sampler):
     def _run_attention_memory(self, batch, enc_memory_bank):
         context_inputs = batch.context_inputs
@@ -47,10 +47,19 @@ class FBnegSampler(Sampler):
         to output a selection every timestep, instead just once at the end.
 
         Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 8 x 256)
-        '''
+        
         dec_out = decoder_outputs.transpose(0,1)
         scene_out = memory_banks[-1].transpose(0,1).contiguous().view(batch_size, 1, -1)
+        
         select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
+        '''
+        dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
+        sel_h = torch.cat([decoder_outputs, memory_banks[-1]], 0)
+        sel_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
+        sel_out, sel_h = self.model.select_encoder.forward(sel_h, sel_init)
+        sel_init_dec = sel_out[-1].unsqueeze(0)
+        select_out = [decoder.forward(sel_init_dec) for decoder in self.model.select_decoders]
+        '''
         # select_h is (1 x batch_size x (rnn_size+(6 * kb_embed_size)) )
         select_h = self.model.select_encoder.forward(select_h)
         # now select_h is (1 x batch_size x kb_embed_size)
@@ -58,6 +67,7 @@ class FBnegSampler(Sampler):
         # select_out is a list of 6 items, where each item is (1 x batch_size x kb_vocab_size)
         # after concat shape is num_items x batch_size x kb_vocab_size
         # taking the argmax at dimension 2 gives (6 x batch_size)
+        '''
         selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0, 1)
         # Finally, after transpose we get (batch_size x num_items)
         
