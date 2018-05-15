@@ -27,7 +27,8 @@ class Evaluator(BaseEvaluator):
             elif not self.model.stateful:
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
-            batch_data = text_generator.generate_batch(batch,
+            
+            batch_data = text_generator.generate_batch(batch, model_opt.model,
                         gt_prefix=self.gt_prefix, enc_state=enc_state)
             utterances = self.builder.from_batch(batch_data)
             selections = batch_data["selections"]
@@ -48,8 +49,11 @@ class Evaluator(BaseEvaluator):
         for i, response in enumerate(utterances):
             sent_number = next(counter)
             scene = self.builder.scene_to_sent(scenes[i], self.mappings['kb_vocab'])
-            select = self.builder.selection_to_sent(selections[i],
+            if selections is not None:
+                select = self.builder.selection_to_sent(selections[i],
                                             self.mappings['kb_vocab'])
+            else:
+                select = [" "]
             print("--------- Example {} -----------".format(sent_number))
             for item_sentence in scene:
                 print item_sentence

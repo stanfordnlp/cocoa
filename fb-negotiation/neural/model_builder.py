@@ -290,11 +290,11 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         selectors = make_selectors(model_opt, kb_dict)
         dropout = nn.Dropout(model_opt.dropout)
         decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
-
+        
         if "multibank" in model_opt.global_attention:
             model = FBNegotiationModel(encoder, decoder, context_embedder,
                     scene_settings, selectors, dropout,
-                    stateful=model_opt.stateful, model_type=model_opt.model)
+                    model_type=model_opt.model, stateful=model_opt.stateful) 
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 

@@ -34,7 +34,7 @@ class FBnegLossCompute(SimpleLossCompute):
         utterance_truth = targets.contiguous().view(-1)
         # targets (13 x 4), so ground_truth = 52
         loss = self.criterion(scores, utterance_truth)
-        loss_data = utterance_loss.data.clone()
+        loss_data = loss.data.clone()
         stats = self._stats(loss_data, scores.data, targets.view(-1).data)
 
         if self.model_type == 'seq_select':
@@ -49,13 +49,13 @@ class FBnegLossCompute(SimpleLossCompute):
             select_data = select_loss.data.clone()
             select_stats = self._stats(select_data, select_scores.data,
                                 select_truth.data)
+            '''
             if random.random() < 0.003:
-                print "utterance_loss:", utterance_loss.data.cpu().numpy()[0]
+                print "utterance_loss:", loss.data.cpu().numpy()[0]
                 print "select_loss:", select_loss.data.cpu().numpy()[0]
                 print "select_truth:", select_truth.view(6,-1).transpose(0,1)
                 print "select_scores:", torch.max(select_scores,1)[1].view(6,-1).transpose(0,1)
-
-            '''
+            
             For both losses, size_average is set to False, which means we sum
             the batch loss, rather than averaging it.  This is because the input
             of the loss function is resized from (seq_len, batch_size, vocab_size)

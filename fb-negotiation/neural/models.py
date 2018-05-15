@@ -29,7 +29,7 @@ class FBNegotiationModel(NMTModel):
     def __init__(self, encoder, decoder, context_embedder, scene_settings,
             selectors, dropout, model_type, stateful=False):
         super(FBNegotiationModel, self).__init__(encoder, decoder, stateful=stateful)
-        self.model_type = model_type
+        self.modeltype = model_type
         self.context_embedder = context_embedder
         self.kb_embedder = nn.Embedding(*scene_settings)
         self.dropout = dropout
@@ -42,20 +42,15 @@ class FBNegotiationModel(NMTModel):
         # the memory bas are the RNN hidden states
         context_output, context_memory_bank = self.context_embedder(context)
         scene_memory_bank = self.kb_embedder(scene)
-        print("enc: {}".format(enc_memory_bank.shape))
-        print("ctx: {}".format(context_memory_bank.shape))
-        print("scene: {}".format(scene_memory_bank))
-        pdb.set_trace()
-        # memory_banks are each (batch_size x seq_len x hidden_size)
+        # memory_banks are each (seq_len x batch_size x hidden_size)
         memory_banks = [enc_memory_bank, context_memory_bank, scene_memory_bank]
         # ---- DECODING PROCESS ----
         enc_state = self.decoder.init_decoder_state(src, enc_memory_bank, enc_final)
         dec_state = enc_state if dec_state is None else dec_state
         decoder_outputs, dec_state, attns = self.decoder(tgt, memory_banks,
                 dec_state, memory_lengths=lengths, lengths=tgt_lengths)
-
         # ---- SELECTION PROCESS ----
-        if self.model_type == "seq_select":
+        if self.modeltype == "seq_select":
             dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
             dec_out = decoder_outputs[-1].unsqueeze(0)
             # enc_final is (2, batch_size, hidden_dim=256)

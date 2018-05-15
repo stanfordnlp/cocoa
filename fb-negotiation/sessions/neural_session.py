@@ -121,7 +121,8 @@ class NeuralSession(Session):
         if event.action in Event.decorative_events:
             return
         # Parse utterance
-        utterance = self.env.preprocessor.process_event(event, self.kb)
+        selection = [event.data] if event.action == "select" else None
+        utterance = self.env.preprocessor.process_event(event, self.kb, selection)
         # Empty message
         if utterance is None:
             return
@@ -210,7 +211,8 @@ class PytorchNeuralSession(NeuralSession):
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
         enc_state = self.dec_state.hidden if self.dec_state is not None else None
-        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
+        output_data = self.generator.generate_batch(batch, self.env.model.modeltype, 
+                gt_prefix=self.gt_prefix, enc_state=enc_state)
 
         if self.stateful:
             # TODO: only works for Sampler for now. cannot do beam search.
@@ -230,11 +232,12 @@ class PytorchNeuralSession(NeuralSession):
             return False
         return True
 
-
     def _output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
-        if (len(tokens) > 0) and (tokens[0] == markers.SELECT):
+        is_select_action = (len(tokens) > 0) and (tokens[0] == markers.SELECT)
+        is_select_model = self.env.model.modeltype == "seq_select" 
+        if is_select_action and is_select_model:
             select_items = data["selections"].data.cpu().numpy()[0]
             select_tokens = [self.kb_vocab.to_word(x) for x in select_items]
             tokens.extend(select_tokens)
