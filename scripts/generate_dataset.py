@@ -75,4 +75,4 @@ if __name__ == '__main__':
             for name, model_path in zip(args.agents, args.agent_checkpoints)]
     num_examples = args.scenario_offset
 
-    generate_examples(num_examples, scenario_db, args.results_path, args.max_examples, remove_fail, max_turns):
+    generate_examples(num_examples, scenario_db, args.results_path, args.max_examples, args.remove_fail, args.max_turns)
