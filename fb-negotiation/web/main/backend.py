@@ -38,7 +38,7 @@ class Backend(BaseBackend):
         if event.action == 'select':
             message = format_message("Your partner selected items and marked deal as agreed!", True)
             return {'message': message, 'status': False}
-        elif event.action == 'reject':
+        elif event.action == 'quit':
             message = format_message("Your partner declared there was no deal!", True)
             return {'message': message, 'status': False}
         else:

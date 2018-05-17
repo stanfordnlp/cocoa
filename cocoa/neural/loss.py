@@ -48,7 +48,6 @@ class ReinforceLossCompute(SimpleLossCompute):
         # reward: (batch_size,)
         batch_size = output.size(1)
         #aeq(batch_size, reward.size(0))
-
         scores = self.generator(self._bottle(output))
         gtruth = target.contiguous().view(-1)
         loss = self.criterion(scores, gtruth).view(-1, batch_size)  # (seq_len, batch_size)

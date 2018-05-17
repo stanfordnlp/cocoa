@@ -61,10 +61,7 @@ class Generator(object):
 
     def _run_attention_memory(self, batch, enc_memory_bank):
         if batch.num_context > 0 and hasattr(self.model, 'kb_embedder'):
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
             context_inputs = batch.context_inputs
-
             _, context_memory_bank = self.model.context_embedder(context_inputs)
             memory_bank = [enc_memory_bank, context_memory_bank]
 
@@ -77,6 +74,7 @@ class Generator(object):
                 desc_inputs = batch.desc_inputs
                 _, desc_memory_bank = self.model.kb_embedder(desc_inputs)
                 memory_bank.append(desc_memory_bank)
+
             elif hasattr(batch, 'scene_inputs') and self.model.kb_embedder:
                 scene_inputs = batch.scene_inputs
                 _, scene_memory_bank = self.model.kb_embedder(scene_inputs)
@@ -359,3 +357,25 @@ class LMSampler(Sampler):
         ret["gold_score"] = [0] * batch_size
         ret["batch"] = batch
         return ret
+
+def get_generator(model, vocab, scorer, args):
+    from cocoa.pt_model.util import use_gpu
+    # LM is specific to Craigslist and should be moved
+    # from neural.models import LM
+    # if isinstance(model, LM):
+    #     generator = LMSampler(model, vocab, args.temperature,
+    #                         max_length=args.max_length,
+    #                         cuda=use_gpu(args))
+    if args.sample:
+        generator = Sampler(model, vocab, args.temperature,
+                            max_length=args.max_length,
+                            cuda=use_gpu(args))
+    else:
+        generator = Generator(model, vocab,
+                              beam_size=args.beam_size,
+                              n_best=args.n_best,
+                              max_length=args.max_length,
+                              global_scorer=scorer,
+                              cuda=use_gpu(args),
+                              min_length=args.min_length)
+    return generator

@@ -4,6 +4,7 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
+from generator import get_generator
 from utterance import UtteranceBuilder
 from symbols import markers
 
@@ -48,7 +49,7 @@ class Evaluator(object):
         self.builder = builder
 
     def evaluate(self, opt, model_opt, data, split='test'):
-        generator = self.generator
+        text_generator = self.generator
 
         # Statistics
         counter = count(1)
@@ -65,7 +66,8 @@ class Evaluator(object):
             elif not self.model.stateful:
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
-            batch_data = generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
+            batch_data = text_generator.generate_batch(batch,
+                        gt_prefix=self.gt_prefix, enc_state=enc_state)
             utterances = self.builder.from_batch(batch_data)
 
             for i, response in enumerate(utterances):
@@ -75,7 +77,7 @@ class Evaluator(object):
                 gold_words_total += len(response.gold_sent)
 
             if opt.verbose:
-                self.print_results(model_opt, batch, utterances)
+                counter = self.print_results(model_opt, batch, counter, utterances)
 
     def print_results(self, model_opt, batch, utterances):
         for i, response in enumerate(utterances):

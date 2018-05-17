@@ -53,7 +53,7 @@ class HTMLVisualizer(BaseHTMLVisualizer):
     def render_event(cls, event):
         if event.action == 'select':
             s = 'DEAL AGREED: {}'.format(event.data)
-        elif event.action == 'reject':
+        elif event.action == 'quit':
             s = 'NO DEAL'
         else:
             s = super(HTMLVisualizer, cls).render_event(event)
