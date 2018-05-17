@@ -27,7 +27,7 @@ class EvalData(BaseEvalData):
                     tokens.append('PRICE')
                 else:
                     raise ValueError
-            elif w in ('<offer>', '<accept>', '<reject>', '<quit>'):
+            elif w in ('<select>', '<quit>'):
                 tokens.append(w[1:-1].upper())
             # Category markers
             elif len(w) > 2 and w[0] == '<' and w[-1] == '>':
@@ -42,6 +42,6 @@ class EvalData(BaseEvalData):
     @classmethod
     def valid_example(cls, example, num_context_utterances):
         last_utterance = example['prev_turns'][-1]
-        if '<offer>' in last_utterance or '<accept>' in last_utterance or '<reject>' in last_utterance:
+        if '<select>' in last_utterance:
             return False
         return super(EvalData, cls).valid_example(example, num_context_utterances)

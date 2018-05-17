@@ -221,6 +221,13 @@ class WordCorpus(object):
             inpt = data.narrow(0, 0, data.size(0) - 1)
             tgt = data.narrow(0, 1, data.size(0) - 1).view(-1)
 
+            '''
+            ctx (context) = our KB scenario, scene_inputs
+            inpt (input) = our encoder_inputs
+            tgt (target) = our decoder_outputs
+            sel_tgt (selection target) = selected items,
+                we process the same as any other series of tokens
+            '''
             batches.append((ctx, inpt, tgt, sel_tgt))
 
         if shuffle:

@@ -16,17 +16,11 @@ from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.evaluator import Evaluator, add_evaluator_arguments
-from neural.generator import get_generator
-
-#from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
-#from model.learner import add_learner_arguments, get_learner
-#from model.evaluate import get_evaluator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
     parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
-    group.add_argument('--checkpoint', required=True, help='Path to model .pt file')
     add_data_generator_arguments(parser)
     add_evaluator_arguments(parser)
     args = parser.parse_args()
@@ -46,7 +40,7 @@ if __name__ == '__main__':
 
     # Load the model.
     mappings, model, model_args = \
-        model_builder.load_test_model(args.checkpoint, args, dummy_args.__dict__)
+        model_builder.load_test_model(args.checkpoint_files[0], args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
     make_model_mappings(model_args.model, mappings)
@@ -54,10 +48,8 @@ if __name__ == '__main__':
     schema = Schema(model_args.schema_path, None)
     data_generator = get_data_generator(args, model_args, schema, test=True)
 
-    # Prefix: [GO, CATEGORY]
-    # Just giving it GO seems okay as it can learn to copy the CATEGORY from the input
+    # Prefix: [GO]
     scorer = Scorer(args.alpha)
-    generator = get_generator(model, mappings['tgt_vocab'], scorer, args, model_args)
     builder = UtteranceBuilder(mappings['tgt_vocab'], args.n_best, has_tgt=True)
-    evaluator = Evaluator(model, mappings, generator, builder, gt_prefix=1)
+    evaluator = Evaluator(model, mappings, scorer, builder, gt_prefix=1)
     evaluator.evaluate(args, model_args, data_generator)
