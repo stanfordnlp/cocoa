@@ -31,16 +31,20 @@ class Optim(object):
     # https://arxiv.org/pdf/1706.03762.pdf, particularly the value beta2=0.98
     # was used there however, beta2=0.999 is still arguably the more
     # established value, so we use that here as well
-    def __init__(self, method, lr, max_grad_norm, lr_decay=1, start_decay_at=None,
-                 beta1=0.9, beta2=0.999, adagrad_accum=0.0,
-                 decay_method=None, warmup_steps=4000, model_size=None):
+    def __init__(self, method, lr, max_grad_norm,
+                 lr_decay=1, start_decay_at=None,
+                 beta1=0.9, beta2=0.999,
+                 adagrad_accum=0.0,
+                 decay_method=None,
+                 warmup_steps=4000,
+                 model_size=None):
         self.last_ppl = None
         self.lr = lr
         self.original_lr = lr
-        self.max_grad_norm = 0.5 # max_grad_norm
+        self.max_grad_norm = max_grad_norm
         self.method = method
-        self.lr_decay = 0.3 # lr_decay
-        self.start_decay_at = 10 # start_decay_at
+        self.lr_decay = lr_decay
+        self.start_decay_at = start_decay_at
         self.start_decay = False
         self._step = 0
         self.betas = [beta1, beta2]
@@ -52,7 +56,7 @@ class Optim(object):
     def set_parameters(self, params):
         self.params = [p for p in params if p.requires_grad]
         if self.method == 'sgd':
-            self.optimizer = optim.SGD(self.params, lr=self.lr, nesterov=True, momentum=0.9)
+            self.optimizer = optim.SGD(self.params, lr=self.lr)
         elif self.method == 'adagrad':
             self.optimizer = optim.Adagrad(self.params, lr=self.lr)
             for group in self.optimizer.param_groups:
@@ -98,9 +102,9 @@ class Optim(object):
         """
 
         if self.start_decay_at is not None and epoch >= self.start_decay_at:
-           self.start_decay = True
-        # if self.last_ppl is not None and ppl > self.last_ppl:
-        #    self.start_decay = True
+            self.start_decay = True
+        if self.last_ppl is not None and ppl > self.last_ppl:
+            self.start_decay = True
 
         if self.start_decay:
             self.lr = self.lr * self.lr_decay
