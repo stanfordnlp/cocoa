@@ -43,13 +43,7 @@ scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scena
 
 if not args.agents:
     args.agents = ['rulebased', 'rulebased']
-if hasattr(args, 'checkpoint_files'):
-    if type(args.checkpoint_files) is list:
-        model_path = args.checkpoint_files[0]
-    else:
-        model_path = args.checkpoint_files
-else:
-    model_path = None
+model_path = args.checkpoint
 agents = [get_system(name, args, schema, model_path=model_path) for name in args.agents]
 
 global num_examples

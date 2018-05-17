@@ -556,7 +556,7 @@
                 <div id="modal_description">
                 <p><b>  {{ kb['item']['Title'] }} </b></p>
                 {% if kb['item']['Images']|length >= 1 %}
-                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='images/')}}{{kb['item']['Images'][0]}}"/>
                 {% endif %}
                 <p>
                     {% for s in kb['item']['Description'] %}
@@ -636,7 +636,7 @@
                         {% if attr == 'Title' %}
                             <p><b>{{ kb['item'][attr] }}</b></p>
                             {% if kb['item']['Images']|length >= 1 %}
-                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='img/craigslist/')}}{{kb['item']['Images'][0]}}"/>
+                <img class="img-thumbnail" height="250" width="250" src="{{ url_for('static', filename='images/')}}{{kb['item']['Images'][0]}}"/>
                 {% endif %}
                         {% elif attr == 'Description' %}
                             {% for s in kb['item'][attr] %}

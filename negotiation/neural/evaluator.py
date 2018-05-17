@@ -4,10 +4,10 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
-from cocoa.neural.generator import get_generator
 from cocoa.neural.evaluator import add_evaluator_arguments, \
         Evaluator as BaseEvaluator
 
+from neural.generator import get_generator
 
 class Evaluator(BaseEvaluator):
     def print_results(self, model_opt, batch, utterances):

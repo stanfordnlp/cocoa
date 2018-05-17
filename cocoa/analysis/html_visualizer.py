@@ -83,7 +83,7 @@ class HTMLVisualizer(object):
             except AttributeError:
                 tags = ''
 
-            if event.metadata is None:
+            if not isinstance(event.metadata, dict):
                 response_tag = ''
                 template = ''
                 received_row = None

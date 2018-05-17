@@ -5,14 +5,11 @@ from itertools import count
 from onmt.Utils import use_gpu
 
 from generator import get_generator
+from utterance import UtteranceBuilder
 from symbols import markers
 
 
 def add_evaluator_arguments(parser):
-    group = parser.add_argument_group('Model')
-    group.add_argument('--checkpoint-files', nargs='+', required=True,
-          help='Path to model .pt file, can be multiple files')
-
     group = parser.add_argument_group('Beam')
     group.add_argument('--beam-size',  type=int, default=5,
                        help='Beam size')
@@ -44,17 +41,15 @@ def add_evaluator_arguments(parser):
 
 
 class Evaluator(object):
-    def __init__(self, model, mappings, scorer, builder, gt_prefix=1):
+    def __init__(self, model, mappings, generator, builder, gt_prefix=1):
         self.model = model
         self.gt_prefix = gt_prefix
         self.mappings = mappings
-        self.scorer = scorer
+        self.generator = generator
         self.builder = builder
 
     def evaluate(self, opt, model_opt, data, split='test'):
-        # as opposed to data generator
-        text_generator = get_generator(self.model, self.mappings['tgt_vocab'],
-                     self.scorer, opt)
+        text_generator = self.generator
 
         # Statistics
         counter = count(1)

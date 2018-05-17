@@ -44,9 +44,6 @@ def add_rl_arguments(parser):
     group.add_argument('--learning-rate', type=float, default=1.0,
                        help="""Starting learning rate. Recommended settings:
                        sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
-    group.add_argument('--train-from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                       path to the pretrained model's state_dict.""")
     group.add_argument('--model-path', default='data/checkpoints',
                        help="""Which file the model checkpoints will be saved""")
     group.add_argument('--model-filename', default='model',

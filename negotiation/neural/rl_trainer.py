@@ -46,6 +46,11 @@ class RLTrainer(BaseRLTrainer):
         return True
 
     def _margin_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {'seller': -0.5, 'buyer': -0.5}
+
         rewards = {}
         targets = {}
         kbs = example.scenario.kbs
@@ -55,11 +60,6 @@ class RLTrainer(BaseRLTrainer):
 
         midpoint = (targets['seller'] + targets['buyer']) / 2.
 
-        # No agreement
-        if not self._is_agreed(example):
-            print 'No agreement'
-            return {'seller': -0.5, 'buyer': -0.5}
-
         price = example.outcome['offer']['price']
         norm_factor = abs(midpoint - targets['seller'])
         rewards['seller'] = (price - midpoint) / norm_factor
@@ -68,17 +68,27 @@ class RLTrainer(BaseRLTrainer):
         return rewards
 
     def _length_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {'seller': -0.5, 'buyer': -0.5}
+
         # Encourage long dialogue
         rewards = {}
         for role in ('buyer', 'seller'):
-            rewards[role] = len(example.events)
+            rewards[role] = len(example.events) / 10.
         return rewards
 
     def _fair_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {'seller': -0.5, 'buyer': -0.5}
+
         rewards = {}
         margin_rewards = self._margin_reward(example)
         for role in ('buyer', 'seller'):
-            rewards[role] = -1. * abs(margin_rewards[role] - 0.)
+            rewards[role] = -1. * abs(margin_rewards[role] - 0.) + 2.
         return rewards
 
     def get_reward(self, example):

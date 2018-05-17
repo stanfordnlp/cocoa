@@ -23,6 +23,10 @@ class CmdSession(Session):
             return self.offer({'price': int(tokens[1]), 'sides': ''})
         elif tokens[0] == '<accept>':
             return self.accept()
+        elif tokens[0] == '<reject>':
+            return self.reject()
+        elif tokens[0] == '<quit>':
+            return self.quit()
         else:
             return self.message(message)
 
