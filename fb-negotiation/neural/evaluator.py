@@ -27,7 +27,7 @@ class Evaluator(BaseEvaluator):
             elif not self.model.stateful:
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
-            
+
             batch_data = text_generator.generate_batch(batch, model_opt.model,
                         gt_prefix=self.gt_prefix, enc_state=enc_state)
             utterances = self.builder.from_batch(batch_data)

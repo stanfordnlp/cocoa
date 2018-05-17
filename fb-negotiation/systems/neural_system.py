@@ -19,6 +19,9 @@ from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.evaluator import add_evaluator_arguments
 from neural.utterance import UtteranceBuilder
+from neural.model_builder import add_model_arguments
+from neural import add_data_generator_arguments
+from neural.generator import get_generator
 
 def add_neural_system_arguments(parser):
     parser.add_argument('--decoding', nargs='+', default=['sample', 0],
@@ -68,7 +71,7 @@ class NeuralSystem(System):
 
         preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
         textint_map = TextIntMap(vocab, preprocessor)
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, slot_filling=False, kb_pad=mappings['kb_vocab'].to_ind(markers.PAD), mappings=mappings)
+        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, slot_filling=False, kb_pad=None, mappings=mappings)
         #TODO: class variable is not a good way to do this
         Dialogue.mappings = mappings
         Dialogue.textint_map = textint_map
@@ -97,30 +100,22 @@ class PytorchNeuralSystem(System):
         self.lexicon = lexicon
         self.timed_session = timed
 
-        # Load config and set new args
-        config_path = os.path.join(args.checkpoint, 'config.json')
-        config = read_json(config_path)
-        config['batch_size'] = 1
-        config['gpu'] = 0  # Don't need GPU for batch_size=1
-        config['dropout'] = 0  # Don't want dropout during test split
-        config['decoding'] = args.decoding
-        # Merge config with existing options
-        config_args = argparse.Namespace(**config)
-        for arg in args.__dict__:
-            if arg not in config_args:
-                config_args.__dict__[arg] = args.__dict__[arg]
+        # TODO: do we need the dummy parser?
+        dummy_parser = argparse.ArgumentParser(description='duh')
+        add_model_arguments(dummy_parser)
+        add_data_generator_arguments(dummy_parser)
+        dummy_args = dummy_parser.parse_known_args([])[0]
 
         # Load the model.
         mappings, model, model_args = model_builder.load_test_model(
-                model_path, args, config_args.__dict__)
+                model_path, args, dummy_args.__dict__)
         logstats.add_args('model_args', model_args)
         self.model_name = model_args.model
         utterance_vocab = mappings['utterance_vocab']
         kb_vocab = mappings['kb_vocab']
         self.mappings = mappings
 
-        text_generator = FBnegSampler(model, utterance_vocab, config_args.temperature, 
-                args.max_length, use_gpu(args))
+        text_generator = get_generator(model, utterance_vocab, Scorer(args.alpha), args, model_args)
         builder = UtteranceBuilder(utterance_vocab, args.n_best, has_tgt=True)
 
         preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
@@ -129,9 +124,8 @@ class PytorchNeuralSystem(System):
         remove_symbols = map(utterance_vocab.to_ind, (markers.EOS, markers.PAD))
         use_cuda = use_gpu(args)
 
-        kb_padding = mappings['kb_vocab'].to_ind(markers.PAD)
         dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model=self.model_name,
-            kb_pad=kb_padding, mappings=mappings, num_context=model_args.num_context)
+            kb_pad=None, mappings=mappings, num_context=model_args.num_context)
 
         #TODO: class variable is not a good way to do this
         Dialogue.preprocessor = preprocessor
@@ -145,7 +139,7 @@ class PytorchNeuralSystem(System):
             'max_len', 'dialogue_batcher', 'cuda',
             'dialogue_generator', 'utterance_builder', 'model_args'])
         self.env = Env(model, utterance_vocab, kb_vocab,
-            preprocessor, textint_map, stop_symbol=utterance_vocab.to_ind(markers.EOS), 
+            preprocessor, textint_map, stop_symbol=utterance_vocab.to_ind(markers.EOS),
             remove_symbols=remove_symbols, gt_prefix=1,
             max_len=20, dialogue_batcher=dialogue_batcher, cuda=use_cuda,
             dialogue_generator=text_generator, utterance_builder=builder, model_args=model_args)

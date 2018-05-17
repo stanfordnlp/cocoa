@@ -47,10 +47,10 @@ class FBnegSampler(Sampler):
         to output a selection every timestep, instead just once at the end.
 
         Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 8 x 256)
-        
+
         dec_out = decoder_outputs.transpose(0,1)
         scene_out = memory_banks[-1].transpose(0,1).contiguous().view(batch_size, 1, -1)
-        
+
         select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
 
         sel_h = torch.cat([enc_final.hidden[0], dec_out, memory_banks[2]], 0)
@@ -60,7 +60,7 @@ class FBnegSampler(Sampler):
         select_out = [decoder.forward(sel_init_dec) for decoder in self.model.select_decoders]
         selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0,1)
         # Finally, after transpose we get (batch_size x num_items)
-        
+
         # select_h is (1 x batch_size x (rnn_size+(6 * kb_embed_size)) )
         select_h = self.model.select_encoder.forward(select_h)
         # now select_h is (1 x batch_size x kb_embed_size)
@@ -95,3 +95,19 @@ class FBnegSampler(Sampler):
         ret["gold_score"] = [0] * batch_size
         ret["batch"] = batch
         return ret
+
+def get_generator(model, vocab, scorer, args, model_args):
+    from cocoa.pt_model.util import use_gpu
+    if args.sample:
+        if model_args.model == 'lf2lf':
+            raise NotImplementedError
+            #generator = LFSampler(model, vocab, args.temperature,
+            #                    max_length=args.max_length,
+            #                    cuda=use_gpu(args))
+        else:
+            generator = FBnegSampler(model, vocab, args.temperature,
+                                max_length=args.max_length,
+                                cuda=use_gpu(args))
+    else:
+        raise ValueError('Beam search not available yet.')
+    return generator

@@ -105,6 +105,9 @@ class NeuralSession(Session):
         self.dialogue = Dialogue(agent, kb, fake_outcome, None)
         self.max_len = 100
 
+        self.dialogue.scenario_to_int()
+        self.dialogue.selection_to_int()
+
     # TODO: move this to preprocess?
     def convert_to_int(self):
         for i, turn in enumerate(self.dialogue.token_turns):
@@ -114,20 +117,18 @@ class NeuralSession(Session):
                 else:
                     # Already converted
                     pass
-        self.dialogue.scenario_to_int()
-        self.dialogue.selection_to_int()
 
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
         # Parse utterance
-        selection = [event.data] if event.action == "select" else None
-        utterance = self.env.preprocessor.process_event(event, self.kb, selection)
+        # We cannot see partner's selection
+        utterance = self.env.preprocessor.process_event(event, self.agent, None)
         # Empty message
         if utterance is None:
             return
 
-        print 'receive:', utterance
+        #print 'receive:', utterance
         self.dialogue.add_utterance(event.agent, utterance)
 
     def _has_entity(self, tokens):
@@ -150,7 +151,7 @@ class NeuralSession(Session):
 
         if len(tokens) > 0:
             if tokens[0] == markers.SELECT:
-                proposal = {'book': tokens[1], 'hat': tokens[2], 'ball': tokens[3]}
+                proposal = {'book': int(tokens[1]), 'hat': int(tokens[2]), 'ball': int(tokens[3])}
                 return self.select(proposal)
             elif tokens[0] == markers.QUIT:
                 return self.quit()
@@ -211,7 +212,7 @@ class PytorchNeuralSession(NeuralSession):
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
         enc_state = self.dec_state.hidden if self.dec_state is not None else None
-        output_data = self.generator.generate_batch(batch, self.env.model.modeltype, 
+        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
                 gt_prefix=self.gt_prefix, enc_state=enc_state)
 
         if self.stateful:
@@ -219,7 +220,7 @@ class PytorchNeuralSession(NeuralSession):
             self.dec_state = output_data['dec_states']
         else:
             self.dec_state = None
-        
+
         entity_tokens = self._output_to_tokens(output_data)
         #if not self._is_valid(entity_tokens):
         #    return None
@@ -236,7 +237,7 @@ class PytorchNeuralSession(NeuralSession):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
         is_select_action = (len(tokens) > 0) and (tokens[0] == markers.SELECT)
-        is_select_model = self.env.model.modeltype == "seq_select" 
+        is_select_model = self.env.model.modeltype == "seq_select"
         if is_select_action and is_select_model:
             select_items = data["selections"].data.cpu().numpy()[0]
             select_tokens = [self.kb_vocab.to_word(x) for x in select_items]

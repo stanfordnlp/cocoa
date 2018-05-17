@@ -20,7 +20,7 @@ from cocoa.neural.utterance import UtteranceBuilder
 import onmt
 from onmt.Utils import use_gpu
 
-from neural.loss import FBnegLossCompute
+from neural.loss import FBnegLossCompute, SimpleLossCompute
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
@@ -68,14 +68,17 @@ def build_optim(opt, model, checkpoint):
 
     return optim
 
-def build_trainer(opt, model, vocab, optim):
-    train_loss = make_loss(opt, model, vocab)
-    valid_loss = make_loss(opt, model, vocab)
+def build_trainer(opt, model, mappings, optim):
+    train_loss = make_loss(opt, model, mappings)
+    valid_loss = make_loss(opt, model, mappings)
     trainer = FBnegTrainer(model, train_loss, valid_loss, optim)
     return trainer
 
-def make_loss(opt, model, tgt_vocab):
-    loss = FBnegLossCompute(model.generator, tgt_vocab, opt.model)
+def make_loss(opt, model, mappings):
+    if opt.model == 'seq2seq':
+        loss = SimpleLossCompute(model.generator, mappings['tgt_vocab'])
+    else:
+        loss = FBnegLossCompute(model.generator, tgt_vocab, opt.model)
     if use_gpu(opt):
         loss.cuda()
     return loss

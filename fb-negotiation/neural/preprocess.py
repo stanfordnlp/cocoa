@@ -82,8 +82,8 @@ class Dialogue(object):
         self.agent = agent
         self.kb = kb
         self.model = model
-        self.scenario = self.embed_scenario(kb)
-        self.selection = self.embed_selection(outcome['item_split'])
+        self.scenario = self.process_scenario(kb)
+        self.selection = self.process_selection(outcome['item_split'])
         # token_turns: tokens and entitys (output of entity linking)
         self.token_turns = []
         # parsed logical forms
@@ -199,20 +199,23 @@ class Dialogue(object):
     def scenario_to_int(self):
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
-    def embed_scenario(self, kb):
-        attributes = ["Count", "Value"]  # "Name"
-        scenario = [str(fact[attr]) for fact in kb.items for attr in attributes]
+    def process_scenario(self, kb):
+        attributes = ("Count", "Value")  # "Name"
+        scenario = ['{value}'.format(value=fact[attr])
+            for fact in kb.items for attr in attributes]
         assert(len(scenario) == 6)
         return scenario
 
     def selection_to_int(self):
-        self.selection = map(self.mappings['kb_vocab'].to_ind, self.selection)
+        # TODO: have a different vocab
+        self.selection = map(self.mappings['utterance_vocab'].to_ind, self.selection)
 
-    def embed_selection(self, item_split):
+    def process_selection(self, item_split):
         selection = []
-        for agent_split in item_split:
-            for item in ["book", "hat", "ball"]:
-                selection.append(str(agent_split[item]))
+        for agent, agent_name in izip((self.agent, 1-self.agent), ('my', 'your')):
+            for item in ("book", "hat", "ball"):
+                selection.append('{item}={count}'.format(
+                    item=item, count=item_split[agent][item]))
         assert(len(selection) == 6)
         return selection
 
@@ -294,7 +297,7 @@ class Preprocessor(object):
         else:
             return [self.get_entity_form(x, self.entity_forms[stage]) if is_entity(x) else x for x in utterance]
 
-    def process_event(self, e, kb, sel=None):
+    def process_event(self, e, agent, sel=None):
         # Lower, tokenize, link entity
         if e.action == 'message':
             entity_tokens = self.lexicon.link_entity(tokenize(e.data))
@@ -307,8 +310,13 @@ class Preprocessor(object):
             where each agent is a dict with 3 keys: book, hat, ball
             '''
             entity_tokens = [markers.SELECT]
-            selections = [a[item] for a in sel for item in self.lexicon.items]
-            entity_tokens.extend([str(x) for x in selections])
+            if e.agent == agent:
+                entity_tokens.extend(['{count}'.format(count=sel[agent][item]) for item in self.lexicon.items])
+            ## First my selection, then partner selection
+            #selections = []
+            #for agent in (e.agent, 1 - e.agent):
+            #    selections.extend([sel[agent][item] for item in self.lexicon.items])
+            #entity_tokens.extend([str(x) for x in selections])
             return entity_tokens
         elif e.action == 'quit':
             entity_tokens = [markers.QUIT]
@@ -331,7 +339,7 @@ class Preprocessor(object):
                     utterance = dialogue.lf_to_tokens(lf)
                 else:
                     sel = ex.outcome['item_split']
-                    utterance = self.process_event(e, dialogue.kb, sel)
+                    utterance = self.process_event(e, dialogue.agent, sel)
                 if utterance:
                     dialogue.add_utterance(e.agent, utterance, lf=e.metadata)
             yield dialogue
@@ -412,8 +420,9 @@ class DataGenerator(object):
 
         #global int_markers
         #int_markers = SpecialSymbols(*[self.mappings['utterance_vocab'].to_ind(m) for m in markers])
+        # kb is alwyas 6 numbers, no padding
         self.dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model,
-                kb_pad=self.mappings['kb_vocab'].to_ind(markers.PAD),
+                kb_pad=None,
                 mappings=self.mappings, num_context=num_context)
 
         self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
