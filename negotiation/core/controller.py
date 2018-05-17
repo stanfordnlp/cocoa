@@ -1,8 +1,8 @@
 from cocoa.core.controller import Controller as BaseController
 
 class Controller(BaseController):
-    def __init__(self, scenario, sessions, chat_id=None):
-        super(Controller, self).__init__(scenario, sessions, chat_id)
+    def __init__(self, scenario, sessions, chat_id=None, session_names=(None, None)):
+        super(Controller, self).__init__(scenario, sessions, chat_id, session_names=session_names)
         # self.prices = [None, None]
         self.offers = [None, None]
         # self.sides = [None, None]

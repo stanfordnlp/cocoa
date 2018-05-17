@@ -37,14 +37,16 @@ class Visualizer(BaseVisualizer):
 
     def print_results(self, results):
         systems = sorted(results.keys())
-        print '{:<20s} {:<10s} {:<10s} {:<10s}'.format('system', 'success', 'margin', 'length')
+        print '{:<20s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('system', 'success', 'margin', 'length', '#examples')
         for system in systems:
             res = results[system]
-            print '{:<20s} {:<10.2f} {:<10.2f} {:<10.2f}'.format(
+            print '{:<20s} {:<10.2f} {:<10.2f} {:<10.2f} {:<10d}'.format(
                     system,
                     res['success rate'],
                     res['average margin'],
-                    res['average length'],)
+                    res['average length'],
+                    res['num examples'],
+                    )
 
     def compute_effectiveness_for_system(self, examples, system):
         num_success = 0
@@ -70,4 +72,5 @@ class Visualizer(BaseVisualizer):
         return {'success rate': num_success / (float(len(examples)) + 1e-5),
                 'average margin': final_offer / (float(num_success) + 1e-5),
                 'average length': length / (float(len(examples)) + 1e-5),
+                'num examples': len(examples),
                 }

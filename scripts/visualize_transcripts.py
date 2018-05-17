@@ -26,12 +26,16 @@ if __name__ == '__main__':
             help='Path to json file containing chat_id to worker_id mappings')
     parser.add_argument('--hist', default=False, action='store_true',
             help='Plot histgram of ratings')
+    parser.add_argument('--survey-only', default=False, action='store_true',
+            help='Only analyze dialogues with survey (completed)')
+    parser.add_argument('--base-agent', default='human',
+            help='Agent to compare against')
 
     HTMLVisualizer.add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 
     visualizer = Visualizer(args.dialogue_transcripts, args.survey_transcripts)
-    results = visualizer.compute_effectiveness()
+    results = visualizer.compute_effectiveness(with_survey=args.survey_only, base_agent=args.base_agent)
     visualizer.print_results(results)
 
     if args.hist:

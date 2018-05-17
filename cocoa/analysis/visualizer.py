@@ -213,18 +213,18 @@ class Visualizer(object):
     def print_results(self, results):
         print results
 
-    def compute_effectiveness(self, with_survey=True):
+    def compute_effectiveness(self, base_agent='human', with_survey=True):
         chats = defaultdict(list)
         dialogues_with_survey = self.dialogues_with_survey()
         for raw in self.chats:
             ex = Example.from_dict(raw, Scenario)
             if self.skip_example(ex) or (with_survey and not ex.ex_id in dialogues_with_survey):
                 continue
-            if ex.agents[0] == 'human' and ex.agents[1] == 'human':
-                chats['human'].append(ex)
-            elif ex.agents[0] != 'human':
+            if ex.agents[0] == base_agent and ex.agents[1] == base_agent:
+                chats[base_agent].append(ex)
+            elif ex.agents[0] != base_agent:
                 chats[ex.agents[0]].append(ex)
-            elif ex.agents[1] != 'human':
+            elif ex.agents[1] != base_agent:
                 chats[ex.agents[1]].append(ex)
 
         # TODO: factor

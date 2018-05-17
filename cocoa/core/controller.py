@@ -10,10 +10,11 @@ class Controller(object):
     """
     Interface of the controller: takes two systems and run them to generate a dialgoue.
     """
-    def __init__(self, scenario, sessions, chat_id=None, allow_cross_talk=False):
+    def __init__(self, scenario, sessions, chat_id=None, allow_cross_talk=False, session_names=(None, None)):
         self.lock = Lock()
         self.scenario = scenario
         self.sessions = sessions
+        self.session_names = session_names
         self.chat_id = chat_id
         assert len(self.sessions) == 2
         self.events = []
@@ -81,7 +82,8 @@ class Controller(object):
             print('outcome: %s' % outcome)
             print('----------------')
         # TODO: add configurable names to systems and sessions
-        return Example(self.scenario, uuid, self.events, outcome, uuid, None)
+        agent_names = {'0': self.session_names[0], '1': self.session_names[1]}
+        return Example(self.scenario, uuid, self.events, outcome, uuid, agent_names)
 
     def step(self, backend=None):
         '''
