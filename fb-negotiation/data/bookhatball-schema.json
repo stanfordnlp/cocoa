@@ -1,0 +1,10 @@
+{
+    "values": {
+        "item": ["ball", "hat", "book"]
+    },
+    "attributes": [
+      {"name": "Name", "value_type": "item", "entity": true},
+      {"name": "Count", "value_type": "integer", "entity": true},
+      {"name": "Value", "value_type": "integer", "entity": true}
+    ]
+}
