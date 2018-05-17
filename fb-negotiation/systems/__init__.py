@@ -1,6 +1,5 @@
 from core.lexicon import Lexicon
-# from model.manager import Manager
-# from model.retriever import Retriever, add_retriever_arguments
+from model.manager import Manager
 from model.generator import Templates, Generator
 
 from rulebased_system import RulebasedSystem, add_rulebased_arguments
@@ -12,7 +11,7 @@ def add_system_arguments(parser):
     parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
     # add_hybrid_arguments(parser)
     add_neural_system_arguments(parser)
-    # add_rulebased_arguments(parser)
+    add_rulebased_arguments(parser)
     # add_retriever_arguments(parser)
 
 def get_system(name, args, schema=None, timed=False, model_path=None):
