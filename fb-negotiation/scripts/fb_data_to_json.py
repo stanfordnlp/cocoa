@@ -4,6 +4,7 @@ import string
 import sys
 import pdb
 import time as tm
+import argparse
 
 def generate_uuid(prefix):
   return prefix + '_' + ''.join([random.choice(string.digits + string.letters) for _ in range(16)])
@@ -218,11 +219,15 @@ def process_lines(parsed):
   return cleaned
 
 if __name__ == "__main__":
-  for split in ["val", "test", "train"]:
-    in_filename = "{}.txt".format(split)
-    out_filename = "transformed_{}.json".format(split)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input-dir')
+    parser.add_argument('--output-dir')
+    args = parser.parse_args()
+    for split in ("val", "test", "train"):
+        in_filename = "{}/{}.txt".format(args.input_dir, split)
+        out_filename = "{}/{}.json".format(args.output_dir, split)
 
-    raw_in = read_file(in_filename)
-    parsed = parse_lines(raw_in)
-    cleaned = process_lines(parsed)
-    store_lines(out_filename, cleaned)
+        raw_in = read_file(in_filename)
+        parsed = parse_lines(raw_in)
+        cleaned = process_lines(parsed)
+        store_lines(out_filename, cleaned)
