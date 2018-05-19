@@ -75,7 +75,7 @@ def build_trainer(opt, model, mappings, optim):
     return trainer
 
 def make_loss(opt, model, mappings):
-    if opt.model == 'seq2seq':
+    if opt.model in ('seq2seq', 'lf2lf'):
         loss = SimpleLossCompute(model.generator, mappings['tgt_vocab'])
     else:
         loss = FBnegLossCompute(model.generator, tgt_vocab, opt.model)

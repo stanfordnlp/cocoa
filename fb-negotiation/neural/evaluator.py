@@ -3,9 +3,10 @@ import os
 from itertools import count
 from cocoa.pt_model.util import use_gpu
 
-from neural.generator import FBnegSampler
 from cocoa.neural.evaluator import add_evaluator_arguments, \
         Evaluator as BaseEvaluator
+
+from neural.generator import get_generator
 
 class Evaluator(BaseEvaluator):
     def evaluate(self, opt, model_opt, data, split='test'):

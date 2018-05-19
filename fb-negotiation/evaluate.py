@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
     # Load the model.
     mappings, model, model_args = \
-        model_builder.load_test_model(args.checkpoint_files[0], args, dummy_args.__dict__)
+        model_builder.load_test_model(args.checkpoint, args, dummy_args.__dict__)
 
     # Figure out src and tgt vocab
     make_model_mappings(model_args.model, mappings)
@@ -50,6 +50,7 @@ if __name__ == '__main__':
 
     # Prefix: [GO]
     scorer = Scorer(args.alpha)
+    generator = get_generator(model, mappings['tgt_vocab'], scorer, args, model_args)
     builder = UtteranceBuilder(mappings['tgt_vocab'], args.n_best, has_tgt=True)
-    evaluator = Evaluator(model, mappings, scorer, builder, gt_prefix=1)
+    evaluator = Evaluator(model, mappings, generator, builder, gt_prefix=1)
     evaluator.evaluate(args, model_args, data_generator)

@@ -100,14 +100,16 @@ class UtteranceBuilder(object):
 
         utterances = []
         for b in range(batch_size):
-            src_raw = batch.context_data['encoder_tokens'][b]
+            #src_raw = batch.context_data['encoder_tokens'][b]
+            src_raw = map(self.vocab.to_word, batch.encoder_inputs.data[:, b])
             if not batch.context_data['decoder_tokens'][b]:
                 continue
             pred_sents = [self.build_target_tokens(preds[b][n])
                           for n in range(self.n_best)]
             gold_sent = None
             if tgt is not None:
-                gold_sent = self.build_target_tokens(tgt[:, b])
+                #gold_sent = self.build_target_tokens(tgt[:, b])
+                gold_sent = map(self.vocab.to_word, tgt[:, b])
 
             utterance = Utterance(src_raw, pred_sents,
                                   attn[b], pred_score[b], gold_sent,

@@ -9,27 +9,29 @@ import argparse
 def generate_uuid(prefix):
   return prefix + '_' + ''.join([random.choice(string.digits + string.letters) for _ in range(16)])
 
-def populate_events(dialogue, outcome):
+def populate_events(dialogue, item_split):
   events = []
   timestep = 0
   turns = []
-  token_turns = [0]
+  token_turns = []
 
-  if dialogue[0] == "THEM:":
-    agents = {"THEM:": 0, "YOU:": 1}
-  elif dialogue[0] == "YOU:":
-    agents = {"THEM:": 1, "YOU:": 0}
-  else:
-    print "ERROR:", dialogue
-    sys.exit()
+  #if dialogue[0] == "THEM:":
+  #  agents = {"THEM:": 0, "YOU:": 1}
+  #elif dialogue[0] == "YOU:":
+  #  agents = {"THEM:": 1, "YOU:": 0}
+  #else:
+  #  print "ERROR:", dialogue
+  #  sys.exit()
+  agents = {"YOU:": 0, "THEM:": 1}
 
   for token in dialogue:
-    if token in ["THEM:", "YOU:"] and len(token_turns) > 1:
-      # we are in a new turn, close the previous turn
-      turns.append(token_turns)
+    if token in ["THEM:", "YOU:"]:
+      if len(token_turns) > 0:
+        # we are in a new turn, close the previous turn
+        turns.append(token_turns)
       # start a new turn
       token_turns = [agents[token]]
-    elif token not in ["<eos>", "THEM:", "YOU:"]:
+    elif token not in ["<eos>"]:
       token_turns.append(token)
   # grab the last selection token
   if len(token_turns) > 1:
@@ -37,11 +39,17 @@ def populate_events(dialogue, outcome):
 
   for turn in turns:
     if turn[1] == "<selection>":
-      event = create_one_event(turn[0], timestep, turn[1], "select")
+      # item_split[0] is agent=0 is "YOU"
+      event = create_one_event(turn[0], timestep, item_split[turn[0]], "select")
+      events.append(event)
+      timestep += 1
+      event = create_one_event(1-turn[0], timestep, item_split[1-turn[0]], "select")
+      events.append(event)
+      timestep += 1
     else:  # message actions
       event = create_one_event(turn[0], timestep, turn[1:])
-    events.append(event)
-    timestep += 1
+      events.append(event)
+      timestep += 1
 
   return events
 
@@ -98,10 +106,21 @@ def store_lines(outfile, cleaned):
     json.dump(cleaned, file)
   print("Completed saving {0} lines into {1}".format(len(cleaned), outfile) )
 
+def remove_speaker_id(line):
+    line = [x for x in line if x not in ('YOU:', 'THEM:')]
+    return line
+
 def parse_lines(raw):
   parsed = []
   for line in raw:
     result = parse_one_line(line.split())
+    # Skip invalid chat
+    if result['output'][0] in ["<disagree>", "<disconnect>", "<no_agreement>"]:
+        continue
+    # Skip repeated chat
+    if parsed and remove_speaker_id(result['dialogue']) == \
+            remove_speaker_id(parsed[-1]['dialogue']):
+        continue
     parsed.append(result)
   return parsed
 
@@ -203,19 +222,27 @@ def determine_validity(data):
 
 def process_lines(parsed):
   cleaned = []
-  for data in parsed:
+  for i, data in enumerate(parsed):
     uuid = generate_uuid("E")
     scenario_id = generate_uuid("FB")
     world = {
       "uuid": uuid,
       "scenario": create_scenario(data, scenario_id),
-      "agents_info": {"config": [8, 5, 10]},
+      "agents_info": {},
       "scenario_uuid": scenario_id,
       "agents": {0: "human", 1: "human"},
       "outcome": create_outcome(data),
     }
-    world["events"] = populate_events(data["dialogue"], world["outcome"]['item_split'][0])
+    world["events"] = populate_events(data["dialogue"], world["outcome"]['item_split'])
     cleaned.append(world)
+
+  for world in cleaned:
+      print '-'*20
+      for event in world["events"]:
+          print event
+      print world['outcome']
+      print '-'*20
+
   return cleaned
 
 if __name__ == "__main__":
@@ -223,6 +250,7 @@ if __name__ == "__main__":
     parser.add_argument('--input-dir')
     parser.add_argument('--output-dir')
     args = parser.parse_args()
+    random.seed(0)
     for split in ("val", "test", "train"):
         in_filename = "{}/{}.txt".format(args.input_dir, split)
         out_filename = "{}/{}.json".format(args.output_dir, split)

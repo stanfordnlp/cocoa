@@ -91,14 +91,15 @@ class RLTrainer(BaseRLTrainer):
             rewards[role] = -1. * abs(margin_rewards[role] - 0.) + 2.
         return rewards
 
-    def get_reward(self, example):
+    def get_reward(self, example, session):
         if not self._is_valid_dialogue(example):
             print 'Invalid'
-            return {'seller': -1., 'buyer': -1.}
+            rewards = {'seller': -1., 'buyer': -1.}
         if self.reward_func == 'margin':
-            return self._margin_reward(example)
+            rewards = self._margin_reward(example)
         elif self.reward_func == 'fair':
-            return self._fair_reward(example)
+            rewards = self._fair_reward(example)
         elif self.reward_func == 'length':
-            return self._length_reward(example)
+            rewards = self._length_reward(example)
+        reward = rewards[session.kb.role]
         return reward

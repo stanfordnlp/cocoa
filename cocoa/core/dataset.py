@@ -34,7 +34,7 @@ class Example(object):
         else:
             raise ValueError('No scenario')
         uuid = raw['scenario_uuid']
-        events = Event.gather_eval([Event.from_dict(e) for e in raw['events']])
+        events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
         ex_id = raw['uuid']
         if 'agents' in raw:
@@ -47,7 +47,7 @@ class Example(object):
     @classmethod
     def test_dict(cls, raw):
         uuid = raw['scenario_uuid']
-        events = Event.gather_eval([Event.from_dict(e) for e in raw['events']])
+        events = [Event.from_dict(e) for e in raw['events']]
         outcome = raw['outcome']
         ex_id = raw['uuid']
         if 'agents' in raw:

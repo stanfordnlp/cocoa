@@ -158,42 +158,7 @@ class RLTrainer(Trainer):
                     self.agents[1].new_session(1, kbs[1])]
         return Controller(scenario, sessions)
 
-    def _margin_reward(self, example):
-        rewards = {}
-        targets = {}
-        kbs = example.scenario.kbs
-        for agent_id in (0, 1):
-            kb = kbs[agent_id]
-            targets[kb.role] = kb.target
-
-        midpoint = (targets['seller'] + targets['buyer']) / 2.
-
-        # No agreement
-        if example.outcome['reward'] == 0 or example.outcome['offer'] is None:
-            return {'seller': -0.5, 'buyer': -0.5}
-
-        price = example.outcome['offer']['price']
-        norm_factor = abs(midpoint - targets['seller'])
-        rewards['seller'] = (price - midpoint) / norm_factor
-        # Zero sum
-        rewards['buyer'] = -1. * rewards['seller']
-        return rewards
-
-    def _length_reward(self, example):
-        # Encourage long dialogue
-        rewards = {}
-        for role in ('buyer', 'seller'):
-            rewards[role] = len(example.events)
-        return rewards
-
-    def _fair_reward(self, example):
-        rewards = {}
-        margin_rewards = self._margin_reward(example)
-        for role in ('buyer', 'seller'):
-            rewards[role] = -1. * abs(margin_rewards[role] - 0.)
-        return rewards
-
-    def get_reward(self, example):
+    def get_reward(self, example, session):
         raise NotImplementedError
 
     def validate(self, args):
@@ -204,9 +169,8 @@ class RLTrainer(Trainer):
         for scenario in self.scenarios[split][:200]:
             controller = self._get_controller(scenario, split=split)
             example = controller.simulate(args.max_turns, verbose=args.verbose)
-            rewards = self.get_reward(example)
             session = controller.sessions[self.training_agent]
-            reward = rewards[session.kb.role]
+            reward = self.get_reward(example, session)
             stats = Statistics(reward=reward)
             total_stats.update(stats)
         print '='*20, 'END VALIDATION', '='*20
@@ -247,8 +211,7 @@ class RLTrainer(Trainer):
                     continue
 
                 # Compute reward
-                rewards = self.get_reward(example)
-                reward = rewards[session.kb.role]
+                reward = self.get_reward(example, session)
                 # Standardize the reward
                 all_rewards = self.all_rewards[session_id]
                 all_rewards.append(reward)

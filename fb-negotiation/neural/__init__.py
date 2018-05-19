@@ -31,7 +31,8 @@ def get_data_generator(args, model_args, schema, test=False):
     retriever = None
     trie_path = None
 
-    lexicon = Lexicon(['book', 'hat', 'ball'])
+    #lexicon = Lexicon(['book', 'hat', 'ball'])
+    lexicon = Lexicon(schema.values['item'])
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
         model_args.entity_decoding_form, model_args.entity_target_form,
         model=model_args.model)

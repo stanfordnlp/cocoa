@@ -29,13 +29,15 @@ class Controller(BaseController):
 
         for item, count in self.scenario.kbs[0].item_counts.iteritems():
             item_proposal = first_agent_proposal[item] + second_agent_proposal[item]
-            try: 
+            try:
                 temp = int(item_proposal)
             except(ValueError):
                 print("Failed because item proposal recieved an invalid number")
                 return False
             if int(count) != int(item_proposal):
                 print("Failed because proposed selections do not add up to actual item counts")
+                print '{item} total={count}, but proposed total={proposal}'.format(
+                        item=item, count=count, proposal=item_proposal)
                 return False
 
         return True

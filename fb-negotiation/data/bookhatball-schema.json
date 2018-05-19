@@ -1,6 +1,6 @@
 {
     "values": {
-        "item": ["ball", "hat", "book"]
+        "item": ["book", "hat", "ball"]
     },
     "attributes": [
       {"name": "Name", "value_type": "item", "entity": true},

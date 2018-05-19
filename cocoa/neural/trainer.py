@@ -237,7 +237,7 @@ class Trainer(object):
                 dec_state = None
             enc_state = dec_state.hidden if dec_state is not None else None
 
-            outputs, attns, _ = self._run_batch(batch, None, enc_state)
+            outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
             _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
             stats.update(batch_stats)
 

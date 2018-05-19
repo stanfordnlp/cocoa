@@ -14,6 +14,7 @@ from session import Session
 from neural.preprocess import markers, Dialogue
 from neural.evaluator import Evaluator, add_evaluator_arguments
 from neural.batcher import Batch, LMBatch
+from neural.symbols import markers
 
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
@@ -121,8 +122,6 @@ class NeuralSession(Session):
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
-        # Parse utterance
-        # We cannot see partner's selection
         utterance = self.env.preprocessor.process_event(event, self.agent, None)
         # Empty message
         if utterance is None:
@@ -147,16 +146,16 @@ class NeuralSession(Session):
         if tokens is None:
             return None
         self.dialogue.add_utterance(self.agent, list(tokens))
-        tokens = self.builder.entity_to_str(tokens, self.kb)
+        #tokens = self.builder.entity_to_str(tokens, self.kb)
 
         if len(tokens) > 0:
             if tokens[0] == markers.SELECT:
-                proposal = {'book': int(tokens[1]), 'hat': int(tokens[2]), 'ball': int(tokens[3])}
+                proposal = {item: int(count) for item, count in izip(self.items, tokens[1:4])}
                 return self.select(proposal)
             elif tokens[0] == markers.QUIT:
                 return self.quit()
 
-        s = self.attach_punct(' '.join(tokens))
+        s = self.attach_punct(' '.join([str(x) for x in tokens]))
         #print 'send:', s
         return self.message(s)
 
@@ -213,11 +212,12 @@ class PytorchNeuralSession(NeuralSession):
         batch = self._create_batch()
         enc_state = self.dec_state.hidden if self.dec_state is not None else None
         output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
-                gt_prefix=self.gt_prefix, enc_state=enc_state)
+                gt_prefix=self.gt_prefix, enc_state=enc_state, kb=self.kb)
 
         if self.stateful:
             # TODO: only works for Sampler for now. cannot do beam search.
             self.dec_state = output_data['dec_states']
+            self.dec_state = None
         else:
             self.dec_state = None
 
@@ -260,4 +260,39 @@ class PytorchNeuralSession(NeuralSession):
                           self.env.vocab,
                           num_context=Dialogue.num_context, cuda=self.env.cuda)
             yield batch
+
+class PytorchLFNeuralSession(PytorchNeuralSession):
+    def __init__(self, agent, kb, env):
+        super(PytorchLFNeuralSession, self).__init__(agent, kb, env)
+        self.items = env.preprocessor.lexicon.items
+        self.proposal = None
+
+    def receive(self, event):
+        if event.action in Event.decorative_events:
+            return
+        if event.action == 'select':
+            utterance = [markers.SELECT]
+        else:
+            utterance = event.data.split()
+            # Compute what they want for us
+            if utterance[0] in ('propose', 'insist'):
+                counts = [int(x) for x in utterance[1:]]
+                my_counts = [self.kb.item_counts[item] - count for \
+                        item, count in izip(self.items, counts)]
+                utterance = ['propose'] + [str(c) for c in my_counts]
+        # Empty message
+        if utterance is None:
+            return
+
+        #print 'receive:', utterance
+        self.dialogue.add_utterance(event.agent, utterance)
+
+    def generate(self):
+        tokens = super(PytorchLFNeuralSession, self).generate()
+        if tokens[0] in ('propose', 'insist'):
+            self.proposal = {item: int(count) \
+                    for item, count in izip(self.items, tokens[1:4])}
+        elif tokens[0] == markers.SELECT and self.proposal is not None:
+            tokens = [markers.SELECT] + [self.proposal[item] for item in self.items]
+        return tokens
 

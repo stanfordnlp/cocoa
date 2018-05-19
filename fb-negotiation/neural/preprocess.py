@@ -10,6 +10,7 @@ import numpy as np
 import pdb
 from itertools import izip, izip_longest
 from collections import namedtuple, defaultdict
+import copy
 
 from cocoa.core.util import read_pickle, write_pickle, read_json
 from cocoa.core.entity import Entity, CanonicalEntity, is_entity
@@ -165,13 +166,17 @@ class Dialogue(object):
             self.entities[-1].extend(entities)
             self.lfs[-1].extend(lf)
 
-    def lf_to_tokens(self, lf):
+    def lf_to_tokens(self, lf, proposal=None, items=None):
         intent = lf['intent']
         if intent == 'select':
             intent = markers.SELECT
         elif intent == 'quit':
             intent = markers.QUIT
-        return [intent]
+        tokens = [intent]
+        if proposal is not None:
+            for item in items:
+                tokens.append(str(proposal['me'][item]))
+        return tokens
 
     def _insert_markers(self, agent, utterance, new_turn):
         ''' Add start of sentence and end of sentence markers, ignore other
@@ -335,8 +340,26 @@ class Preprocessor(object):
             for e in ex.events:
                 if self.model in ('lf2lf', 'lflm'):
                     lf = e.metadata
+                    proposal = None
                     assert lf is not None
-                    utterance = dialogue.lf_to_tokens(lf)
+                    # TODO: hack
+                    if lf.get('proposal') is not None:
+                        proposal = {'me': {}, 'you': {}}
+                        # Parser is from the receiver's perspective
+                        received_proposal = {int(k): v for k, v in lf['proposal'].iteritems()}
+                        proposal['me'] = received_proposal[dialogue.agent]
+                        proposal['you'] = received_proposal[1-dialogue.agent]
+                    if e.action == 'select':
+                        if e.agent != dialogue.agent:
+                            proposal = None
+                        else:
+                            sel = ex.outcome['item_split']
+                            proposal = {'me': {}, 'you': {}}
+                            for item, count in sel[dialogue.agent].iteritems():
+                                proposal['me'][item] = count
+                            for item, count in sel[1-dialogue.agent].iteritems():
+                                proposal['you'][item] = count
+                    utterance = dialogue.lf_to_tokens(lf, proposal, items=self.lexicon.items)
                 else:
                     sel = ex.outcome['item_split']
                     utterance = self.process_event(e, dialogue.agent, sel)

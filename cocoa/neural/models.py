@@ -10,7 +10,7 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 import onmt
 from onmt.Utils import aeq
 
-from attention import MultibankGlobalAttention, GlobalAttention
+from attention import MultibankGlobalAttention, GlobalAttention, MultibankConcatGlobalAttention
 
 def rnn_factory(rnn_type, **kwargs):
     # Use pytorch version when available.
@@ -723,4 +723,18 @@ class MultiAttnDecoder(StdRNNDecoder):
 
         self.attn = MultibankGlobalAttention(
             hidden_size, coverage=coverage_attn, attn_type=attn_type)
+
+class MultiAttnConcatDecoder(StdRNNDecoder):
+
+    def __init__(self, rnn_type, bidirectional_encoder, num_layers,
+            hidden_size, memory_sizes, attn_type="general", coverage_attn=False,
+            context_gate=None, copy_attn=False, dropout=0.0,
+            embeddings=None, reuse_copy_attn=False, pad=None):
+        attn_type = attn_type[10:]
+        super(MultiAttnConcatDecoder, self).__init__(rnn_type, bidirectional_encoder,
+              num_layers, hidden_size, attn_type, coverage_attn,
+              context_gate, copy_attn, dropout, embeddings, reuse_copy_attn, pad)
+
+        self.attn = MultibankConcatGlobalAttention(
+            hidden_size, memory_sizes, coverage=coverage_attn, attn_type=attn_type)
 

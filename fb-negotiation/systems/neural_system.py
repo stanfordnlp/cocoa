@@ -8,12 +8,11 @@ from cocoa.core.util import read_pickle, read_json
 from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
 from cocoa.neural.beam import Scorer
-from neural.generator import FBnegSampler
 
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
-from sessions.neural_session import PytorchNeuralSession
+from sessions.neural_session import PytorchNeuralSession, PytorchLFNeuralSession
 from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
@@ -150,8 +149,10 @@ class PytorchNeuralSystem(System):
 
     def new_session(self, agent, kb):
         known_models = ('seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'seq_select', 'lf2lf', 'lflm')
-        if self.model_name in known_models:
-            session = PytorchNeuralSession(agent, kb, self.env)
-        else:
+        if not self.model_name in known_models:
             raise ValueError('Unknown model name {}'.format(self.model_name))
+        elif self.model_name == 'lf2lf':
+            session = PytorchLFNeuralSession(agent, kb, self.env)
+        else:
+            session = PytorchNeuralSession(agent, kb, self.env)
         return session

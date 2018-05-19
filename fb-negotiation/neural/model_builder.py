@@ -12,7 +12,7 @@ import onmt.modules
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
-              MultiAttnDecoder, NMTModel
+              MultiAttnDecoder, NMTModel, MultiAttnConcatDecoder
 from models import FBNegotiationModel
 
 from cocoa.io.utils import read_pickle
@@ -167,7 +167,7 @@ def make_selectors(opt, kb_dict):
        nn.Linear(opt.sel_hid_size, 6 * kb_dict.size)  # 128 to 60
     )
     '''
-    nn.ModuleList()                                        
+    nn.ModuleList()
     for i in xrange(6):
         selectors["dec"].append(nn.Linear(opt.kb_embed_size*2, kb_dict.size))
     '''
@@ -197,8 +197,16 @@ def make_decoder(opt, embeddings, tgt_dict):
     bidirectional = True if opt.encoder_type == 'brnn' else False
     pad = tgt_dict.to_ind(markers.PAD)
     if "multibank" in opt.global_attention:
-        return MultiAttnDecoder(opt.rnn_type, bidirectional,
+        #return MultiAttnDecoder(opt.rnn_type, bidirectional,
+        #                     opt.dec_layers, opt.rnn_size,
+        #                     attn_type=opt.global_attention,
+        #                     dropout=opt.dropout,
+        #                     embeddings=embeddings,
+        #                     pad=pad)
+        # TODO: hacky memory_sizes
+        return MultiAttnConcatDecoder(opt.rnn_type, bidirectional,
                              opt.dec_layers, opt.rnn_size,
+                             (opt.rnn_size, opt.word_vec_size, opt.kb_embed_size,),
                              attn_type=opt.global_attention,
                              dropout=opt.dropout,
                              embeddings=embeddings,
@@ -290,11 +298,11 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
         selectors = make_selectors(model_opt, kb_dict)
         dropout = nn.Dropout(model_opt.dropout)
         decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
-        
+
         if "multibank" in model_opt.global_attention:
             model = FBNegotiationModel(encoder, decoder, context_embedder,
                     scene_settings, selectors, dropout,
-                    model_type=model_opt.model, stateful=model_opt.stateful) 
+                    model_type=model_opt.model, stateful=model_opt.stateful)
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 

@@ -37,6 +37,8 @@ def add_evaluator_arguments(parser):
     group.add_argument('--verbose', action="store_true",
                        help='Print scores and predictions for each sentence')
 
+    group.add_argument('--checkpoint',
+                       help='Print scores and predictions for each sentence')
 
 
 class Evaluator(object):
@@ -64,6 +66,7 @@ class Evaluator(object):
                 continue
             elif not self.model.stateful:
                 dec_state = None
+            # TODO: this is not really stateful!
             enc_state = dec_state.hidden if dec_state is not None else None
             batch_data = text_generator.generate_batch(batch,
                         gt_prefix=self.gt_prefix, enc_state=enc_state)
