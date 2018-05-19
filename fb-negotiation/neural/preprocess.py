@@ -370,27 +370,7 @@ class Preprocessor(object):
     @classmethod
     # insure we have full dialogues with minimum number of tokens
     def skip_example(cls, example):
-        tokens = {0: 0, 1: 0}
-        turns = {0: 0, 1: 0}
-        if not example.outcome['agreed']:
-            return True
-        if not example.outcome['valid_deal']:
-            return True
-
-        for event in example.events:
-            if event.action == "message":
-                msg_tokens = tokenize(event.data)
-                tokens[event.agent] += len(msg_tokens)
-                turns[event.agent] += 1
-            if event.action == "select":
-                # the user didn't select any items
-                if len(event.data) == 0:
-                    return True
-        # each agent must speak at least 40 words total
-        if tokens[0] < 30 and tokens[1] < 30:
-            return True
-        # each agent must have spoken at least twice
-        if turns[0] < 2 or turns[1] < 2:
+        if not example.outcome['valid_deal'] :
             return True
         return False
 
