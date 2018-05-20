@@ -14,7 +14,6 @@ from cocoa.neural.rl_trainer import RLTrainer as BaseRLTrainer, \
 
 from core.controller import Controller
 from neural.trainer import Trainer
-from sessions.rl_session import RLSession
 from utterance import UtteranceBuilder
 
 def add_rl_arguments(parser):

@@ -7,35 +7,37 @@ import os
 import shutil
 import warnings
 import atexit
-import sys
-import random
 from gevent.pywsgi import WSGIServer
 
 from cocoa.core.scenario_db import add_scenario_arguments, ScenarioDB
 from cocoa.core.schema import Schema
 from cocoa.core.util import read_json
+#from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
 from cocoa.systems.human_system import HumanSystem
 from cocoa.web.main.logger import WebLogger
-#from cocoa.web.dump_events_to_json import log_transcripts_to_json, log_surveys_to_json
+#from cocoa.web import create_app
 
 from core.scenario import Scenario
 from systems import get_system, add_system_arguments
 from main.db_reader import DatabaseReader
 from main.backend import DatabaseManager
 
-from web.main.backend import Backend
-from flask import g
-from flask import Flask, current_app
-from flask_socketio import SocketIO
-socketio = SocketIO()
-
-
-__author__ = 'derekchen'
+__author__ = 'anushabala'
 
 DB_FILE_NAME = 'chat_state.db'
 LOG_FILE_NAME = 'log.out'
 ERROR_LOG_FILE_NAME = 'error_log.out'
 TRANSCRIPTS_DIR = 'transcripts'
+
+from flask import g
+from web.main.backend import Backend
+
+###############
+from flask import Flask, current_app
+
+from flask_socketio import SocketIO
+socketio = SocketIO()
+
 
 def close_connection(exception):
     backend = getattr(g, '_backend', None)
@@ -70,7 +72,7 @@ def add_website_arguments(parser):
     parser.add_argument('--config', type=str, default='app_params.json',
                         help='Path to JSON file containing configurations for website')
     parser.add_argument('--output', type=str,
-                        default="web/output/{}".format(datetime.now().strftime("%Y-%m-%d")),
+                        default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
                         help='Name of directory for storing website output (debug and error logs, chats, '
                              'and database). Defaults to a web_output/current_date, with the current date formatted as '
                              '%%Y-%%m-%%d. '
@@ -80,36 +82,63 @@ def add_website_arguments(parser):
                                                              'output directory.')
 
 
-def add_systems(args, config_dict, schema):
+def add_systems(args, config_dict, schema, debug=False):
     """
-    Args:
-        config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
+    Params:
+    config_dict: A dictionary that maps the bot name to a dictionary containing configs for the bot. The
         dictionary should contain the bot type (key 'type') and. for bots that use an underlying model for generation,
         the path to the directory containing the parameters, vocab, etc. for the model.
-
     Returns:
-        systems: A dict mapping from the bot name to the System object for that bot.
-
+    agents: A dict mapping from the bot name to the System object for that bot.
+    pairing_probabilities: A dict mapping from the bot name to the probability that a user is paired with that
+        bot. Also includes the pairing probability for humans (backend.Partner.Human)
     """
 
     total_probs = 0.0
     systems = {HumanSystem.name(): HumanSystem()}
-    timed = False if params['debug'] else True
+    pairing_probabilities = {}
+    timed = False if debug else True
     for (sys_name, info) in config_dict.iteritems():
         if "active" not in info.keys():
             warnings.warn("active status not specified for bot %s - assuming that bot is inactive." % sys_name)
         if info["active"]:
             name = info["type"]
             try:
-                model = get_system(name, args, schema=schema, timed=timed, model_path=args.checkpoint)
+                # TODO: model related arguments should be in config_dict (read from params.json), instead of in command line args, currently we are assuming there is only one model that needs `checkpoint`
+                model = get_system(name, args, schema=schema, timed=timed, model_path=info.get('checkpoint'))
             except ValueError:
                 warnings.warn(
                     'Unrecognized model type in {} for configuration '
                     '{}. Ignoring configuration.'.format(info, sys_name))
                 continue
             systems[sys_name] = model
+            if 'prob' in info.keys():
+                prob = float(info['prob'])
+                pairing_probabilities[sys_name] = prob
+                total_probs += prob
+    print '{} systems loaded'.format(len(systems))
+    for name in systems:
+        print name
 
-    return systems
+    # TODO: clean up pairing probabilities (obsolete)
+    if total_probs > 1.0:
+        raise ValueError("Probabilities for active bots can't exceed 1.0.")
+    if len(pairing_probabilities.keys()) != 0 and len(pairing_probabilities.keys()) != len(systems.keys()):
+        remaining_prob = (1.0-total_probs)/(len(systems.keys()) - len(pairing_probabilities.keys()))
+    else:
+        remaining_prob = 1.0 / len(systems.keys())
+    inactive_bots = set()
+    for system_name in systems.keys():
+        if system_name not in pairing_probabilities.keys():
+            if remaining_prob == 0.0:
+                inactive_bots.add(system_name)
+            else:
+                pairing_probabilities[system_name] = remaining_prob
+
+    for sys_name in inactive_bots:
+        systems.pop(sys_name, None)
+
+    return systems, pairing_probabilities
 
 
 def cleanup(flask_app):
@@ -123,6 +152,7 @@ def cleanup(flask_app):
         surveys_path = os.path.join(flask_app.config['user_params']['logging']['chat_dir'], 'surveys.json')
         DatabaseReader.dump_surveys(cursor, surveys_path)
     conn.close()
+
 
 def init(output_dir, reuse=False):
     db_file = os.path.join(output_dir, DB_FILE_NAME)
@@ -188,7 +218,7 @@ if __name__ == "__main__":
     if not os.path.exists(templates_dir):
             raise ValueError("Specified HTML template location doesn't exist: %s" % templates_dir)
 
-    app = create_app(debug=params['debug'], templates_dir=templates_dir)
+    app = create_app(debug=False, templates_dir=templates_dir)
 
     schema_path = args.schema_path
 
@@ -199,7 +229,6 @@ if __name__ == "__main__":
     scenarios = read_json(args.scenarios_path)
     if args.num_scenarios is not None:
         scenarios = scenarios[:args.num_scenarios]
-        #scenarios = random.sample(scenarios, args.num_scenarios)
     scenario_db = ScenarioDB.from_dict(schema, scenarios, Scenario)
     app.config['scenario_db'] = scenario_db
 
@@ -215,11 +244,16 @@ if __name__ == "__main__":
     if 'end_survey' not in params.keys() :
         params['end_survey'] = 0
 
-    systems = add_systems(args, params['models'], schema)
+    if 'debug' not in params:
+        params['debug'] = False
+
+    systems, pairing_probabilities = add_systems(args, params['models'], schema, debug=params['debug'])
+
     db.add_scenarios(scenario_db, systems, update=args.reuse)
 
     app.config['systems'] = systems
     app.config['sessions'] = defaultdict(None)
+    app.config['pairing_probabilities'] = pairing_probabilities
     app.config['num_chats_per_scenario'] = params.get('num_chats_per_scenario', {k: 1 for k in systems})
     for k in systems:
         assert k in app.config['num_chats_per_scenario']

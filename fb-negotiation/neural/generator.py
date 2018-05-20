@@ -117,20 +117,25 @@ class LFSampler(Sampler):
         super(LFSampler, self).__init__(model, vocab, temperature=temperature, max_length=max_length, cuda=cuda)
         self.eos = self.vocab.to_ind(markers.EOS)
         self.count_actions = map(self.vocab.to_ind, ('insist', 'propose', markers.SELECT))
-        counts = [str(x) for x in range(11)]
+        #counts = [str(x) for x in range(11)]
+        counts = [w for w in self.vocab.word_to_ind if '=' in w]
         self.counts = map(self.vocab.to_ind, counts)
         actions = set([w for w in self.vocab.word_to_ind if not
                 (w in counts or w in sequence_markers)])
         self.actions = map(self.vocab.to_ind, actions)
+        self.select = self.vocab.to_ind(markers.SELECT)
 
     def get_feasible_counts(self, kb, item_id):
         if not kb:
             return self.counts
         total_count = kb.items[item_id]['Count']
-        counts = map(self.vocab.to_ind, [str(x) for x in range(total_count+1)])
+        item = kb.items[item_id]['Name']
+        counts = ['{item}={count}'.format(item=item, count=count)
+                for count in range(total_count+1)]
+        counts = [self.vocab.to_ind(c) for c in counts if self.vocab.has(c)]
         return counts
 
-    def generate_batch(self, batch, model_type, gt_prefix=1, enc_state=None, kb=None):
+    def generate_batch(self, batch, model_type, gt_prefix=1, enc_state=None, kb=None, select=False):
         # This is to ensure we can stop at EOS for stateful models
         assert batch.size == 1
 
@@ -160,8 +165,8 @@ class LFSampler(Sampler):
 
             # Masking to ensure valid LF
             # NOTE: batch size must be 1. TODO: relax this restriction
+            mask = torch.zeros(scores.size())
             if i > 0:
-                mask = torch.zeros(scores.size())
                 if pred[0] in self.count_actions:
                     item_id = 0
                     counts = self.get_feasible_counts(kb, item_id)
@@ -177,7 +182,12 @@ class LFSampler(Sampler):
                     mask[:, self.eos] = 1
                 else:
                     mask[:, :] = 1
-                scores[mask == 0] = -100.
+            else:
+                if select:
+                    mask[:, self.select] = 1
+                else:
+                    mask[:, self.actions] = 1
+            scores[mask == 0] = -1e10
 
             scores.sub_(scores.max(1, keepdim=True)[0].expand(scores.size(0), scores.size(1)))
             pred = torch.multinomial(scores.exp(), 1).squeeze(1)  # (batch_size,)

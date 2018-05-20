@@ -16,7 +16,7 @@ from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
 from models import FBNegotiationModel
 
 from cocoa.io.utils import read_pickle
-from cocoa.pt_model.util import use_gpu
+from onmt.Utils import use_gpu
 
 from symbols import markers
 from neural import make_model_mappings

@@ -175,7 +175,9 @@ class Dialogue(object):
         tokens = [intent]
         if proposal is not None:
             for item in items:
-                tokens.append(str(proposal['me'][item]))
+                tokens.append('{item}={count}'.format(item=item, count= proposal['me'][item]))
+                #tokens.append('{count}'.format(count= proposal['me'][item]))
+                #tokens.append(str(proposal[item]))
         return tokens
 
     def _insert_markers(self, agent, utterance, new_turn):
@@ -206,7 +208,7 @@ class Dialogue(object):
 
     def process_scenario(self, kb):
         attributes = ("Count", "Value")  # "Name"
-        scenario = ['{value}'.format(value=fact[attr])
+        scenario = ['{item}-{attr}-{value}'.format(item=fact['Name'], attr=attr, value=fact[attr])
             for fact in kb.items for attr in attributes]
         assert(len(scenario) == 6)
         return scenario
@@ -359,6 +361,11 @@ class Preprocessor(object):
                                 proposal['me'][item] = count
                             for item, count in sel[1-dialogue.agent].iteritems():
                                 proposal['you'][item] = count
+                    #if proposal:
+                    #    if e.agent == dialogue.agent:
+                    #        proposal = proposal['me']
+                    #    else:
+                    #        proposal = proposal['you']
                     utterance = dialogue.lf_to_tokens(lf, proposal, items=self.lexicon.items)
                 else:
                     sel = ex.outcome['item_split']

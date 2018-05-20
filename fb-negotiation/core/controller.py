@@ -18,13 +18,9 @@ class Controller(BaseController):
             first_agent_proposal = self.outcomes[0]
             second_agent_proposal = self.outcomes[1]
         except TypeError:
-            print("Failed because at least one agent did not complete")
             return False
 
         if (first_agent_proposal is None) or (second_agent_proposal is None):
-            # print("first_agent_proposal: {}".format(first_agent_proposal) )
-            # print("second_agent_proposal: {}".format(second_agent_proposal) )
-            print("Failed because at least one agent did not enter a selection")
             return False
 
         for item, count in self.scenario.kbs[0].item_counts.iteritems():

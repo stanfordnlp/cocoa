@@ -24,7 +24,7 @@ def add_neural_system_arguments(parser):
     # TODO: clean up the TF stuff
     #parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
     #parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
-    parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
+    #parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
     add_evaluator_arguments(parser)
     # add_retriever_arguments(parser)
 

@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import json
+import random
+
 from util import generate_uuid
 from dataset import Example
 from event import Event
@@ -49,8 +51,14 @@ class Controller(object):
         num_turns = 0
         game_over = False
         self.describe_scenario()
+        if random.random() < 0.5:
+            first_speaker = 0
+        else:
+            first_speaker = 1
         while not game_over:
             for agent, session in enumerate(self.sessions):
+                if num_turns == 0 and agent != first_speaker:
+                    continue
                 event = session.send()
                 time += 1
                 if not event:

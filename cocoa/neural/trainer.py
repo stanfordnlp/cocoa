@@ -302,40 +302,7 @@ class Trainer(object):
         return path
 
     def _run_batch(self, batch, dec_state=None, enc_state=None):
-        ## TODO: hack
-        #if isinstance(self.model, LM):
-        #    return self._run_lm_batch(batch, enc_state)
-        #else:
-        return self._run_seq2seq_batch(batch, dec_state, enc_state)
-
-    def _run_lm_batch(self, batch, enc_state=None):
-        outputs, enc_state = self.model(batch.inputs, enc_state)
-        #return outputs, None, enc_state
-        # TODO: enc_state does not have detach method
-        return outputs, None, None
-
-    def _run_seq2seq_batch(self, batch, dec_state=None, enc_state=None):
-        encoder_inputs = batch.encoder_inputs
-        decoder_inputs = batch.decoder_inputs
-        targets = batch.targets
-        lengths = batch.lengths
-        #tgt_lengths = batch.tgt_lengths
-
-        # running forward() method in the NegotiationModel
-        if hasattr(self.model, 'context_embedder'):
-            context_inputs = batch.context_inputs
-            title_inputs = batch.title_inputs
-            desc_inputs = batch.desc_inputs
-
-            outputs, attns, dec_state = self.model(encoder_inputs,
-                    decoder_inputs, context_inputs, title_inputs,
-                    desc_inputs, lengths, dec_state, enc_state)
-        # running forward() method in NMT Model
-        else:
-            outputs, attns, dec_state = self.model(encoder_inputs,
-                  decoder_inputs, lengths, dec_state, enc_state)
-
-        return outputs, attns, dec_state
+        raise NotImplementedError
 
     def _gradient_accumulation(self, true_batchs, total_stats, report_stats):
         if self.grad_accum_count > 1:

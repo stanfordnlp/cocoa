@@ -1,87 +1,33 @@
-from __future__ import division
-
 import argparse
 import random
 import json
 import numpy as np
 import copy
-import sys
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from onmt.Trainer import Statistics as BaseStatistics
+# TODO: hack
+# We cannot put RLTrainer in cocoa now because it needs to inherit from
+# task-specific Trainer. RLTrainer should *have* a trainer, not inherit.
+from cocoa.neural.rl_trainer import RLTrainer as BaseRLTrainer, \
+        add_rl_arguments as base_add_rl_arguments, \
+        Statistics
 
 from core.controller import Controller
+from neural.trainer import Trainer
 from utterance import UtteranceBuilder
-from trainer import Trainer
 
 def add_rl_arguments(parser):
-    group = parser.add_argument_group('Reinforce')
-    group.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
-    group.add_argument('--num-dialogues', default=10000, type=int,
-            help='Number of dialogues to generate/train')
-    group.add_argument('--discount-factor', default=0.95, type=float,
-            help='Amount to discount the reward for each timestep when \
-            calculating the value, usually written as gamma')
-    group.add_argument('--verbose', default=False, action='store_true',
-            help='Whether or not to have verbose prints')
+    base_add_rl_arguments(parser)
+    parser.add_argument('--reward', choices=['margin', 'length', 'fair'],
+            help='Which reward function to use')
 
-    group = parser.add_argument_group('Training')
-    group.add_argument('--optim', default='sgd', help="""Optimization method.""",
-                       choices=['sgd', 'adagrad', 'adadelta', 'adam'])
-    group.add_argument('--report-every', type=int, default=5,
-                       help="Print stats at this many batch intervals")
-    group.add_argument('--epochs', type=int, default=14,
-                       help='Number of training epochs')
-    group.add_argument('--batch-size', type=int, default=64,
-                       help='Maximum batch size for training')
-    group.add_argument('--max-grad-norm', type=float, default=5,
-                       help="""If the norm of the gradient vector exceeds this,
-                       renormalize it to have the norm equal to max_grad_norm""")
-    group.add_argument('--learning-rate', type=float, default=1.0,
-                       help="""Starting learning rate. Recommended settings:
-                       sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
-    group.add_argument('--model-path', default='data/checkpoints',
-                       help="""Which file the model checkpoints will be saved""")
-    group.add_argument('--model-filename', default='model',
-                       help="""Model filename (the model will be saved as
-                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
-                       the perplexity and E is the epoch""")
-    group.add_argument('--train-from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                       path to the pretrained model's state_dict.""")
-
-
-class Statistics(BaseStatistics):
-    def __init__(self, episode=0, loss=0, reward=0):
-        self.episode = episode
-        self.loss = loss
-        self.reward = reward
-        self.total_rewards = []
-
-    def update(self, stat):
-        self.loss += stat.loss
-        self.reward += stat.reward
-        self.episode += 1
-        #self.rewards.append(stat.reward)
-
-    def mean_loss(self):
-        return self.loss / self.episode
-
-    def mean_reward(self):
-        return self.reward / self.episode
-
-    def output(self, episode):
-        print ("Episode %2d; loss: %6.2f; reward: %6.2f;" %
-              (episode,
-               self.mean_loss(),
-               self.mean_reward()))
-        sys.stdout.flush()
 
 class RLTrainer(Trainer):
-    def __init__(self, agents, scenarios, train_loss, optim, training_agent=0):
+    def __init__(self, agents, scenarios, train_loss, optim, training_agent=0, reward_func='margin'):
         self.agents = agents
         self.scenarios = scenarios
 
@@ -100,6 +46,7 @@ class RLTrainer(Trainer):
         #self.model.train()
 
         self.all_rewards = [[], []]
+        self.reward_func = reward_func
 
     def update(self, batch_iter, reward, model, discount=0.95):
         model.train()
@@ -151,17 +98,13 @@ class RLTrainer(Trainer):
         return scenario
 
     def _get_controller(self, scenario, split='train'):
-        # Randomize because kb[0] is always seller
+        # Randomize
         if random.random() < 0.5:
-            kbs = (scenario.kbs[0], scenario.kbs[1])
-        else:
-            kbs = (scenario.kbs[1], scenario.kbs[0])
-        sessions = [self.agents[0].new_session(0, kbs[0]),
-                    self.agents[1].new_session(1, kbs[1])]
+            scenario = copy.deepcopy(scenario)
+            scenario.kbs = (scenario.kbs[1], scenario.kbs[0])
+        sessions = [self.agents[0].new_session(0, scenario.kbs[0]),
+                    self.agents[1].new_session(1, scenario.kbs[1])]
         return Controller(scenario, sessions)
-
-    def get_reward(self, example, session):
-        raise NotImplementedError
 
     def validate(self, args):
         split = 'dev'
@@ -204,8 +147,8 @@ class RLTrainer(Trainer):
             controller = self._get_controller(scenario, split='train')
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
-            #if i % 100 == 0:
-            #    self.agents[1].env.model.load_state_dict(self.model.state_dict())
+            if i % 100 == 0:
+                self.agents[1].env.model.load_state_dict(self.model.state_dict())
 
             for session_id, session in enumerate(controller.sessions):
                 # Only train one agent
@@ -230,3 +173,59 @@ class RLTrainer(Trainer):
             if i > 0 and i % 100 == 0:
                 valid_stats = self.validate(args)
                 self.drop_checkpoint(args, i, valid_stats, model_opt=self.agents[self.training_agent].env.model_args)
+
+    def _is_valid_dialogue(self, example):
+        #special_actions = defaultdict(int)
+        #for event in example.events:
+        #    if event.action in ('offer', 'quit', 'accept', 'reject'):
+        #        special_actions[event.action] += 1
+        #        if special_actions[event.action] > 1:
+        #            return False
+        #        # Cannot accept or reject before offer
+        #        if event.action in ('accept', 'reject') and special_actions['offer'] == 0:
+        #            return False
+        return True
+
+    def _is_agreed(self, example):
+        if not example.outcome['valid_deal']:
+            return False
+        return True
+
+    def _margin_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {0: -1, 1: -1}
+        return example.outcome['reward']
+
+    def _length_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {0: -1, 1: -1}
+
+        # Encourage long dialogue
+        length = len(example.events) / 10.
+        rewards = {0: length, 1: length}
+        return rewards
+
+    def _fair_reward(self, example):
+        # No agreement
+        if not self._is_agreed(example):
+            print 'No agreement'
+            return {0: -1, 1: -1}
+        total_reward = sum(example.outcome['reward'].values())
+        return {0: total_reward, 1: total_reward}
+
+    def get_reward(self, example, session):
+        if not self._is_valid_dialogue(example):
+            print 'Invalid'
+            rewards = {0: -1., 0: -1.}
+        if self.reward_func == 'margin':
+            rewards = self._margin_reward(example)
+        elif self.reward_func == 'fair':
+            rewards = self._fair_reward(example)
+        elif self.reward_func == 'length':
+            rewards = self._length_reward(example)
+        reward = rewards[session.agent]
+        return reward

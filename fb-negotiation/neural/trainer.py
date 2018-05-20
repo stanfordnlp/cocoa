@@ -11,7 +11,7 @@ from cocoa.neural.trainer import Statistics
 from cocoa.neural.trainer import Trainer as BaseTrainer
 from cocoa.io.utils import create_path
 
-class FBnegTrainer(BaseTrainer):
+class Trainer(BaseTrainer):
     ''' Class that controls the training process which inherits from Cocoa '''
 
     def validate(self, valid_iter):
@@ -47,6 +47,9 @@ class FBnegTrainer(BaseTrainer):
         self.model.train()
 
         return stats
+
+    def _run_batch(self, batch, dec_state=None, enc_state=None):
+        return self._run_seq2seq_batch(batch, dec_state, enc_state)
 
     def _run_seq2seq_batch(self, batch, dec_state=None, enc_state=None):
         encoder_inputs = batch.encoder_inputs

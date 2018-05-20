@@ -24,7 +24,7 @@ class FBNeuralSession(Session):
     Not used by for cocoa
     """
     def __init__(self, agent, kb, model, args):
-        super(NeuralSession, self).__init__(agent)
+        super(FBNeuralSession, self).__init__(agent)
         self.kb = kb
         self.model = LstmRolloutAgent(model, args)
         context = self.kb_to_context(self.kb)
@@ -71,7 +71,7 @@ class FBNeuralSession(Session):
 
     def select(self):
         choice = self.model.choose()
-        return super(NeuralSession, self).select(self.parse_choice(choice))
+        return super(FBNeuralSession, self).select(self.parse_choice(choice))
 
     def _is_selection(self, out):
         return len(out) == 1 and out[0] == '<selection>'
@@ -141,6 +141,19 @@ class NeuralSession(Session):
         s = re.sub(r'\.{3,}', r'...', s)
         return s
 
+    def _get_proposal(self, tokens):
+        try:
+            proposal = {}
+            for token in tokens[1:4]:
+                ss = token.split('=')
+                proposal[ss[0]] = int(ss[1])
+            #proposal = {item: int(count) \
+            #        for item, count in izip(self.items, tokens[1:4])}
+        except ValueError:
+            print tokens
+            import sys; sys.exit()
+        return proposal
+
     def send(self):
         tokens = self.generate()
         if tokens is None:
@@ -150,7 +163,8 @@ class NeuralSession(Session):
 
         if len(tokens) > 0:
             if tokens[0] == markers.SELECT:
-                proposal = {item: int(count) for item, count in izip(self.items, tokens[1:4])}
+                proposal = self._get_proposal(tokens)
+                #proposal = {item: int(count) for item, count in izip(self.items, tokens[1:4])}
                 return self.select(proposal)
             elif tokens[0] == markers.QUIT:
                 return self.quit()
@@ -206,13 +220,17 @@ class PytorchNeuralSession(NeuralSession):
         return Batch(encoder_args, decoder_args, context_data, self.vocab,
                 sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
+    def _run_generator(self, batch, enc_state):
+        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
+                gt_prefix=self.gt_prefix, enc_state=enc_state)
+        return output_data
+
     def generate(self):
         if len(self.dialogue.agents) == 0:
             self.dialogue._add_utterance(1 - self.agent, [])
         batch = self._create_batch()
         enc_state = self.dec_state.hidden if self.dec_state is not None else None
-        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
-                gt_prefix=self.gt_prefix, enc_state=enc_state, kb=self.kb)
+        output_data = self._run_generator(batch, enc_state)
 
         if self.stateful:
             # TODO: only works for Sampler for now. cannot do beam search.
@@ -257,7 +275,7 @@ class PytorchNeuralSession(NeuralSession):
             batch = Batch(batch['encoder_args'],
                           batch['decoder_args'],
                           batch['context_data'],
-                          self.env.vocab,
+                          self.env.utterance_vocab,
                           num_context=Dialogue.num_context, cuda=self.env.cuda)
             yield batch
 
@@ -265,21 +283,29 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
     def __init__(self, agent, kb, env):
         super(PytorchLFNeuralSession, self).__init__(agent, kb, env)
         self.items = env.preprocessor.lexicon.items
-        self.proposal = None
+        self.item_counts = self.kb.item_counts
+        self.my_proposal = None
+        self.partner_proposal = None
+        self.partner_select = False
 
     def receive(self, event):
         if event.action in Event.decorative_events:
             return
         if event.action == 'select':
             utterance = [markers.SELECT]
+            self.partner_select = True
         else:
             utterance = event.data.split()
             # Compute what they want for us
             if utterance[0] in ('propose', 'insist'):
-                counts = [int(x) for x in utterance[1:]]
-                my_counts = [self.kb.item_counts[item] - count for \
-                        item, count in izip(self.items, counts)]
-                utterance = ['propose'] + [str(c) for c in my_counts]
+                self.partner_proposal = self._get_proposal(utterance)
+                #counts = [int(x) for x in utterance[1:4]]
+                #my_counts = [self.kb.item_counts[item] - count for \
+                #        item, count in izip(self.items, counts)]
+                #utterance = ['propose'] + [str(c) for c in my_counts]
+                utterance = ['propose'] + ['{item}={count}'.format(
+                    item=item, count=(self.kb.item_counts[item] - self.partner_proposal[item]))
+                    for item in self.items]
         # Empty message
         if utterance is None:
             return
@@ -287,12 +313,33 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
         #print 'receive:', utterance
         self.dialogue.add_utterance(event.agent, utterance)
 
+    def _run_generator(self, batch, enc_state):
+        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
+                gt_prefix=self.gt_prefix, enc_state=enc_state, kb=self.kb, select=self.partner_select)
+        return output_data
+
+    # TODO: this should be consistent with preprocessor. better to be modular.
+    def _proposal_to_tokens(self, proposal):
+        tokens = ['{item}={count}'.format(item=item, count=proposal[item])
+                for item in self.items]
+        return tokens
+
     def generate(self):
         tokens = super(PytorchLFNeuralSession, self).generate()
         if tokens[0] in ('propose', 'insist'):
-            self.proposal = {item: int(count) \
-                    for item, count in izip(self.items, tokens[1:4])}
-        elif tokens[0] == markers.SELECT and self.proposal is not None:
-            tokens = [markers.SELECT] + [self.proposal[item] for item in self.items]
+            self.my_proposal = self._get_proposal(tokens)
+        elif tokens[0] == markers.SELECT:
+            proposal = self._get_proposal(tokens)
+            #tokens = [markers.SELECT] + [proposal[item] for item in self.items]
+            if self.partner_select and self.partner_proposal is not None:
+                my_proposal = {item: self.item_counts[item] - count for
+                        item, count in self.partner_proposal.iteritems()}
+                tokens = [markers.SELECT] + self._proposal_to_tokens(my_proposal)
+                #tokens = [markers.SELECT] + \
+                #        [(self.item_counts[item] - self.partner_proposal[item]) for item in self.items]
+            elif not self.partner_select and self.my_proposal is not None:
+                tokens = [markers.SELECT] + self._proposal_to_tokens(self.my_proposal)
+                #tokens = [markers.SELECT] + \
+                #        [self.my_proposal[item] for item in self.items]
         return tokens
 

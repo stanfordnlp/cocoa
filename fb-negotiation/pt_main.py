@@ -24,7 +24,7 @@ from neural.loss import FBnegLossCompute, SimpleLossCompute
 from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
-from neural.trainer import FBnegTrainer
+from neural.trainer import Trainer
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -71,7 +71,7 @@ def build_optim(opt, model, checkpoint):
 def build_trainer(opt, model, mappings, optim):
     train_loss = make_loss(opt, model, mappings)
     valid_loss = make_loss(opt, model, mappings)
-    trainer = FBnegTrainer(model, train_loss, valid_loss, optim)
+    trainer = Trainer(model, train_loss, valid_loss, optim)
     return trainer
 
 def make_loss(opt, model, mappings):

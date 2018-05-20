@@ -12,7 +12,7 @@ from cocoa.neural.beam import Scorer
 from fb_model import utils
 from fb_model.agent import LstmRolloutAgent
 
-from sessions.neural_session import PytorchNeuralSession, PytorchLFNeuralSession
+from sessions.neural_session import FBNeuralSession, PytorchNeuralSession, PytorchLFNeuralSession
 from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
@@ -23,74 +23,31 @@ from neural import add_data_generator_arguments
 from neural.generator import get_generator
 
 def add_neural_system_arguments(parser):
-    parser.add_argument('--decoding', nargs='+', default=['sample', 0],
-        help='Decoding method describing whether or not to sample')
-    parser.add_argument('--temperature', type=float, default=1.0,
-        help='a float from 0.0 to 1.0 for how to vary sampling')
-    parser.add_argument('--checkpoint', type=str, help='model file folder')
+    #parser.add_argument('--temperature', type=float, default=1.0,
+    #    help='temperature')
+    #parser.add_argument('--gpu', action='store_true',
+    #    help='Use GPU or not')
     add_evaluator_arguments(parser)
-    #parser.add_argument('--num_types', type=int, default=3,
-    #    help='number of object types')
-    #parser.add_argument('--num_objects', type=int, default=6,
-    #    help='total number of objects')
-    #parser.add_argument('--max_score', type=int, default=10,
-    #    help='max score per object')
-    #parser.add_argument('--score_threshold', type=int, default=6,
-    #    help='successful dialog should have more than score_threshold in score')
 
 # `args` for LstmRolloutAgent
 Args = namedtuple('Args', ['temperature', 'domain'])
 
-class NeuralSystem(System):
-    def __init__(self, schema, lexicon, model_path, mappings_path, decoding,
-            index=None, num_candidates=20, context_len=2, timed_session=False):
-        super(NeuralSystem, self).__init__()
-        self.schema
-        self.lexicon = lexicon
+class FBNeuralSystem(System):
+    def __init__(self, model_file, temperature, timed_session=False, gpu=False):
+        super(FBNeuralSystem, self).__init__()
         self.timed_session = timed_session
-
-        # Load arguments
-        args_path = os.path.join(model_path, 'config.json')
-        config = read_json(args_path)
-        config['batch_size'] = 1
-        config['gpu'] = 0  # Don't need GPU for batch_size=1
-        config['decoding'] = decoding
-        config['pretrained_wordvec'] = None
-        args = argparse.Namespace(**config)
-
-        vocab_path = os.path.join(mappings_path, 'vocab.pkl')
-        mappings = read_pickle(vocab_path)
-        vocab = mappings['utterance_vocab']
-
-        # TODO: different models have the same key now
-        args.dropout = 0
-        logstats.add_args('model_args', args)
-        self.model = utils.load_model(model_path, gpu=gpu)
+        self.model = utils.load_model(model_file, gpu=gpu)
         self.args = Args(temperature=temperature, domain='object_division')
-
-        preprocessor = Preprocessor(schema, lexicon, args.entity_encoding_form, args.entity_decoding_form, args.entity_target_form)
-        textint_map = TextIntMap(vocab, preprocessor)
-        dialogue_batcher = DialogueBatcherFactory.get_dialogue_batcher(model_config, slot_filling=False, kb_pad=None, mappings=mappings)
-        #TODO: class variable is not a good way to do this
-        Dialogue.mappings = mappings
-        Dialogue.textint_map = textint_map
-        Dialogue.preprocessor = preprocessor
-        Dialogue.num_context = args.num_context
-
-        Env = namedtuple('Env', ['model', 'tf_session', 'preprocessor', 'vocab', 'textint_map', 'stop_symbol', 'remove_symbols', 'max_len', 'dialogue_batcher', 'retriever'])
-        self.env = Env(model, tf_session, preprocessor, mappings['utterance_vocab'], textint_map, stop_symbol=vocab.to_ind(markers.EOS), remove_symbols=map(vocab.to_ind, (markers.EOS, markers.PAD)), max_len=20, dialogue_batcher=dialogue_batcher, retriever=retriever)
-
 
     @classmethod
     def name(cls):
         return 'neural'
 
     def new_session(self, agent, kb):
-        session = NeuralSession(agent, kb, self.model, self.args)
+        session = FBNeuralSession(agent, kb, self.model, self.args)
         if self.timed_session:
             session = TimedSessionWrapper(session)
         return session
-
 
 class PytorchNeuralSystem(System):
     def __init__(self, args, schema, lexicon, model_path, timed):
