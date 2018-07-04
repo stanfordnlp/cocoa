@@ -9,7 +9,16 @@ from analysis.html_visualizer import HTMLVisualizer
 
 class Visualizer(BaseVisualizer):
     agents = ('human', 'rulebased', 'config-rule')
-    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based', 'config-rulebased': 'Config-rulebased', 'neural': 'Neural'}
+    agent_labels = {'human': 'Human', 'rulebased': 'Rule-based',
+            'sl-words': 'SL-words',
+            'rl-words-margin': 'RL-words-margin',
+            'rl-words-length': 'RL-words-length',
+            'rl-words-fair': 'RL-words-fair',
+            'sl-states': 'SL-states',
+            'rl-states-margin': 'RL-states-margin',
+            'rl-states-length': 'RL-states-length',
+            'rl-states-fair': 'RL-states-fair',
+            }
     #questions = ('fluent', 'negotiator', 'persuasive', 'fair', 'coherent')
     questions = ('negotiator',)
     question_labels = {"negotiator": 'Humanlikeness'}
@@ -62,34 +71,21 @@ class Visualizer(BaseVisualizer):
         html_visualizer.visualize(viewer_mode, html_output, chats,
             responses=dialogue_responses, css_file=css_file, img_path=img_path)
 
-    #def compute_effectiveness(self):
-    #    chats = defaultdict(list)
-    #    for raw in self.chats:
-    #        ex = Example.from_dict(raw, Scenario)
-    #        if ex.agents[0] == 'human' and ex.agents[1] == 'human':
-    #            chats['human'].append(ex)
-    #        elif ex.agents[0] != 'human':
-    #            chats[ex.agents[0]].append(ex)
-    #        elif ex.agents[1] != 'human':
-    #            chats[ex.agents[1]].append(ex)
-
-    #    results = {}
-    #    for system, examples in chats.iteritems():
-    #        results[system] = self.compute_effectiveness_for_system(examples, system)
-    #        print system, results[system]
-
-    # TODO: implement filter that skips unqualified/redirected chats, see should_reject_chat
-    def skip_example(self, ex):
-        if ex.outcome is not None and ex.outcome.get('valid_deal') is not None:
-            valid = ex.outcome['valid_deal']
-            num_turns = len([e for e in ex.events if e.action == 'message'])
-            if not valid and num_turns < 6:
-                return True
-            else:
-                return False
-        else:
-            return True
-
+    def print_results(self, results):
+        systems = sorted(results.keys())
+        print '{:<20s} {:<10s} {:<10s} {:<10s} {:<10s} {:<10s}'.format('system', '%agree', 'a_points', 't_points', 'length', '#examples')
+        def points_to_str(points):
+            return '{me:<.1f}-{partner:<.1f}'.format(me=points['agent'], partner=points['partner'])
+        for system in systems:
+            res = results[system]
+            print '{:<20s} {:<10.2f} {:<10s} {:<10s} {:<10.2f} {:<10d}'.format(
+                    system,
+                    res['% agreed'],
+                    points_to_str(res['agreed points']),
+                    points_to_str(res['total points']),
+                    res['average length'],
+                    res['num examples'],
+                    )
 
     def compute_effectiveness_for_system(self, examples, system):
         num_agreed = 0
@@ -98,29 +94,33 @@ class Visualizer(BaseVisualizer):
         total_points = {'agent': 0, 'partner': 0}
         num_mismatch = 0
         num_nodeal = 0
+        length = 0
         for ex in examples:
-            #if self.skip_example(ex):
-            #    continue
             if system == 'human':
                 # Take human winner
-                rewards = [ex.outcome['reward'][str(agent)] for agent in (0, 1)]
-                eval_agent = np.argmax(rewards)
+                #rewards = [ex.outcome['reward'][str(agent)] for agent in (0, 1)]
+                #eval_agent = np.argmax(rewards)
+                eval_agents = [0, 1]
             else:
-                eval_agent = 0 if ex.agents[0] == system else 1
-            total += 1
-            if ex.outcome.get('valid_deal'):
-                num_agreed += 1
-                point = ex.outcome['reward'][str(eval_agent)]
-                partner_point = ex.outcome['reward'][str(1-eval_agent)]
-                agreed_points['agent'] += point
-                agreed_points['partner'] += partner_point
-                total_points['agent'] += point
-                total_points['partner'] += partner_point
-            else:
-                if ex.outcome['agreed']:
-                    num_mismatch += 1
+                eval_agents = [0 if ex.agents[0] == system else 1]
+
+            for eval_agent in eval_agents:
+                l = len([e for e in ex.events if e.action == 'message'])
+                length += l
+                total += 1
+                if ex.outcome.get('valid_deal'):
+                    num_agreed += 1
+                    point = ex.outcome['reward'][str(eval_agent)]
+                    partner_point = ex.outcome['reward'][str(1-eval_agent)]
+                    agreed_points['agent'] += point
+                    agreed_points['partner'] += partner_point
+                    total_points['agent'] += point
+                    total_points['partner'] += partner_point
                 else:
-                    num_nodeal += 1
+                    if ex.outcome.get('agreed'):
+                        num_mismatch += 1
+                    else:
+                        num_nodeal += 1
 
         for k in agreed_points:
             try:
@@ -136,18 +136,19 @@ class Visualizer(BaseVisualizer):
         result = {'% agreed': num_agreed / float(total) if total > 0 else 0,
                 'agreed points': agreed_points,
                 'total points': total_points,
-                'total': total,
                 'mismatch': num_mismatch,
                 'no deal': num_nodeal,
+                'average length': length / (float(len(examples)) + 1e-5),
+                'num examples': len(examples),
                 }
 
-        print system.upper()
-        for k, v in result.iteritems():
-            if k == 'agreed points' or k == 'total points':
-                points = 'partner={:.2f} agent={:.2f}'.format(v['partner'], v['agent'])
-                print '{:<15s} {}'.format(k, points)
-            else:
-                print '{:<15s} {:.2f}'.format(k, v)
+        #print system.upper()
+        #for k, v in result.iteritems():
+        #    if k == 'agreed points' or k == 'total points':
+        #        points = 'partner={:.2f} agent={:.2f}'.format(v['partner'], v['agent'])
+        #        print '{:<15s} {}'.format(k, points)
+        #    else:
+        #        print '{:<15s} {:.2f}'.format(k, v)
 
         return result
 

@@ -10,7 +10,8 @@ class Parser(BaseParser):
     ME = 0
     YOU = 1
 
-    neg_words = ("nothing", "zero", "dont", "worthless")
+    neg_words = set(["nothing", "zero", "dont", "worthless"])
+    neg_words.update(BaseParser.neg_words)
     i_words = ('i', 'ill', 'id', 'me', 'mine', 'my')
     you_words = ('u', 'you', 'yours', 'your')
     sentence_delimiter = ('.', ';', '?')

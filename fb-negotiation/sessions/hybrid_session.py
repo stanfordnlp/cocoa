@@ -13,7 +13,7 @@ class HybridSession(RulebasedSession):
 
         # process the rulebased portion
         utterance = self.parser.parse(event, self.state)
-        print('action fed into neural mananger: {}'.format(utterance.lf))
+        #print('action fed into neural mananger: {}'.format(utterance.lf))
         self.state.update(self.partner, utterance)
 
         # process the neural based portion

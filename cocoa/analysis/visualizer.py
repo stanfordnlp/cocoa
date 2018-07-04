@@ -81,11 +81,11 @@ class Visualizer(object):
                         ratings = (ratings,)
                     ratings = [3 if x == 'null' else x for x in ratings]
                     question_scores[question][agent_type].append((dialogue_id, agent_id, ratings))
-        print '-'*50
-        print '# Dialogues for each system'
-        for k, v in dialogue_setting_counts.iteritems():
-            print k, v
-        print '-'*50
+        #print '-'*50
+        #print '# Dialogues for each system'
+        #for k, v in dialogue_setting_counts.iteritems():
+        #    print k, v
+        #print '-'*50
 
     def dialogues_with_survey(self):
         if not self.question_scores:
@@ -232,8 +232,6 @@ class Visualizer(object):
 
         results = {}
         for system, examples in chats.iteritems():
-            #if system == 'human':
-            #    continue
             results[system] = self.compute_effectiveness_for_system(examples, system)
         return results
 
@@ -246,8 +244,8 @@ class Visualizer(object):
             for question, agent_scores in question_scores.iteritems():
                 if self.question_type(question) == 'str' or question not in self.questions:
                     continue
-                for agent, scores in agent_scores.iteritems():
-                    print agent, np.histogram([x[2] for x in scores], bins=5)[0]
+                #for agent, scores in agent_scores.iteritems():
+                #    print agent, np.histogram([x[2] for x in scores], bins=5)[0]
                 results = [(agent, self.summarize_scores(scores, summary_stat), self.get_total(scores)) for agent, scores in agent_scores.iteritems()]
                 results = sorted(results, key=lambda x: x[1][0], reverse=True)
                 agent_ratings = {}
@@ -256,7 +254,7 @@ class Visualizer(object):
                     summary[question][agent]['score'] = stat[0]
                     summary[question][agent]['sem'] = sem(stat[1]) if len(stat[1]) > 1 else 0
                     summary[question][agent]['total'] = total
-                    summary[question][agent]['ttest'] = ''
+                    summary[question][agent]['ttest'] = []
                 # T-test
                 agents = self.agents
                 for i in range(len(agents)):
@@ -272,7 +270,7 @@ class Visualizer(object):
                                 win_agent, lose_agent = agents[i], agents[j]
                             else:
                                 win_agent, lose_agent = agents[j], agents[i]
-                            summary[question][win_agent]['ttest'] += lose_agent[0]
+                            summary[question][win_agent]['ttest'].append(lose_agent)
             # Print
             for question, agent_stats in summary.iteritems():
                 print '='*30, self.question_labels[question], '='*30
@@ -282,7 +280,7 @@ class Visualizer(object):
                 for agent in sorted_agents:
                     stats = agent_stats[agent]
                     try:
-                        print '{:<20s} {:<10.1f} {:<10.2f} {:<10d} {:<10s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], stats['ttest'])
+                        print '{:<20s} {:<10.1f} {:<10.2f} {:<10d} {:<30s}'.format(self.agent_labels[agent], stats['score'], stats['sem'], stats['total'], ','.join(stats['ttest']))
                     except KeyError:
                         continue
         return summary

@@ -52,25 +52,28 @@ class Visualizer(BaseVisualizer):
         num_success = 0
         final_offer = 0
         length = 0
+        total = 0
         for ex in examples:
-            l = len([e for e in ex.events if e.action == 'message'])
-            length += l
-            if not StrategyAnalyzer.has_deal(ex):
-                continue
-            if ex.agents[0] == system:
-                eval_agent = 0
+            if system == 'human':
+                eval_agents = [0, 1]
             else:
-                eval_agent = 1
-            role = ex.scenario.kbs[eval_agent].facts['personal']['Role']
-            num_success += 1
-            final_price = ex.outcome['offer']['price']
-            margin = StrategyAnalyzer.get_margin(ex, final_price, eval_agent, role)
-            if not margin:
-                continue
-            else:
-                final_offer += margin
-        return {'success rate': num_success / (float(len(examples)) + 1e-5),
+                eval_agents = [0 if ex.agents[0] == system else 1]
+            for eval_agent in eval_agents:
+                total += 1
+                if not StrategyAnalyzer.has_deal(ex):
+                    continue
+                l = len([e for e in ex.events if e.action == 'message'])
+                length += l
+                role = ex.scenario.kbs[eval_agent].facts['personal']['Role']
+                num_success += 1
+                final_price = ex.outcome['offer']['price']
+                margin = StrategyAnalyzer.get_margin(ex, final_price, eval_agent, role)
+                if not margin:
+                    continue
+                else:
+                    final_offer += margin
+        return {'success rate': num_success / (float(total) + 1e-5),
                 'average margin': final_offer / (float(num_success) + 1e-5),
-                'average length': length / (float(len(examples)) + 1e-5),
+                'average length': length / (float(total) + 1e-5),
                 'num examples': len(examples),
                 }

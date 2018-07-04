@@ -20,6 +20,8 @@ class DialogueState(State):
 
     def update(self, agent, utterance):
         super(DialogueState, self).update(agent, utterance)
+        if not utterance:
+            return
         lf = utterance.lf
         if hasattr(lf, 'proposal') and lf.proposal is not None:
             self.proposal[agent] = lf.proposal

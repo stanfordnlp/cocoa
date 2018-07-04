@@ -147,8 +147,8 @@ class RLTrainer(Trainer):
             controller = self._get_controller(scenario, split='train')
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
-            if i % 100 == 0:
-                self.agents[1].env.model.load_state_dict(self.model.state_dict())
+            #if i % 100 == 0:
+            #    self.agents[1].env.model.load_state_dict(self.model.state_dict())
 
             for session_id, session in enumerate(controller.sessions):
                 # Only train one agent

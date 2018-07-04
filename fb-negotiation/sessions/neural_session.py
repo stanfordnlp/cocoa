@@ -58,7 +58,8 @@ class FBNeuralSession(Session):
             return {item: int(choice[i].split('=')[1]) for i, item in enumerate(('book', 'hat', 'ball'))}
         except:
             print 'Cannot parse choice:', choice
-            return {item: 0 for i, item in enumerate(('book', 'hat', 'ball'))}
+            #return {item: 0 for i, item in enumerate(('book', 'hat', 'ball'))}
+            return None
 
     def receive(self, event):
         if event.action == 'select':
@@ -71,7 +72,10 @@ class FBNeuralSession(Session):
 
     def select(self):
         choice = self.model.choose()
-        return super(FBNeuralSession, self).select(self.parse_choice(choice))
+        proposal = self.parse_choice(choice)
+        if proposal is None:
+            return self.quit()
+        return super(FBNeuralSession, self).select(proposal)
 
     def _is_selection(self, out):
         return len(out) == 1 and out[0] == '<selection>'
@@ -108,6 +112,8 @@ class NeuralSession(Session):
 
         self.dialogue.scenario_to_int()
         self.dialogue.selection_to_int()
+
+        self.partner_quit = False
 
     # TODO: move this to preprocess?
     def convert_to_int(self):
@@ -155,6 +161,9 @@ class NeuralSession(Session):
         return proposal
 
     def send(self):
+        if self.partner_quit:
+            return self.quit()
+
         tokens = self.generate()
         if tokens is None:
             return None
@@ -287,6 +296,7 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
         self.my_proposal = None
         self.partner_proposal = None
         self.partner_select = False
+        self.partner_quit = False
 
     def receive(self, event):
         if event.action in Event.decorative_events:
@@ -294,6 +304,9 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
         if event.action == 'select':
             utterance = [markers.SELECT]
             self.partner_select = True
+        elif event.action == 'quit':
+            self.partner_quit = True
+            utterance = None
         else:
             utterance = event.data.split()
             # Compute what they want for us

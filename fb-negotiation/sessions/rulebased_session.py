@@ -183,11 +183,11 @@ class RulebasedSession(BaseRulebasedSession):
         return super(RulebasedSession, self).select(split, metadata=metadata)
 
     def send(self):
-        if self.state.partner_act == 'reject':
-            return self.reject()
+        if self.state.partner_act == 'quit':
+            return self.quit()
 
-        if self.has_done('select'):
-            return self.wait()
+        #if self.has_done('select'):
+        #    return self.wait()
 
         action = self.manager.choose_action(state=self.state)
         if not action:
