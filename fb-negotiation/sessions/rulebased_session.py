@@ -21,7 +21,7 @@ class RulebasedSession(BaseRulebasedSession):
     def __init__(self, agent, kb, lexicon, config, generator, manager):
         parser = Parser(agent, kb, lexicon)
         state = DialogueState(agent, kb)
-        super(RulebasedSession, self).__init__(agent, kb, parser, generator, manager, state, sample_temperature=2.)
+        super(RulebasedSession, self).__init__(agent, kb, parser, generator, manager, state, sample_temperature=1.)
 
         self.kb = kb
         self.item_values = kb.item_values

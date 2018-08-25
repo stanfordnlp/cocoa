@@ -17,7 +17,7 @@ from neural.batcher import Batch, LMBatch
 from neural.symbols import markers
 
 from fb_model import utils
-from fb_model.agent import LstmRolloutAgent
+from fb_model.agent import LstmRolloutAgent, LstmAgent
 
 class FBNeuralSession(Session):
     """A wrapper for LstmRolloutAgent from Deal or No Deal
@@ -26,9 +26,11 @@ class FBNeuralSession(Session):
     def __init__(self, agent, kb, model, args):
         super(FBNeuralSession, self).__init__(agent)
         self.kb = kb
-        self.model = LstmRolloutAgent(model, args)
+        self.model = LstmAgent(model, args)
         context = self.kb_to_context(self.kb)
+        print('feed context', context, type(context[0]))
         self.model.feed_context(context)
+        print('done')
         self.state = {
                 'selected': False,
                 'quit': False,

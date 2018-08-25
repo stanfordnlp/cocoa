@@ -33,17 +33,11 @@ class RLTrainer(Trainer):
 
         self.training_agent = training_agent
         self.model = agents[training_agent].env.model
-        #self.models = [agent.env.model for agent in agents]
         self.train_loss = train_loss
         self.optim = optim
         self.cuda = False
 
         self.best_valid_reward = None
-
-        # Set model in training mode.
-        #for model in self.models:
-        #    model.train()
-        #self.model.train()
 
         self.all_rewards = [[], []]
         self.reward_func = reward_func
@@ -76,7 +70,7 @@ class RLTrainer(Trainer):
         rewards = rewards[::-1]
         rewards = torch.cat(rewards)
 
-        loss = nll.dot(rewards)
+        loss = nll.squeeze().dot(rewards.squeeze())
         model.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm(model.parameters(), 1.)
@@ -143,7 +137,7 @@ class RLTrainer(Trainer):
     def learn(self, args):
         for i in xrange(args.num_dialogues):
             # Rollout
-            scenario = self._get_scenario()
+            scenario = self._get_scenario(scenario_id=i)
             controller = self._get_controller(scenario, split='train')
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
@@ -214,8 +208,9 @@ class RLTrainer(Trainer):
         if not self._is_agreed(example):
             print 'No agreement'
             return {0: -1, 1: -1}
-        total_reward = sum(example.outcome['reward'].values())
-        return {0: total_reward, 1: total_reward}
+        rewards = example.outcome['reward'].values()
+        diff = abs(rewards[0] - rewards[1]) * -0.1
+        return {0: diff, 1: diff}
 
     def get_reward(self, example, session):
         if not self._is_valid_dialogue(example):
