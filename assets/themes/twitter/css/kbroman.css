@@ -16,7 +16,18 @@ table{
 }
 
 th, td {
-    padding: 10px;
+    padding: 5px;
     text-align: left;
     border-bottom: 1px solid #ddd;
+}
+
+.project {
+    padding: 10px 0 10px 0;
+}
+
+.project-header {
+    padding: 10px 0 10px 0;
+    color: #006400;
+    font-style: bold;
+    font-size: 20px;
 }
