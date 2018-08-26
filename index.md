@@ -11,6 +11,7 @@ Our main focus is task-oriented dialogue where two agents converse with each oth
 We provide a platform that facilitates research in dialogue systems from data collection to evaluation.
 
 ### Framework
+<hr/>
 
 In the collaborative dialogue setting, each dialogue is centered around a **scenario**,
 which provides private knowledge to each agent and optional shared knowledge available to both agents.
@@ -31,6 +32,7 @@ Broadly, many dialogue tasks fall into this framework, for example,
 * negotiation where the scenario contains terms or issues to discuss.
 
 ### Projects 
+<hr/>
 
 <div class="project" id="craigslist" markdown="1">
 
@@ -115,4 +117,5 @@ All results can be found in the Codalab [worksheet](https://worksheets.codalab.o
 </div>
 
 ### Resources
-[Code](https://github.com/stanfordnlp/cocoa)
+<hr/>
+[Github Code](https://github.com/stanfordnlp/cocoa)
