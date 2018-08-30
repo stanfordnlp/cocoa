@@ -26,7 +26,7 @@ Broadly, many dialogue tasks fall into this framework, for example,
 <div class="project-header">CraigslistBargain</div>
 
 He He, Derek Chen, Anusha Balakrishnan, Percy Liang.
-[Decoupling Strategy and Generation in Negotiation Dialogues]().
+[Decoupling Strategy and Generation in Negotiation Dialogues](https://arxiv.org/abs/1808.09637).
 EMNLP 2018.
 <button type="button" class="btn btn-outline-danger btn-sm">New!</button>
 
