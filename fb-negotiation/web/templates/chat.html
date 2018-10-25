@@ -90,6 +90,9 @@
                             if (turn_counter > 3) {
                                 $(".no-deal").css("display", "inline-block");
                             }
+                            if (turn_counter > 0) {
+                                $(".yes-deal").css("display", "inline-block");
+                            }
 
                             stoppedTyping();
                             text = $('#text').val();
@@ -403,7 +406,7 @@
             </div>
 
             <div id="options">
-            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;select()" style="display:inline-block" id="submit">Mark Deal Agreed</button>
+            <button class="btn btn-primary yes-deal" disabled onclick="this.disabled=true;select()" style="display:none" id="submit">Mark Deal Agreed</button>
             <button class="btn btn-default no-deal" onclick="this.disabled=true;reject()" style="display:none" id="submit">No Deal</button>
             </div>
 
