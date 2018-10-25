@@ -18,10 +18,7 @@ def generate_uuid(prefix):
     return prefix + '_' + ''.join([random.choice(string.digits + string.letters) for _ in range(16)])
 
 def read_json(path):
-    try:
-        return json.load(open(path))
-    except:
-        raise Exception('Error reading JSON from %s' % path)
+    return json.load(open(path))
 
 def write_json(raw, path):
     with open(path, 'w') as out:

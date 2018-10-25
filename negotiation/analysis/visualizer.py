@@ -1,4 +1,5 @@
 from collections import defaultdict
+import numpy as np
 
 from cocoa.core.dataset import Example
 from cocoa.analysis.visualizer import Visualizer as BaseVisualizer
@@ -55,15 +56,16 @@ class Visualizer(BaseVisualizer):
         total = 0
         for ex in examples:
             if system == 'human':
-                eval_agents = [0, 1]
+                #eval_agents = [0, 1]
+                eval_agents = [np.random.randint(2)]
             else:
                 eval_agents = [0 if ex.agents[0] == system else 1]
             for eval_agent in eval_agents:
                 total += 1
-                if not StrategyAnalyzer.has_deal(ex):
-                    continue
                 l = len([e for e in ex.events if e.action == 'message'])
                 length += l
+                if not StrategyAnalyzer.has_deal(ex):
+                    continue
                 role = ex.scenario.kbs[eval_agent].facts['personal']['Role']
                 num_success += 1
                 final_price = ex.outcome['offer']['price']

@@ -99,8 +99,11 @@ class Visualizer(BaseVisualizer):
             if system == 'human':
                 # Take human winner
                 #rewards = [ex.outcome['reward'][str(agent)] for agent in (0, 1)]
-                #eval_agent = np.argmax(rewards)
-                eval_agents = [0, 1]
+                #eval_agents = [np.argmax(rewards)]
+                # Both
+                #eval_agents = [0, 1]
+                # Random sample
+                eval_agents = [np.random.randint(2)]
             else:
                 eval_agents = [0 if ex.agents[0] == system else 1]
 
