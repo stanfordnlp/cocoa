@@ -64,12 +64,6 @@ if __name__ == '__main__':
     schema = Schema(args.schema_path)
     scenario_db = ScenarioDB.from_dict(schema, read_json(args.scenarios_path), Scenario)
 
-    if args.train_max_examples or args.test_max_examples:
-        raise ValueError("Historically, this file was for generating training data, \
-            but is now used for verifying trained models.  Thus, we no longer use \
-            train_max_examples or test_max_examples. Please fill in results_path to \
-            specify where you want to store results and max_examples to specify how many.")
-
     assert len(args.agent_checkpoints) == len(args.agents)
     agents = [get_system(name, args, schema, model_path=model_path)
             for name, model_path in zip(args.agents, args.agent_checkpoints)]

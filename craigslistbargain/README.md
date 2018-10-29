@@ -87,6 +87,16 @@ PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json \
 --sample --temperature 0.5 --max-length 20 --reward <reward-function>
 ```
 
+### Use the end-to-end approach
+Set `model='seq2seq'` in the above training commands.
+
+## Chat with the bot
+Chat with the bot in the command line interface:
+```
+PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/dev-scenarios.json --results-paths bot-chat-transcripts.json --max-examples 20 --agents <agent-name> cmd --price-tracker price_tracker.pkl --agent-checkpoints <ckpt-file> "" --max-turns 20 --random-seed <seed> --sample --temperature 0.2
+```
+Chat with the bot in the web interface:
+
 ==== DEPRECATED ====
 
 
