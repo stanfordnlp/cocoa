@@ -21,7 +21,7 @@ def add_evaluator_arguments(parser):
     group.add_argument('--alpha', type=float, default=0.5,
                 help="""length penalty parameter (higher = longer generation)""")
 
-    group = parser.add_argument_group('Beam')
+    group = parser.add_argument_group('Sample')
     group.add_argument('--sample', action="store_true",
                        help='Sample instead of beam search')
     group.add_argument('--temperature', type=float, default=1,
@@ -37,8 +37,8 @@ def add_evaluator_arguments(parser):
     group.add_argument('--verbose', action="store_true",
                        help='Print scores and predictions for each sentence')
 
-    group.add_argument('--checkpoint',
-                       help='Print scores and predictions for each sentence')
+    parser.add_argument('--checkpoint',
+                       help='Path to checkpoint')
 
 
 class Evaluator(object):

@@ -1,31 +1,37 @@
 # CoCoA (Collaborative Communicating Agents)
 
-**CoCoA** is a dialogue research framework in Python, providing tools for
-- **data collection** from a text-based chat interface by crowdsourcing (e.g. Amazon Mechanical Turk)
-- **model development** with supports for rule-based bots, retrieval-based models, and neural models
-- **human evaluation** by conversation partners and/or third-party evaluators
-- **data analysis** including dialogue visualization, evaluation summary, and basic text and strategy analysis
+**CoCoA** is a dialogue framework written in Python, providing tools for
+data collection through a text-based chat interface and
+model development in PyTorch (largely based on OpenNMT).
 
-The master branch currently supports the MutualFriends task from the paper [Learning Symmetric Collaborative Dialogue Agents with Dynamic Knowledge Graph Embeddings](https://arxiv.org/pdf/1704.07130.pdf) (ACL 2017). More tasks are under development and will be added in future releases.
+This repo contains code for the following tasks:
+- **MutualFriends**: two agents, each with a private list of friends with multiple attributes (e.g. school, company), try to find their mutual friends through a conversation.
+- **CraigslistBargain**: a buyer and a seller negotiate the price of an item for sale on [Craigslist](https://sfbay.craigslist.org/).
+- **DealOrNoDeal**: two agents negotiate to split a group of items with different points among them.  The items are books, hats and balls.
+
+**Papers**:
+- [Learning Symmetric Collaborative Dialogue Agents with Dynamic Knowledge Graph Embeddings](https://arxiv.org/pdf/1704.07130.pdf).
+He He, Anusha Balakrishnan, Mihail Eric and Percy Liang.
+Association for Computational Linguistics (ACL), 2017.
+- [Decoupling Strategy and Generation in Negotiation Dialogues](https://arxiv.org/abs/1808.09637).
+He He, Derek Chen, Anusha Balakrishnan and Percy Liang.
+Empirical Methods in Natural Language Processing (EMNLP), 2018.
 
 ----------
-
 ## Installation
-You must have Tensorflow 1.2 installed.
+**Dependencies**: Python2.7, PyTorch 0.4.
+
+**NOTE**: MutualFriends still depends on Tensorflow 1.2 and uses different leanring modules.
+
 ```
 pip install -r requirements.txt
 python setup.py develop
 ```
 
-## Tasks
-- **MutualFriends**: two agents, each with a private list of friends with multiple attributes (e.g. school, company), try to find their mutual friends through a conversation.
-- **Craigslist Negotiation**: a buyer and a seller negotiate the price of an item for sale on [Craigslist](https://sfbay.craigslist.org/).
-- **Deal or No Deal**: two agents negotiate to split a group of items with different points among them.  The items are books, hats and balls.
-- **Open Movies**: Two agents have a conversation about movies, any discussion within the realm of movies is allowed.
-
 ## Main concepts/classes
 ### Schema and scenarios
-A **dialogue** is always grounded in a **scenario** (structured context). A **schema** defines the structure of scenarios. You can think of the scenario as tables and the schema as the column definition. For example, a simple scenario that specifies the dialogue topic is
+A **dialogue** is grounded in a **scenario**.
+A **schema** defines the structure of scenarios. For example, a simple scenario that specifies the dialogue topic is
 
 | Topic      | 
 | -------- | 
@@ -66,39 +72,54 @@ examples.json
 A **dataset** reads in training and testing examples from JSON files.
 
 ## Code organization
-CoCoA is designed to be modular so that one can add their own task/modules easily, using `cocoa` as a package.
-Below we use ```task``` as the custom task name (e.g. "negotiation").
+CoCoA is designed to be modular so that one can add their own task/modules easily.
+All tasks depend on the `cocoa` pacakge.
+See documentation in the task folder for task-specific details. 
 
 ### Data collection
+We provide basic infrastructure (see `cocoa.web`) to set up a website that pairs two users or a user and a bot to chat in a given scenario.
+
 #### Generate scenarios
-We provide basic infrastructure to set up a website that pairs two users or a user and a bot to chat in a given scenario. The first step is to generate/write a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in. The scenario generation script is ```scripts/generate_scenarios.py```.
+The first step is to create a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in.
 
 #### Setup the web server
-The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other to complete the task until the time limit is reached. Users are then directed to a survey to rate their partners in terms of fluency, collaboration etc. All dialogue events are logged in a database.
+The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other.
+Users are then directed to a survey to rate their partners (optional).
+All dialogue events are logged in a SQL database.
 
-Our server is built by [Flask](http://flask.pocoo.org/). The backend (```cocoa/web/main/backend.py```) maintains multiple systems (e.g. ```HumanSystem```, ```RulebasedSystem```, ```NeuralSystem```); when two agents are paired, they are put in two sessions and send/receive messages through the controller. See ```cocoa/web/views/``` for interacting with the front end. Task-specific templates are in ```task/web/templates```. The website config file specifies the time limit, systems/models etc.
+Our server is built by [Flask](http://flask.pocoo.org/).
+The backend (```cocoa/web/main/backend.py```) contains code for pairing, logging, dialogue quality check.
+The frontend code is in ```task/web/templates```.
 
 To deploy the web server, run
 ```
 cd <name-of-your-task>;
-PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --scenarios-path <path-to-scenarios> --output <output-dir>
+PYTHONPATH=. python web/chat_app.py --port <port> --config web/app_params.json --schema-path <path-to-schema> --scenarios-path <path-to-scenarios> --output <output-dir>
+```
+- Data and log will be saved in `<output-dir>`. **Important**: note that this will delete everything in `<output-dir>` if it's not empty.
+- `--num-scenarios`: total number of scenarios to sample from. Each scenario will have `num_HITs / num_scenarios` chats.
+You can also specify ratios of number of chats for each system in the config file.
+Note that the final result will be an approximation of these numbers due to concurrent database calls.
+
+To collect data from Amazon Mechanical Turk (AMT), workers should be directed to the link ```http://your-url:<port>/?mturk=1```.
+`?mturk=1` makes sure that workers will receive a Mturk code at the end of the task to submit the HIT.
+
+#### Dump the database
+Dump data from the SQL database to a `.json` file (see [Examples and datasets](#examples-and-datasets) for the JSON structure)
+and render it to a `.html` file.
+```
+cd <name-of-your-task>;
+PYTHONPATH=. python ../scripts/web/dump_db.py --db <output-dir>/chat_state.db --output <output-dir>/transcripts/transcripts.json --surveys <output-dir>/transcripts/surveys.json --schema <path-to-schema> --scenarios-path <path-to-scenarios> 
 ```
 
-To collect data from Amazon Mechanical Turk (AMT), workers should be directed to the link ```http://your-url:port/?mturk=1```. Workers will receive a Mturk code at the end of the survey to submit the HIT.
-
-#### Dump the data
-See ```scripts/web/dump_db.py```.
-
 ### Dialogue agents
-To add an agent for a task, we need a corresponding system ```task/systems/agent_system.py``` and a session ```task/sessions/agent_session.py```.
-Once an agent is implemented, we can let it self-play, i.e. chat with itself, using the script ```scripts/generate_dataset.py```.
+To add an agent for a task, you need to implement a system ```<name-of-your-task>/systems/<agent-name>_system.py```
+and a session ```<name-of-your-task>/sessions/<agent-name>_session.py```.
 
 ### Model training and testing
+TODO
 
-### Human evaluation
-
-Evaluations are done through AMT.
-
+### Evaluation
 #### Evaluate context-response pairs
 
 Two main classes are `EvalData` and `EvalTask`.
