@@ -14,7 +14,7 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.neural.loss import SimpleLossCompute
-from cocoa.neural.trainer import add_trainer_arguments, Trainer, Statistics
+from cocoa.neural.trainer import add_trainer_arguments, Statistics
 
 import onmt
 from onmt.Utils import use_gpu
@@ -23,6 +23,7 @@ from neural.model_builder import add_model_arguments
 from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.utterance import UtteranceBuilder
+from neural.trainer import Trainer
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -51,16 +52,10 @@ def tally_parameters(model):
     print('decoder: ', dec)
 
 def build_optim(opt, model, checkpoint):
-    if opt.train_from:
-        print('Loading optimizer from checkpoint.')
-        optim = checkpoint['optim']
-        optim.optimizer.load_state_dict(
-            checkpoint['optim'].optimizer.state_dict())
-    else:
-        print('Making optimizer for training.')
-        optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            model_size=opt.rnn_size)
+    print('Making optimizer for training.')
+    optim = onmt.Optim(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        model_size=opt.rnn_size)
 
     optim.set_parameters(model.parameters())
 

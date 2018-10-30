@@ -117,7 +117,7 @@ To add an agent for a task, you need to implement a system ```<name-of-your-task
 and a session ```<name-of-your-task>/sessions/<agent-name>_session.py```.
 
 ### Model training and testing
-TODO
+See documentation in the under each task (e.g., `./craigslistbargain`).
 
 ### Evaluation
 #### Evaluate context-response pairs

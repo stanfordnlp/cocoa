@@ -70,7 +70,7 @@ PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-ex
 --verbose
 ```
 
-#### 4. Finetuning the manager with reinforcement learning.
+#### <a name=rl>4. Finetune the manager with reinforcement learning.</a>
 Generate self-play dialogues using the above learned policy and
 run REINFORCE with a given reward function.
 
@@ -96,6 +96,7 @@ PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json \
 --sample --temperature 0.5 --max-length 20 --reward margin
 ```
 - `--reward`: `margin` (utility), `fair` (fairness), and `length` (length).
+- `--agents`: agent types 
 
 ### Use the end-to-end approach
 
@@ -137,22 +138,19 @@ PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-ex
 --verbose
 ```
 
+#### 3. Finetune with RL.
+See [finetuning](#rl) in the modular framework.
+We just need to change the agent type to `--agents hybrid hybrid`
+and the model path to `--model-path checkpoint/seq2seq`.
+
 ## Chat with the bot
 Chat with the bot in the command line interface:
 ```
 PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/dev-scenarios.json --results-paths bot-chat-transcripts.json --max-examples 20 --agents <agent-name> cmd --price-tracker price_tracker.pkl --agent-checkpoints <ckpt-file> "" --max-turns 20 --random-seed <seed> --sample --temperature 0.2
 ```
-Chat with the bot in the web interface:
 
 
 ===DEPRECATED===
-
-To dump the data explicitly (e.g. while the server is running), run
-```
-PYTHONPATH=. python ../scripts/web/dump_db.py --db <path_to_chat_state.db> \
---output <path_to_transcripts.json> --surveys <path_to_surveys.json> \
---schema data/craigslist-schema.json --scenarios-path data/sample-scenarios.json 
-```
 
 To visualize the data in HTML,
 ```
