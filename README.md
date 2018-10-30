@@ -104,13 +104,20 @@ Note that the final result will be an approximation of these numbers due to conc
 To collect data from Amazon Mechanical Turk (AMT), workers should be directed to the link ```http://your-url:<port>/?mturk=1```.
 `?mturk=1` makes sure that workers will receive a Mturk code at the end of the task to submit the HIT.
 
-#### Dump the database
-Dump data from the SQL database to a `.json` file (see [Examples and datasets](#examples-and-datasets) for the JSON structure)
-and render it to a `.html` file.
+#### <a name=visualize>Dump the database</a>
+Dump data from the SQL database to a JSON file (see [Examples and datasets](#examples-and-datasets) for the JSON structure).
 ```
 cd <name-of-your-task>;
 PYTHONPATH=. python ../scripts/web/dump_db.py --db <output-dir>/chat_state.db --output <output-dir>/transcripts/transcripts.json --surveys <output-dir>/transcripts/surveys.json --schema <path-to-schema> --scenarios-path <path-to-scenarios> 
 ```
+Render JSON transcript to HTML:
+```
+PYTHONPATH=. python ../scripts/visualize_transcripts.py --dialogue-transcripts <path-to-json-transcript> --html-output <path-to-output-html-file> --css-file ../chat_viewer/css/my.css
+```
+Other options for HTML visualization:
+- `--survey-transcripts`: path to `survey.json` if survey is enabled during data collection.
+- `--survey-only`: only visualize dialgoues with submitted surveys.
+- `--summary`: statistics of the dialogues.
 
 ### Dialogue agents
 To add an agent for a task, you need to implement a system ```<name-of-your-task>/systems/<agent-name>_system.py```
