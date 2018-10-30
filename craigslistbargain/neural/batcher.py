@@ -170,33 +170,6 @@ class DialogueBatcher(object):
     def _get_kb_batch(self, dialogues):
         return [dialogue.kb for dialogue in dialogues]
 
-    def pick_helpers(self, token_candidates, candidates):
-        helpers = []
-        for b, cands in enumerate(token_candidates):
-            best_score = 0
-            helper_id = -1
-            for i, cand in enumerate(cands):
-                try:
-                    cand = cand['response']
-                # Actual number of candidates can be smaller than num_candidates,
-                # in which case an empty dict is returned instead
-                except KeyError:
-                    continue
-                if i == 0:
-                    target = cand
-                    #print 'TARGET:', target
-                else:
-                    score = compute_bleu(cand, target)
-                    #print 'CANDIDATE:', score, cand
-                    if score > best_score:
-                        best_score = score
-                        helper_id = i
-            if helper_id == -1:
-                helper_id = 0
-            #print 'HELPER:', helper_id, cands[helper_id]['response']
-            helpers.append(candidates[b][helper_id])
-        return np.array(helpers)
-
     def _remove_last(self, array, value, pad):
         array = np.copy(array)
         nrows, ncols = array.shape

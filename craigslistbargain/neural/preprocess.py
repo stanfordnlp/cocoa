@@ -498,23 +498,6 @@ class DataGenerator(object):
                 responses[role].extend(turn)
         return responses
 
-    def rewrite_candidate(self, fillers, candidate):
-        rewritten = []
-        tokens = candidate
-        if not tokens:
-            return rewritten
-        for i, tok in enumerate(tokens):
-            if is_entity(tok) and tok.canonical.type == 'slot':
-                for filler in fillers:
-                    ss = filler.split()
-                    new_tokens = list(tokens)
-                    del new_tokens[i]
-                    for j, s in enumerate(ss):
-                        new_tokens.insert(i+j, Entity(s, CanonicalEntity('', 'slot')))
-                    new_cand = new_tokens
-                    rewritten.append(new_cand)
-        return rewritten
-
     def create_batches(self, name, dialogues, batch_size):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
