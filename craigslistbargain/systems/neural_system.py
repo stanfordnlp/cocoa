@@ -13,18 +13,7 @@ from sessions.neural_session import PytorchNeuralSession
 from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
-from neural.evaluator import add_evaluator_arguments
 from neural.utterance import UtteranceBuilder
-from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments
-
-def add_neural_system_arguments(parser):
-    # TODO: clean up the TF stuff
-    #parser.add_argument('--decoding', nargs='+', default=['sample', 0], help='Decoding method')
-    #parser.add_argument('--mappings', default='.', help='Directory to save mappings/vocab')
-    #parser.add_argument('--checkpoint', default='.', help='Directory to save learned models')
-    add_evaluator_arguments(parser)
-    # add_retriever_arguments(parser)
 
 
 class PytorchNeuralSystem(System):
@@ -40,8 +29,8 @@ class PytorchNeuralSystem(System):
 
         # TODO: do we need the dummy parser?
         dummy_parser = argparse.ArgumentParser(description='duh')
-        add_model_arguments(dummy_parser)
-        add_data_generator_arguments(dummy_parser)
+        options.add_model_arguments(dummy_parser)
+        options.add_data_generator_arguments(dummy_parser)
         dummy_args = dummy_parser.parse_known_args([])[0]
 
         # Load the model.

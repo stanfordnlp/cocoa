@@ -4,8 +4,7 @@ from itertools import count
 
 from onmt.Utils import use_gpu
 
-from cocoa.neural.evaluator import add_evaluator_arguments, \
-        Evaluator as BaseEvaluator
+from cocoa.neural.evaluator import Evaluator as BaseEvaluator
 
 from neural.generator import get_generator
 

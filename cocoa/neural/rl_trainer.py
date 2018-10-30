@@ -17,42 +17,6 @@ from core.controller import Controller
 from utterance import UtteranceBuilder
 from trainer import Trainer
 
-def add_rl_arguments(parser):
-    group = parser.add_argument_group('Reinforce')
-    group.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
-    group.add_argument('--num-dialogues', default=10000, type=int,
-            help='Number of dialogues to generate/train')
-    group.add_argument('--discount-factor', default=1.0, type=float,
-            help='Amount to discount the reward for each timestep when \
-            calculating the value, usually written as gamma')
-    group.add_argument('--verbose', default=False, action='store_true',
-            help='Whether or not to have verbose prints')
-
-    group = parser.add_argument_group('Training')
-    group.add_argument('--optim', default='sgd', help="""Optimization method.""",
-                       choices=['sgd', 'adagrad', 'adadelta', 'adam'])
-    group.add_argument('--report-every', type=int, default=5,
-                       help="Print stats at this many batch intervals")
-    group.add_argument('--epochs', type=int, default=14,
-                       help='Number of training epochs')
-    group.add_argument('--batch-size', type=int, default=64,
-                       help='Maximum batch size for training')
-    group.add_argument('--max-grad-norm', type=float, default=5,
-                       help="""If the norm of the gradient vector exceeds this,
-                       renormalize it to have the norm equal to max_grad_norm""")
-    group.add_argument('--learning-rate', type=float, default=1.0,
-                       help="""Starting learning rate. Recommended settings:
-                       sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
-    group.add_argument('--model-path', default='data/checkpoints',
-                       help="""Which file the model checkpoints will be saved""")
-    group.add_argument('--model-filename', default='model',
-                       help="""Model filename (the model will be saved as
-                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
-                       the perplexity and E is the epoch""")
-    group.add_argument('--train-from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                       path to the pretrained model's state_dict.""")
-
 
 class Statistics(BaseStatistics):
     def __init__(self, episode=0, loss=0, reward=0):

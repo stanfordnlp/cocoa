@@ -1,16 +1,5 @@
 import onmt
 
-def add_data_generator_arguments(parser):
-    from preprocess import add_preprocess_arguments
-    from cocoa.core.scenario_db import add_scenario_arguments
-    from cocoa.core.dataset import add_dataset_arguments
-    from core.price_tracker import add_price_tracker_arguments
-
-    add_scenario_arguments(parser)
-    add_preprocess_arguments(parser)
-    add_dataset_arguments(parser)
-    add_price_tracker_arguments(parser)
-
 def get_data_generator(args, model_args, schema, test=False):
     from cocoa.core.scenario_db import ScenarioDB
     from cocoa.core.dataset import read_dataset

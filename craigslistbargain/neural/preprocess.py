@@ -20,14 +20,6 @@ from symbols import markers
 from vocab_builder import create_mappings
 from neural import make_model_mappings
 
-def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
-    parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
-    parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
-    parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
-    parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
-    parser.add_argument('--mappings', help='Path to vocab mappings')
-
 category_to_marker = {
         'car': markers.C_car,
         'phone': markers.C_phone,

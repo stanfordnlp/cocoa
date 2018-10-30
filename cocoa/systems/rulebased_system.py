@@ -1,10 +1,6 @@
 from system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 
-def add_rulebased_arguments(parser):
-    parser.add_argument('--templates', help='Path to templates (.pkl)')
-    parser.add_argument('--policy', help='Path to manager model (.pkl)')
-
 class RulebasedSystem(System):
     def __init__(self, lexicon, generator, manager, timed_session):
         super(RulebasedSystem, self).__init__()

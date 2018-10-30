@@ -120,18 +120,6 @@ def read_examples(paths, max_examples, Scenario):
             examples.append(Example.from_dict(raw, Scenario))
     return examples
 
-def add_dataset_arguments(parser):
-    parser.add_argument('--train-examples-paths', nargs='*', default=[],
-        help='Input training examples')
-    parser.add_argument('--test-examples-paths', nargs='*', default=[],
-        help='Input test examples')
-    parser.add_argument('--train-max-examples', type=int,
-        help='Maximum number of training examples')
-    parser.add_argument('--test-max-examples', type=int,
-        help='Maximum number of test examples')
-    parser.add_argument('--eval-examples-paths', nargs='*', default=[],
-        help='Path to multi-response evaluation files')
-
 def read_dataset(args, Scenario):
     '''
     Return the dataset specified by the given args.

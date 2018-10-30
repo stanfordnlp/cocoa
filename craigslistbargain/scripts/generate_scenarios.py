@@ -11,8 +11,9 @@ from itertools import izip
 from collections import defaultdict
 
 from cocoa.core.schema import Schema
-from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
+from cocoa.core.scenario_db import ScenarioDB
 from cocoa.core.util import generate_uuid, write_json, read_json
+import cocoa.options
 
 from core.scenario import Scenario
 from core.kb import KB
@@ -117,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument('--categories', nargs='+', required=True, help="Listing categories, JSON file path is craigslist_<category>.json")
     parser.add_argument('--fractions', nargs='+', required=True, help="Fractions of data from different categories")
     parser.add_argument('--skip', default=0, type=int, help="Skip the first X scenarios")
-    add_scenario_arguments(parser)
+    cocoa.options.add_scenario_arguments(parser)
     args = parser.parse_args()
 
     random.seed(args.random_seed)

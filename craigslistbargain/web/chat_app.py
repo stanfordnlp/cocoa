@@ -9,16 +9,18 @@ import warnings
 import atexit
 from gevent.pywsgi import WSGIServer
 
-from cocoa.core.scenario_db import add_scenario_arguments, ScenarioDB
+from cocoa.core.scenario_db import ScenarioDB
 from cocoa.core.schema import Schema
 from cocoa.core.util import read_json
 from cocoa.systems.human_system import HumanSystem
 from cocoa.web.main.logger import WebLogger
+import cocoa.options
 
 from core.scenario import Scenario
-from systems import get_system, add_system_arguments
+from systems import get_system
 from main.db_reader import DatabaseReader
 from main.backend import DatabaseManager
+import options
 
 __author__ = 'anushabala'
 
@@ -60,24 +62,6 @@ def create_app(debug=False, templates_dir='templates'):
 
     socketio.init_app(app)
     return app
-######################
-
-def add_website_arguments(parser):
-    parser.add_argument('--port', type=int, default=5000,
-                        help='Port to start server on')
-    parser.add_argument('--host', type=str, default='127.0.0.1',
-                        help='Host IP address to run app on. Defaults to localhost.')
-    parser.add_argument('--config', type=str, default='app_params.json',
-                        help='Path to JSON file containing configurations for website')
-    parser.add_argument('--output', type=str,
-                        default="web_output/{}".format(datetime.now().strftime("%Y-%m-%d")),
-                        help='Name of directory for storing website output (debug and error logs, chats, '
-                             'and database). Defaults to a web_output/current_date, with the current date formatted as '
-                             '%%Y-%%m-%%d. '
-                             'If the provided directory exists, all data in it is overwritten unless the '
-                             '--reuse parameter is provided.')
-    parser.add_argument('--reuse', action='store_true', help='If provided, reuses the existing database file in the '
-                                                             'output directory.')
 
 
 def add_systems(args, config_dict, schema, debug=False):
@@ -176,9 +160,9 @@ def init(output_dir, reuse=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--num-scenarios', type=int)
-    add_website_arguments(parser)
-    add_scenario_arguments(parser)
-    add_system_arguments(parser)
+    options.add_website_arguments(parser)
+    cocoa.options.add_scenario_arguments(parser)
+    options.add_system_arguments(parser)
     args = parser.parse_args()
 
     params_file = args.config

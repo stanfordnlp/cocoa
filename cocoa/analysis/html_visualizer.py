@@ -6,7 +6,7 @@ from itertools import izip
 from collections import defaultdict
 from argparse import ArgumentParser
 
-from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
+from cocoa.core.scenario_db import ScenarioDB
 from cocoa.core.schema import Schema
 from cocoa.core.event import Event
 from cocoa.core.util import write_json, read_json

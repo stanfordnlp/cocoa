@@ -14,16 +14,16 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.neural.loss import SimpleLossCompute
-from cocoa.neural.trainer import add_trainer_arguments, Statistics
+from cocoa.neural.trainer import Statistics
 
 import onmt
 from onmt.Utils import use_gpu
 
-from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments, get_data_generator, make_model_mappings
+from neural import get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.utterance import UtteranceBuilder
 from neural.trainer import Trainer
+import options
 
 def build_model(model_opt, opt, mappings, checkpoint):
     print 'Building model...'
@@ -101,9 +101,9 @@ if __name__ == '__main__':
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
     parser.add_argument('--vocab-only', default=False, action='store_true', help='Only build the vocab')
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
-    add_data_generator_arguments(parser)
-    add_model_arguments(parser)
-    add_trainer_arguments(parser)
+    options.add_data_generator_arguments(parser)
+    options.add_model_arguments(parser)
+    options.add_trainer_arguments(parser)
     args = parser.parse_args()
 
     random.seed(args.random_seed)

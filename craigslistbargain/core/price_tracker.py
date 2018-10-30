@@ -8,8 +8,6 @@ from cocoa.core.util import read_json, write_pickle, read_pickle
 
 from tokenizer import tokenize
 
-def add_price_tracker_arguments(parser):
-    parser.add_argument('--price-tracker-model', help='Path to price tracker model')
 
 class PriceScaler(object):
     @classmethod

@@ -1,7 +1,3 @@
-def add_scenario_arguments(parser):
-    parser.add_argument('--schema-path', help='Input path that describes the schema of the domain')
-    parser.add_argument('--scenarios-path', help='Output path for the scenarios generated')
-
 class Scenario(object):
     '''
     A scenario represents a situation to be played out where each agent has a KB.

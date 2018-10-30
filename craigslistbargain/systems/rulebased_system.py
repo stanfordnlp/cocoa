@@ -1,4 +1,4 @@
-from cocoa.systems.rulebased_system import RulebasedSystem as BaseRulebasedSystem, add_rulebased_arguments
+from cocoa.systems.rulebased_system import RulebasedSystem as BaseRulebasedSystem
 from sessions.rulebased_session import RulebasedSession
 
 class RulebasedSystem(BaseRulebasedSystem):

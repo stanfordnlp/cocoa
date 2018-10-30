@@ -17,13 +17,14 @@ sns.set()
 from cocoa.core.util import read_json, write_json
 from cocoa.core.entity import Entity, is_entity
 
-from core.price_tracker import PriceTracker, PriceScaler, add_price_tracker_arguments
+from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
 from core.scenario import Scenario
 from analysis.html_visualizer import HTMLVisualizer
 from dialogue import Dialogue
 from liwc import LIWC
 import utils
+import options
 
 __author__ = 'anushabala'
 
@@ -703,7 +704,7 @@ if __name__ == "__main__":
     parser.add_argument('--max-examples', type=int, default=100, help='Maximum number of examples to run')
     parser.add_argument('--html-visualize', action='store_true', help='Output html files')
     parser.add_argument('--mpld3-plugin', default=None, help='Javascript of the mpld3 plugin')
-    add_price_tracker_arguments(parser)
+    options.add_price_tracker_arguments(parser)
     HTMLVisualizer.add_html_visualizer_arguments(parser)
     args = parser.parse_args()
 

@@ -16,11 +16,6 @@ from core.controller import Controller
 from neural.trainer import Trainer
 from utterance import UtteranceBuilder
 
-def add_rl_arguments(parser):
-    base_add_rl_arguments(parser)
-    parser.add_argument('--reward', choices=['margin', 'length', 'fair'],
-            help='Which reward function to use')
-
 
 class RLTrainer(BaseRLTrainer):
     def __init__(self, agents, scenarios, train_loss, optim, training_agent=0, reward_func='margin'):

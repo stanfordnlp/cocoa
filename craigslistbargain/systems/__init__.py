@@ -3,12 +3,6 @@ from cocoa.core.util import read_json, read_pickle
 import options
 
 
-def add_system_arguments(parser):
-    # NOTE: hybrid system arguments are covered by neural system and rulebased system
-    options.add_price_tracker_arguments(parser)
-    options.add_neural_system_arguments(parser)
-    options.add_rulebased_arguments(parser)
-
 def get_system(name, args, schema=None, timed=False, model_path=None):
     from core.price_tracker import PriceTracker
     lexicon = PriceTracker(args.price_tracker_model)
