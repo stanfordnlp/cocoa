@@ -20,7 +20,7 @@ from cocoa.model.trie import Trie
 from core.price_tracker import PriceTracker, PriceScaler
 from core.tokenizer import tokenize
 from batcher import DialogueBatcherFactory, Batch, LMBatch
-from symbols import markers#, SpecialSymbols
+from symbols import markers
 from vocab_builder import create_mappings
 from neural import make_model_mappings
 
@@ -610,8 +610,7 @@ class DataGenerator(object):
             mappings = create_mappings(self.dialogues['train'], schema,
                 preprocessor.entity_forms.values())
             write_pickle(mappings, vocab_path)
-            print('Wrote mappings to {}, now exiting.'.format(vocab_path))
-            import sys; sys.exit()
+            print('Wrote mappings to {}.'.format(vocab_path))
         else:
             print 'Loading vocab from', vocab_path
             mappings = read_pickle(vocab_path)

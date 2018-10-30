@@ -22,7 +22,7 @@ def add_rl_arguments(parser):
     group.add_argument('--max-turns', default=100, type=int, help='Maximum number of turns')
     group.add_argument('--num-dialogues', default=10000, type=int,
             help='Number of dialogues to generate/train')
-    group.add_argument('--discount-factor', default=0.95, type=float,
+    group.add_argument('--discount-factor', default=1.0, type=float,
             help='Amount to discount the reward for each timestep when \
             calculating the value, usually written as gamma')
     group.add_argument('--verbose', default=False, action='store_true',

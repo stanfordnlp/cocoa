@@ -16,7 +16,7 @@ def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
 
     # Initialization
-    group.add_argument('--pretrained-wordvec', nargs='+', required=True,
+    group.add_argument('--pretrained-wordvec', nargs='+', default=['', ''],
                        help="""If a valid path is specified, then this will load
                        pretrained word embeddings, if list contains two embeddings,
                        then the second one is for item title and description""")
@@ -27,9 +27,6 @@ def add_trainer_arguments(parser):
     group.add_argument('--fix-pretrained-wordvec',
                        action='store_true',
                        help="Fix pretrained word embeddings.")
-    group.add_argument('--train-from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                       path to the pretrained model's state_dict.""")
 
     # Optimization
     group.add_argument('--batch-size', type=int, default=64,

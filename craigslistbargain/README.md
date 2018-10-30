@@ -37,7 +37,7 @@ See [data collection](../README.md#data-collection) in `cocoa` README.
 ### Use the modular approach
 The modular framework consists of three parts: the parser, the manager, and the generator.
 
-#### 1. Build the price tracker.
+#### <a name=price-tracker>1. Build the price tracker.</a>
 The price tracker recognizes price mentions in an utterance.
 ```
 PYTHONPATH=. python core/price_tracker.py --train-examples-path data/train.json --output <path-to-save-price-tracker>
@@ -54,41 +54,88 @@ PYTHONPATH=. python parse_dialogue.py --transcripts data/train.json --price-trac
 #### 3. Learning the manager.
 We train a seq2seq model over the coarse dialogue acts using parsed data.
 ```
-model='lf2lf'; \
+mkdir -p mappings/lf2lf;
+mkdir -p cache/lf2lf;
+mkdir -p checkpoint/lf2lf;
 PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/dev-parsed.json \
 --price-tracker price_tracker.pkl \
---stats-file stats.train --model-path checkpoint \
---model $model \
---mappings mappings/$model --word-vec-size 300 --pretrained-wordvec '' '' \
---batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
+--model lf2lf \
+--model-path checkpoint/lf2lf --mappings mappings/lf2lf \
+--word-vec-size 300 --pretrained-wordvec '' '' \
 --rnn-size 300 --rnn-type LSTM --global-attention multibank_general \
 --num-context 2 --stateful \
---epochs 15 \
---report-every 500 \
---cache cache/$model \
---verbose \
+--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
+--epochs 15 --report-every 500 \
+--cache cache/lf2lf \
+--verbose
 ```
 
 #### 4. Finetuning the manager with reinforcement learning.
 Generate self-play dialogues using the above learned policy and
 run REINFORCE with a given reward function.
+
+First, let's generate the training and validation scenarios.
+We will directly get those from the training and validation data.
 ```
-model='lf2lf'; \
+PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/train.json --scenarios data/train-scenarios.json
+PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/dev.json --scenarios data/dev-scenarios.json
+```
+Now, we can run self-play and REINFORCE with a reward function, e.g. `margin`.
+```
+mkdir checkpoint/lf2lf-margin;
 PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json \
 --scenarios-path data/train-scenarios.json \
 --valid-scenarios-path data/dev-scenarios.json \
 --price-tracker price_tracker.pkl \
---mappings mappings/$model \
---agent-checkpoints <ckpt-file> <ckpt-file> \
---model-path rl-checkpoint \
---optim adagrad --learning-rate 0.001 --discount-factor 0.95 \
+--mappings mappings/lf2lf \
+--agent-checkpoints checkpoint/lf2lf/model_best.pt checkpoint/lf2lf/model_best.pt \
+--model-path checkpoint/lf2lf-margin \
+--optim adagrad --learning-rate 0.001 \
 --agents pt-neural pt-neural \
 --report-every 500 --max-turns 20 --num-dialogues 5000 \
---sample --temperature 0.5 --max-length 20 --reward <reward-function>
+--sample --temperature 0.5 --max-length 20 --reward margin
 ```
+- `--reward`: `margin` (utility), `fair` (fairness), and `length` (length).
 
 ### Use the end-to-end approach
-Set `model='seq2seq'` in the above training commands.
+
+#### 1. Build pretrained word embeddings.
+First, build the vocabulary. Note that we need the [price tracker](#price-tracker) to bin prices.
+```
+mkdir -p mappings/seq2seq;
+PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-examples-paths scr/data/train.json --mappings mappings/seq2seq --model seq2seq --price-tracker price_tracker.pkl --ignore-cache --vocab-only
+```
+
+Get the GloVe embedding.
+```
+wget http://nlp.stanford.edu/data/glove.840B.300d.zip;
+unzip glove.840B.300d.zip;
+```
+
+Filter pretrained embedding for the model vocab.
+We use separate embeddings for the utterances and the product description specified by `--vocab-type`.
+```
+PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file glove.840B.300d.txt --vocab-file mappings/seq2seq/vocab.pkl --output-file mappings/seq2seq/ --vocab-type kb
+PYTHONPATH=. python ../cocoa/neural/embeddings_to_torch.py --emb-file glove.840B.300d.txt --vocab-file mappings/seq2seq/vocab.pkl --output-file mappings/seq2seq/ --vocab-type utterance
+```
+
+#### 2. Train the seq2seq model.
+```
+mkdir -p cache/seq2seq;
+mkdir -p checkpoint/seq2seq;
+PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-examples-paths data/train.json --test-examples-paths data/dev-parsed.json \
+--price-tracker price_tracker.pkl \
+--model seq2seq \
+--model-path checkpoint/seq2seq --mappings mappings/seq2seq \
+--pretrained-wordvec mappings/seq2seq/utterance_glove.pt mappings/seq2seq/kb_glove.pt --word-vec-size 300 \
+--rnn-size 300 --rnn-type LSTM --global-attention multibank_general \
+--enc-layers 2 --dec-layers 2 --num-context 2 \
+--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01  \
+--report-every 500 \
+--epochs 15 \
+--cache cache/seq2seq \
+--verbose
+```
 
 ## Chat with the bot
 Chat with the bot in the command line interface:
@@ -97,46 +144,8 @@ PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist
 ```
 Chat with the bot in the web interface:
 
-==== DEPRECATED ====
 
-
-All command below must be run in the task directory, i.e. `negotiation`.
-
-**Price tracker**: detect mentions of prices (entities) in an utterance.
-
-We first "train" a price tracker by weak supervision from the dollar sign ($) in front of prices.
-```
-PYTHONPATH=. python core/price_tracker.py --train-examples-path data/train.json --output price-tracker.pkl
-```
-
-Let's use scenarios from the test set to test the bot:
-```
-PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/test.json --scenarios data/test-scenarios.json
-```
-
-To run the rulebased bot against itself,
-```
-PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json \
---scenarios-path data/test-scenarios.json \
---train-examples-paths data/rulebased-transcripts.json --train-max-examples 1 \
---test-max-examples 0 \
---agents rulebased rulebased --price-tracker price-tracker.pkl --max-turns 20 
-```
-Path to output transcripts is given by `--train-examples-paths`.
-
-To set up the website,
-```
-PYTHONPATH=. python web/chat_app.py --port 5000 --schema-path data/craigslist-schema.json \
---config web/app_params.json --scenarios-path data/sample-scenarios.json \
---output web_output/<dir-name> --price-tracker price-tracker.pkl
-```
-Arguments:
-- `port`: The port of the web server.
-- `config`: Path to the configuration file. See an example at `web/app_params.json`. To add a bot, put its arguments in `models`. 
-- `output`: Location of the database, error logs, and transcripts. *NOTE*: currently the path exists, then the whole directory is deleted (even files not related to the website) during initialization unless `--reuse` is specified. **TODO**: only delete relevatn files.
-
-The chat data is logged in `<output>/chat_state.db`.
-Upon exit, the server dumps the data to `<output>/transcripts/transcripts.json` and `<output>/transcripts/survey.json`.
+===DEPRECATED===
 
 To dump the data explicitly (e.g. while the server is running), run
 ```
