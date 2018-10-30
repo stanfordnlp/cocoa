@@ -13,7 +13,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
               MultiAttnDecoder, NMTModel
-from models import NegotiationModel, LM
+from models import NegotiationModel
 
 from cocoa.io.utils import read_pickle
 from cocoa.pt_model.util import use_gpu
@@ -64,7 +64,7 @@ def add_model_arguments(parser):
                        help="""The attention type to use: dotprod or general (Luong)
                        or MLP (Bahdanau), prepend multibank to add context""")
     group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'lf2lf', 'lflm'],
+                       choices=['seq2seq', 'lf2lf'],
                        help='Model type')
     group.add_argument('--num-context', type=int, default=2,
                        help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
@@ -221,45 +221,40 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
 
-    if model_opt.model == 'lflm':
-        assert mappings['src_vocab'] == mappings['tgt_vocab']
-        model = LM(encoder)
-        tgt_dict = mappings['tgt_vocab']
-    else:
-        # Make context embedder.
-        if model_opt.num_context > 0:
-            context_dict = mappings['utterance_vocab']
-            context_embeddings = make_embeddings(model_opt, context_dict)
-            context_embedder = make_context_embedder(model_opt, context_embeddings)
+    # Make context embedder.
+    if model_opt.num_context > 0:
+        context_dict = mappings['utterance_vocab']
+        context_embeddings = make_embeddings(model_opt, context_dict)
+        context_embedder = make_context_embedder(model_opt, context_embeddings)
 
-        # Make kb embedder.
-        if "multibank" in model_opt.global_attention:
-            if model_opt.model == 'lf2lf':
-                kb_embedder = None
-            else:
-                kb_dict = mappings['kb_vocab']
-                kb_embeddings = make_embeddings(model_opt, kb_dict)
-                kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
-
-        # Make decoder.
-        tgt_dict = mappings['tgt_vocab']
-        tgt_embeddings = make_embeddings(model_opt, tgt_dict)
-
-        # Share the embedding matrix - preprocess with share_vocab required.
-        if model_opt.share_embeddings:
-            # src/tgt vocab should be the same if `-share_vocab` is specified.
-            if src_dict != tgt_dict:
-                raise AssertionError('The `-share_vocab` should be set during '
-                                     'preprocess if you use share_embeddings!')
-
-            tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
-
-        decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
-
-        if "multibank" in model_opt.global_attention:
-            model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder, stateful=model_opt.stateful)
+    # Make kb embedder.
+    if "multibank" in model_opt.global_attention:
+        if model_opt.model == 'lf2lf':
+            kb_embedder = None
         else:
-            model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
+            kb_dict = mappings['kb_vocab']
+            kb_embeddings = make_embeddings(model_opt, kb_dict)
+            kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'kb')
+
+    # Make decoder.
+    tgt_dict = mappings['tgt_vocab']
+    tgt_embeddings = make_embeddings(model_opt, tgt_dict)
+
+    # Share the embedding matrix - preprocess with share_vocab required.
+    if model_opt.share_embeddings:
+        # src/tgt vocab should be the same if `-share_vocab` is specified.
+        if src_dict != tgt_dict:
+            raise AssertionError('The `-share_vocab` should be set during '
+                                 'preprocess if you use share_embeddings!')
+
+        tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
+
+    decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
+
+    if "multibank" in model_opt.global_attention:
+        model = NegotiationModel(encoder, decoder, context_embedder, kb_embedder, stateful=model_opt.stateful)
+    else:
+        model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 
     model.model_type = 'text'
 
@@ -296,7 +291,7 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
                     wordvec[name], model_opt.fix_pretrained_wordvec)
 
         # Don't need pretrained word vec for LFs
-        if not model_opt.model in ('lf2lf', 'lflm'):
+        if not model_opt.model in ('lf2lf',):
             load_wordvec(model.encoder.embeddings, 'utterance')
             if hasattr(model, 'context_embedder'):
                 load_wordvec(model.context_embedder.embeddings, 'utterance')

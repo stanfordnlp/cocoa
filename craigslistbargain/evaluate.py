@@ -18,9 +18,6 @@ from neural import model_builder
 from neural.evaluator import Evaluator, add_evaluator_arguments
 from neural.generator import get_generator
 
-#from model import add_data_generator_arguments, get_data_generator, add_model_arguments, build_model
-#from model.learner import add_learner_arguments, get_learner
-#from model.evaluate import get_evaluator
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -2,17 +2,6 @@ import torch.nn as nn
 
 from cocoa.neural.models import NMTModel
 
-class LM(nn.Module):
-    def __init__(self, encoder):
-        super(LM, self).__init__()
-        self.encoder = encoder
-        self.stateful = False
-
-    def forward(self, src, lengths, enc_state=None):
-        enc_final, outputs = self.encoder(src, lengths, enc_state)
-        return outputs, enc_final
-
-
 class NegotiationModel(NMTModel):
 
     def __init__(self, encoder, decoder, context_embedder, kb_embedder, stateful=False):

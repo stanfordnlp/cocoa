@@ -11,9 +11,7 @@ from cocoa.pt_model.util import use_gpu
 from core.event import Event
 from session import Session
 from neural.preprocess import markers, Dialogue
-from neural.evaluator import Evaluator, add_evaluator_arguments
-from neural.batcher import Batch, LMBatch
-from neural.models import LM
+from neural.batcher import Batch
 
 class NeuralSession(Session):
     def __init__(self, agent, kb, env):
@@ -36,9 +34,6 @@ class NeuralSession(Session):
             for curr_turns, stage in izip(self.dialogue.turns, ('encoding', 'decoding', 'target')):
                 if i >= len(curr_turns):
                     curr_turns.append(self.env.textint_map.text_to_int(turn, stage))
-                else:
-                    # Already converted
-                    pass
 
     def receive(self, event):
         if event.action in Event.decorative_events:
@@ -92,6 +87,21 @@ class NeuralSession(Session):
         #print 'send:', s
         return self.message(s)
 
+    def iter_batches(self):
+        """Compute the logprob of each generated utterance.
+        """
+        self.convert_to_int()
+        batches = self.batcher.create_batch([self.dialogue])
+        yield len(batches)
+        for batch in batches:
+            # TODO: this should be in batcher
+            batch = Batch(batch['encoder_args'],
+                          batch['decoder_args'],
+                          batch['context_data'],
+                          self.env.vocab,
+                          num_context=Dialogue.num_context, cuda=self.env.cuda)
+            yield batch
+
 
 class PytorchNeuralSession(NeuralSession):
     def __init__(self, agent, kb, env):
@@ -136,14 +146,6 @@ class PytorchNeuralSession(NeuralSession):
                 'kbs': [self.kb],
                 }
 
-        # TODO: hack
-        #if isinstance(self.env.model, LM):
-        #    partner_inputs = encoder_turns[-1]
-        #    prefix = decoder_args['inputs']
-        #    inputs = np.concatenate((partner_inputs, prefix), 1)
-        #    return LMBatch(inputs, inputs, self.vocab,
-        #            sort_by_length=False, cuda=self.cuda)
-
         return Batch(encoder_args, decoder_args, context_data,
                 self.vocab, sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
@@ -163,8 +165,6 @@ class PytorchNeuralSession(NeuralSession):
 
         entity_tokens = self._output_to_tokens(output_data)
 
-        #if not self._is_valid(entity_tokens):
-        #    return None
         return entity_tokens
 
     def _is_valid(self, tokens):
@@ -178,21 +178,4 @@ class PytorchNeuralSession(NeuralSession):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
         return tokens
-
-    # To support REINFORCE
-    # TODO: this should be in NeuralSession
-    def iter_batches(self):
-        """Compute the logprob of each generated utterance.
-        """
-        self.convert_to_int()
-        batches = self.batcher.create_batch([self.dialogue])
-        yield len(batches)
-        for batch in batches:
-            # TODO: this should be in batcher
-            batch = Batch(batch['encoder_args'],
-                          batch['decoder_args'],
-                          batch['context_data'],
-                          self.env.vocab,
-                          num_context=Dialogue.num_context, cuda=self.env.cuda)
-            yield batch
 
