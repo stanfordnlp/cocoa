@@ -242,7 +242,7 @@ if __name__ == '__main__':
     from cocoa.core.dataset import read_examples
     from core.price_tracker import PriceTracker
     from core.scenario import Scenario
-    from model.preprocess import Preprocessor
+    from neural.preprocess import Preprocessor
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--transcripts', nargs='*', help='JSON transcripts to extract templates')

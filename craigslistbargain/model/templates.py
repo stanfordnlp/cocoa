@@ -12,7 +12,7 @@ from core.scenario import Scenario
 from core.tokenizer import detokenize
 from analysis.dialogue import Utterance, Dialogue
 from analysis.speech_acts import SpeechActAnalyzer
-from model.preprocess import Preprocessor
+from neural.preprocess import Preprocessor
 
 class Templates(object):
     def __init__(self, templates):

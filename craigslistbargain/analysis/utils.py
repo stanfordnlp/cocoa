@@ -4,7 +4,7 @@ from cocoa.core.dataset import Example
 from cocoa.analysis.utils import get_total_tokens_per_agent
 
 from core.scenario import Scenario
-from model.preprocess import Preprocessor
+from neural.preprocess import Preprocessor
 
 
 BUYER = "buyer"

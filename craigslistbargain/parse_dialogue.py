@@ -9,7 +9,7 @@ from cocoa.io.utils import write_json
 from core.event import Event
 from core.scenario import Scenario
 from core.price_tracker import PriceTracker
-from model.preprocess import Preprocessor
+from neural.preprocess import Preprocessor
 from model.parser import Parser
 from model.dialogue_state import DialogueState
 from model.generator import Templates, Generator
