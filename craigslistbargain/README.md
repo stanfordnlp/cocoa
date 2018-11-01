@@ -94,7 +94,6 @@ PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json \
 --scenarios-path data/train-scenarios.json \
 --valid-scenarios-path data/dev-scenarios.json \
 --price-tracker price_tracker.pkl \
---mappings mappings/lf2lf \
 --agent-checkpoints checkpoint/lf2lf/model_best.pt checkpoint/lf2lf/model_best.pt \
 --model-path checkpoint/lf2lf-margin \
 --optim adagrad --learning-rate 0.001 \

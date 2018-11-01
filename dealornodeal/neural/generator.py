@@ -117,7 +117,6 @@ class LFSampler(Sampler):
         super(LFSampler, self).__init__(model, vocab, temperature=temperature, max_length=max_length, cuda=cuda)
         self.eos = self.vocab.to_ind(markers.EOS)
         self.count_actions = map(self.vocab.to_ind, ('insist', 'propose', markers.SELECT))
-        #counts = [str(x) for x in range(11)]
         counts = [w for w in self.vocab.word_to_ind if '=' in w]
         self.counts = map(self.vocab.to_ind, counts)
         actions = set([w for w in self.vocab.word_to_ind if not
@@ -142,13 +141,10 @@ class LFSampler(Sampler):
         # (1) Run the encoder on the src.
         lengths = batch.lengths
         encoder_inputs = list(batch.encoder_inputs.data[:, 0])
-        #print 'encoder inputs:', map(self.vocab.to_word, encoder_inputs)
         enc_final, enc_memory_bank = self._run_encoder(batch, enc_state)
         memory_banks = self._run_attention_memory(batch, enc_memory_bank)
-        #context_out = memory_banks.pop()
         # (1.1) Go over forced prefix.
         inp = batch.decoder_inputs[:gt_prefix]
-        #print 'decoder inputs:', map(self.vocab.to_word, inp.data[:, 0])
         decoder_outputs, dec_states, _ = self.model.decoder(
             inp, memory_banks, enc_final, memory_lengths=lengths)
 

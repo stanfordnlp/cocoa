@@ -9,9 +9,6 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-# TODO: hack
-# We cannot put RLTrainer in cocoa now because it needs to inherit from
-# task-specific Trainer. RLTrainer should *have* a trainer, not inherit.
 from cocoa.neural.rl_trainer import RLTrainer as BaseRLTrainer, \
         add_rl_arguments as base_add_rl_arguments, \
         Statistics
@@ -76,13 +73,6 @@ class RLTrainer(Trainer):
         nn.utils.clip_grad_norm(model.parameters(), 1.)
         self.optim.step()
 
-        #model.eval()
-        #model.generator.eval()
-
-        # TODO
-        #total_stats.update(batch_stats)
-        #report_stats.update(batch_stats)
-
     def _get_scenario(self, scenario_id=None, split='train'):
         scenarios = self.scenarios[split]
         if scenario_id is None:
@@ -141,9 +131,6 @@ class RLTrainer(Trainer):
             controller = self._get_controller(scenario, split='train')
             example = controller.simulate(args.max_turns, verbose=args.verbose)
 
-            #if i % 100 == 0:
-            #    self.agents[1].env.model.load_state_dict(self.model.state_dict())
-
             for session_id, session in enumerate(controller.sessions):
                 # Only train one agent
                 if session_id != self.training_agent:
@@ -167,18 +154,6 @@ class RLTrainer(Trainer):
             if i > 0 and i % 100 == 0:
                 valid_stats = self.validate(args)
                 self.drop_checkpoint(args, i, valid_stats, model_opt=self.agents[self.training_agent].env.model_args)
-
-    def _is_valid_dialogue(self, example):
-        #special_actions = defaultdict(int)
-        #for event in example.events:
-        #    if event.action in ('offer', 'quit', 'accept', 'reject'):
-        #        special_actions[event.action] += 1
-        #        if special_actions[event.action] > 1:
-        #            return False
-        #        # Cannot accept or reject before offer
-        #        if event.action in ('accept', 'reject') and special_actions['offer'] == 0:
-        #            return False
-        return True
 
     def _is_agreed(self, example):
         if not example.outcome['valid_deal']:
@@ -213,9 +188,6 @@ class RLTrainer(Trainer):
         return {0: diff, 1: diff}
 
     def get_reward(self, example, session):
-        if not self._is_valid_dialogue(example):
-            print 'Invalid'
-            rewards = {0: -1., 0: -1.}
         if self.reward_func == 'margin':
             rewards = self._margin_reward(example)
         elif self.reward_func == 'fair':

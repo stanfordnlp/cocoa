@@ -7,7 +7,6 @@ import re
 import time
 import os
 import numpy as np
-import pdb
 from itertools import izip, izip_longest
 from collections import namedtuple, defaultdict
 import copy
@@ -18,7 +17,7 @@ from cocoa.lib.bleu import compute_bleu
 from cocoa.model.vocab import Vocabulary
 
 from core.tokenizer import tokenize
-from batcher import DialogueBatcherFactory, Batch, LMBatch
+from batcher import DialogueBatcherFactory, Batch
 from symbols import markers
 from vocab_builder import create_mappings
 from neural import make_model_mappings
@@ -27,8 +26,6 @@ def add_preprocess_arguments(parser):
     parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
     parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
     parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
-    parser.add_argument('--candidates-path', nargs='*', default=[], help='Path to json file containing retrieved candidates for dialogues')
-    # parser.add_argument('--slot-filling', action='store_true', help='Where to do slot filling')
     parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
     parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
     parser.add_argument('--mappings', help='Path to vocab mappings')
@@ -97,10 +94,6 @@ class Dialogue(object):
         self.is_int = False  # Whether we've converted it to integers
         self.num_context = None
 
-        self.token_candidates = None
-        self.candidates = None
-        self.true_candidate_inds = None
-
     @property
     def num_turns(self):
         return len(self.turns[0])
@@ -111,29 +104,6 @@ class Dialogue(object):
 
     def num_tokens(self):
         return sum([len(t) for t in self.token_turns])
-
-    def add_ground_truth(self, candidates, token_turns):
-        true_candidate_inds = []
-        for cands, turn in izip(candidates, token_turns):
-            if not cands:
-                inds = []
-            else:
-                inds = []
-                for i, cand in enumerate(cands):
-                    if cand == turn:
-                        inds.append(i)
-                if len(inds) == 0:
-                    cands.insert(0, turn)
-                    del cands[-1]
-                    inds.append(0)
-            true_candidate_inds.append(inds)
-        return candidates, true_candidate_inds
-
-    def add_candidates(self, candidates, add_ground_truth=False):
-        assert len(candidates) == len(self.token_turns)
-        if add_ground_truth:
-            candidates, self.true_candidate_inds = self.add_ground_truth(candidates, self.token_turns)
-        self.token_candidates = candidates
 
     def add_utterance(self, agent, utterance, lf=None):
         # Always start from the partner agent
@@ -190,19 +160,6 @@ class Dialogue(object):
 
         return utterance
 
-    def candidates_to_int(self):
-        def remove_slot(tokens):
-            return [x.surface if is_entity(x) and x.canonical.type == 'slot' else x for x in tokens]
-
-        self.candidates = []
-        for turn_candidates in self.token_candidates:
-            if turn_candidates is None:
-                # Encoding turn
-                self.candidates.append(None)
-            else:
-                c = [self.textint_map.text_to_int(remove_slot(c), 'decoding') for c in turn_candidates]
-                self.candidates.append(c)
-
     def scenario_to_int(self):
         self.scenario = map(self.mappings['kb_vocab'].to_ind, self.scenario)
 
@@ -244,9 +201,6 @@ class Dialogue(object):
             for portion, stage in izip(self.turns, ('encoding', 'decoding', 'target')):
                 portion.append(self.textint_map.text_to_int(turn, stage))
 
-        # if self.token_candidates:
-        #     self.candidates_to_int()
-        # self.lf_to_int()
         self.scenario_to_int()
         self.selection_to_int()
 
@@ -265,15 +219,13 @@ class Dialogue(object):
         for turns in self.turns:
             self._pad_list(turns, num_turns, [])
         self.lfs = self._pad_list(self.lfs, num_turns, [])
-        if self.candidates:
-            self.candidates = self._pad_list(self.candidates, num_turns, [])
 
 class Preprocessor(object):
     '''
     Preprocess raw utterances: tokenize, entity linking.
     Convert an Example into a Dialogue data structure used by DataGenerator.
     '''
-    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, slot_filling=False, slot_detector=None, model='seq2seq'):
+    def __init__(self, schema, lexicon, entity_encoding_form, entity_decoding_form, entity_target_form, model='seq2seq'):
         self.attributes = schema.attributes
         self.attribute_types = schema.get_attributes()
         self.lexicon = lexicon
@@ -393,24 +345,17 @@ class Preprocessor(object):
 class DataGenerator(object):
 
     def __init__(self, train_examples, dev_examples, test_examples, preprocessor,
-            args, schema, mappings_path=None, retriever=None, cache='.cache',
-            ignore_cache=False, candidates_path=[], num_context=1, batch_size=1,
-            trie_path=None, model='seq2seq', add_ground_truth=True):
+            args, schema, mappings_path=None, cache='.cache',
+            ignore_cache=False, num_context=1, batch_size=1,
+            model='seq2seq'):
         examples = {'train': train_examples, 'dev': dev_examples, 'test': test_examples}
         self.num_examples = {k: len(v) if v else 0 for k, v in examples.iteritems()}
         self.num_context = num_context
         self.model = model
 
-        # Build retriever given training dialogues
-        self.retriever = retriever
-
         self.cache = cache
         self.ignore_cache = ignore_cache
         if (not os.path.exists(cache)) or ignore_cache:
-            if retriever is not None:
-                self.cached_candidates = self.retriever.load_candidates(candidates_path)
-                print 'Cached candidates for %d dialogues' % len(self.cached_candidates)
-
             # NOTE: each dialogue is made into two examples from each agent's perspective
             self.dialogues = {k: preprocessor.preprocess(v)  for k, v in examples.iteritems() if v}
 
@@ -482,41 +427,11 @@ class DataGenerator(object):
             start = end
         return dialogue_batches
 
-    def rewrite_candidate(self, fillers, candidate):
-        rewritten = []
-        tokens = candidate
-        if not tokens:
-            return rewritten
-        for i, tok in enumerate(tokens):
-            if is_entity(tok) and tok.canonical.type == 'slot':
-                for filler in fillers:
-                    ss = filler.split()
-                    new_tokens = list(tokens)
-                    del new_tokens[i]
-                    for j, s in enumerate(ss):
-                        new_tokens.insert(i+j, Entity(s, CanonicalEntity('', 'slot')))
-                    new_cand = new_tokens
-                    rewritten.append(new_cand)
-        return rewritten
-
     def create_batches(self, name, dialogues, batch_size, verbose, add_ground_truth=True):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)
         if (not os.path.exists(cache_file)) or self.ignore_cache:
-            if self.retriever is not None:
-                for dialogue in dialogues:
-                    k = (dialogue.uuid)
-                    # candidates: list of list containing num_candidates responses for each turn of the dialogue
-                    # None candidates means that it is not the agent's speaking turn
-                    if k in self.cached_candidates:
-                        candidates = self.cached_candidates[k]
-                    else:
-                        candidates = self.retriever.retrieve_candidates(dialogue, json_dict=False)
-
-                    dialogue.add_candidates(candidates, add_ground_truth=add_ground_truth)
-                self.retriever.report_search_time()
-
             random.shuffle(dialogues)
             for dialogue in dialogues:
                 dialogue.convert_to_int()
@@ -540,22 +455,13 @@ class DataGenerator(object):
         inds = range(len(dialogue_batches))
         if shuffle:
             random.shuffle(inds)
-        # TODO: hack
-        if self.model == 'lflm':
-            for ind in inds:
-                for batch in dialogue_batches[ind]:
-                    yield LMBatch(batch['inputs'],
-                                  batch['targets'],
-                                  self.mappings['utterance_vocab'],
-                                  cuda=cuda)
-        else:
-            for ind in inds:
-                for batch in dialogue_batches[ind]:
-                    yield Batch(batch['encoder_args'],
-                                batch['decoder_args'],
-                                batch['context_data'],
-                                self.mappings['utterance_vocab'],
-                                num_context=self.num_context, cuda=cuda)
-                # End of dialogue
-                yield None
+        for ind in inds:
+            for batch in dialogue_batches[ind]:
+                yield Batch(batch['encoder_args'],
+                            batch['decoder_args'],
+                            batch['context_data'],
+                            self.mappings['utterance_vocab'],
+                            num_context=self.num_context, cuda=cuda)
+            # End of dialogue
+            yield None
 

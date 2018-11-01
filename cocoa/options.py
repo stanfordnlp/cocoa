@@ -102,13 +102,6 @@ def add_rl_arguments(parser):
                        sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
     group.add_argument('--model-path', default='data/checkpoints',
                        help="""Which file the model checkpoints will be saved""")
-    group.add_argument('--model-filename', default='model',
-                       help="""Model filename (the model will be saved as
-                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
-                       the perplexity and E is the epoch""")
-    group.add_argument('--train-from', default='', type=str,
-                       help="""If training from a checkpoint then this is the
-                       path to the pretrained model's state_dict.""")
 
 
 def add_generator_arguments(parser):

@@ -4,7 +4,6 @@ and creates each encoder and decoder accordingly.
 """
 import torch
 import torch.nn as nn
-import pdb
 import onmt
 import onmt.io
 import onmt.Models
@@ -13,7 +12,7 @@ from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
               MultiAttnDecoder, NMTModel, MultiAttnConcatDecoder
-from models import FBNegotiationModel
+from models import NegotiationModel
 
 from cocoa.io.utils import read_pickle
 from onmt.Utils import use_gpu
@@ -51,8 +50,6 @@ def add_model_arguments(parser):
     # Hidden sizes and dimensions
     group.add_argument('--word-vec-size', type=int, default=256,
                        help='Word embedding size for src and tgt.')
-    group.add_argument('--sel-hid-size', type=int, default=128,
-                        help='Size of hidden state for selectors')
     group.add_argument('--kb-embed-size', type=int, default=64,
                         help='Size of vocab embeddings and output for kb scenario')
     group.add_argument('--rnn-size', type=int, default=256,
@@ -136,42 +133,6 @@ def make_encoder(opt, embeddings):
         bidirectional = True if opt.encoder_type == 'brnn' else False
         return StdRNNEncoder(opt.rnn_type, bidirectional, opt.enc_layers,
                         opt.rnn_size, opt.dropout, embeddings)
-
-def make_selectors(opt, kb_dict):
-    selectors = {}
-    '''
-    Create selection encoder:
-        - For FB, this combines attention output and context hidden
-        - For Cocoa, this combines decoder output and kb scenario output
-    '''
-    input_size = opt.rnn_size + (6 * opt.kb_embed_size)
-    selectors["enc"] = nn.GRU( input_size=opt.rnn_size,
-            hidden_size=opt.kb_embed_size, bias=True, bidirectional=True)
-    '''
-    nn.Sequential(
-        torch.nn.Linear(input_size, opt.sel_hid_size),
-        nn.Tanh()
-    )
-    Create selection decoders, one per each item. Range is 6 (and not 3)
-        because we are training the model to keep track of not only its
-        own selection but also the partner's predicted selection.
-    Items are [book, hat, ball] in exactly that order, so that we match
-        the order found in the training data. Selectors 1 to 3 are for
-        "my selection", selectors 4 to 6 are for "partner's selection".
-    '''
-    selectors["dec"] = nn.Sequential(
-       nn.Linear(11 * opt.rnn_size, opt.rnn_size),  # 2816 to 256
-       nn.Tanh(),
-       nn.Linear(opt.rnn_size, opt.sel_hid_size),   # 256 to 128
-       nn.Tanh(),
-       nn.Linear(opt.sel_hid_size, 6 * kb_dict.size)  # 128 to 60
-    )
-    '''
-    nn.ModuleList()
-    for i in xrange(6):
-        selectors["dec"].append(nn.Linear(opt.kb_embed_size*2, kb_dict.size))
-    '''
-    return selectors
 
 def make_context_embedder(opt, embeddings, embed_type='utterance'):
     """
@@ -295,14 +256,13 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
 
             tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
 
-        selectors = make_selectors(model_opt, kb_dict)
         dropout = nn.Dropout(model_opt.dropout)
         decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
 
         if "multibank" in model_opt.global_attention:
-            model = FBNegotiationModel(encoder, decoder, context_embedder,
-                    scene_settings, selectors, dropout,
-                    model_type=model_opt.model, stateful=model_opt.stateful)
+            model = NegotiationModel(encoder, decoder, context_embedder,
+                    scene_settings, dropout,
+                    stateful=model_opt.stateful)
         else:
             model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 

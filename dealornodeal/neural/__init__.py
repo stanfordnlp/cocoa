@@ -2,8 +2,7 @@ import onmt
 
 def add_data_generator_arguments(parser):
     from preprocess import add_preprocess_arguments
-    from cocoa.core.scenario_db import add_scenario_arguments
-    from cocoa.core.dataset import add_dataset_arguments
+    from cocoa.options import add_scenario_arguments, add_dataset_arguments
 
     add_scenario_arguments(parser)
     add_preprocess_arguments(parser)

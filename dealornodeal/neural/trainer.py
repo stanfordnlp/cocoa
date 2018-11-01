@@ -37,9 +37,6 @@ class Trainer(BaseTrainer):
 
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
 
-            # TODO: for selections
-            #_, batch_stats = self.valid_loss.compute_loss(batch.targets,
-            #                    batch.selections, outputs)
             _, batch_stats = self.valid_loss.compute_loss(batch.targets, outputs)
             stats.update(batch_stats)
 
@@ -81,9 +78,6 @@ class Trainer(BaseTrainer):
             enc_state = dec_state.hidden if dec_state is not None else None
 
             outputs, attns, dec_state = self._run_batch(batch, None, enc_state)
-            # TODO: for selections
-            #loss, batch_stats = self.train_loss.compute_loss(batch.targets,
-            #    batch.selections, outputs)
             loss, batch_stats = self.train_loss.compute_loss(batch.targets, outputs)
 
             self.model.zero_grad()
