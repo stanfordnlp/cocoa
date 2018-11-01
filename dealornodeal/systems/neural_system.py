@@ -1,11 +1,11 @@
 import os
 import argparse
 from collections import namedtuple
+from onmt.Utils import use_gpu
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 from cocoa.core.util import read_pickle, read_json
-from cocoa.pt_model.util import use_gpu
 from cocoa.lib import logstats
 from cocoa.neural.beam import Scorer
 
@@ -16,18 +16,9 @@ from sessions.neural_session import FBNeuralSession, PytorchNeuralSession, Pytor
 from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
-from neural.evaluator import add_evaluator_arguments
 from neural.utterance import UtteranceBuilder
-from neural.model_builder import add_model_arguments
-from neural import add_data_generator_arguments
 from neural.generator import get_generator
-
-def add_neural_system_arguments(parser):
-    #parser.add_argument('--temperature', type=float, default=1.0,
-    #    help='temperature')
-    #parser.add_argument('--gpu', action='store_true',
-    #    help='Use GPU or not')
-    add_evaluator_arguments(parser)
+import options
 
 # `args` for LstmRolloutAgent
 Args = namedtuple('Args', ['temperature', 'domain'])
@@ -58,8 +49,8 @@ class PytorchNeuralSystem(System):
 
         # TODO: do we need the dummy parser?
         dummy_parser = argparse.ArgumentParser(description='duh')
-        add_model_arguments(dummy_parser)
-        add_data_generator_arguments(dummy_parser)
+        options.add_model_arguments(dummy_parser)
+        options.add_data_generator_arguments(dummy_parser)
         dummy_args = dummy_parser.parse_known_args([])[0]
 
         # Load the model.
@@ -105,7 +96,7 @@ class PytorchNeuralSystem(System):
         return 'pt-neural'
 
     def new_session(self, agent, kb):
-        known_models = ('seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', 'seq_select', 'lf2lf', 'lflm')
+        known_models = ('seq2seq', 'lf2lf')
         if not self.model_name in known_models:
             raise ValueError('Unknown model name {}'.format(self.model_name))
         elif self.model_name == 'lf2lf':

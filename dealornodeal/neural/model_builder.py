@@ -20,65 +20,6 @@ from onmt.Utils import use_gpu
 from symbols import markers
 from neural import make_model_mappings
 
-def add_model_arguments(parser):
-    from onmt.modules.SRU import CheckSRU
-    group = parser.add_argument_group('Model')
-    group.add_argument('--encoder-type', type=str, default='rnn',
-                       choices=['rnn', 'brnn', 'transformer', 'cnn'],
-                       help="""Type of encoder layer to use. Non-RNN layers
-                       are experimental. Options are
-                       [rnn|brnn|mean|transformer|cnn].""")
-    group.add_argument('--context-embedder-type', type=str, default='mean',
-                       choices=['rnn', 'mean', 'brnn'],
-                       help="Encoder to use for embedding prev turns context")
-    group.add_argument('--decoder-type', type=str, default='rnn',
-                       choices=['rnn', 'transformer', 'cnn'],
-                       help="""Type of decoder layer to use. Non-RNN layers
-                       are experimental. Options are [rnn|transformer|cnn].""")
-    group.add_argument('--copy-attn', action="store_true",
-                       help='Train copy attention layer.')
-    group.add_argument('--layers', type=int, default=-1,
-                       help='Number of layers in enc/dec.')
-    group.add_argument('--enc-layers', type=int, default=1,
-                       help='Number of layers in the encoder')
-    group.add_argument('--dec-layers', type=int, default=1,
-                       help='Number of layers in the decoder')
-    group.add_argument('--rnn-type', type=str, default='LSTM',
-                       choices=['LSTM', 'GRU', 'SRU'], action=CheckSRU,
-                       help="""The gate type to use in the RNNs""")
-
-    # Hidden sizes and dimensions
-    group.add_argument('--word-vec-size', type=int, default=256,
-                       help='Word embedding size for src and tgt.')
-    group.add_argument('--kb-embed-size', type=int, default=64,
-                        help='Size of vocab embeddings and output for kb scenario')
-    group.add_argument('--rnn-size', type=int, default=256,
-                       help='Size of rnn hidden states')
-
-    # Our custom flags
-    group.add_argument('--input-feed', action='store_true',
-                       help="""Feed the context vector at each time step as
-                       additional input (via concatenation with the word
-                       embeddings) to the decoder.""")
-    group.add_argument('--global-attention', type=str, default='multibank_general',
-                       choices=['dot', 'general', 'mlp',
-                       'multibank_dot', 'multibank_general', 'multibank_mlp'],
-                       help="""The attention type to use: dotprod or general (Luong)
-                       or MLP (Bahdanau), prepend multibank to add context""")
-    group.add_argument('--model', type=str, default='seq2seq',
-                       choices=['seq2seq', 'seq2lf', 'sum2sum', 'sum2seq', \
-                       'lf2lf', 'lflm', 'seq_select'], help='Model type')
-    group.add_argument('--num-context', type=int, default=2,
-                       help='Number of sentences to consider as dialogue context (in addition to the encoder input)')
-    group.add_argument('--stateful', action='store_true',
-                       help='Whether to pass on the hidden state throughout the dialogue encoding/decoding process')
-    group.add_argument('--share-embeddings', action='store_true',
-                       help='Share source and target vocab embeddings')
-    # Deprecated by custom flags above
-    # group.add_argument('--share-decoder-embeddings', action='store_true',
-    #                    help="""Use a shared weight matrix for the input and
-    #                    output word  embeddings in the decoder.""")
-
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
@@ -211,6 +152,23 @@ def load_test_model(model_path, opt, dummy_opt):
     model.generator.eval()
     return mappings, model, model_opt
 
+
+# TODO: remove selectors. we don't use them. but keep them for now
+# due to match parameters in existing models
+def make_selectors(opt, kb_dict):
+    selectors = {}
+    input_size = opt.rnn_size + (6 * opt.kb_embed_size)
+    selectors["enc"] = nn.GRU( input_size=opt.rnn_size,
+            hidden_size=opt.kb_embed_size, bias=True, bidirectional=True)
+    selectors["dec"] = nn.Sequential(
+       nn.Linear(11 * opt.rnn_size, opt.rnn_size),  # 2816 to 256
+       nn.Tanh(),
+       nn.Linear(opt.rnn_size, opt.sel_hid_size),   # 256 to 128
+       nn.Tanh(),
+       nn.Linear(opt.sel_hid_size, 6 * kb_dict.size)  # 128 to 60
+    )
+    return selectors
+
 def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     """
     Args:
@@ -227,46 +185,40 @@ def make_base_model(model_opt, mappings, gpu, checkpoint=None):
     src_embeddings = make_embeddings(model_opt, src_dict)
     encoder = make_encoder(model_opt, src_embeddings)
 
-    if model_opt.model == 'lflm':
-        assert mappings['src_vocab'] == mappings['tgt_vocab']
-        model = LM(encoder)
-        tgt_dict = mappings['tgt_vocab']
+    # Make context embedder.
+    if model_opt.num_context > 0:
+        context_dict = mappings['utterance_vocab']
+        context_embeddings = make_embeddings(model_opt, context_dict)
+        context_embedder = make_context_embedder(model_opt, context_embeddings)
+
+    kb_dict = mappings['kb_vocab']
+    # kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
+    # kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'scenario')
+    scene_settings = (kb_dict.size, model_opt.kb_embed_size)
+
+    # Make decoder.
+    tgt_dict = mappings['tgt_vocab']
+    tgt_embeddings = make_embeddings(model_opt, tgt_dict)
+
+    # Share the embedding matrix - preprocess with share_vocab required.
+    if model_opt.share_embeddings:
+        # src/tgt vocab should be the same if `-share_vocab` is specified.
+        if src_dict != tgt_dict:
+            raise AssertionError('The `-share_vocab` should be set during '
+                                 'preprocess if you use share_embeddings!')
+
+        tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
+
+    selectors = make_selectors(model_opt, kb_dict)
+    dropout = nn.Dropout(model_opt.dropout)
+    decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
+
+    if "multibank" in model_opt.global_attention:
+        model = NegotiationModel(encoder, decoder, context_embedder,
+                selectors, scene_settings, dropout,
+                stateful=model_opt.stateful)
     else:
-        # Make context embedder.
-        if model_opt.num_context > 0:
-            context_dict = mappings['utterance_vocab']
-            context_embeddings = make_embeddings(model_opt, context_dict)
-            context_embedder = make_context_embedder(model_opt, context_embeddings)
-
-        kb_dict = mappings['kb_vocab']
-        # kb_embeddings = make_embeddings(model_opt, kb_dict, True, 'kb')
-        # kb_embedder = make_context_embedder(model_opt, kb_embeddings, 'scenario')
-        scene_settings = (kb_dict.size, model_opt.kb_embed_size)
-
-        # Make decoder.
-        tgt_dict = mappings['tgt_vocab']
-        tgt_embeddings = make_embeddings(model_opt, tgt_dict)
-
-        # Share the embedding matrix - preprocess with share_vocab required.
-        if model_opt.share_embeddings:
-            # src/tgt vocab should be the same if `-share_vocab` is specified.
-            if src_dict != tgt_dict:
-                raise AssertionError('The `-share_vocab` should be set during '
-                                     'preprocess if you use share_embeddings!')
-
-            tgt_embeddings.word_lut.weight = src_embeddings.word_lut.weight
-
-        dropout = nn.Dropout(model_opt.dropout)
-        decoder = make_decoder(model_opt, tgt_embeddings, tgt_dict)
-
-        if "multibank" in model_opt.global_attention:
-            model = NegotiationModel(encoder, decoder, context_embedder,
-                    scene_settings, dropout,
-                    stateful=model_opt.stateful)
-        else:
-            model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
-
-    model.model_type = 'text'
+        model = NMTModel(encoder, decoder, stateful=model_opt.stateful)
 
     # Make Generator.
     if not model_opt.copy_attn:

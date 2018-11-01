@@ -19,7 +19,7 @@ class Sampler(BaseSampler):
         #memory_banks = [scene_memory_bank]
         return memory_banks
 
-    def generate_batch(self, batch, model_type, gt_prefix=1, enc_state=None, kb=None):
+    def generate_batch(self, batch, gt_prefix=1, enc_state=None, kb=None):
         # This is to ensure we can stop at EOS for stateful models
         assert batch.size == 1
 
@@ -57,43 +57,6 @@ class Sampler(BaseSampler):
             decoder_outputs, dec_states, _ = self.model.decoder(
                 inp, memory_banks, dec_states, memory_lengths=lengths)
 
-        ''' (3) Go over selection of predicted outcome
-        Since we are only doing test evaluation, we no longer need
-        to output a selection every timestep, instead just once at the end.
-
-        Decoder_outputs  (seq_len, batch_size, hidden_dim) = (1 x 8 x 256)
-
-        dec_out = decoder_outputs.transpose(0,1)
-        scene_out = memory_banks[-1].transpose(0,1).contiguous().view(batch_size, 1, -1)
-
-        select_h = torch.cat([dec_out, scene_out], 2).transpose(0,1)
-
-        sel_h = torch.cat([enc_final.hidden[0], dec_out, memory_banks[2]], 0)
-        # sel_init = smart_variable(torch.zeros(2, batch_size, hidden_dim/2))
-        sel_out, sel_h = self.model.select_encoder.forward(sel_h, context_out[0].contiguous())
-        sel_init_dec = sel_out[-1].unsqueeze(0)
-        select_out = [decoder.forward(sel_init_dec) for decoder in self.model.select_decoders]
-        selections = torch.max(torch.cat(select_out), dim=2)[1].transpose(0,1)
-        # Finally, after transpose we get (batch_size x num_items)
-
-        # select_h is (1 x batch_size x (rnn_size+(6 * kb_embed_size)) )
-        select_h = self.model.select_encoder.forward(select_h)
-        # now select_h is (1 x batch_size x kb_embed_size)
-        select_out = [decoder.forward(select_h) for decoder in self.model.select_decoders]
-        # select_out is a list of 6 items, where each item is (1 x batch_size x kb_vocab_size)
-        # after concat shape is num_items x batch_size x kb_vocab_size
-        # taking the argmax at dimension 2 gives (6 x batch_size)
-        '''
-        if model_type == "seq_select":
-            dec_seq_len, batch_size, hidden_dim = decoder_outputs.shape
-            dec_in = decoder_outputs[-1].unsqueeze(0)
-            scene_in = memory_banks[2]
-            sel_hid = torch.cat([enc_final.hidden[0], context_out[0], dec_in, scene_in], 0)
-            sel_in = sel_hid.transpose(0,1).contiguous().view(batch_size, 1, -1)
-            sel_out = self.model.select_decoders.forward(sel_in)
-            selections = torch.max(sel_out.view(batch_size, 6, -1), dim=2)[1]
-        else:
-            selections = None
         # (4) Wrap up predictions for viewing later
         preds = torch.stack(preds).t()  # (batch_size, seq_len)
         # Insert one dimension (n_best) so that its structure is consistent
@@ -101,7 +64,6 @@ class Sampler(BaseSampler):
         preds = preds.unsqueeze(1)
         # TODO: add actual scores
         ret = {"predictions": preds,
-                "selections": selections,
                "scores": [[0]] * batch_size,
                "attention": [None] * batch_size,
                "dec_states": dec_states,
@@ -134,7 +96,7 @@ class LFSampler(Sampler):
         counts = [self.vocab.to_ind(c) for c in counts if self.vocab.has(c)]
         return counts
 
-    def generate_batch(self, batch, model_type, gt_prefix=1, enc_state=None, kb=None, select=False):
+    def generate_batch(self, batch, gt_prefix=1, enc_state=None, kb=None, select=False):
         # This is to ensure we can stop at EOS for stateful models
         assert batch.size == 1
 
@@ -214,7 +176,7 @@ class LFSampler(Sampler):
 
 
 def get_generator(model, vocab, scorer, args, model_args):
-    from cocoa.pt_model.util import use_gpu
+    from onmt.Utils import use_gpu
     if args.sample:
         if model_args.model == 'lf2lf':
             generator = LFSampler(model, vocab, args.temperature,

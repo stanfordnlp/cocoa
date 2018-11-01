@@ -3,16 +3,15 @@ import re
 from itertools import izip
 import numpy as np
 import torch
+from onmt.Utils import use_gpu
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
-from cocoa.pt_model.util import use_gpu
 
 from core.event import Event
 from session import Session
 from neural.preprocess import markers, Dialogue
-from neural.evaluator import Evaluator, add_evaluator_arguments
-from neural.batcher import Batch, LMBatch
+from neural.batcher import Batch
 from neural.symbols import markers
 
 from fb_model import utils
@@ -27,9 +26,7 @@ class FBNeuralSession(Session):
         self.kb = kb
         self.model = LstmAgent(model, args)
         context = self.kb_to_context(self.kb)
-        print('feed context', context, type(context[0]))
         self.model.feed_context(context)
-        print('done')
         self.state = {
                 'selected': False,
                 'quit': False,
@@ -154,8 +151,6 @@ class NeuralSession(Session):
             for token in tokens[1:4]:
                 ss = token.split('=')
                 proposal[ss[0]] = int(ss[1])
-            #proposal = {item: int(count) \
-            #        for item, count in izip(self.items, tokens[1:4])}
         except ValueError:
             print tokens
             import sys; sys.exit()
@@ -231,8 +226,7 @@ class PytorchNeuralSession(NeuralSession):
                 sort_by_length=False, num_context=num_context, cuda=self.cuda)
 
     def _run_generator(self, batch, enc_state):
-        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
-                gt_prefix=self.gt_prefix, enc_state=enc_state)
+        output_data = self.generator.generate_batch(batch, gt_prefix=self.gt_prefix, enc_state=enc_state)
         return output_data
 
     def generate(self):
@@ -250,8 +244,6 @@ class PytorchNeuralSession(NeuralSession):
             self.dec_state = None
 
         entity_tokens = self._output_to_tokens(output_data)
-        #if not self._is_valid(entity_tokens):
-        #    return None
         return entity_tokens
 
     def _is_valid(self, tokens):
@@ -264,16 +256,8 @@ class PytorchNeuralSession(NeuralSession):
     def _output_to_tokens(self, data):
         predictions = data["predictions"][0][0]
         tokens = self.builder.build_target_tokens(predictions, self.kb)
-        is_select_action = (len(tokens) > 0) and (tokens[0] == markers.SELECT)
-        is_select_model = self.env.model.modeltype == "seq_select"
-        if is_select_action and is_select_model:
-            select_items = data["selections"].data.cpu().numpy()[0]
-            select_tokens = [self.kb_vocab.to_word(x) for x in select_items]
-            tokens.extend(select_tokens)
         return tokens
 
-    # To support REINFORCE
-    # TODO: this should be in NeuralSession
     def iter_batches(self):
         """Compute the logprob of each generated utterance.
         """
@@ -313,10 +297,6 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
             # Compute what they want for us
             if utterance[0] in ('propose', 'insist'):
                 self.partner_proposal = self._get_proposal(utterance)
-                #counts = [int(x) for x in utterance[1:4]]
-                #my_counts = [self.kb.item_counts[item] - count for \
-                #        item, count in izip(self.items, counts)]
-                #utterance = ['propose'] + [str(c) for c in my_counts]
                 utterance = ['propose'] + ['{item}={count}'.format(
                     item=item, count=(self.kb.item_counts[item] - self.partner_proposal[item]))
                     for item in self.items]
@@ -328,7 +308,7 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
         self.dialogue.add_utterance(event.agent, utterance)
 
     def _run_generator(self, batch, enc_state):
-        output_data = self.generator.generate_batch(batch, self.env.model.modeltype,
+        output_data = self.generator.generate_batch(batch,
                 gt_prefix=self.gt_prefix, enc_state=enc_state, kb=self.kb, select=self.partner_select)
         return output_data
 
@@ -344,16 +324,11 @@ class PytorchLFNeuralSession(PytorchNeuralSession):
             self.my_proposal = self._get_proposal(tokens)
         elif tokens[0] == markers.SELECT:
             proposal = self._get_proposal(tokens)
-            #tokens = [markers.SELECT] + [proposal[item] for item in self.items]
             if self.partner_select and self.partner_proposal is not None:
                 my_proposal = {item: self.item_counts[item] - count for
                         item, count in self.partner_proposal.iteritems()}
                 tokens = [markers.SELECT] + self._proposal_to_tokens(my_proposal)
-                #tokens = [markers.SELECT] + \
-                #        [(self.item_counts[item] - self.partner_proposal[item]) for item in self.items]
             elif not self.partner_select and self.my_proposal is not None:
                 tokens = [markers.SELECT] + self._proposal_to_tokens(self.my_proposal)
-                #tokens = [markers.SELECT] + \
-                #        [self.my_proposal[item] for item in self.items]
         return tokens
 

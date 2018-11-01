@@ -4,12 +4,14 @@ from cocoa.neural.models import NMTModel
 
 class NegotiationModel(NMTModel):
 
-    def __init__(self, encoder, decoder, context_embedder, scene_settings,
+    def __init__(self, encoder, decoder, context_embedder, selectors, scene_settings,
             dropout, stateful=False):
         super(NegotiationModel, self).__init__(encoder, decoder, stateful=stateful)
         self.context_embedder = context_embedder
         self.kb_embedder = nn.Embedding(*scene_settings)
         self.dropout = dropout
+        self.select_encoder = selectors['enc']   # 1 encoder
+        self.select_decoders = selectors['dec']  # 6 decoders
 
     def forward(self, src, tgt, context, scene, lengths, dec_state=None, enc_state=None, tgt_lengths=None):
         # ---- ENCODING PROCESS -----

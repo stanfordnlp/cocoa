@@ -1,7 +1,7 @@
 import sys
 import os
 from itertools import count
-from cocoa.pt_model.util import use_gpu
+from onmt.Utils import use_gpu
 
 from cocoa.neural.evaluator import add_evaluator_arguments, \
         Evaluator as BaseEvaluator

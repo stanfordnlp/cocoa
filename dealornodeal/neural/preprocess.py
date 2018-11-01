@@ -22,14 +22,6 @@ from symbols import markers
 from vocab_builder import create_mappings
 from neural import make_model_mappings
 
-def add_preprocess_arguments(parser):
-    parser.add_argument('--entity-encoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the encoder')
-    parser.add_argument('--entity-decoding-form', choices=['canonical', 'type'], default='canonical', help='Input entity form to the decoder')
-    parser.add_argument('--entity-target-form', choices=['canonical', 'type'], default='canonical', help='Output entity form to the decoder')
-    parser.add_argument('--cache', default='.cache', help='Path to cache for preprocessed batches')
-    parser.add_argument('--ignore-cache', action='store_true', help='Ignore existing cache')
-    parser.add_argument('--mappings', help='Path to vocab mappings')
-
 class TextIntMap(object):
     '''
     Map between text and int for visualizing results.
@@ -380,7 +372,7 @@ class DataGenerator(object):
                 kb_pad=None,
                 mappings=self.mappings, num_context=num_context)
 
-        self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose, add_ground_truth=add_ground_truth) for k, dialogues in self.dialogues.iteritems()}
+        self.batches = {k: self.create_batches(k, dialogues, batch_size, args.verbose) for k, dialogues in self.dialogues.iteritems()}
 
     def load_mappings(self, model_type, mappings_path, schema, preprocessor):
         vocab_path = os.path.join(mappings_path, 'vocab.pkl')
@@ -427,7 +419,7 @@ class DataGenerator(object):
             start = end
         return dialogue_batches
 
-    def create_batches(self, name, dialogues, batch_size, verbose, add_ground_truth=True):
+    def create_batches(self, name, dialogues, batch_size, verbose):
         if not os.path.isdir(self.cache):
             os.makedirs(self.cache)
         cache_file = os.path.join(self.cache, '%s_batches.pkl' % name)

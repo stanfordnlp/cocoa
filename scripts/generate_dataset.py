@@ -9,12 +9,13 @@ import numpy as np
 
 from cocoa.core.util import read_json
 from cocoa.core.schema import Schema
-from cocoa.core.scenario_db import ScenarioDB, add_scenario_arguments
-from cocoa.core.dataset import add_dataset_arguments
+from cocoa.core.scenario_db import ScenarioDB
+import cocoa.options
 
 from core.scenario import Scenario
 from core.controller import Controller
-from systems import add_system_arguments, get_system
+from systems import get_system
+import options
 
 def generate_examples(num_examples, scenario_db, examples_path, max_examples, remove_fail, max_turns):
     examples = []
@@ -53,9 +54,9 @@ if __name__ == '__main__':
     parser.add_argument('--max-examples', default=20, type=int,
             help='Number of test examples to predict')
     parser.add_argument('-v', '--verbose', default=False, action='store_true', help='whether or not to have verbose prints')
-    add_scenario_arguments(parser)
-    add_dataset_arguments(parser)
-    add_system_arguments(parser)
+    cocoa.options.add_scenario_arguments(parser)
+    cocoa.options.add_dataset_arguments(parser)
+    options.add_system_arguments(parser)
     args = parser.parse_args()
     if args.random_seed:
         random.seed(args.random_seed)

@@ -9,18 +9,11 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
-from cocoa.neural.rl_trainer import RLTrainer as BaseRLTrainer, \
-        add_rl_arguments as base_add_rl_arguments, \
-        Statistics
+from cocoa.neural.rl_trainer import Statistics
 
 from core.controller import Controller
 from neural.trainer import Trainer
 from utterance import UtteranceBuilder
-
-def add_rl_arguments(parser):
-    base_add_rl_arguments(parser)
-    parser.add_argument('--reward', choices=['margin', 'length', 'fair'],
-            help='Which reward function to use')
 
 
 class RLTrainer(Trainer):

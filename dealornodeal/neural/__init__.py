@@ -1,13 +1,5 @@
 import onmt
 
-def add_data_generator_arguments(parser):
-    from preprocess import add_preprocess_arguments
-    from cocoa.options import add_scenario_arguments, add_dataset_arguments
-
-    add_scenario_arguments(parser)
-    add_preprocess_arguments(parser)
-    add_dataset_arguments(parser)
-
 def get_data_generator(args, model_args, schema, test=False):
     from cocoa.core.scenario_db import ScenarioDB
     from cocoa.core.dataset import read_dataset
@@ -21,16 +13,8 @@ def get_data_generator(args, model_args, schema, test=False):
     # TODO: move this to dataset
     dataset = read_dataset(args, Scenario)
 
-    # Model config tells data generator which batcher to use
-    model_config = {}
-    add_ground_truth = False
     mappings_path = model_args.mappings
 
-    # settings for other models
-    retriever = None
-    trie_path = None
-
-    #lexicon = Lexicon(['book', 'hat', 'ball'])
     lexicon = Lexicon(schema.values['item'])
     preprocessor = Preprocessor(schema, lexicon, model_args.entity_encoding_form,
         model_args.entity_decoding_form, model_args.entity_target_form,
@@ -42,10 +26,10 @@ def get_data_generator(args, model_args, schema, test=False):
     else:
         train, dev, test = dataset.train_examples, dataset.test_examples, None
     data_generator = DataGenerator(train, dev, test, preprocessor, args, schema, mappings_path,
-        retriever=retriever, cache=args.cache, ignore_cache=args.ignore_cache,
-        candidates_path=args.candidates_path, num_context=model_args.num_context,
-        trie_path=trie_path, batch_size=args.batch_size,
-        model=model_args.model, add_ground_truth=add_ground_truth)
+        cache=args.cache, ignore_cache=args.ignore_cache,
+        num_context=model_args.num_context,
+        batch_size=args.batch_size,
+        model=model_args.model)
 
     return data_generator
 
@@ -80,16 +64,10 @@ def make_model_mappings(model, mappings):
     return mappings
 
 def build_optim(opt, model, checkpoint):
-    if opt.train_from:
-        print('Loading optimizer from checkpoint.')
-        optim = checkpoint['optim']
-        optim.optimizer.load_state_dict(
-            checkpoint['optim'].optimizer.state_dict())
-    else:
-        print('Making optimizer for training.')
-        optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            model_size=opt.rnn_size)
+    print('Making optimizer for training.')
+    optim = onmt.Optim(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        model_size=opt.rnn_size)
 
     optim.set_parameters(model.parameters())
 
