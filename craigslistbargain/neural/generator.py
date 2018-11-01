@@ -2,7 +2,7 @@ import torch
 from torch.autograd import Variable
 
 import onmt.io
-from onmt.Utils import aeq
+from onmt.Utils import aeq, use_gpu
 
 from cocoa.core.entity import is_entity
 from cocoa.neural.generator import Generator, LMSampler, Sampler
@@ -91,7 +91,7 @@ class LFSampler(Sampler):
 
 
 def get_generator(model, vocab, scorer, args, model_args):
-    from cocoa.pt_model.util import use_gpu
+    from onmt.Utils import use_gpu
     from neural.models import LM
     if isinstance(model, LM):
         generator = LMSampler(model, vocab, args.temperature,

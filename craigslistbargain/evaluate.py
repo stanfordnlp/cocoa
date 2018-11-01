@@ -1,11 +1,11 @@
 import argparse
 import torch.nn as nn
 from torch import cuda
+from onmt.Utils import use_gpu
 
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 
-from cocoa.pt_model.util import use_gpu
 from cocoa.neural.trainer import Trainer, Statistics
 from cocoa.neural.loss import SimpleLossCompute
 from cocoa.neural.beam import Scorer

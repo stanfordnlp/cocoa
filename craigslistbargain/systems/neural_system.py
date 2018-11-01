@@ -1,11 +1,11 @@
 import os
 import argparse
 from collections import namedtuple
+from onmt.Utils import use_gpu
 
 from cocoa.systems.system import System
 from cocoa.sessions.timed_session import TimedSessionWrapper
 from cocoa.core.util import read_pickle, read_json
-from cocoa.pt_model.util import use_gpu
 from cocoa.neural.beam import Scorer
 
 from neural.generator import get_generator

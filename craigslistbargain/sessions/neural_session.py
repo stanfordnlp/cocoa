@@ -3,10 +3,10 @@ import re
 from itertools import izip
 import numpy as np
 import torch
+from onmt.Utils import use_gpu
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
-from cocoa.pt_model.util import use_gpu
 
 from core.event import Event
 from session import Session

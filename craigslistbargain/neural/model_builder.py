@@ -10,13 +10,13 @@ import onmt.io
 import onmt.Models
 import onmt.modules
 from onmt.modules import Embeddings, ImageEncoder, CopyGenerator
+from onmt.Utils import use_gpu
 
 from cocoa.neural.models import MeanEncoder, StdRNNEncoder, StdRNNDecoder, \
               MultiAttnDecoder, NMTModel
 from models import NegotiationModel
 
 from cocoa.io.utils import read_pickle
-from cocoa.pt_model.util import use_gpu
 
 from symbols import markers
 from neural import make_model_mappings
