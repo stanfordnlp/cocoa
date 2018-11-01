@@ -14,8 +14,9 @@ from torch import cuda
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
 from cocoa.lib import logstats
-from cocoa.neural.trainer import add_trainer_arguments, Statistics
+from cocoa.neural.trainer import Statistics
 from cocoa.neural.utterance import UtteranceBuilder
+import cocoa.options
 
 import onmt
 from onmt.Utils import use_gpu
@@ -53,16 +54,10 @@ def tally_parameters(model):
     print('decoder: ', dec)
 
 def build_optim(opt, model, checkpoint):
-    if opt.train_from:
-        print('Loading optimizer from checkpoint.')
-        optim = checkpoint['optim']
-        optim.optimizer.load_state_dict(
-            checkpoint['optim'].optimizer.state_dict())
-    else:
-        print('Making optimizer for training.')
-        optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            model_size=opt.rnn_size)
+    print('Making optimizer for training.')
+    optim = onmt.Optim(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        model_size=opt.rnn_size)
 
     optim.set_parameters(model.parameters())
 
@@ -75,10 +70,7 @@ def build_trainer(opt, model, mappings, optim):
     return trainer
 
 def make_loss(opt, model, mappings):
-    if opt.model in ('seq2seq', 'lf2lf'):
-        loss = SimpleLossCompute(model.generator, mappings['tgt_vocab'])
-    else:
-        loss = FBnegLossCompute(model.generator, tgt_vocab, opt.model)
+    loss = SimpleLossCompute(model.generator, mappings['tgt_vocab'])
     if use_gpu(opt):
         loss.cuda()
     return loss
@@ -114,7 +106,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', default=False, action='store_true', help='More prints')
     add_data_generator_arguments(parser)
     add_model_arguments(parser)
-    add_trainer_arguments(parser)
+    cocoa.options.add_trainer_arguments(parser)
     args = parser.parse_args()
 
     random.seed(args.random_seed)

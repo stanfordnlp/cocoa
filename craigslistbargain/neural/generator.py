@@ -5,7 +5,7 @@ import onmt.io
 from onmt.Utils import aeq, use_gpu
 
 from cocoa.core.entity import is_entity
-from cocoa.neural.generator import Generator, LMSampler, Sampler
+from cocoa.neural.generator import Generator, Sampler
 
 from symbols import markers, category_markers, sequence_markers
 from utterance import UtteranceBuilder
@@ -92,12 +92,7 @@ class LFSampler(Sampler):
 
 def get_generator(model, vocab, scorer, args, model_args):
     from onmt.Utils import use_gpu
-    from neural.models import LM
-    if isinstance(model, LM):
-        generator = LMSampler(model, vocab, args.temperature,
-                            max_length=args.max_length,
-                            cuda=use_gpu(args))
-    elif args.sample:
+    if args.sample:
         if model_args.model == 'lf2lf':
             generator = LFSampler(model, vocab, args.temperature,
                                 max_length=args.max_length,

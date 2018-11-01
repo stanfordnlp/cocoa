@@ -14,6 +14,7 @@ from neural import model_builder, get_data_generator, make_model_mappings
 from neural.preprocess import markers, TextIntMap, Preprocessor, Dialogue
 from neural.batcher import DialogueBatcherFactory
 from neural.utterance import UtteranceBuilder
+import options
 
 
 class PytorchNeuralSystem(System):

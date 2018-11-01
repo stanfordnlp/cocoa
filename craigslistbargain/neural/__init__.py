@@ -61,16 +61,10 @@ def make_model_mappings(model, mappings):
     return mappings
 
 def build_optim(opt, model, checkpoint):
-    if opt.train_from:
-        print('Loading optimizer from checkpoint.')
-        optim = checkpoint['optim']
-        optim.optimizer.load_state_dict(
-            checkpoint['optim'].optimizer.state_dict())
-    else:
-        print('Making optimizer for training.')
-        optim = onmt.Optim(
-            opt.optim, opt.learning_rate, opt.max_grad_norm,
-            model_size=opt.rnn_size)
+    print('Making optimizer for training.')
+    optim = onmt.Optim(
+        opt.optim, opt.learning_rate, opt.max_grad_norm,
+        model_size=opt.rnn_size)
 
     optim.set_parameters(model.parameters())
 

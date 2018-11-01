@@ -3,7 +3,6 @@ import re
 from itertools import izip
 import numpy as np
 import torch
-import pdb
 
 from cocoa.model.vocab import Vocabulary
 from cocoa.core.entity import is_entity, Entity
