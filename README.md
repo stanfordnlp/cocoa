@@ -82,7 +82,7 @@ We provide basic infrastructure (see `cocoa.web`) to set up a website that pairs
 #### Generate scenarios
 The first step is to create a ```.json``` schema file and then (randomly) generate a set of scenarios that the dialogue will be situated in.
 
-#### Setup the web server
+#### <a name=web>Setup the web server</a>
 The website pairs a user with another user or a bot (if available). A dialogue scenario is displayed and the two agents can chat with each other.
 Users are then directed to a survey to rate their partners (optional).
 All dialogue events are logged in a SQL database.
@@ -127,36 +127,14 @@ and a session ```<name-of-your-task>/sessions/<agent-name>_session.py```.
 See documentation in the under each task (e.g., `./craigslistbargain`).
 
 ### Evaluation
-#### Evaluate context-response pairs
-
-Two main classes are `EvalData` and `EvalTask`.
-Take a look at `cocoa/turk/eval_data.py` and `cocoa/turk/task.py`.
-They can be extended in `task/turk`.
-
-We embed HTML in the AMT interface; see `cocoa/turk/templates`.
-
-1. Generate system outputs and write to a JSON file.
+To deploy bots to the web interface, add the `"models"` field in the website config file,
+e.g.
 ```
-outputs.json
-|--[i]
-|  |--"ex_id": unique id that identifies a context-reference pair
-|  |--"prev_turns"
-|  |--"reference"
-|  |--"response"
+"models": {
+    "rulebased": {
+        "active": true,
+        "type": "rulebased",
+    }
+}
 ```
-For details of file formats, see `cocoa/turk/eval_data.py`.
-
-2. Launch HITs! 
-
-We use `boto`'s API. *NOTE*: always test on sandbox with `--debug` before launching.
-
-```
-cd negotiation;
-PYTHONPATH=. python scripts/turk_eval.py --debug --aws-config <aws_credential> --question-template ../cocoa/turk/templates/question.html --overall-template ../cocoa/turk/templates/absolute_eval.html --instructions ../cocoa/turk/templates/instructions.html --num-eval 50 --num-assignments-per-hit 5 --system-outputs <system1_name> <system1_output> <system2_name> <system2_output>
-```
-
-3. Gather results.
-```
-cd negotiation;
-PYTHONPATH=. python scripts/turk_eval.py --review --debug --aws-config <aws_credential> --question-template ../cocoa/turk/templates/question.html --overall-template ../cocoa/turk/templates/absolute_eval.html --instructions ../cocoa/turk/templates/instructions.html 
-```
+See also [set up the web server](#web).
