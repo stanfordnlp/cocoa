@@ -32,7 +32,7 @@ EMNLP 2018.
 
 [[Download data]](https://worksheets.codalab.org/worksheets/0x453913e76b65495d8b9730d41c7e0a0c/)
 [[Browse]](https://cs.stanford.edu/~hehe/transcripts.html)
-[Code (coming soon)]
+[[Github Code]](https://github.com/stanfordnlp/cocoa/tree/master)
 
 
 The CraigslistBargain task is designed to focus on more realistic scenarios that
@@ -72,7 +72,7 @@ ACL 2017.
 [[Download data]](https://worksheets.codalab.org/bundles/0x5a4cefea7fd443cea15aa532bb8fcd67/)
 [[Browse]](https://worksheets.codalab.org/rest/bundles/0x2b7d7cb170b0475fa998f3ddf3c32893/contents/blob/chat_viewer/chat.html)
 [[Codalab worksheet]](https://worksheets.codalab.org/worksheets/0xc757f29f5c794e5eb7bfa8ca9c945573/)
-[[Github Code]](https://github.com/stanfordnlp/cocoa)
+[[Github Code]](https://github.com/stanfordnlp/cocoa/tree/mutualfriends)
 
 Our goal is to build systems that collaborate with people
 by exchanging information through natural language
