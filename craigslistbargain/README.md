@@ -5,6 +5,14 @@ He He, Derek Chen, Anusha Balakrishnan and Percy Liang.
 Empirical Methods in Natural Language Processing (EMNLP), 2018.
 
 ## Dependencies
+Python 2.7, PyTorch 0.4.
+
+Install `cocoa`:
+```
+cd ..;
+python setup.py develop;
+```
+
 `pip install -r requirements.txt`
 
 ## Dataset
@@ -51,8 +59,10 @@ PYTHONPATH=. python core/price_tracker.py --train-examples-path data/train.json 
 ```
 
 #### 2. Parse the training dialogues.
+Parse both training and validation data.
 ```
 PYTHONPATH=. python parse_dialogue.py --transcripts data/train.json --price-tracker <path-to-save-price-tracker> --max-examples -1 --templates-output templates.pkl --model-output model.pkl --transcripts-output data/train-parsed.json
+PYTHONPATH=. python parse_dialogue.py --transcripts data/dev.json --price-tracker <path-to-save-price-tracker> --max-examples -1 --templates-output templates.pkl --model-output model.pkl --transcripts-output data/dev-parsed.json
 ```
 - Parse utterances into coarse dialogue acts using the rule-based parser (`--transcripts-output`).
 - Learn an n-gram model over the dialogue acts (`--model-output`), which will be used by the **hybrid policy**.
@@ -154,4 +164,7 @@ Chat with the bot in the command line interface:
 ```
 PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/craigslist-schema.json --scenarios-path data/dev-scenarios.json --results-paths bot-chat-transcripts.json --max-examples 20 --agents <agent-name> cmd --price-tracker price_tracker.pkl --agent-checkpoints <ckpt-file> "" --max-turns 20 --random-seed <seed> --sample --temperature 0.2
 ```
+
 Chat with the bot in the web interface:
+add the bot model to the config file (example: `web/app_params_allsys.json`)
+and [launch the website](../README.md#web).

@@ -1,49 +1,79 @@
-**Schema**: `data/bookhatball-schema.json`
+Code in this folder contains implementation for the DealOrNoDeal task in the following paper:
 
-All command below must be run in the task directory, i.e. `fb-negotiation`.
+[Decoupling Strategy and Generation in Negotiation Dialogues](https://arxiv.org/abs/1808.09637).
+He He, Derek Chen, Anusha Balakrishnan and Percy Liang.
+Empirical Methods in Natural Language Processing (EMNLP), 2018.
 
-**Split tracker**: maintain belief of their offer in how the 3 items should be split among both agents.
+Documentation below largely follows steps for [CraigslistBargin](../craigslistbargain/README.md).
 
-Let's create some scenarios from the `data/selfplay.txt`:
-```
-PYTHONPATH=. python scripts/create_scenarios.py --schema-path data/bookhatball-schema.json --scenario-ints-file data/selfplay.txt --output data/test-scenarios.json
-```
+## Dependencies
+Python 2.7, PyTorch 0.4.
 
-To run the rulebased bot against itself,
+Install `cocoa`:
 ```
-PYTHONPATH=. python ../scripts/generate_dataset.py --schema-path data/bookhatball-schema.json \
---scenarios-path data/toy-scenarios.json \
---train-examples-paths data/rulebased-transcripts.json --train-max-examples 1 \
---test-max-examples 0  --max-turns 20 \
---agents rulebased rulebased
-```
-Path to output transcripts is given by `--train-examples-paths`.
-
-To set up the website,
-```
-PYTHONPATH=. python web/chat_app.py --port 5000 --schema-path data/bookhatball-schema.json \
---config web/app_params.json --scenarios-path data/test-scenarios.json \
---output web_output/<dir-name>
-```
-Arguments:
-- `port`: The port of the web server.
-- `config`: Path to the configuration file. See an example at `web/app_params.json`. To add a bot, put its arguments in `models`. 
-- `output`: Location of the database, error logs, and transcripts. *NOTE*: currently the path exists, then the whole directory is deleted (even files not related to the website) during initialization unless `--reuse` is specified. **TODO**: only delete relevant files.
-
-The chat data is logged in `<output>/chat_state.db`.
-Upon exit, the server dumps the data to `<output>/transcripts/transcripts.json` and `<output>/transcripts/survey.json`.
-
-To dump the data explicitly (e.g. while the server is running), run
-```
-PYTHONPATH=. python ../scripts/web/dump_db.py --db <path_to_chat_state.db> \
---output <path_to_transcripts.json> --surveys <path_to_surveys.json> \
---schema data/craigslist-schema.json --scenarios-path data/sample-scenarios.json 
+cd ..;
+python setup.py develop;
 ```
 
-To visualize the data in HTML,
+## Dataset
+**Schema**: `data/bookhatball-schema.json`.
+
+We have converted the Facebook [data](https://github.com/facebookresearch/end-to-end-negotiator/tree/master/src/data/negotiate) into our [JSON format](../README.md#examples-and-datasets):
+`data/{train,val,test}.json`.
+
+## Building the bot
+
+### Use the modular approach
+The modular framework consists of three parts: the parser, the manager, and the generator.
+
+#### 1. Parse the training dialogues.
+Parse both training and validation data.
 ```
-PYTHONPATH=. python ../scripts/visualize_transcripts.py \
---dialogue-transcripts <path_to_transcripts.json> --survey-transcripts <path_to_surveys.json> \
---html-output <path_to_transcripts.html> --img-path images \
---css-file ../chat_viewer/css/my.css
+PYTHONPATH=. python parse_dialogue.py --transcripts data/train.json --max-examples -1 --templates-output templates.pkl --model-output model.pkl --transcripts-output data/train-parsed.json
+PYTHONPATH=. python parse_dialogue.py --transcripts data/val.json --max-examples -1 --templates-output templates.pkl --model-output model.pkl --transcripts-output data/val-parsed.json
 ```
+
+#### 2. Learning the manager.
+We train a seq2seq model over the coarse dialogue acts using parsed data.
+```
+mkdir -p mappings/lf2lf;
+mkdir -p cache/lf2lf;
+mkdir -p checkpoint/lf2lf;
+PYTHONPATH=. python main.py --schema-path data/bookhatball-schema.json --train-examples-paths data/train-parsed.json --test-examples-paths data/val-parsed.json \
+--model lf2lf \
+--model-path checkpoint/lf2lf --mappings mappings/lf2lf \
+--word-vec-size 200 --pretrained-wordvec '' '' --kb-embed-size 200 \
+--rnn-size 200 --rnn-type LSTM --global-attention multibank_general \
+--enc-layers 2 --dec-layers 2 \
+--num-context 2 \
+--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
+--epochs 15 --report-every 500 \
+--cache cache/lf2lf \
+--verbose
+```
+
+#### <a name=rl>3. Finetune the manager with reinforcement learning.</a>
+Generate self-play dialogues using the above learned policy and
+run REINFORCE with a given reward function.
+
+First, let's generate the training and validation scenarios.
+We will directly get those from the training and validation data.
+```
+PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/train.json --scenarios data/train-scenarios.json
+PYTHONPATH=. python ../scripts/chat_to_scenarios.py --chats data/val.json --scenarios data/val-scenarios.json
+```
+Now, we can run self-play and REINFORCE with a reward function, e.g. `margin`.
+```
+mkdir checkpoint/lf2lf-margin;
+PYTHONPATH=. python reinforce.py --schema-path data/craigslist-schema.json \
+--scenarios-path data/train-scenarios.json \
+--valid-scenarios-path data/dev-scenarios.json \
+--agent-checkpoints checkpoint/lf2lf/model_best.pt checkpoint/lf2lf/model_best.pt \
+--model-path checkpoint/lf2lf-margin \
+--optim adagrad --learning-rate 0.001 \
+--agents pt-neural pt-neural \
+--report-every 500 --max-turns 20 --num-dialogues 5000 \
+--sample --temperature 0.5 --max-length 20 --reward margin
+```
+- `--reward`: `margin` (utility), `fair` (fairness), and `length` (length).
+- `--agents`: agent types 

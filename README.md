@@ -19,7 +19,7 @@ Empirical Methods in Natural Language Processing (EMNLP), 2018.
 
 ----------
 ## Installation
-**Dependencies**: Python2.7, PyTorch 0.4.
+**Dependencies**: Python 2.7, PyTorch 0.4.
 
 **NOTE**: MutualFriends still depends on Tensorflow 1.2 and uses different leanring modules.
 
