@@ -17,11 +17,15 @@ Association for Computational Linguistics (ACL), 2017.
 He He, Derek Chen, Anusha Balakrishnan and Percy Liang.
 Empirical Methods in Natural Language Processing (EMNLP), 2018.
 
+**Note**:
+We have not fully integrated the MutualFriends task with the `cocoa` package.
+For now please refer to the `mutualfriends` branch for the ACL 2017 paper.
+
 ----------
 ## Installation
 **Dependencies**: Python 2.7, PyTorch 0.4.
 
-**NOTE**: MutualFriends still depends on Tensorflow 1.2 and uses different leanring modules.
+**NOTE**: MutualFriends still depends on Tensorflow 1.2 and uses different leanring modules. See details on the `mutualfriends` branch.
 
 ```
 pip install -r requirements.txt
