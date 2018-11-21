@@ -13,7 +13,6 @@ from torch import cuda
 
 from cocoa.io.utils import read_json, write_json, read_pickle, write_pickle, create_path
 from cocoa.core.schema import Schema
-from cocoa.lib import logstats
 from cocoa.neural.trainer import Statistics
 from cocoa.neural.utterance import UtteranceBuilder
 import cocoa.options
@@ -99,7 +98,7 @@ def report_func(opt, epoch, batch, num_batches, start_time, report_stats):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--random-seed', help='Random seed', type=int, default=1)
-    parser.add_argument('--stats-file', help='Path to save json statistics (dataset, training etc.) file')
+    parser.add_argument('--stats-file', default='stats.json', help='Path to save json statistics (dataset, training etc.) file')
     parser.add_argument('--test', default=False, action='store_true', help='Test mode')
     parser.add_argument('--eval-output', default=None, help='JSON file to save evaluation results')
     parser.add_argument('--best', default=False, action='store_true', help='Test using the best model on dev set')
@@ -110,9 +109,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     random.seed(args.random_seed)
-    create_path(args.stats_file)
-    logstats.init(args.stats_file, args.verbose)
-    logstats.add_args('config', args)
     model_args = args
 
     if torch.cuda.is_available() and not args.gpuid:
@@ -131,9 +127,6 @@ if __name__ == '__main__':
     if args.verbose:
         print("Finished loading and pre-processing data, took {:.1f} seconds".format(tm.time() - loading_timer))
 
-    for d, n in data_generator.num_examples.iteritems():
-        logstats.add('data', d, 'num_dialogues', n)
-
     # Preview a batch of data
     # train_data = data_generator.generator('train')
     # num_batches = train_data.next()
@@ -141,8 +134,6 @@ if __name__ == '__main__':
     #    for batch in batch_dialogue['batch_seq']:
     #        data_generator.dialogue_batcher.print_batch(batch, i, data_generator.textint_map)
     #        import sys; sys.exit()
-
-    logstats.add_args('model_args', model_args)
 
     # TODO: load from checkpoint
     ckpt = None
