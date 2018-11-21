@@ -21,7 +21,7 @@ import cocoa.options
 import onmt
 from onmt.Utils import use_gpu
 
-from neural.loss import FBnegLossCompute, SimpleLossCompute
+from neural.loss import SimpleLossCompute
 from neural import get_data_generator, make_model_mappings
 from neural import model_builder
 from neural.trainer import Trainer
