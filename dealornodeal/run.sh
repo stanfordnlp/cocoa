@@ -1,18 +1,17 @@
-# PYTHONPATH=. python ../scripts/generate_dataset.py \
-#     --schema-path data/bookhatball-schema.json \
-#     --scenarios-path data/toy-scenarios.json \
-#     --train-examples-paths data/toy-transcripts.json \
-#     --train-max-examples 1 --test-max-examples 0 --max-turns 20 \
-#     --agents rulebased cmd \
-#     --verbose --random-seed 8
-
-PYTHONPATH=. python web/chat_app.py --port 1414 \
-    --schema-path data/bookhatball-schema.json \
-    --config web/app_params.json --scenarios-path data/test-scenarios.json \
-    --output web/output
-
-# PYTHONPATH=. python ../scripts/visualize_transcripts.py \
-#     --dialogue-transcripts web/output/transcripts/transcripts.json \
-#     --survey-transcripts web/output/transcripts/surveys.json \
-#     --html-output web/output/transcripts/transcripts.html \
-#     --img-path images --css-file ../chat_viewer/css/my.css --task fb-neg
+PYTHONPATH=. python main.py \
+--schema-path data/bookhatball-schema.json \
+--train-examples-paths scr/data/train-parsed.json \
+--test-examples-paths scr/data/val-parsed.json \
+--model lf2lf \
+--model-path checkpoint/lf2lf \
+--mappings mappings/lf2lf \
+--word-vec-size 200 \
+--pretrained-wordvec '' '' \
+--kb-embed-size 200 \
+--rnn-size 200 --rnn-type LSTM --global-attention multibank_general \
+--enc-layers 2 --dec-layers 2 \
+--num-context 2 \
+--batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
+--epochs 15 --report-every 500 \
+--cache cache/lf2lf \
+--verbose --ignore-cache

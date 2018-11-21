@@ -49,7 +49,7 @@ PYTHONPATH=. python main.py --schema-path data/bookhatball-schema.json --train-e
 --batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
 --epochs 15 --report-every 500 \
 --cache cache/lf2lf \
---verbose
+--verbose --ignore-cache
 ```
 
 #### <a name=rl>3. Finetune the manager with reinforcement learning.</a>

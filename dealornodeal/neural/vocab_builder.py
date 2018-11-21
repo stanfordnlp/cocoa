@@ -29,9 +29,6 @@ def build_lf_vocab(dialogues):
 def create_mappings(dialogues, schema, entity_forms):
     utterance_vocab = build_utterance_vocab(dialogues, sequence_markers, entity_forms)
     kb_vocab = build_kb_vocab(dialogues)
-    kb_vocab.dump()
-    # lf_vocab = build_lf_vocab(dialogues)
     return {'utterance_vocab': utterance_vocab,
             'kb_vocab': kb_vocab,
             }
-            # 'lf_vocab': lf_vocab,
