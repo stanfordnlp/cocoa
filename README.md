@@ -23,7 +23,7 @@ For now please refer to the `mutualfriends` branch for the ACL 2017 paper.
 
 ----------
 ## Installation
-**Dependencies**: Python 2.7, PyTorch 0.4.
+**Dependencies**: Python 2.7, PyTorch 0.4.1.
 
 **NOTE**: MutualFriends still depends on Tensorflow 1.2 and uses different leanring modules. See details on the `mutualfriends` branch.
 
