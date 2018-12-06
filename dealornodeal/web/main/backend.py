@@ -12,7 +12,6 @@ from cocoa.analysis.utils import get_total_turns
 from utils import Messages
 from db_reader import DatabaseReader
 from core.event import Event
-# from analysis.analyze_strategy import StrategyAnalyzer
 
 class DatabaseManager(BaseDatabaseManager):
     @classmethod
