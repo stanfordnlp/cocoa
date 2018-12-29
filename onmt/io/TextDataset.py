@@ -2,7 +2,6 @@
 
 from collections import Counter
 from itertools import chain
-import io
 import codecs
 import sys
 
@@ -297,6 +296,7 @@ class ShardedTextCorpusIterator(object):
                         this iterator should align its step with.
         """
         try:
+            import io
             # The codecs module seems to have bugs with seek()/tell(),
             # so we use io.open().
             self.corpus = io.open(corpus_path, "r", encoding="utf-8")
