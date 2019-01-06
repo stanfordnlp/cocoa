@@ -17,6 +17,19 @@ def add_scenario_arguments(parser):
 
 
 # =============== model ===============
+def add_logging_arguments(parser):
+    group.add_argument('--report-every', type=int, default=5,
+                       help="Print stats at this many batch intervals")
+    group.add_argument('--model-filename', default='model',
+                       help="""Model filename (the model will be saved as
+                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
+                       the perplexity and E is the epoch""")
+    group.add_argument('--model-path', default='data/checkpoints',
+                       help="""Which file the model checkpoints will be saved""")
+    group.add_argument('--start-checkpoint-at', type=int, default=0,
+                       help="""Start checkpointing every epoch after and including
+                       this epoch""")
+
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')
 
@@ -62,17 +75,7 @@ def add_trainer_arguments(parser):
                        https://arxiv.org/abs/1512.00567""")
 
     # Logging
-    group.add_argument('--report-every', type=int, default=5,
-                       help="Print stats at this many batch intervals")
-    group.add_argument('--model-filename', default='model',
-                       help="""Model filename (the model will be saved as
-                       <filename>_acc_ppl_e.pt where ACC is accuracy, PPL is
-                       the perplexity and E is the epoch""")
-    group.add_argument('--model-path', default='data/checkpoints',
-                       help="""Which file the model checkpoints will be saved""")
-    group.add_argument('--start-checkpoint-at', type=int, default=0,
-                       help="""Start checkpointing every epoch after and including
-                       this epoch""")
+    add_logging_arguments(parser)
 
 def add_rl_arguments(parser):
     group = parser.add_argument_group('Reinforce')
@@ -88,8 +91,6 @@ def add_rl_arguments(parser):
     group = parser.add_argument_group('Training')
     group.add_argument('--optim', default='sgd', help="""Optimization method.""",
                        choices=['sgd', 'adagrad', 'adadelta', 'adam'])
-    group.add_argument('--report-every', type=int, default=5,
-                       help="Print stats at this many batch intervals")
     group.add_argument('--epochs', type=int, default=14,
                        help='Number of training epochs')
     group.add_argument('--batch-size', type=int, default=64,
@@ -100,8 +101,9 @@ def add_rl_arguments(parser):
     group.add_argument('--learning-rate', type=float, default=1.0,
                        help="""Starting learning rate. Recommended settings:
                        sgd = 1, adagrad = 0.1, adadelta = 1, adam = 0.001""")
-    group.add_argument('--model-path', default='data/checkpoints',
-                       help="""Which file the model checkpoints will be saved""")
+
+    # Logging
+    add_logging_arguments(parser)
 
 
 def add_generator_arguments(parser):
