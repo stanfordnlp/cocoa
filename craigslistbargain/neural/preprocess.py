@@ -449,10 +449,11 @@ class DataGenerator(object):
         else:
             print 'Loading vocab from', vocab_path
             mappings = read_pickle(vocab_path)
-            for k, v in mappings.iteritems():
-                print k, v.size
-            mappings = make_model_mappings(model_type, mappings)
-            return mappings
+
+        for k, v in mappings.iteritems():
+            print k, v.size
+        mappings = make_model_mappings(model_type, mappings)
+        return mappings
 
     def convert_to_int(self):
         '''

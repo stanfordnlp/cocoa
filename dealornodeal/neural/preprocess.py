@@ -381,15 +381,15 @@ class DataGenerator(object):
             mappings = create_mappings(self.dialogues['train'], schema,
                 preprocessor.entity_forms.values())
             write_pickle(mappings, vocab_path)
-            print('Wrote mappings to {}, now exiting.'.format(vocab_path))
-            import sys; sys.exit()
+            print('Wrote mappings to {}'.format(vocab_path))
         else:
             print 'Loading vocab from', vocab_path
             mappings = read_pickle(vocab_path)
-            for k, v in mappings.iteritems():
-                print k, v.size
-            mappings = make_model_mappings(model_type, mappings)
-            return mappings
+
+        for k, v in mappings.iteritems():
+            print k, v.size
+        mappings = make_model_mappings(model_type, mappings)
+        return mappings
 
     def convert_to_int(self):
         '''
