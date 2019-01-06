@@ -83,7 +83,7 @@ PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-ex
 --num-context 2 --stateful \
 --batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01 \
 --epochs 15 --report-every 500 \
---cache cache/lf2lf \
+--cache cache/lf2lf --ignore-cache \
 --verbose
 ```
 
@@ -150,7 +150,7 @@ PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-ex
 --batch-size 128 --gpuid 0 --optim adagrad --learning-rate 0.01  \
 --report-every 500 \
 --epochs 15 \
---cache cache/seq2seq \
+--cache cache/seq2seq --ignore-cache \
 --verbose
 ```
 
