@@ -18,6 +18,7 @@ def add_scenario_arguments(parser):
 
 # =============== model ===============
 def add_logging_arguments(parser):
+    group = parser.add_argument_group('Logging')
     group.add_argument('--report-every', type=int, default=5,
                        help="Print stats at this many batch intervals")
     group.add_argument('--model-filename', default='model',
