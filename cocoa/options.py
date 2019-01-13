@@ -30,6 +30,8 @@ def add_logging_arguments(parser):
     group.add_argument('--start-checkpoint-at', type=int, default=0,
                        help="""Start checkpointing every epoch after and including
                        this epoch""")
+    group.add_argument('--best-only', action='store_true',
+                       help="Only store the best checkpoint")
 
 def add_trainer_arguments(parser):
     group = parser.add_argument_group('Training')

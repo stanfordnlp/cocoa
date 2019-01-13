@@ -219,8 +219,9 @@ class Trainer(object):
         }
         path = self.checkpoint_path(epoch, opt, valid_stats)
         create_path(path)
-        print 'Save checkpoint {path}'.format(path=path)
-        torch.save(checkpoint, path)
+        if not opt.best_only:
+            print 'Save checkpoint {path}'.format(path=path)
+            torch.save(checkpoint, path)
 
         self.save_best_checkpoint(checkpoint, opt, valid_stats)
 
