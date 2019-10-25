@@ -156,8 +156,7 @@ PYTHONPATH=. python main.py --schema-path data/craigslist-schema.json --train-ex
 
 #### 3. Finetune with RL.
 See [finetuning](#rl) in the modular framework.
-We just need to change the agent type to `--agents hybrid hybrid`
-and the model path to `--model-path checkpoint/seq2seq`.
+We just need to change the the model path to `--model-path checkpoint/seq2seq`.
 
 ## Chat with the bot
 Chat with the bot in the command line interface:
