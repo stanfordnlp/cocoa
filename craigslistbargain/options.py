@@ -1,4 +1,5 @@
 import cocoa.options
+from datetime import datetime
 
 # =============== core ===============
 def add_price_tracker_arguments(parser):
