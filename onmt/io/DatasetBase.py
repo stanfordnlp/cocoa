@@ -43,8 +43,8 @@ class ONMTDatasetBase(torchtext.data.Dataset):
         from onmt.io.IO import load_fields_from_vocab
 
         fields = load_fields_from_vocab(vocab_dict.items(), self.data_type)
-        self.fields = dict([(k, f) for (k, f) in fields.items()
-                           if k in self.examples[0].__dict__])
+        self.fields = {k: f for (k, f) in fields.items()
+                           if k in self.examples[0].__dict__}
 
     @staticmethod
     def extract_text_features(tokens):
