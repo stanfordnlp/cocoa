@@ -1,5 +1,6 @@
 import re
 import numpy as np
+import nltk
 from nltk import ngrams
 from nltk.corpus import stopwords
 from collections import defaultdict
@@ -11,6 +12,7 @@ from cocoa.model.parser import Parser as BaseParser, LogicalForm as LF, Utteranc
 from core.tokenizer import tokenize
 
 class Parser(BaseParser):
+    nltk.download('stopwords')
     stopwords = set(stopwords.words('english'))
     stopwords.update(['may', 'might', 'rent', 'new', 'brand', 'low', 'high', 'now', 'available'])
 
